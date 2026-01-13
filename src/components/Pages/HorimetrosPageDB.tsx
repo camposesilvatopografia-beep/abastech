@@ -47,7 +47,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
-import { format, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
+import { format, startOfMonth, endOfMonth, isWithinInterval, subDays, startOfDay, endOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -64,7 +64,10 @@ export function HorimetrosPageDB() {
 
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState<'resumo' | 'detalhes'>('resumo');
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
+  const [startDate, setStartDate] = useState<Date | undefined>(undefined);
+  const [endDate, setEndDate] = useState<Date | undefined>(undefined);
+  const [periodFilter, setPeriodFilter] = useState('todos');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [vehicleFilter, setVehicleFilter] = useState<string>('all');
   const [showNewModal, setShowNewModal] = useState(false);
@@ -86,7 +89,37 @@ export function HorimetrosPageDB() {
 
   const clearDateFilter = () => {
     setSelectedDate(undefined);
+    setStartDate(undefined);
+    setEndDate(undefined);
+    setPeriodFilter('todos');
   };
+
+  // Get date range based on period filter
+  const dateRange = useMemo(() => {
+    const today = startOfDay(new Date());
+    
+    switch (periodFilter) {
+      case 'hoje':
+        return { start: today, end: endOfDay(today) };
+      case 'ontem':
+        const yesterday = subDays(today, 1);
+        return { start: yesterday, end: endOfDay(yesterday) };
+      case '7dias':
+        return { start: subDays(today, 6), end: endOfDay(today) };
+      case '30dias':
+        return { start: subDays(today, 29), end: endOfDay(today) };
+      case 'mes':
+        return { start: startOfMonth(today), end: endOfMonth(today) };
+      case 'personalizado':
+        return { 
+          start: startDate ? startOfDay(startDate) : subDays(today, 30), 
+          end: endDate ? endOfDay(endDate) : endOfDay(today) 
+        };
+      case 'todos':
+      default:
+        return null;
+    }
+  }, [periodFilter, startDate, endDate]);
 
   // Filtered readings
   const filteredReadings = useMemo(() => {
@@ -110,16 +143,21 @@ export function HorimetrosPageDB() {
         matchesVehicle = reading.vehicle_id === vehicleFilter;
       }
 
-      // Date filter - single date only
+      // Date filter - period range or single date
       let matchesDate = true;
+      const readingDate = new Date(reading.reading_date + 'T00:00:00');
+      
       if (selectedDate) {
-        const readingDate = new Date(reading.reading_date + 'T00:00:00');
+        // Single date selected takes priority
         matchesDate = format(readingDate, 'yyyy-MM-dd') === format(selectedDate, 'yyyy-MM-dd');
+      } else if (dateRange) {
+        // Use period range
+        matchesDate = isWithinInterval(readingDate, { start: dateRange.start, end: dateRange.end });
       }
 
       return matchesSearch && matchesDate && matchesCategory && matchesVehicle;
     });
-  }, [readings, search, selectedDate, categoryFilter, vehicleFilter]);
+  }, [readings, search, selectedDate, dateRange, categoryFilter, vehicleFilter]);
 
   // Metrics
   const metrics = useMemo(() => {
@@ -353,33 +391,99 @@ export function HorimetrosPageDB() {
         </div>
 
         {/* Date Filter */}
-        <div className="flex flex-col md:flex-row gap-3 items-start md:items-center">
-          <div className="flex gap-2 items-center">
+        <div className="flex flex-col md:flex-row gap-3 items-start md:items-center flex-wrap">
+          <div className="flex gap-2 items-center flex-wrap">
+            <Select value={periodFilter} onValueChange={(value) => {
+              setPeriodFilter(value);
+              if (value !== 'personalizado') {
+                setSelectedDate(undefined);
+              }
+            }}>
+              <SelectTrigger className="w-[140px]">
+                <SelectValue placeholder="Período" />
+              </SelectTrigger>
+              <SelectContent className="bg-background">
+                <SelectItem value="todos">Todos</SelectItem>
+                <SelectItem value="hoje">Hoje</SelectItem>
+                <SelectItem value="ontem">Ontem</SelectItem>
+                <SelectItem value="7dias">Últimos 7 dias</SelectItem>
+                <SelectItem value="30dias">Últimos 30 dias</SelectItem>
+                <SelectItem value="mes">Este mês</SelectItem>
+                <SelectItem value="personalizado">Personalizado</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {periodFilter === 'personalizado' && (
+              <>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm">
+                      <Calendar className="w-4 h-4 mr-2" />
+                      {startDate ? format(startDate, 'dd/MM/yyyy') : 'Data início'}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0 bg-background" align="start">
+                    <CalendarComponent
+                      mode="single"
+                      selected={startDate}
+                      onSelect={setStartDate}
+                      locale={ptBR}
+                    />
+                  </PopoverContent>
+                </Popover>
+                <span className="text-sm text-muted-foreground">até</span>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm">
+                      <Calendar className="w-4 h-4 mr-2" />
+                      {endDate ? format(endDate, 'dd/MM/yyyy') : 'Data fim'}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0 bg-background" align="start">
+                    <CalendarComponent
+                      mode="single"
+                      selected={endDate}
+                      onSelect={setEndDate}
+                      locale={ptBR}
+                    />
+                  </PopoverContent>
+                </Popover>
+              </>
+            )}
+
             <Button 
               variant={selectedDate && format(selectedDate, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd') ? 'default' : 'outline'} 
               size="sm" 
-              onClick={() => setSelectedDate(new Date())}
+              onClick={() => {
+                setSelectedDate(new Date());
+                setPeriodFilter('hoje');
+              }}
             >
               Hoje
             </Button>
+            
             <Popover>
               <PopoverTrigger asChild>
                 <Button variant="outline" size="sm">
                   <Calendar className="w-4 h-4 mr-2" />
-                  {selectedDate ? format(selectedDate, 'dd/MM/yyyy') : 'Selecionar Data'}
+                  {selectedDate ? format(selectedDate, 'dd/MM/yyyy') : 'Data específica'}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0 bg-background" align="start">
                 <CalendarComponent
                   mode="single"
                   selected={selectedDate}
-                  onSelect={setSelectedDate}
+                  onSelect={(date) => {
+                    setSelectedDate(date);
+                    if (date) setPeriodFilter('personalizado');
+                  }}
                   locale={ptBR}
                 />
               </PopoverContent>
             </Popover>
-            {selectedDate && (
-              <Button variant="ghost" size="sm" onClick={clearDateFilter} title="Mostrar todos">
+            
+            {(selectedDate || periodFilter !== 'todos') && (
+              <Button variant="ghost" size="sm" onClick={clearDateFilter} title="Limpar filtros">
                 <X className="w-4 h-4" />
               </Button>
             )}
