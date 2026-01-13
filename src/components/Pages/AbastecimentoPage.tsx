@@ -19,7 +19,8 @@ import {
   TrendingUp,
   TrendingDown,
   AlertTriangle,
-  CheckCircle
+  CheckCircle,
+  Download
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -51,6 +52,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 
 const SHEET_NAME = 'AbastecimentoCanteiro01';
 const GERAL_SHEET = 'GERAL';
+const SANEAMENTO_STOCK_SHEET = 'estoqueobrasaneamento';
 
 const TABS = [
   { id: 'resumo', label: 'Resumo', icon: BarChart3 },
@@ -87,9 +89,16 @@ function parseDate(dateStr: string): Date | null {
   return isValid(parsed) ? parsed : null;
 }
 
+function parseNumber(value: any): number {
+  if (!value) return 0;
+  const str = String(value).replace(/\./g, '').replace(',', '.');
+  return parseFloat(str) || 0;
+}
+
 export function AbastecimentoPage() {
   const { data, loading, refetch } = useSheetData(SHEET_NAME);
   const { data: geralData } = useSheetData(GERAL_SHEET);
+  const { data: saneamentoStockData } = useSheetData(SANEAMENTO_STOCK_SHEET);
   const [activeTab, setActiveTab] = useState('resumo');
   const [search, setSearch] = useState('');
   const [localFilter, setLocalFilter] = useState('all');
@@ -103,11 +112,21 @@ export function AbastecimentoPage() {
   // Get current stock from GERAL sheet (column G - EstoqueAtual)
   const estoqueAtual = useMemo(() => {
     if (!geralData.rows.length) return 0;
-    // Look for EstoqueAtual in the first row or sum all values
-    const firstRow = geralData.rows[0];
-    const estoqueValue = firstRow?.['EstoqueAtual'] || firstRow?.['ESTOQUEATO'] || firstRow?.['Estoque'] || firstRow?.['estoque'] || 0;
-    return parseFloat(String(estoqueValue).replace(',', '.')) || 0;
+    const lastRow = geralData.rows[geralData.rows.length - 1];
+    const estoqueValue = lastRow?.['EstoqueAtual'] || 0;
+    return parseNumber(estoqueValue);
   }, [geralData.rows]);
+
+  // Get saneamento stock from estoqueobrasaneamento sheet (column H)
+  const estoqueSaneamento = useMemo(() => {
+    if (!saneamentoStockData.rows.length) return 0;
+    const lastRow = saneamentoStockData.rows[saneamentoStockData.rows.length - 1];
+    // Column H is typically index 7 (0-based), or look for specific column name
+    const headers = saneamentoStockData.headers;
+    const colHIndex = headers.length > 7 ? headers[7] : null;
+    const estoqueValue = colHIndex ? lastRow?.[colHIndex] : lastRow?.['EstoqueAtual'] || lastRow?.['Estoque'] || 0;
+    return parseNumber(estoqueValue);
+  }, [saneamentoStockData.rows, saneamentoStockData.headers]);
 
   // Get date range based on period filter
   const dateRange = useMemo(() => {
@@ -177,9 +196,9 @@ export function AbastecimentoPage() {
     let registros = 0;
 
     filteredRows.forEach(row => {
-      const quantidade = parseFloat(String(row['QUANTIDADE'] || '0').replace(',', '.')) || 0;
-      const arla = parseFloat(String(row['QUANTIDADE DE ARLA'] || '0').replace(',', '.')) || 0;
-      const valor = parseFloat(String(row['VALOR TOTAL'] || '0').replace(',', '.')) || 0;
+      const quantidade = parseNumber(row['QUANTIDADE']);
+      const arla = parseNumber(row['QUANTIDADE DE ARLA']);
+      const valor = parseNumber(row['VALOR TOTAL']);
       
       totalQuantidade += quantidade;
       totalArla += arla;
@@ -230,9 +249,9 @@ export function AbastecimentoPage() {
     
     filteredRows.forEach(row => {
       const local = String(row['LOCAL'] || 'Não informado').trim() || 'Não informado';
-      const quantidade = parseFloat(String(row['QUANTIDADE'] || '0').replace(',', '.')) || 0;
-      const arlaQtd = parseFloat(String(row['QUANTIDADE DE ARLA'] || '0').replace(',', '.')) || 0;
-      const valor = parseFloat(String(row['VALOR TOTAL'] || '0').replace(',', '.')) || 0;
+      const quantidade = parseNumber(row['QUANTIDADE']);
+      const arlaQtd = parseNumber(row['QUANTIDADE DE ARLA']);
+      const valor = parseNumber(row['VALOR TOTAL']);
       
       if (!summary[local]) {
         summary[local] = { abastecimentos: 0, diesel: 0, arla: 0, valor: 0 };
@@ -255,44 +274,87 @@ export function AbastecimentoPage() {
     return { entries, total };
   }, [filteredRows]);
 
-  // Saneamento data - identify issues
-  const saneamentoData = useMemo(() => {
-    const issues: Array<{ tipo: string; descricao: string; registro: any; severity: 'error' | 'warning' }> = [];
-    
-    filteredRows.forEach(row => {
-      const quantidade = parseFloat(String(row['QUANTIDADE'] || '0').replace(',', '.')) || 0;
-      const horimetroAnt = parseFloat(String(row['HORIMETRO ANTERIOR'] || '0').replace(',', '.')) || 0;
-      const horimetroAtual = parseFloat(String(row['HORIMETRO ATUAL'] || '0').replace(',', '.')) || 0;
-      const kmAnt = parseFloat(String(row['KM ANTERIOR'] || '0').replace(',', '.')) || 0;
-      const kmAtual = parseFloat(String(row['KM ATUAL'] || '0').replace(',', '.')) || 0;
-      
-      if (quantidade <= 0) {
-        issues.push({ tipo: 'Quantidade', descricao: 'Quantidade zerada ou negativa', registro: row, severity: 'error' });
-      }
-      if (horimetroAtual > 0 && horimetroAtual < horimetroAnt) {
-        issues.push({ tipo: 'Horímetro', descricao: 'Horímetro atual menor que anterior', registro: row, severity: 'error' });
-      }
-      if (kmAtual > 0 && kmAtual < kmAnt) {
-        issues.push({ tipo: 'KM', descricao: 'KM atual menor que anterior', registro: row, severity: 'error' });
-      }
-      if (!row['MOTORISTA']) {
-        issues.push({ tipo: 'Motorista', descricao: 'Motorista não informado', registro: row, severity: 'warning' });
-      }
-      if (!row['VEICULO']) {
-        issues.push({ tipo: 'Veículo', descricao: 'Veículo não informado', registro: row, severity: 'warning' });
-      }
+  // Saneamento data - filter for "Obra Saneamento"
+  const saneamentoFilteredData = useMemo(() => {
+    return data.rows.filter(row => {
+      const obra = String(row['OBRA'] || row['Obra'] || '').toLowerCase();
+      return obra.includes('saneamento');
     });
-    
-    return issues;
-  }, [filteredRows]);
+  }, [data.rows]);
 
-  // Entries data (entradas)
-  const entradasData = useMemo(() => {
-    return filteredRows.filter(row => {
-      const tipo = String(row['TIPO'] || '').toLowerCase();
-      return tipo.includes('entrada') || tipo.includes('recebimento') || tipo.includes('compra');
+  // Saneamento summary by vehicle
+  const saneamentoSummary = useMemo(() => {
+    const summary: Record<string, { abastecimentos: number; diesel: number; arla: number }> = {};
+    
+    saneamentoFilteredData.forEach(row => {
+      const veiculo = String(row['VEICULO'] || row['Veiculo'] || 'Não informado').trim();
+      const quantidade = parseNumber(row['QUANTIDADE']);
+      const arlaQtd = parseNumber(row['QUANTIDADE DE ARLA']);
+      
+      if (!summary[veiculo]) {
+        summary[veiculo] = { abastecimentos: 0, diesel: 0, arla: 0 };
+      }
+      
+      summary[veiculo].abastecimentos++;
+      summary[veiculo].diesel += quantidade;
+      summary[veiculo].arla += arlaQtd;
     });
-  }, [filteredRows]);
+
+    const entries = Object.entries(summary).sort((a, b) => b[1].diesel - a[1].diesel);
+    const total = entries.reduce((acc, [, v]) => ({
+      abastecimentos: acc.abastecimentos + v.abastecimentos,
+      diesel: acc.diesel + v.diesel,
+      arla: acc.arla + v.arla
+    }), { abastecimentos: 0, diesel: 0, arla: 0 });
+
+    return { entries, total };
+  }, [saneamentoFilteredData]);
+
+  // Entries data - filter by supplier entries and group by location (Tanque 01, Tanque 02)
+  const entradasData = useMemo(() => {
+    const entries = data.rows.filter(row => {
+      const tipo = String(row['TIPO'] || '').toLowerCase();
+      const fornecedor = String(row['FORNECEDOR'] || '').trim();
+      return (tipo.includes('entrada') || tipo.includes('recebimento') || tipo.includes('compra') || fornecedor);
+    });
+
+    // Group by entry location (Tanque)
+    const byLocation: Record<string, { registros: any[]; total: number }> = {};
+    
+    entries.forEach(row => {
+      const local = String(row['LOCAL'] || row['TANQUE'] || 'Não informado').trim();
+      const quantidade = parseNumber(row['QUANTIDADE']);
+      
+      if (!byLocation[local]) {
+        byLocation[local] = { registros: [], total: 0 };
+      }
+      byLocation[local].registros.push(row);
+      byLocation[local].total += quantidade;
+    });
+
+    return { entries, byLocation };
+  }, [data.rows]);
+
+  // Summary of supplier entries
+  const entradasPorFornecedor = useMemo(() => {
+    const summary: Record<string, { quantidade: number; valor: number; registros: number }> = {};
+    
+    entradasData.entries.forEach(row => {
+      const fornecedor = String(row['FORNECEDOR'] || 'Não informado').trim();
+      const quantidade = parseNumber(row['QUANTIDADE']);
+      const valor = parseNumber(row['VALOR TOTAL']);
+      
+      if (!summary[fornecedor]) {
+        summary[fornecedor] = { quantidade: 0, valor: 0, registros: 0 };
+      }
+      
+      summary[fornecedor].quantidade += quantidade;
+      summary[fornecedor].valor += valor;
+      summary[fornecedor].registros++;
+    });
+
+    return Object.entries(summary).sort((a, b) => b[1].quantidade - a[1].quantidade);
+  }, [entradasData.entries]);
 
   // Clear period filter
   const clearPeriod = useCallback(() => {
@@ -301,7 +363,73 @@ export function AbastecimentoPage() {
     setEndDate(new Date());
   }, []);
 
-  // Export to PDF
+  // Export detailed PDF with filters
+  const exportDetailedPDF = useCallback(() => {
+    setIsExporting(true);
+    
+    try {
+      const doc = new jsPDF();
+      const pageWidth = doc.internal.pageSize.getWidth();
+      
+      // Title
+      doc.setFontSize(18);
+      doc.text('Relatório Detalhado de Abastecimento', pageWidth / 2, 20, { align: 'center' });
+      
+      // Subtitle with date range and filters
+      doc.setFontSize(10);
+      doc.text(`Período: ${format(dateRange.start, 'dd/MM/yyyy')} - ${format(dateRange.end, 'dd/MM/yyyy')}`, pageWidth / 2, 28, { align: 'center' });
+      doc.text(`Gerado em: ${format(new Date(), 'dd/MM/yyyy HH:mm')}`, pageWidth / 2, 34, { align: 'center' });
+      
+      // Active filters
+      let filterText = 'Filtros: ';
+      if (localFilter !== 'all') filterText += `Local: ${localFilter} | `;
+      if (tipoFilter !== 'all') filterText += `Tipo: ${tipoFilter} | `;
+      if (combustivelFilter !== 'all') filterText += `Combustível: ${combustivelFilter} | `;
+      if (search) filterText += `Busca: ${search}`;
+      if (filterText !== 'Filtros: ') {
+        doc.setFontSize(9);
+        doc.text(filterText, 14, 42);
+      }
+      
+      // Metrics summary
+      doc.setFontSize(12);
+      doc.text('Resumo:', 14, 52);
+      doc.setFontSize(10);
+      doc.text(`Total de Registros: ${metrics.registros}`, 14, 60);
+      doc.text(`Total Diesel: ${metrics.totalQuantidade.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} L`, 14, 66);
+      doc.text(`Total Arla: ${metrics.totalArla.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} L`, 14, 72);
+      doc.text(`Valor Total: R$ ${metrics.totalValor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 14, 78);
+      doc.text(`Média por Abastecimento: ${metrics.mediaConsumo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} L`, 120, 60);
+      
+      // Table with all filtered data
+      const tableData = filteredRows.map(row => [
+        String(row['DATA'] || ''),
+        String(row['HORA'] || ''),
+        String(row['VEICULO'] || ''),
+        String(row['MOTORISTA'] || ''),
+        String(row['TIPO DE COMBUSTIVEL'] || ''),
+        parseNumber(row['QUANTIDADE']).toLocaleString('pt-BR') + ' L',
+        String(row['LOCAL'] || ''),
+        'R$ ' + parseNumber(row['VALOR TOTAL']).toLocaleString('pt-BR', { minimumFractionDigits: 2 })
+      ]);
+      
+      autoTable(doc, {
+        startY: 88,
+        head: [['Data', 'Hora', 'Veículo', 'Motorista', 'Combustível', 'Qtd', 'Local', 'Valor']],
+        body: tableData,
+        styles: { fontSize: 7 },
+        headStyles: { fillColor: [239, 125, 50] }
+      });
+      
+      doc.save(`abastecimento_detalhado_${format(new Date(), 'yyyyMMdd_HHmmss')}.pdf`);
+    } catch (error) {
+      console.error('Error exporting PDF:', error);
+    } finally {
+      setIsExporting(false);
+    }
+  }, [filteredRows, dateRange, metrics, localFilter, tipoFilter, combustivelFilter, search]);
+
+  // Export to PDF (simple)
   const exportPDF = useCallback(() => {
     setIsExporting(true);
     
@@ -334,7 +462,7 @@ export function AbastecimentoPage() {
         String(row['VEICULO'] || ''),
         String(row['MOTORISTA'] || ''),
         String(row['TIPO DE COMBUSTIVEL'] || ''),
-        parseFloat(String(row['QUANTIDADE'] || '0').replace(',', '.')).toLocaleString('pt-BR') + ' L',
+        parseNumber(row['QUANTIDADE']).toLocaleString('pt-BR') + ' L',
         String(row['LOCAL'] || '')
       ]);
       
@@ -654,108 +782,153 @@ export function AbastecimentoPage() {
         )}
 
         {activeTab === 'detalhamento' && (
-          <div className="bg-card rounded-lg border border-border overflow-hidden">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-muted/50">
-                  <TableHead>Data</TableHead>
-                  <TableHead>Hora</TableHead>
-                  <TableHead>Veículo</TableHead>
-                  <TableHead>Motorista</TableHead>
-                  <TableHead>Combustível</TableHead>
-                  <TableHead className="text-right">Quantidade</TableHead>
-                  <TableHead>Local</TableHead>
-                  <TableHead className="text-right">Valor</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {loading ? (
-                  <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8">
-                      <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-muted-foreground" />
-                      Carregando dados...
-                    </TableCell>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold">Detalhamento de Abastecimentos</h2>
+              <Button onClick={exportDetailedPDF} disabled={isExporting} className="gap-2">
+                <Download className="w-4 h-4" />
+                {isExporting ? 'Exportando...' : 'Exportar PDF Detalhado'}
+              </Button>
+            </div>
+            
+            <div className="bg-card rounded-lg border border-border overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/50">
+                    <TableHead>Data</TableHead>
+                    <TableHead>Hora</TableHead>
+                    <TableHead>Veículo</TableHead>
+                    <TableHead>Motorista</TableHead>
+                    <TableHead>Combustível</TableHead>
+                    <TableHead className="text-right">Quantidade</TableHead>
+                    <TableHead>Local</TableHead>
+                    <TableHead className="text-right">Valor</TableHead>
                   </TableRow>
-                ) : filteredRows.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
-                      Nenhum registro encontrado
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredRows.slice(0, 100).map((row, index) => (
-                    <TableRow key={row._rowIndex || index}>
-                      <TableCell>{row['DATA']}</TableCell>
-                      <TableCell>{row['HORA']}</TableCell>
-                      <TableCell className="font-medium">{row['VEICULO']}</TableCell>
-                      <TableCell>{row['MOTORISTA']}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{row['TIPO DE COMBUSTIVEL']}</Badge>
-                      </TableCell>
-                      <TableCell className="text-right font-medium">
-                        {parseFloat(String(row['QUANTIDADE'] || '0').replace(',', '.')).toLocaleString('pt-BR')} L
-                      </TableCell>
-                      <TableCell>{row['LOCAL']}</TableCell>
-                      <TableCell className="text-right">
-                        R$ {parseFloat(String(row['VALOR TOTAL'] || '0').replace(',', '.')).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </TableHeader>
+                <TableBody>
+                  {loading ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center py-8">
+                        <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-muted-foreground" />
+                        Carregando dados...
                       </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-            {filteredRows.length > 100 && (
-              <div className="p-4 text-center text-sm text-muted-foreground border-t">
-                Mostrando 100 de {filteredRows.length} registros
-              </div>
-            )}
+                  ) : filteredRows.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                        Nenhum registro encontrado
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredRows.slice(0, 100).map((row, index) => (
+                      <TableRow key={row._rowIndex || index}>
+                        <TableCell>{row['DATA']}</TableCell>
+                        <TableCell>{row['HORA']}</TableCell>
+                        <TableCell className="font-medium">{row['VEICULO']}</TableCell>
+                        <TableCell>{row['MOTORISTA']}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{row['TIPO DE COMBUSTIVEL']}</Badge>
+                        </TableCell>
+                        <TableCell className="text-right font-medium">
+                          {parseNumber(row['QUANTIDADE']).toLocaleString('pt-BR')} L
+                        </TableCell>
+                        <TableCell>{row['LOCAL']}</TableCell>
+                        <TableCell className="text-right">
+                          R$ {parseNumber(row['VALOR TOTAL']).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+              {filteredRows.length > 100 && (
+                <div className="p-4 text-center text-sm text-muted-foreground border-t">
+                  Mostrando 100 de {filteredRows.length} registros
+                </div>
+              )}
+            </div>
           </div>
         )}
 
         {activeTab === 'saneamento' && (
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <AlertTriangle className="w-5 h-5 text-warning" />
-                <h2 className="text-lg font-semibold">Problemas Detectados</h2>
-              </div>
-              <Badge variant={saneamentoData.length > 0 ? "destructive" : "outline"}>
-                {saneamentoData.length} problema{saneamentoData.length !== 1 ? 's' : ''}
-              </Badge>
+            {/* Saneamento KPIs */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <MetricCard
+                title="ESTOQUE OBRA SANEAMENTO"
+                value={`${estoqueSaneamento.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L`}
+                subtitle="Estoque atual"
+                variant="primary"
+                icon={Droplet}
+                className="border-l-4 border-l-blue-500"
+              />
+              <MetricCard
+                title="ABASTECIMENTOS SANEAMENTO"
+                value={saneamentoFilteredData.length.toString()}
+                subtitle="Total de registros"
+                variant="primary"
+                icon={Fuel}
+                className="border-l-4 border-l-amber-500"
+              />
+              <MetricCard
+                title="VEÍCULOS ATENDIDOS"
+                value={saneamentoSummary.entries.length.toString()}
+                subtitle="Veículos únicos"
+                variant="primary"
+                icon={TrendingUp}
+                className="border-l-4 border-l-emerald-500"
+              />
             </div>
 
-            {saneamentoData.length === 0 ? (
+            <div className="flex items-center gap-2">
+              <Droplet className="w-5 h-5 text-primary" />
+              <h2 className="text-lg font-semibold">Resumo de Abastecimentos - Obra Saneamento</h2>
+              <Badge variant="outline">{saneamentoFilteredData.length} registros</Badge>
+            </div>
+
+            {saneamentoFilteredData.length === 0 ? (
               <div className="bg-card rounded-lg border border-border p-8 text-center">
-                <CheckCircle className="w-12 h-12 text-success mx-auto mb-4" />
-                <h3 className="font-semibold text-lg mb-2">Tudo certo!</h3>
-                <p className="text-muted-foreground">Nenhum problema de saneamento encontrado no período selecionado.</p>
+                <Droplet className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="font-semibold text-lg mb-2">Nenhum registro encontrado</h3>
+                <p className="text-muted-foreground">Não há registros de abastecimento para Obra Saneamento.</p>
               </div>
             ) : (
               <div className="bg-card rounded-lg border border-border overflow-hidden">
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-muted/50">
-                      <TableHead>Severidade</TableHead>
-                      <TableHead>Tipo</TableHead>
-                      <TableHead>Descrição</TableHead>
                       <TableHead>Veículo</TableHead>
-                      <TableHead>Data</TableHead>
+                      <TableHead className="text-center">Abastecimentos</TableHead>
+                      <TableHead className="text-center">Diesel (L)</TableHead>
+                      <TableHead className="text-center">Arla (L)</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {saneamentoData.slice(0, 50).map((issue, index) => (
-                      <TableRow key={index}>
-                        <TableCell>
-                          <Badge variant={issue.severity === 'error' ? 'destructive' : 'outline'} className={issue.severity === 'warning' ? 'bg-warning/20 text-warning border-warning/30' : ''}>
-                            {issue.severity === 'error' ? 'Erro' : 'Aviso'}
-                          </Badge>
+                    {saneamentoSummary.entries.map(([veiculo, values]) => (
+                      <TableRow key={veiculo}>
+                        <TableCell className="font-medium">{veiculo}</TableCell>
+                        <TableCell className="text-center">{values.abastecimentos}</TableCell>
+                        <TableCell className="text-center">
+                          {values.diesel.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                         </TableCell>
-                        <TableCell className="font-medium">{issue.tipo}</TableCell>
-                        <TableCell>{issue.descricao}</TableCell>
-                        <TableCell>{issue.registro['VEICULO'] || '-'}</TableCell>
-                        <TableCell>{issue.registro['DATA'] || '-'}</TableCell>
+                        <TableCell className="text-center">
+                          {values.arla > 0 ? values.arla.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '-'}
+                        </TableCell>
                       </TableRow>
                     ))}
+                    <TableRow className="bg-muted/30 font-semibold">
+                      <TableCell>Total</TableCell>
+                      <TableCell className="text-center">{saneamentoSummary.total.abastecimentos}</TableCell>
+                      <TableCell className="text-center">
+                        {saneamentoSummary.total.diesel.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {saneamentoSummary.total.arla > 0 
+                          ? saneamentoSummary.total.arla.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) 
+                          : '-'
+                        }
+                      </TableCell>
+                    </TableRow>
                   </TableBody>
                 </Table>
               </div>
@@ -767,11 +940,69 @@ export function AbastecimentoPage() {
           <div className="space-y-4">
             <div className="flex items-center gap-2">
               <TrendingUp className="w-5 h-5 text-success" />
-              <h2 className="text-lg font-semibold">Entradas de Combustível</h2>
-              <Badge variant="outline">{entradasData.length} registro{entradasData.length !== 1 ? 's' : ''}</Badge>
+              <h2 className="text-lg font-semibold">Entradas de Combustível por Fornecedor</h2>
+              <Badge variant="outline">{entradasData.entries.length} registros</Badge>
             </div>
 
-            {entradasData.length === 0 ? (
+            {/* Summary by Supplier */}
+            {entradasPorFornecedor.length > 0 && (
+              <div className="bg-card rounded-lg border border-border overflow-hidden mb-4">
+                <div className="p-4 border-b border-border bg-muted/30">
+                  <h3 className="font-semibold">Resumo por Fornecedor</h3>
+                </div>
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/50">
+                      <TableHead>Fornecedor</TableHead>
+                      <TableHead className="text-center">Registros</TableHead>
+                      <TableHead className="text-center">Quantidade (L)</TableHead>
+                      <TableHead className="text-right">Valor Total</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {entradasPorFornecedor.map(([fornecedor, values]) => (
+                      <TableRow key={fornecedor}>
+                        <TableCell className="font-medium">{fornecedor}</TableCell>
+                        <TableCell className="text-center">{values.registros}</TableCell>
+                        <TableCell className="text-center text-success font-medium">
+                          +{values.quantidade.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          R$ {values.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+
+            {/* Summary by Entry Location (Tanques) */}
+            {Object.keys(entradasData.byLocation).length > 0 && (
+              <div className="bg-card rounded-lg border border-border overflow-hidden mb-4">
+                <div className="p-4 border-b border-border bg-muted/30">
+                  <h3 className="font-semibold">Entradas por Local (Tanques)</h3>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-4">
+                  {Object.entries(entradasData.byLocation).map(([local, data]) => (
+                    <div key={local} className="bg-muted/20 rounded-lg p-4 border">
+                      <div className="flex items-center gap-2 mb-2">
+                        <MapPin className="w-4 h-4 text-primary" />
+                        <span className="font-medium">{local}</span>
+                      </div>
+                      <div className="text-2xl font-bold text-success">
+                        +{data.total.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        {data.registros.length} entradas
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {entradasData.entries.length === 0 ? (
               <div className="bg-card rounded-lg border border-border p-8 text-center">
                 <ArrowDownUp className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
                 <h3 className="font-semibold text-lg mb-2">Nenhuma entrada encontrada</h3>
@@ -785,25 +1016,27 @@ export function AbastecimentoPage() {
                       <TableHead>Data</TableHead>
                       <TableHead>Tipo</TableHead>
                       <TableHead>Fornecedor</TableHead>
+                      <TableHead>Local de Entrada</TableHead>
                       <TableHead>Nota Fiscal</TableHead>
                       <TableHead className="text-right">Quantidade</TableHead>
                       <TableHead className="text-right">Valor Total</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {entradasData.map((row, index) => (
+                    {entradasData.entries.map((row, index) => (
                       <TableRow key={row._rowIndex || index}>
                         <TableCell>{row['DATA']}</TableCell>
                         <TableCell>
                           <Badge className="bg-success/20 text-success border-success/30">Entrada</Badge>
                         </TableCell>
                         <TableCell>{row['FORNECEDOR'] || '-'}</TableCell>
+                        <TableCell>{row['LOCAL'] || row['TANQUE'] || '-'}</TableCell>
                         <TableCell>{row['NOTA FISCAL'] || '-'}</TableCell>
                         <TableCell className="text-right font-medium text-success">
-                          +{parseFloat(String(row['QUANTIDADE'] || '0').replace(',', '.')).toLocaleString('pt-BR')} L
+                          +{parseNumber(row['QUANTIDADE']).toLocaleString('pt-BR')} L
                         </TableCell>
                         <TableCell className="text-right">
-                          R$ {parseFloat(String(row['VALOR TOTAL'] || '0').replace(',', '.')).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          R$ {parseNumber(row['VALOR TOTAL']).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -840,57 +1073,34 @@ export function AbastecimentoPage() {
 
               <div className="bg-card rounded-lg border border-border p-6 space-y-4">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-success/10 flex items-center justify-center">
-                    <BarChart3 className="w-5 h-5 text-success" />
+                  <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                    <Download className="w-5 h-5 text-blue-500" />
                   </div>
                   <div>
-                    <h3 className="font-semibold">Resumo por Local</h3>
-                    <p className="text-sm text-muted-foreground">Consumo agrupado por local</p>
+                    <h3 className="font-semibold">Relatório Detalhado</h3>
+                    <p className="text-sm text-muted-foreground">Com filtros aplicados</p>
                   </div>
                 </div>
-                <Button variant="outline" className="w-full" onClick={exportPDF}>
-                  <FileText className="w-4 h-4 mr-2" />
-                  Exportar PDF
+                <Button className="w-full" variant="outline" onClick={exportDetailedPDF} disabled={isExporting}>
+                  <Download className="w-4 h-4 mr-2" />
+                  Exportar PDF Detalhado
                 </Button>
               </div>
 
               <div className="bg-card rounded-lg border border-border p-6 space-y-4">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-warning/10 flex items-center justify-center">
-                    <TrendingDown className="w-5 h-5 text-warning" />
+                  <div className="w-10 h-10 rounded-lg bg-amber-500/10 flex items-center justify-center">
+                    <MapPin className="w-5 h-5 text-amber-500" />
                   </div>
                   <div>
-                    <h3 className="font-semibold">Análise de Consumo</h3>
-                    <p className="text-sm text-muted-foreground">Consumo por veículo</p>
+                    <h3 className="font-semibold">Relatório por Local</h3>
+                    <p className="text-sm text-muted-foreground">Resumo por ponto de abastecimento</p>
                   </div>
                 </div>
-                <Button variant="outline" className="w-full" onClick={exportPDF}>
-                  <FileText className="w-4 h-4 mr-2" />
+                <Button className="w-full" variant="outline" onClick={exportPDF} disabled={isExporting}>
+                  <MapPin className="w-4 h-4 mr-2" />
                   Exportar PDF
                 </Button>
-              </div>
-            </div>
-
-            {/* Quick stats */}
-            <div className="bg-muted/50 rounded-lg p-4">
-              <h4 className="font-medium mb-3">Estatísticas do Período</h4>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                <div>
-                  <p className="text-muted-foreground">Total Registros</p>
-                  <p className="text-xl font-bold">{metrics.registros}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Total Diesel</p>
-                  <p className="text-xl font-bold">{metrics.totalQuantidade.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} L</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Total Arla</p>
-                  <p className="text-xl font-bold">{metrics.totalArla.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} L</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Média por Registro</p>
-                  <p className="text-xl font-bold">{metrics.mediaConsumo.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L</p>
-                </div>
               </div>
             </div>
           </div>
