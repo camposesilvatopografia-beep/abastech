@@ -14,6 +14,128 @@ export type Database = {
   }
   public: {
     Tables: {
+      field_fuel_records: {
+        Row: {
+          arla_quantity: number | null
+          category: string | null
+          company: string | null
+          created_at: string | null
+          fuel_quantity: number
+          fuel_type: string | null
+          horimeter_current: number | null
+          horimeter_previous: number | null
+          id: string
+          km_current: number | null
+          km_previous: number | null
+          location: string | null
+          observations: string | null
+          operator_name: string | null
+          photo_horimeter_url: string | null
+          photo_pump_url: string | null
+          record_date: string
+          record_time: string
+          synced_to_sheet: boolean | null
+          updated_at: string | null
+          user_id: string | null
+          vehicle_code: string
+          vehicle_description: string | null
+          work_site: string | null
+        }
+        Insert: {
+          arla_quantity?: number | null
+          category?: string | null
+          company?: string | null
+          created_at?: string | null
+          fuel_quantity: number
+          fuel_type?: string | null
+          horimeter_current?: number | null
+          horimeter_previous?: number | null
+          id?: string
+          km_current?: number | null
+          km_previous?: number | null
+          location?: string | null
+          observations?: string | null
+          operator_name?: string | null
+          photo_horimeter_url?: string | null
+          photo_pump_url?: string | null
+          record_date?: string
+          record_time?: string
+          synced_to_sheet?: boolean | null
+          updated_at?: string | null
+          user_id?: string | null
+          vehicle_code: string
+          vehicle_description?: string | null
+          work_site?: string | null
+        }
+        Update: {
+          arla_quantity?: number | null
+          category?: string | null
+          company?: string | null
+          created_at?: string | null
+          fuel_quantity?: number
+          fuel_type?: string | null
+          horimeter_current?: number | null
+          horimeter_previous?: number | null
+          id?: string
+          km_current?: number | null
+          km_previous?: number | null
+          location?: string | null
+          observations?: string | null
+          operator_name?: string | null
+          photo_horimeter_url?: string | null
+          photo_pump_url?: string | null
+          record_date?: string
+          record_time?: string
+          synced_to_sheet?: boolean | null
+          updated_at?: string | null
+          user_id?: string | null
+          vehicle_code?: string
+          vehicle_description?: string | null
+          work_site?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "field_fuel_records_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "field_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      field_users: {
+        Row: {
+          active: boolean | null
+          created_at: string | null
+          id: string
+          name: string
+          password_hash: string
+          role: string | null
+          updated_at: string | null
+          username: string
+        }
+        Insert: {
+          active?: boolean | null
+          created_at?: string | null
+          id?: string
+          name: string
+          password_hash: string
+          role?: string | null
+          updated_at?: string | null
+          username: string
+        }
+        Update: {
+          active?: boolean | null
+          created_at?: string | null
+          id?: string
+          name?: string
+          password_hash?: string
+          role?: string | null
+          updated_at?: string | null
+          username?: string
+        }
+        Relationships: []
+      }
       horimeter_readings: {
         Row: {
           created_at: string
