@@ -250,13 +250,16 @@ export function AbastecimentoPage() {
     // Detailed records per location
     const recordsByLocal: Record<string, Array<{
       data: string;
+      codigo: string;
       veiculo: string;
       descricao: string;
       motorista: string;
       quantidade: number;
       categoria: string;
-      horimetro: number;
-      km: number;
+      horAnterior: number;
+      horAtual: number;
+      kmAnterior: number;
+      kmAtual: number;
     }>> = {};
     
     filteredRows.forEach(row => {
@@ -275,16 +278,19 @@ export function AbastecimentoPage() {
       summary[local].arla += arlaQtd;
       summary[local].valor += valor;
 
-      // Add detailed record
+      // Add detailed record with anterior/atual values
       recordsByLocal[local].push({
         data: String(row['DATA'] || ''),
+        codigo: String(row['VEICULO'] || row['Veiculo'] || row['CODIGO'] || ''),
         veiculo: String(row['VEICULO'] || row['Veiculo'] || ''),
-        descricao: String(row['DESCRIÇÃO'] || row['DESCRICAO'] || row['Descricao'] || ''),
-        motorista: String(row['MOTORISTA'] || row['Motorista'] || ''),
+        descricao: String(row['DESCRIÇÃO'] || row['DESCRICAO'] || row['Descricao'] || row['TIPO'] || ''),
+        motorista: String(row['MOTORISTA'] || row['Motorista'] || row['OPERADOR'] || row['Operador'] || ''),
         quantidade,
-        categoria: String(row['CATEGORIA'] || row['Categoria'] || row['TIPO'] || ''),
-        horimetro: parseNumber(row['HORIMETRO'] || row['Horimetro'] || row['HORAS']),
-        km: parseNumber(row['KM'] || row['Km'] || row['QUILOMETRAGEM'])
+        categoria: String(row['CATEGORIA'] || row['Categoria'] || row['TIPO'] || '').toLowerCase(),
+        horAnterior: parseNumber(row['HOR_ANTERIOR'] || row['HORIMETRO_ANTERIOR'] || row['HORAS_ANTERIOR'] || row['Hor_Anterior'] || 0),
+        horAtual: parseNumber(row['HOR_ATUAL'] || row['HORIMETRO'] || row['Horimetro'] || row['HORAS'] || row['Hor_Atual'] || 0),
+        kmAnterior: parseNumber(row['KM_ANTERIOR'] || row['QUILOMETRAGEM_ANTERIOR'] || row['Km_Anterior'] || 0),
+        kmAtual: parseNumber(row['KM_ATUAL'] || row['KM'] || row['Km'] || row['QUILOMETRAGEM'] || row['Km_Atual'] || 0),
       });
     });
 
@@ -415,124 +421,231 @@ export function AbastecimentoPage() {
     setEndDate(new Date());
   }, []);
 
-  // Export detailed PDF with filters
+  // Export detailed PDF with filters - grouped by location (Tanques)
   const exportDetailedPDF = useCallback(() => {
     setIsExporting(true);
     
     try {
-      const doc = new jsPDF();
+      const doc = new jsPDF('landscape');
       const pageWidth = doc.internal.pageSize.getWidth();
       
-      // Title
-      doc.setFontSize(18);
-      doc.text('Relatório Detalhado de Abastecimento', pageWidth / 2, 20, { align: 'center' });
+      let currentY = 15;
       
-      // Subtitle with date range and filters
-      doc.setFontSize(10);
-      doc.text(`Período: ${format(dateRange.start, 'dd/MM/yyyy')} - ${format(dateRange.end, 'dd/MM/yyyy')}`, pageWidth / 2, 28, { align: 'center' });
-      doc.text(`Gerado em: ${format(new Date(), 'dd/MM/yyyy HH:mm')}`, pageWidth / 2, 34, { align: 'center' });
+      // Iterate through each location (Tanque 01, Tanque 02, etc.)
+      const locations = Object.keys(resumoPorLocal.recordsByLocal).sort();
       
-      // Active filters
-      let filterText = 'Filtros: ';
-      if (localFilter !== 'all') filterText += `Local: ${localFilter} | `;
-      if (tipoFilter !== 'all') filterText += `Tipo: ${tipoFilter} | `;
-      if (combustivelFilter !== 'all') filterText += `Combustível: ${combustivelFilter} | `;
-      if (search) filterText += `Busca: ${search}`;
-      if (filterText !== 'Filtros: ') {
-        doc.setFontSize(9);
-        doc.text(filterText, 14, 42);
-      }
-      
-      // Metrics summary
-      doc.setFontSize(12);
-      doc.text('Resumo:', 14, 52);
-      doc.setFontSize(10);
-      doc.text(`Total de Registros: ${metrics.registros}`, 14, 60);
-      doc.text(`Total Diesel: ${metrics.totalQuantidade.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} L`, 14, 66);
-      doc.text(`Total Arla: ${metrics.totalArla.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} L`, 14, 72);
-      doc.text(`Valor Total: R$ ${metrics.totalValor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 14, 78);
-      doc.text(`Média por Abastecimento: ${metrics.mediaConsumo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} L`, 120, 60);
-      
-      // Table with all filtered data
-      const tableData = filteredRows.map(row => [
-        String(row['DATA'] || ''),
-        String(row['HORA'] || ''),
-        String(row['VEICULO'] || ''),
-        String(row['MOTORISTA'] || ''),
-        String(row['TIPO DE COMBUSTIVEL'] || ''),
-        parseNumber(row['QUANTIDADE']).toLocaleString('pt-BR') + ' L',
-        String(row['LOCAL'] || ''),
-        'R$ ' + parseNumber(row['VALOR TOTAL']).toLocaleString('pt-BR', { minimumFractionDigits: 2 })
-      ]);
-      
-      autoTable(doc, {
-        startY: 88,
-        head: [['Data', 'Hora', 'Veículo', 'Motorista', 'Combustível', 'Qtd', 'Local', 'Valor']],
-        body: tableData,
-        styles: { fontSize: 7 },
-        headStyles: { fillColor: [239, 125, 50] }
+      locations.forEach((local, locationIndex) => {
+        const records = resumoPorLocal.recordsByLocal[local];
+        if (!records || records.length === 0) return;
+        
+        // Add new page for each location after the first
+        if (locationIndex > 0) {
+          doc.addPage();
+          currentY = 15;
+        }
+        
+        // Title for this location
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.text(local, pageWidth / 2, currentY, { align: 'center' });
+        currentY += 8;
+        
+        // Prepare table data with consumption calculation
+        const tableData = records.map((record, index) => {
+          // Determine if using km or hours based on data
+          const usaKm = record.kmAtual > 0 || record.kmAnterior > 0;
+          const anterior = usaKm ? record.kmAnterior : record.horAnterior;
+          const atual = usaKm ? record.kmAtual : record.horAtual;
+          const intervalo = atual - anterior;
+          
+          // Calculate consumption (km/l or l/h)
+          let consumo = 0;
+          if (record.quantidade > 0 && intervalo > 0) {
+            if (usaKm) {
+              // km/l = intervalo / quantidade
+              consumo = intervalo / record.quantidade;
+            } else {
+              // l/h = quantidade / intervalo
+              consumo = record.quantidade / intervalo;
+            }
+          }
+          
+          return [
+            (index + 1).toString() + '.',
+            record.codigo,
+            record.descricao,
+            record.motorista,
+            anterior > 0 ? anterior.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '-',
+            atual > 0 ? atual.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '-',
+            intervalo > 0 ? intervalo.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '-',
+            consumo > 0 ? consumo.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '0,00',
+            record.quantidade.toString()
+          ];
+        });
+        
+        autoTable(doc, {
+          startY: currentY,
+          head: [[
+            '', 
+            'Código', 
+            'Descrição', 
+            'Motorista/Operador', 
+            'Hor/Km\nAnterior', 
+            'Hor/Km\nAtual', 
+            'Intervalo\n(h/km)', 
+            'Consumo', 
+            'Qtd Diesel'
+          ]],
+          body: tableData,
+          styles: { 
+            fontSize: 8,
+            cellPadding: 2,
+          },
+          headStyles: { 
+            fillColor: [200, 200, 200],
+            textColor: [0, 0, 0],
+            fontStyle: 'bold',
+            halign: 'center',
+            valign: 'middle',
+          },
+          columnStyles: {
+            0: { cellWidth: 10, halign: 'center' },
+            1: { cellWidth: 25 },
+            2: { cellWidth: 45 },
+            3: { cellWidth: 45 },
+            4: { cellWidth: 25, halign: 'right' },
+            5: { cellWidth: 28, halign: 'right' },
+            6: { cellWidth: 28, halign: 'right' },
+            7: { cellWidth: 22, halign: 'right' },
+            8: { cellWidth: 22, halign: 'right' },
+          },
+          alternateRowStyles: {
+            fillColor: [245, 245, 245]
+          },
+          theme: 'grid',
+        });
       });
       
-      doc.save(`abastecimento_detalhado_${format(new Date(), 'yyyyMMdd_HHmmss')}.pdf`);
+      doc.save(`relatorio_abastecimento_${format(new Date(), 'yyyyMMdd_HHmmss')}.pdf`);
     } catch (error) {
       console.error('Error exporting PDF:', error);
     } finally {
       setIsExporting(false);
     }
-  }, [filteredRows, dateRange, metrics, localFilter, tipoFilter, combustivelFilter, search]);
+  }, [resumoPorLocal]);
 
-  // Export to PDF (simple)
+  // Export to PDF (simple) - same format as detailed, grouped by location
   const exportPDF = useCallback(() => {
     setIsExporting(true);
     
     try {
-      const doc = new jsPDF();
+      const doc = new jsPDF('landscape');
       const pageWidth = doc.internal.pageSize.getWidth();
       
-      // Title
-      doc.setFontSize(18);
-      doc.text('Relatório de Abastecimento', pageWidth / 2, 20, { align: 'center' });
+      let currentY = 15;
       
-      // Subtitle with date range
-      doc.setFontSize(10);
-      doc.text(`Período: ${format(dateRange.start, 'dd/MM/yyyy')} - ${format(dateRange.end, 'dd/MM/yyyy')}`, pageWidth / 2, 28, { align: 'center' });
-      doc.text(`Gerado em: ${format(new Date(), 'dd/MM/yyyy HH:mm')}`, pageWidth / 2, 34, { align: 'center' });
+      // Iterate through each location (Tanque 01, Tanque 02, etc.)
+      const locations = Object.keys(resumoPorLocal.recordsByLocal).sort();
       
-      // Metrics summary
-      doc.setFontSize(12);
-      doc.text('Resumo:', 14, 45);
-      doc.setFontSize(10);
-      doc.text(`Total de Registros: ${metrics.registros}`, 14, 52);
-      doc.text(`Total Diesel: ${metrics.totalQuantidade.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} L`, 14, 58);
-      doc.text(`Total Arla: ${metrics.totalArla.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} L`, 14, 64);
-      doc.text(`Valor Total: R$ ${metrics.totalValor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 14, 70);
-      
-      // Table
-      const tableData = filteredRows.slice(0, 100).map(row => [
-        String(row['DATA'] || ''),
-        String(row['HORA'] || ''),
-        String(row['VEICULO'] || ''),
-        String(row['MOTORISTA'] || ''),
-        String(row['TIPO DE COMBUSTIVEL'] || ''),
-        parseNumber(row['QUANTIDADE']).toLocaleString('pt-BR') + ' L',
-        String(row['LOCAL'] || '')
-      ]);
-      
-      autoTable(doc, {
-        startY: 80,
-        head: [['Data', 'Hora', 'Veículo', 'Motorista', 'Combustível', 'Qtd', 'Local']],
-        body: tableData,
-        styles: { fontSize: 8 },
-        headStyles: { fillColor: [239, 125, 50] }
+      locations.forEach((local, locationIndex) => {
+        const records = resumoPorLocal.recordsByLocal[local];
+        if (!records || records.length === 0) return;
+        
+        // Add new page for each location after the first
+        if (locationIndex > 0) {
+          doc.addPage();
+          currentY = 15;
+        }
+        
+        // Title for this location
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.text(local, pageWidth / 2, currentY, { align: 'center' });
+        currentY += 8;
+        
+        // Prepare table data with consumption calculation
+        const tableData = records.map((record, index) => {
+          // Determine if using km or hours based on data
+          const usaKm = record.kmAtual > 0 || record.kmAnterior > 0;
+          const anterior = usaKm ? record.kmAnterior : record.horAnterior;
+          const atual = usaKm ? record.kmAtual : record.horAtual;
+          const intervalo = atual - anterior;
+          
+          // Calculate consumption (km/l or l/h)
+          let consumo = 0;
+          if (record.quantidade > 0 && intervalo > 0) {
+            if (usaKm) {
+              // km/l = intervalo / quantidade
+              consumo = intervalo / record.quantidade;
+            } else {
+              // l/h = quantidade / intervalo
+              consumo = record.quantidade / intervalo;
+            }
+          }
+          
+          return [
+            (index + 1).toString() + '.',
+            record.codigo,
+            record.descricao,
+            record.motorista,
+            anterior > 0 ? anterior.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '-',
+            atual > 0 ? atual.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '-',
+            intervalo > 0 ? intervalo.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '-',
+            consumo > 0 ? consumo.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '0,00',
+            record.quantidade.toString()
+          ];
+        });
+        
+        autoTable(doc, {
+          startY: currentY,
+          head: [[
+            '', 
+            'Código', 
+            'Descrição', 
+            'Motorista/Operador', 
+            'Hor/Km\nAnterior', 
+            'Hor/Km\nAtual', 
+            'Intervalo\n(h/km)', 
+            'Consumo', 
+            'Qtd Diesel'
+          ]],
+          body: tableData,
+          styles: { 
+            fontSize: 8,
+            cellPadding: 2,
+          },
+          headStyles: { 
+            fillColor: [200, 200, 200],
+            textColor: [0, 0, 0],
+            fontStyle: 'bold',
+            halign: 'center',
+            valign: 'middle',
+          },
+          columnStyles: {
+            0: { cellWidth: 10, halign: 'center' },
+            1: { cellWidth: 25 },
+            2: { cellWidth: 45 },
+            3: { cellWidth: 45 },
+            4: { cellWidth: 25, halign: 'right' },
+            5: { cellWidth: 28, halign: 'right' },
+            6: { cellWidth: 28, halign: 'right' },
+            7: { cellWidth: 22, halign: 'right' },
+            8: { cellWidth: 22, halign: 'right' },
+          },
+          alternateRowStyles: {
+            fillColor: [245, 245, 245]
+          },
+          theme: 'grid',
+        });
       });
       
-      doc.save(`abastecimento_${format(new Date(), 'yyyyMMdd_HHmmss')}.pdf`);
+      doc.save(`relatorio_abastecimento_${format(new Date(), 'yyyyMMdd_HHmmss')}.pdf`);
     } catch (error) {
       console.error('Error exporting PDF:', error);
     } finally {
       setIsExporting(false);
     }
-  }, [filteredRows, dateRange, metrics]);
+  }, [resumoPorLocal]);
 
   // Print function
   const handlePrint = useCallback(() => {
