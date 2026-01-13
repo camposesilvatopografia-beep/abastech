@@ -133,8 +133,11 @@ export function FieldFuelForm({ user, onLogout }: FieldFuelFormProps) {
   
   // OCR state
   const [isProcessingOCR, setIsProcessingOCR] = useState(false);
+  const [isProcessingQuantityOCR, setIsProcessingQuantityOCR] = useState(false);
   const [ocrPhotoPreview, setOcrPhotoPreview] = useState<string | null>(null);
+  const [quantityOcrPhotoPreview, setQuantityOcrPhotoPreview] = useState<string | null>(null);
   const ocrInputRef = useRef<HTMLInputElement>(null);
+  const quantityOcrInputRef = useRef<HTMLInputElement>(null);
   
   const photoPumpInputRef = useRef<HTMLInputElement>(null);
   const photoHorimeterInputRef = useRef<HTMLInputElement>(null);
@@ -493,6 +496,58 @@ export function FieldFuelForm({ user, onLogout }: FieldFuelFormProps) {
     if (ocrInputRef.current) ocrInputRef.current.value = '';
   };
 
+  // OCR - recognize fuel quantity value from photo
+  const handleQuantityOCRCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsProcessingQuantityOCR(true);
+
+    try {
+      // Read file as base64
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const base64 = reader.result as string;
+        setQuantityOcrPhotoPreview(base64);
+
+        // Call OCR edge function with quantity type
+        toast.info('Analisando imagem da bomba...');
+        
+        const { data, error } = await supabase.functions.invoke('ocr-horimeter', {
+          body: { image: base64, type: 'quantity' }
+        });
+
+        if (error) {
+          console.error('OCR quantity error:', error);
+          toast.error('Erro ao analisar imagem');
+          setIsProcessingQuantityOCR(false);
+          return;
+        }
+
+        if (data?.success && data?.value) {
+          setFuelQuantity(String(data.value));
+          toast.success(`Quantidade reconhecida: ${data.value} L`);
+          
+          // Also set this as the pump photo for the record
+          setPhotoPump(file);
+          setPhotoPumpPreview(base64);
+        } else {
+          toast.error('Não foi possível reconhecer o valor. Tente novamente ou digite manualmente.');
+        }
+        
+        setIsProcessingQuantityOCR(false);
+      };
+      reader.readAsDataURL(file);
+    } catch (err) {
+      console.error('OCR quantity capture error:', err);
+      toast.error('Erro ao processar imagem');
+      setIsProcessingQuantityOCR(false);
+    }
+
+    // Reset input
+    if (quantityOcrInputRef.current) quantityOcrInputRef.current.value = '';
+  };
+
   // Start voice input for a specific field
   const startVoiceForField = (field: string) => {
     setActiveVoiceField(field);
@@ -705,12 +760,14 @@ export function FieldFuelForm({ user, onLogout }: FieldFuelFormProps) {
     setPhotoHorimeter(null);
     setPhotoHorimeterPreview(null);
     setOcrPhotoPreview(null);
+    setQuantityOcrPhotoPreview(null);
     setEquipmentHours('');
     setMaintenanceType('');
     setEquipmentStatus('operando');
     if (photoPumpInputRef.current) photoPumpInputRef.current.value = '';
     if (photoHorimeterInputRef.current) photoHorimeterInputRef.current.value = '';
     if (ocrInputRef.current) ocrInputRef.current.value = '';
+    if (quantityOcrInputRef.current) quantityOcrInputRef.current.value = '';
   };
 
   // Get unique vehicles from sheet
@@ -882,25 +939,72 @@ export function FieldFuelForm({ user, onLogout }: FieldFuelFormProps) {
           )}
         </div>
 
-        {/* Fuel Quantity */}
+        {/* Fuel Quantity with OCR */}
         <div className="bg-card rounded-xl border border-border p-4 space-y-3">
           <div className="flex items-center justify-between">
             <Label className="flex items-center gap-2 text-base">
               <Fuel className="w-4 h-4" />
               Quantidade (Litros)
             </Label>
-            {voice.isSupported && (
+            <div className="flex items-center gap-1">
+              {/* OCR Button for quantity */}
+              <input
+                ref={quantityOcrInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={handleQuantityOCRCapture}
+                className="hidden"
+              />
               <Button
                 type="button"
                 size="sm"
                 variant="outline"
-                onClick={() => startVoiceForField('quantity')}
-                className={cn(activeVoiceField === 'quantity' && voice.isListening && "bg-red-100")}
+                onClick={() => quantityOcrInputRef.current?.click()}
+                disabled={isProcessingQuantityOCR}
+                className="gap-1"
+                title="Tirar foto da bomba para reconhecer valor"
               >
-                <Mic className="w-4 h-4" />
+                {isProcessingQuantityOCR ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <>
+                    <ScanLine className="w-4 h-4" />
+                    <span className="text-xs hidden sm:inline">OCR</span>
+                  </>
+                )}
               </Button>
-            )}
+              {voice.isSupported && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => startVoiceForField('quantity')}
+                  className={cn(activeVoiceField === 'quantity' && voice.isListening && "bg-red-100")}
+                >
+                  <Mic className="w-4 h-4" />
+                </Button>
+              )}
+            </div>
           </div>
+          
+          {/* OCR Preview for quantity */}
+          {quantityOcrPhotoPreview && isProcessingQuantityOCR && (
+            <div className="relative">
+              <img 
+                src={quantityOcrPhotoPreview} 
+                alt="Analisando" 
+                className="w-full h-24 object-cover rounded-lg opacity-50"
+              />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="bg-background/90 px-3 py-2 rounded-lg flex items-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span className="text-sm">Reconhecendo valor...</span>
+                </div>
+              </div>
+            </div>
+          )}
+          
           <Input
             type="number"
             inputMode="decimal"
