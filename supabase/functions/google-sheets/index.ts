@@ -1,5 +1,4 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { create, getNumericDate } from "https://deno.land/x/djwt@v2.8/mod.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -10,17 +9,78 @@ interface SheetRow {
   [key: string]: string | number | boolean | null;
 }
 
+// Create JWT manually without external library issues
+async function createJWT(privateKeyPem: string, payload: object): Promise<string> {
+  const header = { alg: 'RS256', typ: 'JWT' };
+  
+  const encoder = new TextEncoder();
+  
+  // Base64url encode
+  const base64url = (data: string) => {
+    return btoa(data)
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
+  };
+  
+  const headerB64 = base64url(JSON.stringify(header));
+  const payloadB64 = base64url(JSON.stringify(payload));
+  const signingInput = `${headerB64}.${payloadB64}`;
+  
+  // Import the private key
+  const pemContents = privateKeyPem
+    .replace(/-----BEGIN PRIVATE KEY-----/g, '')
+    .replace(/-----END PRIVATE KEY-----/g, '')
+    .replace(/\s/g, '');
+  
+  const binaryKey = Uint8Array.from(atob(pemContents), c => c.charCodeAt(0));
+  
+  const cryptoKey = await crypto.subtle.importKey(
+    'pkcs8',
+    binaryKey,
+    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+  
+  const signature = await crypto.subtle.sign(
+    'RSASSA-PKCS1-v1_5',
+    cryptoKey,
+    encoder.encode(signingInput)
+  );
+  
+  const signatureB64 = base64url(String.fromCharCode(...new Uint8Array(signature)));
+  
+  return `${signingInput}.${signatureB64}`;
+}
+
 async function getAccessToken(): Promise<string> {
   const serviceAccountEmail = Deno.env.get('GOOGLE_SERVICE_ACCOUNT_EMAIL');
-  const privateKeyRaw = Deno.env.get('GOOGLE_PRIVATE_KEY');
+  let privateKeyRaw = Deno.env.get('GOOGLE_PRIVATE_KEY');
   
   if (!serviceAccountEmail || !privateKeyRaw) {
-    throw new Error('Missing Google Service Account credentials');
+    throw new Error('Missing Google Service Account credentials. Please configure GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_PRIVATE_KEY.');
   }
 
-  // Handle the private key format (replace literal \n with actual newlines)
-  const privateKey = privateKeyRaw.replace(/\\n/g, '\n');
+  console.log('Service Account Email:', serviceAccountEmail);
+  console.log('Private Key length:', privateKeyRaw.length);
+
+  // Handle the private key format - replace escaped newlines with actual newlines
+  let privateKey = privateKeyRaw
+    .replace(/\\n/g, '\n')
+    .replace(/\\\\n/g, '\n');
   
+  // If it doesn't start with the PEM header, it might be double-escaped or have issues
+  if (!privateKey.includes('-----BEGIN PRIVATE KEY-----')) {
+    // Try to fix common formatting issues
+    privateKey = privateKey.replace(/"/g, '');
+    if (!privateKey.includes('-----BEGIN PRIVATE KEY-----')) {
+      throw new Error('Invalid private key format. Key should start with -----BEGIN PRIVATE KEY-----');
+    }
+  }
+  
+  console.log('Private key format validated');
+
   const now = Math.floor(Date.now() / 1000);
   const payload = {
     iss: serviceAccountEmail,
@@ -30,46 +90,33 @@ async function getAccessToken(): Promise<string> {
     exp: now + 3600,
   };
 
-  // Import the private key
-  const pemContent = privateKey
-    .replace('-----BEGIN PRIVATE KEY-----', '')
-    .replace('-----END PRIVATE KEY-----', '')
-    .replace(/\s/g, '');
-  
-  const binaryKey = Uint8Array.from(atob(pemContent), c => c.charCodeAt(0));
-  
-  const cryptoKey = await crypto.subtle.importKey(
-    'pkcs8',
-    binaryKey,
-    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
-    false,
-    ['sign']
-  );
+  try {
+    const jwt = await createJWT(privateKey, payload);
+    console.log('JWT created successfully');
 
-  const jwt = await create(
-    { alg: 'RS256', typ: 'JWT' },
-    payload,
-    cryptoKey
-  );
+    // Exchange JWT for access token
+    const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+        assertion: jwt,
+      }),
+    });
 
-  // Exchange JWT for access token
-  const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-      assertion: jwt,
-    }),
-  });
+    if (!tokenResponse.ok) {
+      const errorText = await tokenResponse.text();
+      console.error('Token exchange failed:', errorText);
+      throw new Error(`Failed to get access token: ${errorText}`);
+    }
 
-  if (!tokenResponse.ok) {
-    const errorText = await tokenResponse.text();
-    console.error('Token exchange failed:', errorText);
-    throw new Error(`Failed to get access token: ${errorText}`);
+    const tokenData = await tokenResponse.json();
+    console.log('Access token obtained successfully');
+    return tokenData.access_token;
+  } catch (error) {
+    console.error('Error creating JWT or getting token:', error);
+    throw error;
   }
-
-  const tokenData = await tokenResponse.json();
-  return tokenData.access_token;
 }
 
 async function getSheetData(accessToken: string, sheetId: string, range: string): Promise<any[][]> {
@@ -204,10 +251,12 @@ serve(async (req) => {
       throw new Error('GOOGLE_SHEET_ID not configured');
     }
 
-    const accessToken = await getAccessToken();
-    const { action, sheetName, data, rowIndex, range } = await req.json();
+    const body = await req.json();
+    const { action, sheetName, data, rowIndex, range } = body;
+    
+    console.log(`Processing action: ${action} for sheet: ${sheetName || 'N/A'}`);
 
-    console.log(`Processing action: ${action} for sheet: ${sheetName}`);
+    const accessToken = await getAccessToken();
 
     let result: any;
 
