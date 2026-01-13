@@ -12,6 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 
 const GERAL_SHEET = 'GERAL';
 const ABASTECIMENTO_SHEET = 'AbastecimentoCanteiro01';
+const VEHICLE_SHEET = 'Veiculo';
 
 function parseNumber(value: any): number {
   if (!value) return 0;
@@ -22,8 +23,17 @@ function parseNumber(value: any): number {
 export function DashboardContent() {
   const { data: geralData, loading } = useSheetData(GERAL_SHEET);
   const { data: abastecimentoData } = useSheetData(ABASTECIMENTO_SHEET);
+  const { data: vehicleData } = useSheetData(VEHICLE_SHEET);
   const [isSending, setIsSending] = useState(false);
   const { toast } = useToast();
+
+  // Get vehicle info for filtering comboios
+  const vehicleInfo = useMemo(() => {
+    return vehicleData.rows.map(row => ({
+      veiculo: String(row['FROTA'] || row['Frota'] || row['VEICULO'] || '').trim(),
+      descricao: String(row['DESCRIÇÃO'] || row['Descricao'] || row['DESCRICAO'] || '').trim()
+    }));
+  }, [vehicleData.rows]);
 
   // Extract stock values from GERAL sheet - get LAST row (most recent)
   const stockData = useMemo(() => {
@@ -238,6 +248,7 @@ _Sistema Abastech_`;
           />
           <ConsumptionRanking 
             data={consumptionRanking}
+            vehicleData={vehicleInfo}
             title="Ranking de Consumo"
             maxItems={10}
           />
