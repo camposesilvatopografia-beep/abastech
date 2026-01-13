@@ -248,28 +248,34 @@ export const HorimeterModal = forwardRef<HTMLDivElement, HorimeterModalProps>(
       }
     }, [selectedVehicle, isEditMode]);
 
-    // Populate form when editing
-    useEffect(() => {
-      if (open && editRecord) {
-        setSelectedVehicle(editRecord.veiculo);
-        setCurrentValue(editRecord.horas.toString().replace('.', ','));
-        setOperador(editRecord.operador);
-        setObservacao(editRecord.observacao);
-        const parsedDate = parseDate(editRecord.data);
-        setSelectedDate(parsedDate || new Date());
-      }
-    }, [open, editRecord]);
-
-    // Refresh data when modal opens and set initial vehicle
+    // Populate form when editing OR reset when creating new
     useEffect(() => {
       if (open) {
+        if (editRecord) {
+          // Edit mode - populate with existing data
+          setSelectedVehicle(editRecord.veiculo);
+          setCurrentValue(editRecord.horas.toString().replace('.', ','));
+          setOperador(editRecord.operador);
+          setObservacao(editRecord.observacao);
+          const parsedDate = parseDate(editRecord.data);
+          setSelectedDate(parsedDate || new Date());
+        } else {
+          // Create mode - reset form
+          if (!initialVehicle) {
+            setSelectedVehicle('');
+          } else {
+            setSelectedVehicle(initialVehicle);
+          }
+          setCurrentValue('');
+          setOperador('');
+          setObservacao('');
+          setSelectedDate(new Date());
+        }
+        // Refresh data
         refetchVehicles();
         refetchHorimeters();
-        if (initialVehicle && !editRecord) {
-          setSelectedVehicle(initialVehicle);
-        }
       }
-    }, [open, refetchVehicles, refetchHorimeters, initialVehicle, editRecord]);
+    }, [open, editRecord, initialVehicle, refetchVehicles, refetchHorimeters]);
 
     // Validation function
     const validateForm = (): boolean => {
