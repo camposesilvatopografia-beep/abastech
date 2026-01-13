@@ -96,6 +96,15 @@ export function HorimetrosPage() {
   const [isFixingZeroed, setIsFixingZeroed] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'checking' | 'connected' | 'error'>('checking');
   const [isTesting, setIsTesting] = useState(false);
+  const [autoFixReport, setAutoFixReport] = useState<null | {
+    ranAt: string;
+    fixed: number;
+    skippedNoHistory: number;
+    skippedNoColumns: number;
+    errors: number;
+    vehiclesAffected: number;
+  }>(null);
+  const [autoFixEnabled, setAutoFixEnabled] = useState(true);
 
   // Test connection on mount
   useEffect(() => {
@@ -107,7 +116,7 @@ export function HorimetrosPage() {
     setConnectionStatus('checking');
     
     try {
-      const { data: result, error } = await supabase.functions.invoke('google-sheets', {
+      const { error } = await supabase.functions.invoke('google-sheets', {
         body: { action: 'getSheetNames' },
       });
       
@@ -121,10 +130,6 @@ export function HorimetrosPage() {
         });
       } else {
         setConnectionStatus('connected');
-        toast({
-          title: 'Conexão OK',
-          description: 'Conectado ao Google Sheets com sucesso',
-        });
       }
     } catch (err) {
       console.error('Connection test error:', err);
@@ -255,9 +260,95 @@ export function HorimetrosPage() {
     };
   }, [filteredRows]);
 
-  // Function to fix zeroed horimeters/KM by finding the previous valid value
-  const handleFixZeroed = useCallback(async () => {
-    if (zeroedRecords.length === 0) {
+  const COLUMN_CANDIDATES = useMemo(() => {
+    return {
+      // As seen in the user's sheet screenshot
+      horAtual: ['Hor_Atual', 'HOR_ATUAL', 'HORATUAL', 'HORIMETRO_ATUAL', 'HORIMETROATUAL', 'HORÍMETRO_ATUAL', 'HORÍMETROATUAL'],
+      horAnterior: ['Hor_Anterior', 'HOR_ANTERIOR', 'HORANTERIOR', 'HORIMETRO_ANTERIOR', 'HORIMETROANTERIOR', 'HORÍMETRO_ANTERIOR', 'HORÍMETROANTERIOR'],
+      kmAtual: ['Km_Atual', 'KM_ATUAL', 'KMATUAL', 'QUILOMETRAGEM_ATUAL', 'QUILOMETRAGEMATUAL'],
+      kmAnterior: ['Km_Anterior', 'KM_ANTERIOR', 'KMANTERIOR', 'QUILOMETRAGEM_ANTERIOR', 'QUILOMETRAGEMANTERIOR'],
+
+      // Fallbacks found in older versions
+      readingGeneric: ['HORAS', 'HORIMETRO', 'HORÍMETRO', 'KM', 'QUILOMETRAGEM', 'KILOMETRAGEM'],
+      vehicle: ['Veiculo', 'VEICULO', 'VEÍCULO', 'EQUIPAMENTO'],
+      date: ['Data', 'DATA', 'data'],
+      obs: ['OBSERVACAO', 'OBSERVAÇÃO', 'Observacao', 'observacao', 'OBS'],
+    };
+  }, []);
+
+  const runFixZeroed = useCallback(async (opts?: { auto?: boolean }) => {
+    const isAuto = !!opts?.auto;
+
+    if (data.rows.length === 0) {
+      toast({
+        title: 'Sem dados',
+        description: 'Não há dados carregados para corrigir.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const vehicleSet = new Set<string>();
+    let fixed = 0;
+    let errors = 0;
+    let skippedNoHistory = 0;
+    let skippedNoColumns = 0;
+
+    // Helper: which metric columns exist for this row?
+    const pickMetricKeys = (row: Record<string, any>) => {
+      const horAtualKey = findColumnKey(row, COLUMN_CANDIDATES.horAtual);
+      const horAnteriorKey = findColumnKey(row, COLUMN_CANDIDATES.horAnterior);
+      const kmAtualKey = findColumnKey(row, COLUMN_CANDIDATES.kmAtual);
+      const kmAnteriorKey = findColumnKey(row, COLUMN_CANDIDATES.kmAnterior);
+      const genericKey = findColumnKey(row, COLUMN_CANDIDATES.readingGeneric);
+      return { horAtualKey, horAnteriorKey, kmAtualKey, kmAnteriorKey, genericKey };
+    };
+
+    const getVehicle = (row: Record<string, any>) => {
+      const vehicleKey = findColumnKey(row, COLUMN_CANDIDATES.vehicle);
+      return vehicleKey ? String(row[vehicleKey] || '').trim() : '';
+    };
+
+    const getRowDate = (row: Record<string, any>) => {
+      const dateKey = findColumnKey(row, COLUMN_CANDIDATES.date);
+      const dateStr = dateKey ? String(row[dateKey] || '').trim() : '';
+      return parseDate(dateStr);
+    };
+
+    const findLastValid = (vehicle: string, metricKeyCandidates: string[], currentRowDate: Date | null, currentRowIndex: number) => {
+      // Filter records of same vehicle with valid metric (>0) and older than current date (if date exists)
+      const candidates = data.rows
+        .filter(r => getVehicle(r as any) === vehicle && (r as any)._rowIndex !== currentRowIndex)
+        .map(r => {
+          const metricKey = findColumnKey(r as any, metricKeyCandidates);
+          const value = metricKey ? parseNumber((r as any)[metricKey]) : 0;
+          const date = getRowDate(r as any);
+          const idx = (r as any)._rowIndex ?? 0;
+          return { r, value, date, idx };
+        })
+        .filter(x => x.value > 0);
+
+      const filtered = currentRowDate
+        ? candidates.filter(x => x.date ? x.date.getTime() <= currentRowDate.getTime() : true)
+        : candidates;
+
+      filtered.sort((a, b) => {
+        if (a.date && b.date) return b.date.getTime() - a.date.getTime();
+        return (b.idx ?? 0) - (a.idx ?? 0);
+      });
+
+      return filtered[0]?.value ?? 0;
+    };
+
+    // Identify rows to fix (any of the relevant columns is 0)
+    const rowsToFix = data.rows.filter(row => {
+      const { horAtualKey, horAnteriorKey, kmAtualKey, kmAnteriorKey, genericKey } = pickMetricKeys(row as any);
+      const keys = [horAtualKey, horAnteriorKey, kmAtualKey, kmAnteriorKey, genericKey].filter(Boolean) as string[];
+      if (keys.length === 0) return false;
+      return keys.some(k => parseNumber((row as any)[k]) === 0);
+    });
+
+    if (rowsToFix.length === 0) {
       toast({
         title: 'Nenhum registro zerado',
         description: 'Não há registros com horímetro/KM zerado para corrigir.',
@@ -265,110 +356,118 @@ export function HorimetrosPage() {
       return;
     }
 
-    const readingCandidates = ['HORAS', 'HORIMETRO', 'HORÍMETRO', 'KM', 'QUILOMETRAGEM', 'KILOMETRAGEM'];
-    const vehicleCandidates = ['VEICULO', 'VEÍCULO', 'EQUIPAMENTO'];
-    const dateCandidates = ['DATA', 'Data', 'data'];
-    const obsCandidates = ['OBSERVACAO', 'OBSERVAÇÃO', 'OBS'];
-
     setIsFixingZeroed(true);
-    let fixed = 0;
-    let errors = 0;
-    let skipped = 0;
 
     try {
-      for (const record of zeroedRecords) {
+      for (const record of rowsToFix) {
         const rowIndex = (record as any)._rowIndex;
         if (!rowIndex) {
           errors++;
           continue;
         }
 
-        const vehicleKey = findColumnKey(record as any, vehicleCandidates);
-        const readingKey = findColumnKey(record as any, readingCandidates);
-        const dateKey = findColumnKey(record as any, dateCandidates);
-        const obsKey = findColumnKey(record as any, obsCandidates) || 'OBSERVACAO';
-
-        const veiculo = vehicleKey ? String((record as any)[vehicleKey] || '').trim() : '';
-        if (!veiculo || !readingKey) {
-          errors++;
+        const veiculo = getVehicle(record as any);
+        if (!veiculo) {
+          skippedNoColumns++;
           continue;
         }
 
-        // Find previous valid record for this vehicle (same reading column)
-        const vehicleRecords = data.rows.filter(row => {
-          const vKey = findColumnKey(row as any, vehicleCandidates);
-          const rKey = findColumnKey(row as any, readingCandidates);
-          if (!vKey || !rKey) return false;
+        const recDate = getRowDate(record as any);
+        const { horAtualKey, horAnteriorKey, kmAtualKey, kmAnteriorKey, genericKey } = pickMetricKeys(record as any);
 
-          const v = String((row as any)[vKey] || '').trim();
-          if (v !== veiculo) return false;
+        const obsKey = findColumnKey(record as any, COLUMN_CANDIDATES.obs) || 'OBSERVACAO';
+        const obsExisting = obsKey ? String((record as any)[obsKey] || '').trim() : '';
 
-          const h = parseNumber((row as any)[rKey]);
-          return h > 0 && (row as any)._rowIndex !== rowIndex;
-        });
+        const updatedData: Record<string, any> = { ...(record as any) };
+        let didUpdate = false;
 
-        if (vehicleRecords.length === 0) {
-          skipped++;
+        const updateIfZero = (key: string | null, metricCandidates: string[]) => {
+          if (!key) return;
+          const current = parseNumber((record as any)[key]);
+          if (current !== 0) return;
+          const last = findLastValid(veiculo, metricCandidates, recDate, rowIndex);
+          if (last > 0) {
+            updatedData[key] = last.toString().replace('.', ',');
+            didUpdate = true;
+          } else {
+            skippedNoHistory++;
+          }
+        };
+
+        // Prefer explicit columns from screenshot
+        if (horAtualKey || horAnteriorKey) {
+          updateIfZero(horAnteriorKey, COLUMN_CANDIDATES.horAtual);
+          updateIfZero(horAtualKey, COLUMN_CANDIDATES.horAtual);
+        }
+
+        if (kmAtualKey || kmAnteriorKey) {
+          updateIfZero(kmAnteriorKey, COLUMN_CANDIDATES.kmAtual);
+          updateIfZero(kmAtualKey, COLUMN_CANDIDATES.kmAtual);
+        }
+
+        // Fallback generic column
+        if (!didUpdate && genericKey) {
+          updateIfZero(genericKey, COLUMN_CANDIDATES.readingGeneric);
+        }
+
+        if (!didUpdate) {
+          // nothing to update (no columns or no history)
           continue;
         }
 
-        // Sort by date (desc). If date can't be parsed, fallback to row index (desc).
-        const sorted = vehicleRecords.sort((a, b) => {
-          const aDateStr = dateKey ? String((a as any)[dateKey] || '') : getRowValue(a as any, dateCandidates);
-          const bDateStr = dateKey ? String((b as any)[dateKey] || '') : getRowValue(b as any, dateCandidates);
-
-          const aDate = parseDate(aDateStr);
-          const bDate = parseDate(bDateStr);
-
-          if (aDate && bDate) return bDate.getTime() - aDate.getTime();
-
-          const aIdx = (a as any)._rowIndex ?? 0;
-          const bIdx = (b as any)._rowIndex ?? 0;
-          return bIdx - aIdx;
-        });
-
-        const lastValidRecord = sorted[0];
-        const lastReadingKey = findColumnKey(lastValidRecord as any, readingCandidates) || readingKey;
-        const lastValidValue = parseNumber((lastValidRecord as any)[lastReadingKey]);
-
-        if (!(lastValidValue > 0)) {
-          skipped++;
-          continue;
-        }
+        const suffix = `CORRIGIDO AUTOMATICAMENTE: ${format(new Date(), 'dd/MM/yyyy HH:mm', { locale: ptBR })}`;
+        updatedData[obsKey] = obsExisting ? `${obsExisting} | ${suffix}` : suffix;
 
         try {
-          const updatedData = { ...(record as any) };
-          updatedData[readingKey] = lastValidValue.toString().replace('.', ',');
-
-          const obsExisting = obsKey ? String((record as any)[obsKey] || '').trim() : '';
-          const suffix = `CORRIGIDO AUTOMATICAMENTE: ${lastValidValue}`;
-          updatedData[obsKey] = obsExisting ? `${obsExisting} | ${suffix}` : suffix;
-
           await update(rowIndex, updatedData);
           fixed++;
+          vehicleSet.add(veiculo);
         } catch (err) {
           console.error(`Error fixing record ${rowIndex}:`, err);
           errors++;
         }
       }
 
+      const report = {
+        ranAt: format(new Date(), 'dd/MM/yyyy HH:mm', { locale: ptBR }),
+        fixed,
+        skippedNoHistory,
+        skippedNoColumns,
+        errors,
+        vehiclesAffected: vehicleSet.size,
+      };
+      setAutoFixReport(report);
+
       toast({
-        title: 'Correção Concluída',
-        description: `${fixed} corrigidos${skipped ? `, ${skipped} sem histórico` : ''}${errors ? `, ${errors} erros` : ''}.`,
+        title: isAuto ? 'Auto-correção concluída' : 'Correção concluída',
+        description: `${fixed} corrigidos${vehicleSet.size ? ` (${vehicleSet.size} veículos)` : ''}${skippedNoHistory ? `, ${skippedNoHistory} sem histórico` : ''}${errors ? `, ${errors} erros` : ''}.`,
       });
 
       await refetch();
-    } catch (error) {
-      console.error('Error fixing zeroed records:', error);
-      toast({
-        title: 'Erro',
-        description: 'Falha ao corrigir registros. Tente novamente.',
-        variant: 'destructive',
-      });
     } finally {
       setIsFixingZeroed(false);
     }
-  }, [zeroedRecords, data.rows, update, refetch, toast]);
+  }, [COLUMN_CANDIDATES, data.rows, refetch, toast, update]);
+
+  const handleFixZeroed = useCallback(async () => {
+    return runFixZeroed({ auto: false });
+  }, [runFixZeroed]);
+
+  // Auto-run once per day when data is available (after runFixZeroed is declared)
+  useEffect(() => {
+    if (!autoFixEnabled) return;
+    if (connectionStatus !== 'connected') return;
+    if (isFixingZeroed) return;
+    if (!data.rows.length) return;
+
+    const todayKey = format(new Date(), 'yyyy-MM-dd');
+    const storageKey = `abastech:horimetros:autoFix:${todayKey}`;
+    const alreadyRan = localStorage.getItem(storageKey) === '1';
+    if (alreadyRan) return;
+
+    localStorage.setItem(storageKey, '1');
+    runFixZeroed({ auto: true });
+  }, [autoFixEnabled, connectionStatus, data.rows.length, isFixingZeroed, runFixZeroed]);
 
   const pendingEquipments = useMemo(() => {
     return [
@@ -471,19 +570,28 @@ export function HorimetrosPage() {
               <RefreshCw className={cn("w-4 h-4 mr-2", loading && "animate-spin")} />
               Sincronizar
             </Button>
-            <Button 
-              variant="outline" 
-              size="sm" 
+            <Button
+              variant="outline"
+              size="sm"
               className="text-primary border-primary"
               onClick={handleFixZeroed}
-              disabled={isFixingZeroed || zeroedRecords.length === 0}
+              disabled={isFixingZeroed}
             >
               {isFixingZeroed ? (
                 <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
               ) : (
                 <Wrench className="w-4 h-4 mr-2" />
               )}
-              Corrigir Zerados ({zeroedRecords.length})
+              Corrigir Zerados
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => runFixZeroed({ auto: true })}
+              disabled={isFixingZeroed || !autoFixEnabled}
+            >
+              <Wrench className="w-4 h-4 mr-2" />
+              Corrigir Zerados (Auto)
             </Button>
             <Button variant="outline" size="sm" onClick={exportToPDF}>
               <FileText className="w-4 h-4 mr-2" />
@@ -495,6 +603,45 @@ export function HorimetrosPage() {
             </Button>
           </div>
         </div>
+
+        {/* Auto-fix Report */}
+        {autoFixReport && (
+          <div className="bg-card rounded-lg border border-border p-4">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="font-semibold">Relatório — Correção automática</p>
+                <p className="text-sm text-muted-foreground">Executado em: {autoFixReport.ranAt}</p>
+              </div>
+              <Button variant="outline" size="sm" onClick={() => setAutoFixReport(null)}>
+                <X className="w-4 h-4 mr-1" />
+                Fechar
+              </Button>
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mt-4">
+              <div className="bg-muted/30 rounded-md p-3">
+                <div className="text-xs text-muted-foreground">Corrigidos</div>
+                <div className="text-lg font-bold text-primary">{autoFixReport.fixed}</div>
+              </div>
+              <div className="bg-muted/30 rounded-md p-3">
+                <div className="text-xs text-muted-foreground">Veículos</div>
+                <div className="text-lg font-bold">{autoFixReport.vehiclesAffected}</div>
+              </div>
+              <div className="bg-muted/30 rounded-md p-3">
+                <div className="text-xs text-muted-foreground">Sem histórico</div>
+                <div className="text-lg font-bold text-amber-500">{autoFixReport.skippedNoHistory}</div>
+              </div>
+              <div className="bg-muted/30 rounded-md p-3">
+                <div className="text-xs text-muted-foreground">Sem colunas</div>
+                <div className="text-lg font-bold text-amber-500">{autoFixReport.skippedNoColumns}</div>
+              </div>
+              <div className="bg-muted/30 rounded-md p-3">
+                <div className="text-xs text-muted-foreground">Erros</div>
+                <div className="text-lg font-bold text-red-500">{autoFixReport.errors}</div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Warning Banner */}
         {zeroedRecords.length > 0 && (
