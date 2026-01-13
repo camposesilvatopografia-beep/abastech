@@ -355,6 +355,13 @@ export function HorimetrosPageDB() {
         {/* Date Filter */}
         <div className="flex flex-col md:flex-row gap-3 items-start md:items-center">
           <div className="flex gap-2 items-center">
+            <Button 
+              variant={selectedDate && format(selectedDate, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd') ? 'default' : 'outline'} 
+              size="sm" 
+              onClick={() => setSelectedDate(new Date())}
+            >
+              Hoje
+            </Button>
             <Popover>
               <PopoverTrigger asChild>
                 <Button variant="outline" size="sm">
@@ -372,7 +379,7 @@ export function HorimetrosPageDB() {
               </PopoverContent>
             </Popover>
             {selectedDate && (
-              <Button variant="ghost" size="sm" onClick={clearDateFilter}>
+              <Button variant="ghost" size="sm" onClick={clearDateFilter} title="Mostrar todos">
                 <X className="w-4 h-4" />
               </Button>
             )}
