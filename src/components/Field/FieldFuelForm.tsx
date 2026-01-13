@@ -954,6 +954,27 @@ export function FieldFuelForm({ user, onLogout }: FieldFuelFormProps) {
 
       {/* Form */}
       <div className="p-4 space-y-4">
+        {/* Current Date/Time Display (Auto-filled) */}
+        <div className="bg-muted/50 rounded-xl border border-border p-4">
+          <div className="flex items-center gap-2 text-muted-foreground mb-2">
+            <Clock className="w-4 h-4" />
+            <span className="text-sm font-medium">Data e Hora do Registro</span>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-xs text-muted-foreground">Data</p>
+              <p className="text-lg font-bold">{new Date().toLocaleDateString('pt-BR')}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Hora</p>
+              <p className="text-lg font-bold">{new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground mt-2 italic">
+            * Preenchido automaticamente no momento do registro
+          </p>
+        </div>
+
         {/* Record Type Selection */}
         <div className="bg-card rounded-xl border border-border p-4 space-y-3">
           <Label className="flex items-center gap-2 text-base font-medium">
@@ -991,13 +1012,13 @@ export function FieldFuelForm({ user, onLogout }: FieldFuelFormProps) {
         {recordType === 'saida' && (
           <>
             {/* Vehicle Selection */}
-        <div className="bg-card rounded-xl border border-border p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <Label className="flex items-center gap-2 text-base">
-              <Truck className="w-4 h-4" />
-              Veículo
-            </Label>
-            {voice.isSupported && (
+            <div className="bg-card rounded-xl border border-border p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <Label className="flex items-center gap-2 text-base">
+                  <Truck className="w-4 h-4" />
+                  Veículo
+                </Label>
+                {voice.isSupported && (
               <Button
                 type="button"
                 size="sm"
@@ -1009,18 +1030,24 @@ export function FieldFuelForm({ user, onLogout }: FieldFuelFormProps) {
               </Button>
             )}
           </div>
-          <Select value={vehicleCode} onValueChange={handleVehicleSelect}>
-            <SelectTrigger className="h-12 text-lg">
-              <SelectValue placeholder="Selecione o veículo" />
-            </SelectTrigger>
-            <SelectContent className="max-h-60">
-              {vehicles.map(v => (
-                <SelectItem key={v.code} value={v.code}>
-                  {v.code} - {v.description}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+              <Select value={vehicleCode} onValueChange={handleVehicleSelect}>
+                <SelectTrigger className="h-12 text-lg">
+                  <SelectValue placeholder="Selecione o veículo" />
+                </SelectTrigger>
+                <SelectContent className="max-h-60 z-50 bg-popover">
+                  {vehicles.length === 0 ? (
+                    <div className="p-3 text-center text-muted-foreground text-sm">
+                      Carregando veículos...
+                    </div>
+                  ) : (
+                    vehicles.map(v => (
+                      <SelectItem key={v.code} value={v.code}>
+                        {v.code} - {v.description}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
           
           {vehicleDescription && (
             <div className="grid grid-cols-2 gap-2 text-sm">
@@ -1285,34 +1312,159 @@ export function FieldFuelForm({ user, onLogout }: FieldFuelFormProps) {
           </>
         )}
 
-        {/* ARLA */}
-        <div className="bg-card rounded-xl border border-border p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <Label className="flex items-center gap-2 text-base">
-              <Droplet className="w-4 h-4" />
-              ARLA (Litros)
-            </Label>
-            {voice.isSupported && (
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => startVoiceForField('arla')}
-                className={cn(activeVoiceField === 'arla' && voice.isListening && "bg-red-100")}
-              >
-                <Mic className="w-4 h-4" />
-              </Button>
-            )}
+        {/* ARLA - only for Saida */}
+        {recordType === 'saida' && (
+          <div className="bg-card rounded-xl border border-border p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <Label className="flex items-center gap-2 text-base">
+                <Droplet className="w-4 h-4" />
+                ARLA (Litros)
+              </Label>
+              {voice.isSupported && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => startVoiceForField('arla')}
+                  className={cn(activeVoiceField === 'arla' && voice.isListening && "bg-red-100")}
+                >
+                  <Mic className="w-4 h-4" />
+                </Button>
+              )}
+            </div>
+            <Input
+              type="number"
+              inputMode="decimal"
+              placeholder="0"
+              value={arlaQuantity}
+              onChange={(e) => setArlaQuantity(e.target.value)}
+              className="h-12 text-lg text-center"
+            />
           </div>
-          <Input
-            type="number"
-            inputMode="decimal"
-            placeholder="0"
-            value={arlaQuantity}
-            onChange={(e) => setArlaQuantity(e.target.value)}
-            className="h-12 text-lg text-center"
-          />
-        </div>
+        )}
+
+        {/* ENTRADA FORM */}
+        {recordType === 'entrada' && (
+          <>
+            {/* Supplier */}
+            <div className="bg-card rounded-xl border border-border p-4 space-y-3">
+              <Label className="flex items-center gap-2 text-base">
+                <Building2 className="w-4 h-4" />
+                Fornecedor
+              </Label>
+              <Input
+                type="text"
+                placeholder="Nome do fornecedor"
+                value={supplier}
+                onChange={(e) => setSupplier(e.target.value)}
+                className="h-12 text-lg"
+              />
+            </div>
+
+            {/* Fuel Quantity */}
+            <div className="bg-card rounded-xl border border-border p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <Label className="flex items-center gap-2 text-base">
+                  <Fuel className="w-4 h-4" />
+                  Quantidade (Litros)
+                </Label>
+                <div className="flex items-center gap-1">
+                  <input
+                    ref={quantityOcrInputRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={handleQuantityOCRCapture}
+                    className="hidden"
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => quantityOcrInputRef.current?.click()}
+                    disabled={isProcessingQuantityOCR}
+                    className="gap-1"
+                    title="Tirar foto para reconhecer valor"
+                  >
+                    {isProcessingQuantityOCR ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <>
+                        <ScanLine className="w-4 h-4" />
+                        <span className="text-xs hidden sm:inline">OCR</span>
+                      </>
+                    )}
+                  </Button>
+                  {voice.isSupported && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => startVoiceForField('quantity')}
+                      className={cn(activeVoiceField === 'quantity' && voice.isListening && "bg-red-100")}
+                    >
+                      <Mic className="w-4 h-4" />
+                    </Button>
+                  )}
+                </div>
+              </div>
+              <Input
+                type="number"
+                inputMode="decimal"
+                placeholder="Ex: 1000"
+                value={fuelQuantity}
+                onChange={(e) => setFuelQuantity(e.target.value)}
+                className="h-14 text-2xl text-center font-bold"
+              />
+            </div>
+
+            {/* Invoice Number */}
+            <div className="bg-card rounded-xl border border-border p-4 space-y-3">
+              <Label className="flex items-center gap-2 text-base">
+                Nota Fiscal
+              </Label>
+              <Input
+                type="text"
+                placeholder="Número da NF"
+                value={invoiceNumber}
+                onChange={(e) => setInvoiceNumber(e.target.value)}
+                className="h-12 text-lg"
+              />
+            </div>
+
+            {/* Unit Price */}
+            <div className="bg-card rounded-xl border border-border p-4 space-y-3">
+              <Label className="flex items-center gap-2 text-base">
+                Valor Unitário (R$)
+              </Label>
+              <Input
+                type="number"
+                inputMode="decimal"
+                placeholder="Ex: 5.89"
+                value={unitPrice}
+                onChange={(e) => setUnitPrice(e.target.value)}
+                className="h-12 text-lg"
+              />
+            </div>
+
+            {/* Entry Location */}
+            <div className="bg-card rounded-xl border border-border p-4 space-y-3">
+              <Label className="flex items-center gap-2 text-base">
+                <MapPin className="w-4 h-4" />
+                Local de Entrada
+              </Label>
+              <Select value={entryLocation} onValueChange={setEntryLocation}>
+                <SelectTrigger className="h-12">
+                  <SelectValue placeholder="Selecione o local" />
+                </SelectTrigger>
+                <SelectContent className="z-50 bg-popover">
+                  <SelectItem value="Tanque Canteiro 01">Tanque Canteiro 01</SelectItem>
+                  <SelectItem value="Tanque Canteiro 02">Tanque Canteiro 02</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </>
+        )}
 
         {/* Location - for Saida only */}
         {recordType === 'saida' && (
