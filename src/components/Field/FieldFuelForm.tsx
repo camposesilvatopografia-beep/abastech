@@ -877,13 +877,25 @@ export function FieldFuelForm({ user, onLogout }: FieldFuelFormProps) {
     description: String(v['Descricao'] || ''),
   })).filter(v => v.code);
 
-  // Success overlay
+  // Success overlay with animation
   if (showSuccess) {
     return (
-      <div className="fixed inset-0 bg-green-500 flex items-center justify-center z-50">
-        <div className="text-center text-white">
-          <CheckCircle className="w-24 h-24 mx-auto mb-4 animate-bounce" />
-          <h2 className="text-3xl font-bold">Registrado!</h2>
+      <div className="fixed inset-0 bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center z-50 animate-in fade-in duration-300">
+        <div className="text-center text-white space-y-4">
+          <div className="relative">
+            <div className="absolute inset-0 bg-white/20 rounded-full animate-ping" style={{ animationDuration: '1s' }} />
+            <CheckCircle className="w-28 h-28 mx-auto relative z-10 animate-in zoom-in duration-500" />
+          </div>
+          <h2 className="text-3xl font-bold animate-in slide-in-from-bottom duration-500">
+            {recordType === 'entrada' ? 'Entrada Registrada!' : 'Abastecimento Registrado!'}
+          </h2>
+          <p className="text-lg opacity-90 animate-in slide-in-from-bottom duration-700">
+            Dados salvos com sucesso
+          </p>
+          <div className="flex items-center justify-center gap-2 mt-4 animate-in slide-in-from-bottom duration-900">
+            <Cloud className="w-5 h-5" />
+            <span className="text-sm">Sincronizando com planilha...</span>
+          </div>
         </div>
       </div>
     );
