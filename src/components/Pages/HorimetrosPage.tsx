@@ -751,21 +751,21 @@ export function HorimetrosPage() {
   };
 
   return (
-    <div className="flex-1 p-6 overflow-auto">
-      <div className="space-y-6">
+    <div className="flex-1 p-3 md:p-6 overflow-auto">
+      <div className="space-y-4 md:space-y-6">
         {/* Header */}
-        <div className="flex items-start justify-between">
+        <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
-              <Clock className="w-6 h-6 text-primary" />
+            <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+              <Clock className="w-5 h-5 md:w-6 md:h-6 text-primary" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold">Horímetros</h1>
-              <p className="text-muted-foreground">Controle de horas trabalhadas dos equipamentos</p>
+              <h1 className="text-xl md:text-2xl font-bold">Horímetros</h1>
+              <p className="text-sm text-muted-foreground">Controle de horas trabalhadas</p>
             </div>
             {/* Connection Status */}
             <div className={cn(
-              "flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium",
+              "hidden sm:flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium",
               connectionStatus === 'connected' && "bg-emerald-500/10 text-emerald-500",
               connectionStatus === 'error' && "bg-red-500/10 text-red-500",
               connectionStatus === 'checking' && "bg-amber-500/10 text-amber-500"
@@ -777,55 +777,69 @@ export function HorimetrosPage() {
             </div>
           </div>
           
-          <div className="flex items-center gap-2">
+          {/* Action Buttons - Responsive Layout */}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Primary Action - Always Visible */}
             <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={testConnection} 
-              disabled={isTesting}
+              className="bg-primary hover:bg-primary/90 order-first lg:order-last" 
+              onClick={() => setShowNewModal(true)}
             >
-              <Database className={cn("w-4 h-4 mr-2", isTesting && "animate-pulse")} />
-              Testar Conexão
-            </Button>
-            <Button variant="outline" size="sm" onClick={syncData} disabled={loading || isTesting}>
-              <RefreshCw className={cn("w-4 h-4 mr-2", loading && "animate-spin")} />
-              Sincronizar
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="text-primary border-primary"
-              onClick={handleFixZeroed}
-              disabled={isFixingZeroed}
-            >
-              {isFixingZeroed ? (
-                <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-              ) : (
-                <Wrench className="w-4 h-4 mr-2" />
-              )}
-              Corrigir Zerados
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => runFixZeroed({ auto: true })}
-              disabled={isFixingZeroed || !autoFixEnabled}
-            >
-              <Wrench className="w-4 h-4 mr-2" />
-              Corrigir Zerados (Auto)
-            </Button>
-            <Button variant="outline" size="sm" onClick={exportToPDF}>
-              <FileText className="w-4 h-4 mr-2" />
-              PDF
-            </Button>
-            <Button variant="outline" size="sm" onClick={exportToExcel}>
-              <FileSpreadsheet className="w-4 h-4 mr-2" />
-              Excel
-            </Button>
-            <Button className="bg-primary hover:bg-primary/90" onClick={() => setShowNewModal(true)}>
               <Plus className="w-4 h-4 mr-2" />
-              Novo
+              <span className="hidden sm:inline">Novo Registro</span>
+              <span className="sm:hidden">Novo</span>
             </Button>
+            
+            {/* Secondary Actions */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <Button variant="outline" size="sm" onClick={exportToPDF} className="shrink-0">
+                <FileText className="w-4 h-4 sm:mr-2" />
+                <span className="hidden sm:inline">PDF</span>
+              </Button>
+              <Button variant="outline" size="sm" onClick={exportToExcel} className="shrink-0">
+                <FileSpreadsheet className="w-4 h-4 sm:mr-2" />
+                <span className="hidden sm:inline">Excel</span>
+              </Button>
+              <Button variant="outline" size="sm" onClick={syncData} disabled={loading || isTesting} className="shrink-0">
+                <RefreshCw className={cn("w-4 h-4 sm:mr-2", loading && "animate-spin")} />
+                <span className="hidden sm:inline">Sincronizar</span>
+              </Button>
+            </div>
+            
+            {/* Advanced Actions - Hidden on Mobile */}
+            <div className="hidden lg:flex items-center gap-2">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={testConnection} 
+                disabled={isTesting}
+              >
+                <Database className={cn("w-4 h-4 mr-2", isTesting && "animate-pulse")} />
+                Testar Conexão
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-primary border-primary"
+                onClick={handleFixZeroed}
+                disabled={isFixingZeroed}
+              >
+                {isFixingZeroed ? (
+                  <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Wrench className="w-4 h-4 mr-2" />
+                )}
+                Corrigir Zerados
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => runFixZeroed({ auto: true })}
+                disabled={isFixingZeroed || !autoFixEnabled}
+              >
+                <Wrench className="w-4 h-4 mr-2" />
+                Corrigir Zerados (Auto)
+              </Button>
+            </div>
           </div>
         </div>
 

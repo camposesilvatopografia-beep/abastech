@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import { Trophy, TrendingUp, Fuel, ChevronDown, ChevronUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -61,6 +61,19 @@ export function ConsumptionRanking({
     );
   }, [vehicleData]);
 
+  // Also identify comboio vehicles by their description in the data itself
+  const isComboioVehicle = useCallback((veiculo: string, desc?: string): boolean => {
+    const vehicleName = veiculo.trim().toUpperCase();
+    const descLower = (desc || '').toLowerCase();
+    
+    // Check if vehicle name or description contains "COMBOIO"
+    if (vehicleName.includes('COMBOIO')) return true;
+    if (descLower.includes('comboio') || descLower.includes('caminhão comboio') || descLower.includes('caminhao comboio')) return true;
+    
+    // Check against vehicle data
+    return comboioVehicles.has(vehicleName);
+  }, [comboioVehicles]);
+
   // Calculate ranking based on period filter
   const rankingData = useMemo(() => {
     let sourceData: RankingItem[];
@@ -105,14 +118,10 @@ export function ConsumptionRanking({
 
     // Filter out comboios and sort
     return sourceData
-      .filter(item => {
-        const vehicleName = item.veiculo.trim().toUpperCase();
-        if (vehicleName.includes('COMBOIO')) return false;
-        return !comboioVehicles.has(vehicleName);
-      })
+      .filter(item => !isComboioVehicle(item.veiculo))
       .sort((a, b) => b.totalLitros - a.totalLitros)
       .slice(0, maxItems);
-  }, [data, rawData, periodFilter, comboioVehicles, maxItems]);
+  }, [data, rawData, periodFilter, comboioVehicles, maxItems, isComboioVehicle]);
 
   const maxConsumption = rankingData[0]?.totalLitros || 1;
 
