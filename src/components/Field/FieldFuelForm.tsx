@@ -1162,6 +1162,9 @@ export function FieldFuelForm({ user, onLogout }: FieldFuelFormProps) {
             <Label className="flex items-center gap-2 text-base">
               <Gauge className="w-4 h-4" />
               Horímetro / KM Atual
+              {isEquipment && recordType === 'saida' && (
+                <span className="text-red-500 text-lg">*</span>
+              )}
             </Label>
             <div className="flex items-center gap-1">
               {/* OCR Button */}
