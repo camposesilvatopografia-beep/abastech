@@ -6,7 +6,7 @@ interface MetricCardProps {
   value: string;
   subtitle?: string;
   icon?: LucideIcon;
-  variant?: 'default' | 'primary' | 'blue' | 'green' | 'red';
+  variant?: 'default' | 'primary' | 'blue' | 'green' | 'red' | 'yellow' | 'white' | 'navy';
   className?: string;
 }
 
@@ -53,6 +53,30 @@ export function MetricCard({
     },
     red: {
       container: "bg-red-600 text-white",
+      title: "text-white/80",
+      value: "text-white",
+      subtitle: "text-white/70",
+      iconBg: "bg-white/20",
+      iconColor: "text-white"
+    },
+    yellow: {
+      container: "bg-amber-500 text-white",
+      title: "text-white/80",
+      value: "text-white",
+      subtitle: "text-white/70",
+      iconBg: "bg-white/20",
+      iconColor: "text-white"
+    },
+    white: {
+      container: "bg-white border border-border text-foreground",
+      title: "text-muted-foreground",
+      value: "text-foreground",
+      subtitle: "text-muted-foreground",
+      iconBg: "bg-muted",
+      iconColor: "text-muted-foreground"
+    },
+    navy: {
+      container: "bg-blue-900 text-white",
       title: "text-white/80",
       value: "text-white",
       subtitle: "text-white/70",

@@ -379,7 +379,7 @@ export function EstoquesPage() {
             title="ESTOQUE ARLA"
             value={`${metrics.estoqueArla.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L`}
             subtitle="Disponível"
-            variant="primary"
+            variant="yellow"
             icon={Droplet}
           />
         </div>
@@ -402,51 +402,6 @@ export function EstoquesPage() {
           />
         </div>
 
-        {/* Stock Summary Table */}
-        <div className="bg-card rounded-lg border border-border overflow-hidden">
-          <div className="p-4 border-b border-border">
-            <h2 className="font-semibold">Movimentação de Estoque</h2>
-            <p className="text-sm text-muted-foreground">Registros do período selecionado</p>
-          </div>
-          
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-muted/50">
-                <TableHead>Data</TableHead>
-                <TableHead className="text-right">Diesel (L)</TableHead>
-                <TableHead className="text-right">Arla (L)</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading ? (
-                <TableRow>
-                  <TableCell colSpan={3} className="text-center py-8">
-                    <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-muted-foreground" />
-                    Carregando dados...
-                  </TableCell>
-                </TableRow>
-              ) : stockHistory.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={3} className="text-center py-8 text-muted-foreground">
-                    Nenhum dado encontrado para o período
-                  </TableCell>
-                </TableRow>
-              ) : (
-                stockHistory.map(([date, values]) => (
-                  <TableRow key={date}>
-                    <TableCell className="font-medium">{date}</TableCell>
-                    <TableCell className="text-right">
-                      {values.diesel.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {values.arla > 0 ? values.arla.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '-'}
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
       </div>
     </div>
   );

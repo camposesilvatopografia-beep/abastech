@@ -243,9 +243,21 @@ export function AbastecimentoPage() {
     return Array.from(unique).sort();
   }, [data.rows]);
 
-  // Summary by location
+  // Summary by location with detailed records
   const resumoPorLocal = useMemo(() => {
     const summary: Record<string, { abastecimentos: number; diesel: number; arla: number; valor: number }> = {};
+    
+    // Detailed records per location
+    const recordsByLocal: Record<string, Array<{
+      data: string;
+      veiculo: string;
+      descricao: string;
+      motorista: string;
+      quantidade: number;
+      categoria: string;
+      horimetro: number;
+      km: number;
+    }>> = {};
     
     filteredRows.forEach(row => {
       const local = String(row['LOCAL'] || 'Não informado').trim() || 'Não informado';
@@ -255,12 +267,25 @@ export function AbastecimentoPage() {
       
       if (!summary[local]) {
         summary[local] = { abastecimentos: 0, diesel: 0, arla: 0, valor: 0 };
+        recordsByLocal[local] = [];
       }
       
       summary[local].abastecimentos++;
       summary[local].diesel += quantidade;
       summary[local].arla += arlaQtd;
       summary[local].valor += valor;
+
+      // Add detailed record
+      recordsByLocal[local].push({
+        data: String(row['DATA'] || ''),
+        veiculo: String(row['VEICULO'] || row['Veiculo'] || ''),
+        descricao: String(row['DESCRIÇÃO'] || row['DESCRICAO'] || row['Descricao'] || ''),
+        motorista: String(row['MOTORISTA'] || row['Motorista'] || ''),
+        quantidade,
+        categoria: String(row['CATEGORIA'] || row['Categoria'] || row['TIPO'] || ''),
+        horimetro: parseNumber(row['HORIMETRO'] || row['Horimetro'] || row['HORAS']),
+        km: parseNumber(row['KM'] || row['Km'] || row['QUILOMETRAGEM'])
+      });
     });
 
     const entries = Object.entries(summary).sort((a, b) => b[1].diesel - a[1].diesel);
@@ -271,7 +296,34 @@ export function AbastecimentoPage() {
       valor: acc.valor + v.valor
     }), { abastecimentos: 0, diesel: 0, arla: 0, valor: 0 });
 
-    return { entries, total };
+    return { entries, total, recordsByLocal };
+  }, [filteredRows]);
+
+  // Calculate average consumption per vehicle (based on horimetro or km)
+  const consumoMedioVeiculo = useMemo(() => {
+    const veiculoMap = new Map<string, { totalLitros: number; totalHoras: number; totalKm: number; usaKm: boolean }>();
+    
+    filteredRows.forEach(row => {
+      const veiculo = String(row['VEICULO'] || row['Veiculo'] || '').trim();
+      const quantidade = parseNumber(row['QUANTIDADE']);
+      const horimetro = parseNumber(row['HORIMETRO'] || row['Horimetro'] || row['HORAS']);
+      const km = parseNumber(row['KM'] || row['Km'] || row['QUILOMETRAGEM']);
+      const categoria = String(row['CATEGORIA'] || row['Categoria'] || '').toLowerCase();
+      
+      if (!veiculo) return;
+      
+      const existing = veiculoMap.get(veiculo) || { totalLitros: 0, totalHoras: 0, totalKm: 0, usaKm: false };
+      const usaKm = categoria.includes('veículo') || categoria.includes('veiculo') || km > 0;
+      
+      veiculoMap.set(veiculo, {
+        totalLitros: existing.totalLitros + quantidade,
+        totalHoras: existing.totalHoras + horimetro,
+        totalKm: existing.totalKm + km,
+        usaKm: existing.usaKm || usaKm
+      });
+    });
+    
+    return veiculoMap;
   }, [filteredRows]);
 
   // Saneamento data - filter for "Obra Saneamento"
@@ -547,33 +599,29 @@ export function AbastecimentoPage() {
             title="REGISTROS NO PERÍODO"
             value={metrics.registros.toString()}
             subtitle={`${PERIOD_OPTIONS.find(p => p.value === periodFilter)?.label || 'Período'}`}
-            variant="primary"
+            variant="white"
             icon={Fuel}
-            className="border-l-4 border-l-blue-500"
           />
           <MetricCard
-            title="TOTAL DIESEL"
+            title="TOTAL DE SAÍDAS"
             value={`${metrics.totalQuantidade.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L`}
-            subtitle="Litros consumidos"
-            variant="primary"
-            icon={Droplet}
-            className="border-l-4 border-l-amber-500"
+            subtitle="Diesel consumido"
+            variant="red"
+            icon={TrendingDown}
           />
           <MetricCard
             title="TOTAL ARLA"
             value={`${metrics.totalArla.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L`}
-            subtitle="Litros consumidos"
-            variant="primary"
-            icon={Calendar}
-            className="border-l-4 border-l-emerald-500"
+            subtitle="Arla consumido"
+            variant="yellow"
+            icon={Droplet}
           />
           <MetricCard
             title="ESTOQUE ATUAL"
             value={`${estoqueAtual.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L`}
             subtitle="Combustível disponível"
-            variant="primary"
+            variant="navy"
             icon={TrendingUp}
-            className="border-l-4 border-l-purple-500"
           />
         </div>
 
@@ -718,61 +766,75 @@ export function AbastecimentoPage() {
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/50">
-                    <TableHead>Local</TableHead>
-                    <TableHead className="text-center">Abastecimentos</TableHead>
-                    <TableHead className="text-center">Diesel (L)</TableHead>
-                    <TableHead className="text-center">Arla (L)</TableHead>
-                    <TableHead className="text-center">% do Total</TableHead>
+                    <TableHead>Data</TableHead>
+                    <TableHead>Veículo</TableHead>
+                    <TableHead>Descrição</TableHead>
+                    <TableHead>Motorista</TableHead>
+                    <TableHead className="text-right">Quantidade (L)</TableHead>
+                    <TableHead className="text-right">Consumo Médio</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {loading ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center py-8">
+                      <TableCell colSpan={6} className="text-center py-8">
                         <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-muted-foreground" />
                         Carregando dados...
                       </TableCell>
                     </TableRow>
-                  ) : resumoPorLocal.entries.length === 0 ? (
+                  ) : filteredRows.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                         Nenhum dado encontrado para o período selecionado
                       </TableCell>
                     </TableRow>
                   ) : (
                     <>
-                      {resumoPorLocal.entries.map(([local, values]) => (
-                        <TableRow key={local}>
-                          <TableCell className="font-medium">{local}</TableCell>
-                          <TableCell className="text-center">{values.abastecimentos}</TableCell>
-                          <TableCell className="text-center">
-                            {values.diesel.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                          </TableCell>
-                          <TableCell className="text-center">
-                            {values.arla > 0 ? values.arla.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '-'}
-                          </TableCell>
-                          <TableCell className="text-center">
-                            {resumoPorLocal.total.abastecimentos > 0 
-                              ? ((values.abastecimentos / resumoPorLocal.total.abastecimentos) * 100).toFixed(1) + '%'
-                              : '0%'
-                            }
+                      {filteredRows.slice(0, 50).map((row, index) => {
+                        const veiculo = String(row['VEICULO'] || row['Veiculo'] || '').trim();
+                        const consumoData = consumoMedioVeiculo.get(veiculo);
+                        
+                        // Calculate average consumption
+                        let consumoMedio = '-';
+                        if (consumoData && consumoData.totalLitros > 0) {
+                          if (consumoData.usaKm && consumoData.totalKm > 0) {
+                            const kmL = consumoData.totalKm / consumoData.totalLitros;
+                            consumoMedio = `${kmL.toFixed(2)} km/L`;
+                          } else if (consumoData.totalHoras > 0) {
+                            const lH = consumoData.totalLitros / consumoData.totalHoras;
+                            consumoMedio = `${lH.toFixed(2)} L/h`;
+                          }
+                        }
+
+                        return (
+                          <TableRow key={row._rowIndex || index}>
+                            <TableCell>{String(row['DATA'] || '')}</TableCell>
+                            <TableCell className="font-medium">{veiculo}</TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {String(row['DESCRIÇÃO'] || row['DESCRICAO'] || row['Descricao'] || '-')}
+                            </TableCell>
+                            <TableCell>{String(row['MOTORISTA'] || row['Motorista'] || '-')}</TableCell>
+                            <TableCell className="text-right font-medium">
+                              {parseNumber(row['QUANTIDADE']).toLocaleString('pt-BR', { minimumFractionDigits: 1 })}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <span className={cn(
+                                "text-sm",
+                                consumoMedio !== '-' && "text-primary font-medium"
+                              )}>
+                                {consumoMedio}
+                              </span>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                      {filteredRows.length > 50 && (
+                        <TableRow>
+                          <TableCell colSpan={6} className="text-center py-4 text-muted-foreground">
+                            Mostrando 50 de {filteredRows.length} registros
                           </TableCell>
                         </TableRow>
-                      ))}
-                      <TableRow className="bg-muted/30 font-semibold">
-                        <TableCell>Total</TableCell>
-                        <TableCell className="text-center">{resumoPorLocal.total.abastecimentos}</TableCell>
-                        <TableCell className="text-center">
-                          {resumoPorLocal.total.diesel.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          {resumoPorLocal.total.arla > 0 
-                            ? resumoPorLocal.total.arla.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) 
-                            : '-'
-                          }
-                        </TableCell>
-                        <TableCell className="text-center text-primary">100%</TableCell>
-                      </TableRow>
+                      )}
                     </>
                   )}
                 </TableBody>
