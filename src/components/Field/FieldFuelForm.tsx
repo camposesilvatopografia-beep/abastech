@@ -49,7 +49,7 @@ interface FieldUser {
   name: string;
   username: string;
   role: string;
-  assigned_location?: string;
+  assigned_locations?: string[];
 }
 
 interface FieldFuelFormProps {
@@ -156,7 +156,7 @@ export function FieldFuelForm({ user, onLogout }: FieldFuelFormProps) {
   const [fuelQuantity, setFuelQuantity] = useState('');
   const [fuelType, setFuelType] = useState('Diesel');
   const [arlaQuantity, setArlaQuantity] = useState('');
-  const [location, setLocation] = useState(user.assigned_location || 'Tanque Canteiro 01');
+  const [location, setLocation] = useState(user.assigned_locations?.[0] || 'Tanque Canteiro 01');
   const [observations, setObservations] = useState('');
   
   // Equipment-specific fields (optional)
@@ -1314,26 +1314,35 @@ export function FieldFuelForm({ user, onLogout }: FieldFuelFormProps) {
           />
         </div>
 
-        {/* Location */}
-        <div className="bg-card rounded-xl border border-border p-4 space-y-3">
-          <Label className="flex items-center gap-2 text-base">
-            <MapPin className="w-4 h-4" />
-            Local
-          </Label>
-          <Select value={location} onValueChange={setLocation}>
-            <SelectTrigger className="h-12">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="Tanque Canteiro 01">Tanque Canteiro 01</SelectItem>
-              <SelectItem value="Tanque Canteiro 02">Tanque Canteiro 02</SelectItem>
-              <SelectItem value="Comboio 01">Comboio 01</SelectItem>
-              <SelectItem value="Comboio 02">Comboio 02</SelectItem>
-              <SelectItem value="Comboio 03">Comboio 03</SelectItem>
-              <SelectItem value="Posto Externo">Posto Externo</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+        {/* Location - for Saida only */}
+        {recordType === 'saida' && (
+          <div className="bg-card rounded-xl border border-border p-4 space-y-3">
+            <Label className="flex items-center gap-2 text-base">
+              <MapPin className="w-4 h-4" />
+              Local
+            </Label>
+            <Select value={location} onValueChange={setLocation}>
+              <SelectTrigger className="h-12">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(user.assigned_locations && user.assigned_locations.length > 0
+                  ? user.assigned_locations
+                  : ['Tanque Canteiro 01', 'Tanque Canteiro 02', 'Comboio 01', 'Comboio 02', 'Comboio 03', 'Posto Externo']
+                ).map((loc) => (
+                  <SelectItem key={loc} value={loc}>
+                    {loc}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {user.assigned_locations && user.assigned_locations.length === 1 && (
+              <p className="text-xs text-muted-foreground">
+                Local pré-definido pelo administrador
+              </p>
+            )}
+          </div>
+        )}
 
         {/* Photos Section */}
         <div className="bg-card rounded-xl border border-border p-4 space-y-4">

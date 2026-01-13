@@ -133,7 +133,7 @@ export type Database = {
       field_users: {
         Row: {
           active: boolean | null
-          assigned_location: string | null
+          assigned_locations: string[] | null
           created_at: string | null
           id: string
           name: string
@@ -144,7 +144,7 @@ export type Database = {
         }
         Insert: {
           active?: boolean | null
-          assigned_location?: string | null
+          assigned_locations?: string[] | null
           created_at?: string | null
           id?: string
           name: string
@@ -155,7 +155,7 @@ export type Database = {
         }
         Update: {
           active?: boolean | null
-          assigned_location?: string | null
+          assigned_locations?: string[] | null
           created_at?: string | null
           id?: string
           name?: string

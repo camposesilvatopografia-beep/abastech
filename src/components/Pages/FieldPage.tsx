@@ -7,7 +7,7 @@ interface FieldUser {
   name: string;
   username: string;
   role: string;
-  assigned_location?: string;
+  assigned_locations?: string[];
 }
 
 const STORAGE_KEY = 'abastech_field_user';

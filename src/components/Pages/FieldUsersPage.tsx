@@ -65,7 +65,7 @@ interface FieldUser {
   active: boolean;
   created_at: string;
   updated_at: string;
-  assigned_location?: string;
+  assigned_locations?: string[];
 }
 
 interface FuelRecord {
@@ -87,7 +87,7 @@ interface UserFormData {
   password: string;
   role: string;
   active: boolean;
-  assigned_location: string;
+  assigned_locations: string[];
 }
 
 const LOCATION_OPTIONS = [
@@ -104,7 +104,7 @@ const initialFormData: UserFormData = {
   password: '',
   role: 'operador',
   active: true,
-  assigned_location: 'Tanque Canteiro 01',
+  assigned_locations: ['Tanque Canteiro 01'],
 };
 
 export function FieldUsersPage() {
@@ -211,7 +211,7 @@ export function FieldUsersPage() {
       password: '',
       role: user.role || 'operador',
       active: user.active,
-      assigned_location: user.assigned_location || 'Tanque Canteiro 01',
+      assigned_locations: user.assigned_locations || ['Tanque Canteiro 01'],
     });
     setShowPassword(false);
     setShowModal(true);
@@ -237,7 +237,7 @@ export function FieldUsersPage() {
           username: formData.username.trim().toLowerCase(),
           role: formData.role,
           active: formData.active,
-          assigned_location: formData.assigned_location,
+          assigned_locations: formData.assigned_locations,
           updated_at: new Date().toISOString(),
         };
 
@@ -273,7 +273,7 @@ export function FieldUsersPage() {
           password_hash: formData.password,
           role: formData.role,
           active: formData.active,
-          assigned_location: formData.assigned_location,
+          assigned_locations: formData.assigned_locations,
         } as any);
 
         if (error) throw error;
@@ -609,27 +609,37 @@ export function FieldUsersPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="location" className="flex items-center gap-2">
+              <Label htmlFor="locations" className="flex items-center gap-2">
                 <MapPin className="w-4 h-4" />
-                Local de Trabalho
+                Locais de Trabalho
               </Label>
-              <Select
-                value={formData.assigned_location}
-                onValueChange={(value) => setFormData({ ...formData, assigned_location: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {LOCATION_OPTIONS.map((loc) => (
-                    <SelectItem key={loc} value={loc}>
-                      {loc}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="grid grid-cols-1 gap-2 p-3 bg-muted/50 rounded-lg">
+                {LOCATION_OPTIONS.map((loc) => (
+                  <label key={loc} className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.assigned_locations.includes(loc)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setFormData({
+                            ...formData,
+                            assigned_locations: [...formData.assigned_locations, loc],
+                          });
+                        } else {
+                          setFormData({
+                            ...formData,
+                            assigned_locations: formData.assigned_locations.filter((l) => l !== loc),
+                          });
+                        }
+                      }}
+                      className="w-4 h-4 rounded"
+                    />
+                    <span className="text-sm">{loc}</span>
+                  </label>
+                ))}
+              </div>
               <p className="text-xs text-muted-foreground">
-                Este local será pré-selecionado no formulário do usuário
+                Selecione os locais que o usuário pode abastecer. O primeiro será o padrão.
               </p>
             </div>
 
