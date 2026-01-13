@@ -1,0 +1,371 @@
+import { useState, useMemo, useEffect } from 'react';
+import { 
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { useSheetData } from '@/hooks/useGoogleSheets';
+import { useToast } from '@/hooks/use-toast';
+import { Clock, Save, History, AlertTriangle, RefreshCw } from 'lucide-react';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+
+interface HorimeterModalProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSuccess?: () => void;
+}
+
+function parseNumber(value: any): number {
+  if (!value) return 0;
+  const str = String(value).replace(/\./g, '').replace(',', '.');
+  return parseFloat(str) || 0;
+}
+
+function getRowValue(row: Record<string, any>, keys: string[]): string {
+  for (const k of keys) {
+    if (row[k] !== undefined && row[k] !== null && String(row[k]).trim() !== '') return String(row[k]);
+  }
+  return '';
+}
+
+export function HorimeterModal({ open, onOpenChange, onSuccess }: HorimeterModalProps) {
+  const { data: vehicleData } = useSheetData('Veiculo');
+  const { data: horimeterData, create, refetch } = useSheetData('Horimetros');
+  const { toast } = useToast();
+  
+  const [selectedVehicle, setSelectedVehicle] = useState('');
+  const [currentValue, setCurrentValue] = useState('');
+  const [operador, setOperador] = useState('');
+  const [observacao, setObservacao] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Get unique vehicles from vehicle sheet
+  const vehicles = useMemo(() => {
+    const unique = new Map<string, { codigo: string; descricao: string; tipo: string; empresa: string; usaKm: boolean }>();
+    
+    vehicleData.rows.forEach(row => {
+      const codigo = getRowValue(row as any, ['CODIGO', 'Codigo', 'codigo', 'VEICULO', 'Veiculo', 'veiculo']);
+      const descricao = getRowValue(row as any, ['DESCRICAO', 'DESCRIÇÃO', 'Descricao', 'descrição', 'descricao']);
+      const tipo = getRowValue(row as any, ['TIPO', 'Tipo', 'tipo', 'CATEGORIA', 'Categoria', 'categoria']);
+      const empresa = getRowValue(row as any, ['EMPRESA', 'Empresa', 'empresa']);
+      
+      // Determine if vehicle uses KM instead of hours (typically cars, trucks)
+      const usaKm = tipo.toLowerCase().includes('caminhão') || 
+                   tipo.toLowerCase().includes('caminhao') ||
+                   tipo.toLowerCase().includes('carro') ||
+                   tipo.toLowerCase().includes('utilitário') ||
+                   tipo.toLowerCase().includes('pickup');
+      
+      if (codigo && !unique.has(codigo)) {
+        unique.set(codigo, { codigo, descricao, tipo, empresa, usaKm });
+      }
+    });
+    
+    return Array.from(unique.values()).sort((a, b) => a.codigo.localeCompare(b.codigo));
+  }, [vehicleData.rows]);
+
+  // Get vehicle info based on selection
+  const vehicleInfo = useMemo(() => {
+    return vehicles.find(v => v.codigo === selectedVehicle);
+  }, [vehicles, selectedVehicle]);
+
+  // Get last 5 horimeter/km records for selected vehicle
+  const vehicleHistory = useMemo(() => {
+    if (!selectedVehicle) return [];
+    
+    const vehicleRecords = horimeterData.rows.filter(row => {
+      const veiculo = getRowValue(row as any, ['VEICULO', 'Veiculo', 'veiculo', 'EQUIPAMENTO', 'Equipamento']);
+      return veiculo === selectedVehicle;
+    });
+    
+    // Sort by date descending and get last 5
+    const sorted = vehicleRecords.sort((a, b) => {
+      const dateA = getRowValue(a as any, ['DATA', 'Data', 'data']);
+      const dateB = getRowValue(b as any, ['DATA', 'Data', 'data']);
+      return dateB.localeCompare(dateA);
+    });
+    
+    return sorted.slice(0, 5).map((row, index, arr) => {
+      const horas = parseNumber(getRowValue(row as any, ['HORAS', 'HORIMETRO', 'Horimetro', 'horimetro', 'KM', 'km']));
+      const data = getRowValue(row as any, ['DATA', 'Data', 'data']);
+      const operador = getRowValue(row as any, ['OPERADOR', 'Operador', 'operador', 'MOTORISTA', 'Motorista']);
+      
+      // Calculate interval with previous record
+      const prevHoras = index < arr.length - 1 
+        ? parseNumber(getRowValue(arr[index + 1] as any, ['HORAS', 'HORIMETRO', 'Horimetro', 'horimetro', 'KM', 'km']))
+        : 0;
+      const intervalo = prevHoras > 0 ? horas - prevHoras : 0;
+      
+      return { horas, data, operador, intervalo };
+    });
+  }, [selectedVehicle, horimeterData.rows]);
+
+  // Get previous horimeter/km value
+  const previousValue = useMemo(() => {
+    if (vehicleHistory.length === 0) return 0;
+    return vehicleHistory[0].horas;
+  }, [vehicleHistory]);
+
+  // Reset form when vehicle changes
+  useEffect(() => {
+    setCurrentValue('');
+    setOperador('');
+    setObservacao('');
+  }, [selectedVehicle]);
+
+  const handleSave = async () => {
+    if (!selectedVehicle) {
+      toast({
+        title: 'Erro',
+        description: 'Selecione um veículo',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const currentValueNum = parseNumber(currentValue);
+    if (currentValueNum <= 0) {
+      toast({
+        title: 'Erro',
+        description: 'Informe um valor válido',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (currentValueNum < previousValue && previousValue > 0) {
+      toast({
+        title: 'Atenção',
+        description: `O valor atual (${currentValueNum}) é menor que o anterior (${previousValue}). Verifique!`,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsSaving(true);
+
+    try {
+      const today = format(new Date(), 'dd/MM/yyyy');
+      const hora = format(new Date(), 'HH:mm');
+      const tipo = vehicleInfo?.usaKm ? 'KM' : 'HORIMETRO';
+      
+      await create({
+        DATA: today,
+        HORA: hora,
+        VEICULO: selectedVehicle,
+        HORAS: currentValueNum.toString().replace('.', ','),
+        HORIMETRO_ANTERIOR: previousValue.toString().replace('.', ','),
+        OPERADOR: operador,
+        TIPO: tipo,
+        OBSERVACAO: observacao,
+        EMPRESA: vehicleInfo?.empresa || '',
+        DESCRICAO: vehicleInfo?.descricao || '',
+      });
+
+      toast({
+        title: 'Sucesso!',
+        description: 'Horímetro registrado com sucesso',
+      });
+
+      // Reset form
+      setSelectedVehicle('');
+      setCurrentValue('');
+      setOperador('');
+      setObservacao('');
+      
+      onOpenChange(false);
+      onSuccess?.();
+    } catch (error) {
+      console.error('Error saving horimeter:', error);
+      toast({
+        title: 'Erro',
+        description: 'Falha ao salvar o horímetro. Tente novamente.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Clock className="w-5 h-5 text-primary" />
+            Novo Registro de Horímetro/KM
+          </DialogTitle>
+          <DialogDescription>
+            Preencha os dados para registrar o horímetro ou quilometragem do veículo
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-6">
+          {/* Vehicle Selection */}
+          <div className="space-y-2">
+            <Label htmlFor="vehicle">Veículo/Equipamento *</Label>
+            <Select value={selectedVehicle} onValueChange={setSelectedVehicle}>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione o veículo" />
+              </SelectTrigger>
+              <SelectContent className="max-h-[300px]">
+                {vehicles.map(vehicle => (
+                  <SelectItem key={vehicle.codigo} value={vehicle.codigo}>
+                    {vehicle.codigo} - {vehicle.descricao || vehicle.tipo}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Vehicle Info */}
+          {vehicleInfo && (
+            <div className="bg-muted/30 rounded-lg p-4 space-y-2">
+              <h4 className="font-medium">Informações do Veículo</h4>
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <span className="text-muted-foreground">Descrição:</span>{' '}
+                  <span className="font-medium">{vehicleInfo.descricao || '-'}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Tipo:</span>{' '}
+                  <span className="font-medium">{vehicleInfo.tipo || '-'}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Empresa:</span>{' '}
+                  <span className="font-medium">{vehicleInfo.empresa || '-'}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Tipo de Registro:</span>{' '}
+                  <span className="font-medium">{vehicleInfo.usaKm ? 'Quilometragem (KM)' : 'Horímetro (Horas)'}</span>
+                </div>
+              </div>
+              <div className="mt-3 p-3 bg-primary/10 rounded-lg">
+                <span className="text-muted-foreground">Último Registro:</span>{' '}
+                <span className="text-xl font-bold text-primary">
+                  {previousValue > 0 ? previousValue.toLocaleString('pt-BR', { minimumFractionDigits: 1 }) : '0'} {vehicleInfo.usaKm ? 'km' : 'h'}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* History Table */}
+          {vehicleHistory.length > 0 && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <History className="w-4 h-4 text-muted-foreground" />
+                <h4 className="font-medium text-sm">Histórico (últimos 5 registros)</h4>
+              </div>
+              <div className="bg-muted/20 rounded-lg overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/50">
+                    <tr>
+                      <th className="px-3 py-2 text-left">Data</th>
+                      <th className="px-3 py-2 text-right">{vehicleInfo?.usaKm ? 'KM' : 'Horas'}</th>
+                      <th className="px-3 py-2 text-right">Intervalo</th>
+                      <th className="px-3 py-2 text-left">Operador</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {vehicleHistory.map((record, idx) => (
+                      <tr key={idx} className="border-t border-border/50">
+                        <td className="px-3 py-2">{record.data}</td>
+                        <td className="px-3 py-2 text-right font-medium">
+                          {record.horas.toLocaleString('pt-BR', { minimumFractionDigits: 1 })}
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          {record.intervalo > 0 && (
+                            <span className="text-success">
+                              +{record.intervalo.toLocaleString('pt-BR', { minimumFractionDigits: 1 })}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2">{record.operador || '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Current Value Input */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="currentValue">
+                {vehicleInfo?.usaKm ? 'KM Atual *' : 'Horímetro Atual *'}
+              </Label>
+              <Input
+                id="currentValue"
+                type="text"
+                placeholder={vehicleInfo?.usaKm ? 'Ex: 125000' : 'Ex: 4500.5'}
+                value={currentValue}
+                onChange={(e) => setCurrentValue(e.target.value)}
+              />
+              {previousValue > 0 && currentValue && parseNumber(currentValue) < previousValue && (
+                <div className="flex items-center gap-1 text-warning text-xs">
+                  <AlertTriangle className="w-3 h-3" />
+                  Valor menor que o anterior
+                </div>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="operador">Operador/Motorista</Label>
+              <Input
+                id="operador"
+                type="text"
+                placeholder="Nome do operador"
+                value={operador}
+                onChange={(e) => setOperador(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="observacao">Observação</Label>
+            <Input
+              id="observacao"
+              type="text"
+              placeholder="Observações adicionais (opcional)"
+              value={observacao}
+              onChange={(e) => setObservacao(e.target.value)}
+            />
+          </div>
+
+          {/* Actions */}
+          <div className="flex justify-end gap-3 pt-4 border-t">
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSave} disabled={isSaving || !selectedVehicle || !currentValue}>
+              {isSaving ? (
+                <>
+                  <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                  Salvando...
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4 mr-2" />
+                  Salvar
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}

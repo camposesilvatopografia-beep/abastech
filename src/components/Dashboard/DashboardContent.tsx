@@ -1,12 +1,13 @@
-import { useMemo } from 'react';
-import { Droplet, TrendingDown, TrendingUp, Package, Truck, ArrowDownCircle, ArrowUpCircle, Clock, Fuel, Calendar } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { Droplet, TrendingDown, TrendingUp, Package, Truck, ArrowDownCircle, ArrowUpCircle, Clock, Fuel, Calendar, MessageCircle, Send } from 'lucide-react';
 import { FilterBar } from './FilterBar';
 import { MetricCard } from './MetricCard';
 import { StockSummary } from './StockSummary';
-import { ConsumptionChart } from './ConsumptionChart';
 import { useSheetData } from '@/hooks/useGoogleSheets';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { Button } from '@/components/ui/button';
+import { useToast } from '@/hooks/use-toast';
 
 const GERAL_SHEET = 'GERAL';
 const ABASTECIMENTO_SHEET = 'AbastecimentoCanteiro01';
@@ -20,6 +21,8 @@ function parseNumber(value: any): number {
 export function DashboardContent() {
   const { data: geralData, loading } = useSheetData(GERAL_SHEET);
   const { data: abastecimentoData } = useSheetData(ABASTECIMENTO_SHEET);
+  const [isSending, setIsSending] = useState(false);
+  const { toast } = useToast();
 
   // Extract stock values from GERAL sheet - get LAST row (most recent)
   const stockData = useMemo(() => {
@@ -30,7 +33,8 @@ export function DashboardContent() {
         saidaComboios: 0,
         saidaEquipamentos: 0,
         estoqueAtual: 0,
-        estoqueArla: 0
+        estoqueArla: 0,
+        totalSaidas: 0
       };
     }
 
@@ -43,6 +47,7 @@ export function DashboardContent() {
     const saidaEquipamentos = parseNumber(lastRow?.['Saida']);
     const estoqueAtual = parseNumber(lastRow?.['EstoqueAtual']);
     const estoqueArla = parseNumber(lastRow?.['EstoqueArla'] || lastRow?.['Arla'] || 0);
+    const totalSaidas = saidaComboios + saidaEquipamentos;
 
     return {
       estoqueAnterior,
@@ -50,7 +55,8 @@ export function DashboardContent() {
       saidaComboios,
       saidaEquipamentos,
       estoqueAtual,
-      estoqueArla
+      estoqueArla,
+      totalSaidas
     };
   }, [geralData.rows]);
 
@@ -77,7 +83,7 @@ export function DashboardContent() {
   const summaryRows = [
     { label: 'Estoque Anterior', value: stockData.estoqueAnterior.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) },
     { label: '+ Entradas', value: stockData.entrada.toLocaleString('pt-BR', { minimumFractionDigits: 2 }), isPositive: true },
-    { label: '- Saídas Total', value: (stockData.saidaComboios + stockData.saidaEquipamentos).toLocaleString('pt-BR', { minimumFractionDigits: 2 }), isNegative: true },
+    { label: '- Saídas Total', value: stockData.totalSaidas.toLocaleString('pt-BR', { minimumFractionDigits: 2 }), isNegative: true },
     { label: 'Para Comboios', value: stockData.saidaComboios.toLocaleString('pt-BR', { minimumFractionDigits: 2 }), isSubItem: true },
     { label: 'Para Equipamentos', value: stockData.saidaEquipamentos.toLocaleString('pt-BR', { minimumFractionDigits: 2 }), isSubItem: true },
     { label: 'Estoque Atual', value: stockData.estoqueAtual.toLocaleString('pt-BR', { minimumFractionDigits: 2 }), isTotal: true },
@@ -85,21 +91,70 @@ export function DashboardContent() {
 
   const totalRecords = abastecimentoData.rows.length;
 
+  // Generate WhatsApp message for daily summary
+  const generateWhatsAppMessage = () => {
+    const today = format(new Date(), 'dd/MM/yyyy', { locale: ptBR });
+    const time = format(new Date(), 'HH:mm', { locale: ptBR });
+    
+    const message = `📊 *RESUMO DO DIA - ESTOQUE*
+📅 Data: ${today} às ${time}
+
+🛢️ *DIESEL*
+• Estoque Anterior: ${stockData.estoqueAnterior.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} L
+• Entradas: +${stockData.entrada.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} L
+• Saídas Total: -${stockData.totalSaidas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} L
+  ├ Comboios: ${stockData.saidaComboios.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} L
+  └ Equipamentos: ${stockData.saidaEquipamentos.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} L
+• *Estoque Atual: ${stockData.estoqueAtual.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} L*
+
+💧 *ARLA*
+• Estoque: ${stockData.estoqueArla.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L
+
+📈 *Movimentação*
+• ${recentActivities.length > 0 ? recentActivities.length : 0} abastecimentos registrados
+
+_Sistema Abastech_`;
+
+    return encodeURIComponent(message);
+  };
+
+  const handleWhatsAppExport = () => {
+    setIsSending(true);
+    const message = generateWhatsAppMessage();
+    const whatsappUrl = `https://wa.me/?text=${message}`;
+    window.open(whatsappUrl, '_blank');
+    setIsSending(false);
+    toast({
+      title: 'WhatsApp',
+      description: 'Resumo enviado para o WhatsApp!',
+    });
+  };
+
   return (
     <div className="flex-1 p-6 overflow-auto">
       <div className="space-y-6">
         {/* Filter Bar */}
-        <FilterBar totalRecords={totalRecords} />
+        <div className="flex items-center justify-between">
+          <FilterBar totalRecords={totalRecords} />
+          <Button 
+            onClick={handleWhatsAppExport} 
+            disabled={isSending}
+            className="bg-green-600 hover:bg-green-700 gap-2"
+          >
+            <MessageCircle className="w-4 h-4" />
+            Enviar via WhatsApp
+          </Button>
+        </div>
 
         {/* Primary Stock KPIs - Different colors */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <MetricCard
             title="ESTOQUE ANTERIOR"
             value={`${stockData.estoqueAnterior.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} L`}
             subtitle="Diesel - Início do período"
             variant="primary"
             icon={Package}
-            className="border-l-4 border-l-slate-500"
+            className="border-l-4 border-l-yellow-500"
           />
           <MetricCard
             title="ENTRADAS"
@@ -108,6 +163,14 @@ export function DashboardContent() {
             variant="primary"
             icon={ArrowDownCircle}
             className="border-l-4 border-l-emerald-500"
+          />
+          <MetricCard
+            title="TOTAL SAÍDAS"
+            value={`${stockData.totalSaidas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} L`}
+            subtitle="Consumo total no período"
+            variant="primary"
+            icon={TrendingDown}
+            className="border-l-4 border-l-red-500"
           />
           <MetricCard
             title="ESTOQUE ATUAL"
@@ -119,28 +182,21 @@ export function DashboardContent() {
           />
         </div>
 
-        {/* Secondary KPIs - Exits and ARLA */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        {/* Secondary KPIs - Exits detail and ARLA */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <MetricCard
             title="SAÍDA P/ COMBOIOS"
             value={`${stockData.saidaComboios.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} L`}
             subtitle="Abastecimento em campo"
             icon={Truck}
-            className="border-l-4 border-l-amber-500"
+            className="border-l-4 border-l-orange-500"
           />
           <MetricCard
             title="SAÍDA P/ EQUIPAMENTOS"
             value={`${stockData.saidaEquipamentos.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} L`}
             subtitle="Abastecimento direto"
             icon={ArrowUpCircle}
-            className="border-l-4 border-l-orange-500"
-          />
-          <MetricCard
-            title="SAÍDAS TOTAL"
-            value={`${(stockData.saidaComboios + stockData.saidaEquipamentos).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} L`}
-            subtitle="Consumo no período"
-            icon={TrendingDown}
-            className="border-l-4 border-l-red-500"
+            className="border-l-4 border-l-amber-500"
           />
           <MetricCard
             title="ESTOQUE ARLA"
@@ -151,21 +207,13 @@ export function DashboardContent() {
           />
         </div>
 
-        {/* Charts and Summary */}
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-          <div className="lg:col-span-3">
-            <ConsumptionChart
-              title="Consumo por Período"
-              subtitle="Diesel e Arla (Litros)"
-            />
-          </div>
-          <div className="lg:col-span-2">
-            <StockSummary
-              title="Resumo de Estoque"
-              subtitle="Diesel - Último registro"
-              rows={summaryRows}
-            />
-          </div>
+        {/* Summary Only - Chart removed */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <StockSummary
+            title="Resumo de Estoque"
+            subtitle="Diesel - Último registro"
+            rows={summaryRows}
+          />
         </div>
 
         {/* Recent Activities */}

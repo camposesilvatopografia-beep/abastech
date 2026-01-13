@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { 
   Clock,
   RefreshCw,
@@ -11,12 +11,14 @@ import {
   X,
   CheckCircle,
   Timer,
-  FileText
+  FileText,
+  Wrench
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { MetricCard } from '@/components/Dashboard/MetricCard';
 import { useSheetData } from '@/hooks/useGoogleSheets';
+import { useToast } from '@/hooks/use-toast';
 import {
   Table,
   TableBody,
@@ -32,6 +34,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
+import { HorimeterModal } from '@/components/Horimetros/HorimeterModal';
 
 const SHEET_NAME = 'Horimetros';
 
@@ -45,13 +48,29 @@ function parseDate(dateStr: string): Date | null {
   return null;
 }
 
+function parseNumber(value: any): number {
+  if (!value) return 0;
+  const str = String(value).replace(/\./g, '').replace(',', '.');
+  return parseFloat(str) || 0;
+}
+
+function getRowValue(row: Record<string, any>, keys: string[]): string {
+  for (const k of keys) {
+    if (row[k] !== undefined && row[k] !== null && String(row[k]).trim() !== '') return String(row[k]);
+  }
+  return '';
+}
+
 export function HorimetrosPage() {
-  const { data, loading, refetch } = useSheetData(SHEET_NAME);
+  const { data, loading, refetch, update } = useSheetData(SHEET_NAME);
+  const { toast } = useToast();
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState<'sistema' | 'sheets'>('sheets');
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
   const [quickFilter, setQuickFilter] = useState<string | null>('hoje');
+  const [showNewModal, setShowNewModal] = useState(false);
+  const [isFixingZeroed, setIsFixingZeroed] = useState(false);
 
   const applyQuickFilter = (filter: string) => {
     const today = new Date();
@@ -118,6 +137,14 @@ export function HorimetrosPage() {
     });
   }, [data.rows, search, startDate, endDate]);
 
+  // Find zeroed records that need correction
+  const zeroedRecords = useMemo(() => {
+    return data.rows.filter(row => {
+      const horas = parseNumber(getRowValue(row as any, ['HORAS', 'HORIMETRO', 'Horimetro', 'horimetro', 'KM', 'km']));
+      return horas === 0;
+    });
+  }, [data.rows]);
+
   const metrics = useMemo(() => {
     let horasTotais = 0;
     let registros = 0;
@@ -125,7 +152,7 @@ export function HorimetrosPage() {
     let inconsistentes = 0;
 
     filteredRows.forEach(row => {
-      const horas = parseFloat(String(row['HORAS'] || row['HORIMETRO'] || '0').replace(',', '.')) || 0;
+      const horas = parseNumber(getRowValue(row as any, ['HORAS', 'HORIMETRO', 'Horimetro', 'horimetro', 'KM', 'km']));
       horasTotais += horas;
       registros++;
       
@@ -142,6 +169,94 @@ export function HorimetrosPage() {
       zerados
     };
   }, [filteredRows]);
+
+  // Function to fix zeroed horimeters by finding the previous valid value
+  const handleFixZeroed = useCallback(async () => {
+    if (zeroedRecords.length === 0) {
+      toast({
+        title: 'Nenhum registro zerado',
+        description: 'Não há registros com horímetro zerado para corrigir.',
+      });
+      return;
+    }
+
+    setIsFixingZeroed(true);
+    let fixed = 0;
+    let errors = 0;
+
+    try {
+      for (const record of zeroedRecords) {
+        const veiculo = getRowValue(record as any, ['VEICULO', 'Veiculo', 'veiculo', 'EQUIPAMENTO', 'Equipamento']);
+        const rowIndex = record._rowIndex;
+
+        if (!veiculo || !rowIndex) {
+          errors++;
+          continue;
+        }
+
+        // Find previous valid record for this vehicle
+        const vehicleRecords = data.rows.filter(row => {
+          const v = getRowValue(row as any, ['VEICULO', 'Veiculo', 'veiculo', 'EQUIPAMENTO', 'Equipamento']);
+          const h = parseNumber(getRowValue(row as any, ['HORAS', 'HORIMETRO', 'Horimetro', 'horimetro', 'KM', 'km']));
+          return v === veiculo && h > 0 && row._rowIndex !== rowIndex;
+        });
+
+        if (vehicleRecords.length === 0) {
+          // No previous record, skip
+          continue;
+        }
+
+        // Sort by date descending to get the most recent valid record
+        const sorted = vehicleRecords.sort((a, b) => {
+          const dateA = getRowValue(a as any, ['DATA', 'Data', 'data']);
+          const dateB = getRowValue(b as any, ['DATA', 'Data', 'data']);
+          return dateB.localeCompare(dateA);
+        });
+
+        const lastValidRecord = sorted[0];
+        const lastValidValue = parseNumber(getRowValue(lastValidRecord as any, ['HORAS', 'HORIMETRO', 'Horimetro', 'horimetro', 'KM', 'km']));
+
+        if (lastValidValue > 0) {
+          try {
+            // Update the zeroed record with the last valid value
+            const updatedData = { ...record };
+            
+            // Update the hours/km field
+            if (record['HORAS'] !== undefined) updatedData['HORAS'] = lastValidValue.toString().replace('.', ',');
+            if (record['HORIMETRO'] !== undefined) updatedData['HORIMETRO'] = lastValidValue.toString().replace('.', ',');
+            if (record['KM'] !== undefined) updatedData['KM'] = lastValidValue.toString().replace('.', ',');
+            
+            // Add observation about the fix
+            const obs = getRowValue(record as any, ['OBSERVACAO', 'Observacao', 'observacao', 'OBS']);
+            updatedData['OBSERVACAO'] = obs ? `${obs} | CORRIGIDO: ${lastValidValue}` : `CORRIGIDO AUTOMATICAMENTE: ${lastValidValue}`;
+
+            await update(rowIndex, updatedData);
+            fixed++;
+          } catch (err) {
+            console.error(`Error fixing record ${rowIndex}:`, err);
+            errors++;
+          }
+        }
+      }
+
+      toast({
+        title: 'Correção Concluída',
+        description: `${fixed} registros corrigidos${errors > 0 ? `, ${errors} erros` : ''}.`,
+      });
+
+      // Refresh data
+      await refetch();
+    } catch (error) {
+      console.error('Error fixing zeroed records:', error);
+      toast({
+        title: 'Erro',
+        description: 'Falha ao corrigir registros. Tente novamente.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsFixingZeroed(false);
+    }
+  }, [zeroedRecords, data.rows, update, refetch, toast]);
 
   const pendingEquipments = useMemo(() => {
     return [
@@ -186,14 +301,14 @@ export function HorimetrosPage() {
     doc.text(`Zerados: ${metrics.zerados}`, 14, 72);
 
     const tableData = filteredRows.slice(0, 100).map(row => [
-      String(row['VEICULO'] || row['EQUIPAMENTO'] || ''),
-      String(row['DATA'] || ''),
-      String(row['HORAS'] || row['HORIMETRO'] || ''),
-      String(row['OPERADOR'] || '')
+      getRowValue(row as any, ['VEICULO', 'EQUIPAMENTO', 'Veiculo', 'Equipamento']),
+      getRowValue(row as any, ['DATA', 'Data']),
+      getRowValue(row as any, ['HORAS', 'HORIMETRO', 'Horimetro', 'KM']),
+      getRowValue(row as any, ['OPERADOR', 'Operador', 'MOTORISTA', 'Motorista'])
     ]);
 
     autoTable(doc, {
-      head: [['Veículo', 'Data', 'Horas', 'Operador']],
+      head: [['Veículo', 'Data', 'Horas/KM', 'Operador']],
       body: tableData,
       startY: 82,
       styles: { fontSize: 8 },
@@ -223,9 +338,19 @@ export function HorimetrosPage() {
               <RefreshCw className={cn("w-4 h-4 mr-2", loading && "animate-spin")} />
               Atualizar
             </Button>
-            <Button variant="outline" size="sm" className="text-primary border-primary">
-              <RefreshCw className="w-4 h-4 mr-2" />
-              Corrigir Zerados ({metrics.zerados})
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="text-primary border-primary"
+              onClick={handleFixZeroed}
+              disabled={isFixingZeroed || zeroedRecords.length === 0}
+            >
+              {isFixingZeroed ? (
+                <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Wrench className="w-4 h-4 mr-2" />
+              )}
+              Corrigir Zerados ({zeroedRecords.length})
             </Button>
             <Button variant="outline" size="sm">
               <Upload className="w-4 h-4 mr-2" />
@@ -235,7 +360,7 @@ export function HorimetrosPage() {
               <FileText className="w-4 h-4 mr-2" />
               Exportar PDF
             </Button>
-            <Button className="bg-primary hover:bg-primary/90">
+            <Button className="bg-primary hover:bg-primary/90" onClick={() => setShowNewModal(true)}>
               <Plus className="w-4 h-4 mr-2" />
               Novo
             </Button>
@@ -243,20 +368,29 @@ export function HorimetrosPage() {
         </div>
 
         {/* Warning Banner */}
-        {metrics.zerados > 0 && (
+        {zeroedRecords.length > 0 && (
           <div className="bg-warning/10 border border-warning/30 rounded-lg p-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <AlertTriangle className="w-5 h-5 text-warning" />
               <div>
                 <p className="font-semibold text-warning">Horímetros Zerados Detectados</p>
                 <p className="text-sm text-muted-foreground">
-                  Existem <span className="font-medium text-primary">{metrics.zerados}</span> registros com valores zerados que precisam de correção.
+                  Existem <span className="font-medium text-primary">{zeroedRecords.length}</span> registros com valores zerados que precisam de correção.
                 </p>
               </div>
             </div>
-            <Button variant="outline" className="text-primary border-primary">
-              <RefreshCw className="w-4 h-4 mr-2" />
-              Corrigir Zerados ({metrics.zerados})
+            <Button 
+              variant="outline" 
+              className="text-primary border-primary"
+              onClick={handleFixZeroed}
+              disabled={isFixingZeroed}
+            >
+              {isFixingZeroed ? (
+                <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Wrench className="w-4 h-4 mr-2" />
+              )}
+              Corrigir Zerados ({zeroedRecords.length})
             </Button>
           </div>
         )}
@@ -272,7 +406,7 @@ export function HorimetrosPage() {
                 : "border-transparent text-muted-foreground"
             )}
           >
-            Sistema (Supabase)
+            Sistema (Backend)
           </button>
           <button
             onClick={() => setActiveTab('sheets')}
@@ -443,33 +577,56 @@ export function HorimetrosPage() {
               <TableRow className="bg-muted/50">
                 <TableHead>Veículo</TableHead>
                 <TableHead>Data</TableHead>
-                <TableHead className="text-right">Horas</TableHead>
+                <TableHead className="text-right">Horas/KM</TableHead>
                 <TableHead>Operador</TableHead>
+                <TableHead>Status</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center py-8">
+                  <TableCell colSpan={5} className="text-center py-8">
                     <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-muted-foreground" />
                     Carregando dados...
                   </TableCell>
                 </TableRow>
               ) : filteredRows.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                     Nenhum registro encontrado para o período
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredRows.slice(0, 50).map((row, idx) => (
-                  <TableRow key={idx}>
-                    <TableCell className="font-medium">{row['VEICULO'] || row['EQUIPAMENTO']}</TableCell>
-                    <TableCell>{row['DATA']}</TableCell>
-                    <TableCell className="text-right">{row['HORAS'] || row['HORIMETRO']}</TableCell>
-                    <TableCell>{row['OPERADOR']}</TableCell>
-                  </TableRow>
-                ))
+                filteredRows.slice(0, 50).map((row, idx) => {
+                  const horas = parseNumber(getRowValue(row as any, ['HORAS', 'HORIMETRO', 'Horimetro', 'KM']));
+                  const isZeroed = horas === 0;
+                  
+                  return (
+                    <TableRow key={idx} className={isZeroed ? 'bg-warning/5' : ''}>
+                      <TableCell className="font-medium">
+                        {getRowValue(row as any, ['VEICULO', 'EQUIPAMENTO', 'Veiculo', 'Equipamento'])}
+                      </TableCell>
+                      <TableCell>{getRowValue(row as any, ['DATA', 'Data'])}</TableCell>
+                      <TableCell className={cn("text-right", isZeroed && "text-warning")}>
+                        {horas.toLocaleString('pt-BR', { minimumFractionDigits: 1 })}
+                      </TableCell>
+                      <TableCell>{getRowValue(row as any, ['OPERADOR', 'Operador', 'MOTORISTA', 'Motorista'])}</TableCell>
+                      <TableCell>
+                        {isZeroed ? (
+                          <span className="inline-flex items-center gap-1 text-xs text-warning">
+                            <AlertTriangle className="w-3 h-3" />
+                            Zerado
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-xs text-success">
+                            <CheckCircle className="w-3 h-3" />
+                            OK
+                          </span>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
               )}
             </TableBody>
           </Table>
@@ -478,26 +635,27 @@ export function HorimetrosPage() {
         {/* Pending Equipments */}
         <div>
           <h2 className="text-lg font-semibold mb-2">Horímetros Pendentes ({pendingEquipments.length})</h2>
-          <p className="text-sm text-muted-foreground mb-4">Clique em um equipamento para registrar</p>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-            {pendingEquipments.map((equip, idx) => (
-              <button
-                key={idx}
-                className="flex items-center gap-3 p-3 bg-warning/10 border border-warning/30 rounded-lg hover:bg-warning/20 transition-colors text-left"
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
+            {pendingEquipments.map(equip => (
+              <div 
+                key={equip.codigo} 
+                className="bg-card rounded-lg border border-border p-3 text-center hover:bg-muted/50 cursor-pointer"
+                onClick={() => setShowNewModal(true)}
               >
-                <div className="w-8 h-8 rounded-full border-2 border-warning flex items-center justify-center">
-                  <Clock className="w-4 h-4 text-warning" />
-                </div>
-                <div>
-                  <p className="font-medium">{equip.codigo}</p>
-                  <p className="text-xs text-muted-foreground">{equip.descricao}</p>
-                </div>
-              </button>
+                <div className="font-semibold text-primary">{equip.codigo}</div>
+                <div className="text-xs text-muted-foreground truncate">{equip.descricao}</div>
+              </div>
             ))}
           </div>
         </div>
       </div>
+
+      {/* New Horimeter Modal */}
+      <HorimeterModal 
+        open={showNewModal} 
+        onOpenChange={setShowNewModal}
+        onSuccess={() => refetch()}
+      />
     </div>
   );
 }
