@@ -21,7 +21,9 @@ import {
   AlertTriangle,
   CheckCircle,
   Download,
-  Building2
+  Building2,
+  Eye,
+  Image
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -50,6 +52,12 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 const SHEET_NAME = 'AbastecimentoCanteiro01';
 const GERAL_SHEET = 'GERAL';
@@ -110,6 +118,8 @@ export function AbastecimentoPage() {
   const [startDate, setStartDate] = useState<Date | undefined>(new Date());
   const [endDate, setEndDate] = useState<Date | undefined>(new Date());
   const [isExporting, setIsExporting] = useState(false);
+  const [selectedRecord, setSelectedRecord] = useState<any>(null);
+  const [showDetailModal, setShowDetailModal] = useState(false);
 
   // Get current stock from GERAL sheet (column G - EstoqueAtual)
   const estoqueAtual = useMemo(() => {
@@ -517,6 +527,10 @@ export function AbastecimentoPage() {
         currentY += 8;
         
         // Prepare table data with consumption calculation
+        let totalDiesel = 0;
+        let totalConsumo = 0;
+        let countConsumo = 0;
+        
         const tableData = records.map((record, index) => {
           // Determine if using km or hours based on data
           const usaKm = record.kmAtual > 0 || record.kmAnterior > 0;
@@ -534,7 +548,11 @@ export function AbastecimentoPage() {
               // l/h = quantidade / intervalo
               consumo = record.quantidade / intervalo;
             }
+            totalConsumo += consumo;
+            countConsumo++;
           }
+          
+          totalDiesel += record.quantidade;
           
           return [
             (index + 1).toString() + '.',
@@ -545,9 +563,23 @@ export function AbastecimentoPage() {
             atual > 0 ? atual.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '-',
             intervalo > 0 ? intervalo.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '-',
             consumo > 0 ? consumo.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '0,00',
-            record.quantidade.toString()
+            record.quantidade.toLocaleString('pt-BR', { minimumFractionDigits: 0 })
           ];
         });
+        
+        // Add totals row
+        const mediaConsumo = countConsumo > 0 ? totalConsumo / countConsumo : 0;
+        tableData.push([
+          '',
+          '',
+          '',
+          'TOTAL',
+          '',
+          '',
+          '',
+          mediaConsumo > 0 ? `Média: ${mediaConsumo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '-',
+          totalDiesel.toLocaleString('pt-BR', { minimumFractionDigits: 0 })
+        ]);
         
         autoTable(doc, {
           startY: currentY,
@@ -587,6 +619,13 @@ export function AbastecimentoPage() {
           },
           alternateRowStyles: {
             fillColor: [245, 245, 245]
+          },
+          didParseCell: (data) => {
+            // Style the totals row (last row)
+            if (data.row.index === tableData.length - 1) {
+              data.cell.styles.fontStyle = 'bold';
+              data.cell.styles.fillColor = [230, 230, 230];
+            }
           },
           theme: 'grid',
         });
@@ -630,6 +669,10 @@ export function AbastecimentoPage() {
         currentY += 8;
         
         // Prepare table data with consumption calculation
+        let totalDiesel = 0;
+        let totalConsumo = 0;
+        let countConsumo = 0;
+        
         const tableData = records.map((record, index) => {
           // Determine if using km or hours based on data
           const usaKm = record.kmAtual > 0 || record.kmAnterior > 0;
@@ -647,7 +690,11 @@ export function AbastecimentoPage() {
               // l/h = quantidade / intervalo
               consumo = record.quantidade / intervalo;
             }
+            totalConsumo += consumo;
+            countConsumo++;
           }
+          
+          totalDiesel += record.quantidade;
           
           return [
             (index + 1).toString() + '.',
@@ -658,9 +705,23 @@ export function AbastecimentoPage() {
             atual > 0 ? atual.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '-',
             intervalo > 0 ? intervalo.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '-',
             consumo > 0 ? consumo.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '0,00',
-            record.quantidade.toString()
+            record.quantidade.toLocaleString('pt-BR', { minimumFractionDigits: 0 })
           ];
         });
+        
+        // Add totals row
+        const mediaConsumo = countConsumo > 0 ? totalConsumo / countConsumo : 0;
+        tableData.push([
+          '',
+          '',
+          '',
+          'TOTAL',
+          '',
+          '',
+          '',
+          mediaConsumo > 0 ? `Média: ${mediaConsumo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '-',
+          totalDiesel.toLocaleString('pt-BR', { minimumFractionDigits: 0 })
+        ]);
         
         autoTable(doc, {
           startY: currentY,
@@ -700,6 +761,13 @@ export function AbastecimentoPage() {
           },
           alternateRowStyles: {
             fillColor: [245, 245, 245]
+          },
+          didParseCell: (data) => {
+            // Style the totals row (last row)
+            if (data.row.index === tableData.length - 1) {
+              data.cell.styles.fontStyle = 'bold';
+              data.cell.styles.fillColor = [230, 230, 230];
+            }
           },
           theme: 'grid',
         });
@@ -767,6 +835,10 @@ export function AbastecimentoPage() {
           currentY += 6;
           
           // Prepare table data with consumption calculation
+          let totalDiesel = 0;
+          let totalConsumo = 0;
+          let countConsumo = 0;
+          
           const tableData = records.map((record, index) => {
             // Determine if using km or hours based on data
             const usaKm = record.kmAtual > 0 || record.kmAnterior > 0;
@@ -782,7 +854,11 @@ export function AbastecimentoPage() {
               } else {
                 consumo = record.quantidade / intervalo;
               }
+              totalConsumo += consumo;
+              countConsumo++;
             }
+            
+            totalDiesel += record.quantidade;
             
             return [
               (index + 1).toString() + '.',
@@ -793,9 +869,23 @@ export function AbastecimentoPage() {
               atual > 0 ? atual.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '-',
               intervalo > 0 ? intervalo.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '-',
               consumo > 0 ? consumo.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '0,00',
-              record.quantidade.toString()
+              record.quantidade.toLocaleString('pt-BR', { minimumFractionDigits: 0 })
             ];
           });
+          
+          // Add totals row
+          const mediaConsumo = countConsumo > 0 ? totalConsumo / countConsumo : 0;
+          tableData.push([
+            '',
+            '',
+            '',
+            'TOTAL',
+            '',
+            '',
+            '',
+            mediaConsumo > 0 ? `Média: ${mediaConsumo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '-',
+            totalDiesel.toLocaleString('pt-BR', { minimumFractionDigits: 0 })
+          ]);
           
           autoTable(doc, {
             startY: currentY,
@@ -837,6 +927,13 @@ export function AbastecimentoPage() {
               fillColor: [255, 255, 255]
             },
             theme: 'grid',
+            didParseCell: (data) => {
+              // Style the totals row (last row)
+              if (data.row.index === tableData.length - 1) {
+                data.cell.styles.fontStyle = 'bold';
+                data.cell.styles.fillColor = [230, 230, 230];
+              }
+            },
             didDrawPage: (data) => {
               currentY = (data.cursor?.y || currentY) + 10;
             }
@@ -1095,19 +1192,20 @@ export function AbastecimentoPage() {
                     <TableHead>Motorista</TableHead>
                     <TableHead className="text-right">Quantidade (L)</TableHead>
                     <TableHead className="text-right">Consumo Médio</TableHead>
+                    <TableHead className="text-center w-16">Detalhes</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {loading ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center py-8">
+                      <TableCell colSpan={7} className="text-center py-8">
                         <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-muted-foreground" />
                         Carregando dados...
                       </TableCell>
                     </TableRow>
                   ) : filteredRows.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                         Nenhum dado encontrado para o período selecionado
                       </TableCell>
                     </TableRow>
@@ -1130,11 +1228,18 @@ export function AbastecimentoPage() {
                         }
 
                         return (
-                          <TableRow key={row._rowIndex || index}>
+                          <TableRow 
+                            key={row._rowIndex || index} 
+                            className="cursor-pointer hover:bg-muted/50 transition-colors"
+                            onClick={() => {
+                              setSelectedRecord(row);
+                              setShowDetailModal(true);
+                            }}
+                          >
                             <TableCell>{String(row['DATA'] || '')}</TableCell>
                             <TableCell className="font-medium">{veiculo}</TableCell>
                             <TableCell className="text-muted-foreground">
-                              {String(row['DESCRIÇÃO'] || row['DESCRICAO'] || row['Descricao'] || '-')}
+                              {String(row['DESCRICAO'] || row['DESCRIÇÃO'] || row['Descricao'] || '-')}
                             </TableCell>
                             <TableCell>{String(row['MOTORISTA'] || row['Motorista'] || '-')}</TableCell>
                             <TableCell className="text-right font-medium">
@@ -1148,12 +1253,26 @@ export function AbastecimentoPage() {
                                 {consumoMedio}
                               </span>
                             </TableCell>
+                            <TableCell className="text-center">
+                              <Button 
+                                variant="ghost" 
+                                size="icon"
+                                className="h-8 w-8"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedRecord(row);
+                                  setShowDetailModal(true);
+                                }}
+                              >
+                                <Eye className="h-4 w-4 text-muted-foreground" />
+                              </Button>
+                            </TableCell>
                           </TableRow>
                         );
                       })}
                       {filteredRows.length > 50 && (
                         <TableRow>
-                          <TableCell colSpan={6} className="text-center py-4 text-muted-foreground">
+                          <TableCell colSpan={7} className="text-center py-4 text-muted-foreground">
                             Mostrando 50 de {filteredRows.length} registros
                           </TableCell>
                         </TableRow>
@@ -1507,6 +1626,199 @@ export function AbastecimentoPage() {
           </div>
         )}
       </div>
+
+      {/* Detail Modal */}
+      <Dialog open={showDetailModal} onOpenChange={setShowDetailModal}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Fuel className="w-5 h-5 text-primary" />
+              Detalhes do Abastecimento
+            </DialogTitle>
+          </DialogHeader>
+          
+          {selectedRecord && (
+            <div className="space-y-6">
+              {/* Main Info */}
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <div className="space-y-1">
+                  <span className="text-xs text-muted-foreground">Data</span>
+                  <p className="font-medium">{String(selectedRecord['DATA'] || '-')}</p>
+                </div>
+                <div className="space-y-1">
+                  <span className="text-xs text-muted-foreground">Hora</span>
+                  <p className="font-medium">{String(selectedRecord['HORA'] || '-')}</p>
+                </div>
+                <div className="space-y-1">
+                  <span className="text-xs text-muted-foreground">Tipo</span>
+                  <Badge variant="outline">{String(selectedRecord['TIPO'] || '-')}</Badge>
+                </div>
+              </div>
+
+              {/* Vehicle Info */}
+              <div className="bg-muted/30 rounded-lg p-4 space-y-3">
+                <h4 className="font-semibold text-sm">Veículo</h4>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  <div className="space-y-1">
+                    <span className="text-xs text-muted-foreground">Código</span>
+                    <p className="font-medium">{String(selectedRecord['VEICULO'] || '-')}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-xs text-muted-foreground">Descrição</span>
+                    <p className="font-medium">{String(selectedRecord['DESCRICAO'] || selectedRecord['DESCRIÇÃO'] || '-')}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-xs text-muted-foreground">Categoria</span>
+                    <p className="font-medium">{String(selectedRecord['CATEGORIA'] || '-')}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-xs text-muted-foreground">Motorista</span>
+                    <p className="font-medium">{String(selectedRecord['MOTORISTA'] || '-')}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-xs text-muted-foreground">Empresa</span>
+                    <p className="font-medium">{String(selectedRecord['EMPRESA'] || '-')}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-xs text-muted-foreground">Obra</span>
+                    <p className="font-medium">{String(selectedRecord['OBRA'] || '-')}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Fuel Info */}
+              <div className="bg-primary/5 rounded-lg p-4 space-y-3">
+                <h4 className="font-semibold text-sm">Combustível</h4>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="space-y-1">
+                    <span className="text-xs text-muted-foreground">Tipo</span>
+                    <p className="font-medium">{String(selectedRecord['TIPO DE COMBUSTIVEL'] || 'Diesel')}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-xs text-muted-foreground">Quantidade</span>
+                    <p className="font-medium text-lg text-primary">
+                      {parseNumber(selectedRecord['QUANTIDADE']).toLocaleString('pt-BR', { minimumFractionDigits: 1 })} L
+                    </p>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-xs text-muted-foreground">Arla</span>
+                    <p className="font-medium">
+                      {parseNumber(selectedRecord['QUANTIDADE DE ARLA']) > 0 
+                        ? `${parseNumber(selectedRecord['QUANTIDADE DE ARLA']).toLocaleString('pt-BR', { minimumFractionDigits: 1 })} L` 
+                        : '-'}
+                    </p>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-xs text-muted-foreground">Local</span>
+                    <p className="font-medium">{String(selectedRecord['LOCAL'] || '-')}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Horimeter/KM Info */}
+              <div className="bg-muted/30 rounded-lg p-4 space-y-3">
+                <h4 className="font-semibold text-sm">Horímetro / Quilometragem</h4>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="space-y-1">
+                    <span className="text-xs text-muted-foreground">Horímetro Anterior</span>
+                    <p className="font-medium">
+                      {parseNumber(selectedRecord['HORIMETRO ANTERIOR']) > 0 
+                        ? parseNumber(selectedRecord['HORIMETRO ANTERIOR']).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) 
+                        : '-'}
+                    </p>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-xs text-muted-foreground">Horímetro Atual</span>
+                    <p className="font-medium">
+                      {parseNumber(selectedRecord['HORIMETRO ATUAL']) > 0 
+                        ? parseNumber(selectedRecord['HORIMETRO ATUAL']).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) 
+                        : '-'}
+                    </p>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-xs text-muted-foreground">KM Anterior</span>
+                    <p className="font-medium">
+                      {parseNumber(selectedRecord['KM ANTERIOR']) > 0 
+                        ? parseNumber(selectedRecord['KM ANTERIOR']).toLocaleString('pt-BR', { minimumFractionDigits: 0 }) 
+                        : '-'}
+                    </p>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-xs text-muted-foreground">KM Atual</span>
+                    <p className="font-medium">
+                      {parseNumber(selectedRecord['KM ATUAL']) > 0 
+                        ? parseNumber(selectedRecord['KM ATUAL']).toLocaleString('pt-BR', { minimumFractionDigits: 0 }) 
+                        : '-'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Photos */}
+              {(selectedRecord['FOTO BOMBA'] || selectedRecord['FOTO HORIMETRO']) && (
+                <div className="space-y-3">
+                  <h4 className="font-semibold text-sm flex items-center gap-2">
+                    <Image className="w-4 h-4" />
+                    Fotos
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {selectedRecord['FOTO BOMBA'] && (
+                      <div className="space-y-2">
+                        <span className="text-xs text-muted-foreground">Foto Bomba</span>
+                        <a 
+                          href={String(selectedRecord['FOTO BOMBA'])} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="block"
+                        >
+                          <img 
+                            src={String(selectedRecord['FOTO BOMBA'])} 
+                            alt="Foto Bomba" 
+                            className="w-full h-48 object-cover rounded-lg border border-border hover:opacity-90 transition-opacity cursor-pointer"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).style.display = 'none';
+                            }}
+                          />
+                        </a>
+                      </div>
+                    )}
+                    {selectedRecord['FOTO HORIMETRO'] && (
+                      <div className="space-y-2">
+                        <span className="text-xs text-muted-foreground">Foto Horímetro</span>
+                        <a 
+                          href={String(selectedRecord['FOTO HORIMETRO'])} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="block"
+                        >
+                          <img 
+                            src={String(selectedRecord['FOTO HORIMETRO'])} 
+                            alt="Foto Horímetro" 
+                            className="w-full h-48 object-cover rounded-lg border border-border hover:opacity-90 transition-opacity cursor-pointer"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).style.display = 'none';
+                            }}
+                          />
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Observations */}
+              {selectedRecord['OBSERVAÇÃO'] && (
+                <div className="space-y-2">
+                  <h4 className="font-semibold text-sm">Observações</h4>
+                  <p className="text-sm text-muted-foreground bg-muted/30 p-3 rounded-lg">
+                    {String(selectedRecord['OBSERVAÇÃO'])}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
