@@ -105,6 +105,7 @@ export function AbastecimentoPage() {
   const [localFilter, setLocalFilter] = useState('all');
   const [tipoFilter, setTipoFilter] = useState('all');
   const [combustivelFilter, setCombustivelFilter] = useState('all');
+  const [empresaFilter, setEmpresaFilter] = useState('all');
   const [periodFilter, setPeriodFilter] = useState('hoje');
   const [startDate, setStartDate] = useState<Date | undefined>(new Date());
   const [endDate, setEndDate] = useState<Date | undefined>(new Date());
@@ -185,9 +186,15 @@ export function AbastecimentoPage() {
       // Combustivel filter
       if (combustivelFilter !== 'all' && row['TIPO DE COMBUSTIVEL'] !== combustivelFilter) return false;
       
+      // Empresa filter
+      if (empresaFilter !== 'all') {
+        const empresa = String(row['EMPRESA'] || row['Empresa'] || '').trim();
+        if (empresa !== empresaFilter) return false;
+      }
+      
       return true;
     });
-  }, [data.rows, dateRange, search, localFilter, tipoFilter, combustivelFilter]);
+  }, [data.rows, dateRange, search, localFilter, tipoFilter, combustivelFilter, empresaFilter]);
 
   // Calculate metrics from filtered data
   const metrics = useMemo(() => {
@@ -240,6 +247,16 @@ export function AbastecimentoPage() {
     data.rows.forEach(row => {
       const comb = String(row['TIPO DE COMBUSTIVEL'] || '').trim();
       if (comb) unique.add(comb);
+    });
+    return Array.from(unique).sort();
+  }, [data.rows]);
+
+  // Get unique empresas
+  const empresas = useMemo(() => {
+    const unique = new Set<string>();
+    data.rows.forEach(row => {
+      const empresa = String(row['EMPRESA'] || row['Empresa'] || '').trim();
+      if (empresa) unique.add(empresa);
     });
     return Array.from(unique).sort();
   }, [data.rows]);
@@ -982,6 +999,18 @@ export function AbastecimentoPage() {
                   <SelectItem value="all">Todos Comb.</SelectItem>
                   {combustiveis.map(comb => (
                     <SelectItem key={comb} value={comb}>{comb}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={empresaFilter} onValueChange={setEmpresaFilter}>
+                <SelectTrigger className="w-full sm:w-40">
+                  <SelectValue placeholder="Empresa" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas Empresas</SelectItem>
+                  {empresas.map(emp => (
+                    <SelectItem key={emp} value={emp}>{emp}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
