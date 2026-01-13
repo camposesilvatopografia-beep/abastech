@@ -171,6 +171,29 @@ export function FieldFuelForm({ user, onLogout }: FieldFuelFormProps) {
   const [unitPrice, setUnitPrice] = useState('');
   const [entryLocation, setEntryLocation] = useState('');
 
+  // Format number to Brazilian format (1.234,56)
+  const formatBrazilianNumber = (value: string | number): string => {
+    if (!value && value !== 0) return '';
+    const num = typeof value === 'string' ? parseFloat(value.replace(/\./g, '').replace(',', '.')) : value;
+    if (isNaN(num)) return '';
+    return num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  };
+
+  // Parse Brazilian format to number
+  const parseBrazilianNumber = (value: string): number => {
+    if (!value) return 0;
+    // Remove thousand separators (.) and replace decimal separator (,) with (.)
+    const normalized = value.replace(/\./g, '').replace(',', '.');
+    return parseFloat(normalized) || 0;
+  };
+
+  // Handle horimeter input with Brazilian formatting
+  const handleHorimeterChange = (value: string, setter: (val: string) => void) => {
+    // Allow only numbers, dots, and commas
+    const cleaned = value.replace(/[^\d.,]/g, '');
+    setter(cleaned);
+  };
+
   // Check if category is equipment
   const isEquipment = category.toLowerCase().includes('equipamento') || 
                       category.toLowerCase().includes('maquina') ||
@@ -428,8 +451,8 @@ export function FieldFuelForm({ user, onLogout }: FieldFuelFormProps) {
         const lastRecord = dbRecords[0];
         const value = lastRecord.horimeter_current || lastRecord.km_current || 0;
         if (value > 0) {
-          setHorimeterPrevious(String(value));
-          toast.info(`Último registro: ${value}`);
+          setHorimeterPrevious(formatBrazilianNumber(value));
+          toast.info(`Último registro: ${formatBrazilianNumber(value)}`);
           return;
         }
       }
@@ -453,8 +476,8 @@ export function FieldFuelForm({ user, onLogout }: FieldFuelFormProps) {
         const value = horAtual || kmAtual;
         
         if (value > 0) {
-          setHorimeterPrevious(String(value));
-          toast.info(`Último registro: ${value}`);
+          setHorimeterPrevious(formatBrazilianNumber(value));
+          toast.info(`Último registro: ${formatBrazilianNumber(value)}`);
         }
       }
     } catch (err) {
@@ -728,8 +751,8 @@ export function FieldFuelForm({ user, onLogout }: FieldFuelFormProps) {
           operator_name: operatorName || user.name,
           company,
           work_site: workSite,
-          horimeter_previous: parseFloat(horimeterPrevious) || 0,
-          horimeter_current: parseFloat(horimeterCurrent) || 0,
+          horimeter_previous: parseBrazilianNumber(horimeterPrevious),
+          horimeter_current: parseBrazilianNumber(horimeterCurrent),
           fuel_quantity: parseFloat(fuelQuantity) || 0,
           fuel_type: fuelType,
           arla_quantity: parseFloat(arlaQuantity) || 0,
@@ -768,8 +791,8 @@ export function FieldFuelForm({ user, onLogout }: FieldFuelFormProps) {
         operatorName: operatorName || user.name,
         company,
         workSite,
-        horimeterPrevious: parseFloat(horimeterPrevious) || 0,
-        horimeterCurrent: parseFloat(horimeterCurrent) || 0,
+        horimeterPrevious: parseBrazilianNumber(horimeterPrevious),
+        horimeterCurrent: parseBrazilianNumber(horimeterCurrent),
         fuelQuantity: parseFloat(fuelQuantity) || 0,
         fuelType,
         arlaQuantity: parseFloat(arlaQuantity) || 0,
@@ -1226,16 +1249,21 @@ export function FieldFuelForm({ user, onLogout }: FieldFuelFormProps) {
           )}
           
           <Input
-            type="number"
+            type="text"
             inputMode="decimal"
-            placeholder="Ex: 12500.50"
+            placeholder="Ex: 4.452,50"
             value={horimeterCurrent}
-            onChange={(e) => setHorimeterCurrent(e.target.value)}
+            onChange={(e) => handleHorimeterChange(e.target.value, setHorimeterCurrent)}
+            onBlur={() => {
+              if (horimeterCurrent) {
+                setHorimeterCurrent(formatBrazilianNumber(parseBrazilianNumber(horimeterCurrent)));
+              }
+            }}
             className="h-12 text-lg text-center"
           />
           
           {/* Validation warning */}
-          {horimeterPrevious && horimeterCurrent && parseFloat(horimeterCurrent) < parseFloat(horimeterPrevious) && (
+          {horimeterPrevious && horimeterCurrent && parseBrazilianNumber(horimeterCurrent) < parseBrazilianNumber(horimeterPrevious) && (
             <div className="bg-yellow-50 dark:bg-yellow-950 border border-yellow-200 dark:border-yellow-800 p-2 rounded-lg">
               <div className="flex items-center gap-2 text-yellow-700 dark:text-yellow-300 text-sm">
                 <AlertCircle className="w-4 h-4" />
