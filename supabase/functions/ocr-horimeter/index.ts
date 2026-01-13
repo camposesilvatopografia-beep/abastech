@@ -12,7 +12,7 @@ serve(async (req) => {
   }
 
   try {
-    const { image } = await req.json();
+    const { image, type = 'horimeter' } = await req.json();
 
     if (!image) {
       throw new Error('No image data provided');
@@ -22,6 +22,46 @@ serve(async (req) => {
     if (!apiKey) {
       throw new Error('LOVABLE_API_KEY not configured');
     }
+
+    // Different prompts based on type
+    const prompts: Record<string, string> = {
+      horimeter: `Analise esta imagem de um horímetro ou odômetro de veículo/equipamento.
+                
+TAREFA: Extraia APENAS o valor numérico mostrado no display/mostrador.
+
+REGRAS:
+- Retorne SOMENTE o número, sem texto adicional
+- Use ponto (.) como separador decimal se houver
+- Se houver múltiplos números, identifique o principal (geralmente o maior ou mais proeminente)
+- Se não conseguir identificar claramente, retorne "ERRO"
+
+Exemplos de resposta correta:
+- 12345.6
+- 8750
+- 15230.5
+
+Qual é o valor mostrado?`,
+      
+      quantity: `Analise esta imagem de uma bomba de combustível ou medidor de litros.
+                
+TAREFA: Extraia APENAS o valor numérico de LITROS ou QUANTIDADE mostrado no display.
+
+REGRAS:
+- Retorne SOMENTE o número de litros, sem texto adicional
+- Use ponto (.) como separador decimal se houver
+- Identifique o valor total de litros abastecidos (geralmente mostrado em destaque)
+- Ignore valores de preço (R$) - foque apenas na quantidade em litros
+- Se não conseguir identificar claramente, retorne "ERRO"
+
+Exemplos de resposta correta:
+- 150.5
+- 75
+- 200.35
+
+Qual é a quantidade em litros mostrada?`
+    };
+
+    const promptText = prompts[type] || prompts.horimeter;
 
     // Call Lovable AI Gateway with vision model
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
@@ -38,22 +78,7 @@ serve(async (req) => {
             content: [
               {
                 type: 'text',
-                text: `Analise esta imagem de um horímetro ou odômetro de veículo/equipamento.
-                
-TAREFA: Extraia APENAS o valor numérico mostrado no display/mostrador.
-
-REGRAS:
-- Retorne SOMENTE o número, sem texto adicional
-- Use ponto (.) como separador decimal se houver
-- Se houver múltiplos números, identifique o principal (geralmente o maior ou mais proeminente)
-- Se não conseguir identificar claramente, retorne "ERRO"
-
-Exemplos de resposta correta:
-- 12345.6
-- 8750
-- 15230.5
-
-Qual é o valor mostrado?`
+                text: promptText
               },
               {
                 type: 'image_url',
