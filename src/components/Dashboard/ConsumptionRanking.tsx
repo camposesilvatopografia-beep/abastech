@@ -1,6 +1,12 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Trophy, TrendingUp, Fuel, ChevronDown, ChevronUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+
+interface VehicleInfo {
+  veiculo: string;
+  descricao?: string;
+}
 
 interface ConsumptionRankingProps {
   data: Array<{
@@ -9,20 +15,45 @@ interface ConsumptionRankingProps {
     abastecimentos: number;
     mediaPorAbastecimento: number;
   }>;
+  vehicleData?: VehicleInfo[];
   title?: string;
   maxItems?: number;
 }
 
 export function ConsumptionRanking({ 
   data, 
+  vehicleData = [],
   title = "Ranking de Consumo", 
   maxItems = 10 
 }: ConsumptionRankingProps) {
+  const [periodFilter, setPeriodFilter] = useState<'total' | 'mes'>('total');
+
+  // Filter out "CAMINHAO COMBOIO" vehicles based on description from vehicleData
+  const filteredData = useMemo(() => {
+    // Create a set of comboio vehicles based on description
+    const comboioVehicles = new Set(
+      vehicleData
+        .filter(v => {
+          const desc = (v.descricao || '').toLowerCase();
+          return desc.includes('comboio') || desc.includes('caminhão comboio') || desc.includes('caminhao comboio');
+        })
+        .map(v => v.veiculo.trim().toUpperCase())
+    );
+
+    return data.filter(item => {
+      const vehicleName = item.veiculo.trim().toUpperCase();
+      // Also check if the vehicle name itself contains "comboio"
+      if (vehicleName.includes('COMBOIO')) return false;
+      // Check against the vehicle descriptions
+      return !comboioVehicles.has(vehicleName);
+    });
+  }, [data, vehicleData]);
+
   const rankingData = useMemo(() => {
-    return data
+    return filteredData
       .sort((a, b) => b.totalLitros - a.totalLitros)
       .slice(0, maxItems);
-  }, [data, maxItems]);
+  }, [filteredData, maxItems]);
 
   const maxConsumption = rankingData[0]?.totalLitros || 1;
 
@@ -49,7 +80,7 @@ export function ConsumptionRanking({
           </div>
           <div>
             <h3 className="font-semibold">{title}</h3>
-            <p className="text-sm text-muted-foreground">Maiores consumidores</p>
+            <p className="text-sm text-muted-foreground">Maiores consumidores (equipamentos)</p>
           </div>
         </div>
         <div className="text-center text-muted-foreground py-8">
@@ -62,13 +93,33 @@ export function ConsumptionRanking({
   return (
     <div className="bg-card rounded-lg border border-border">
       <div className="p-4 border-b border-border">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-            <TrendingUp className="w-5 h-5 text-primary" />
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+              <TrendingUp className="w-5 h-5 text-primary" />
+            </div>
+            <div>
+              <h3 className="font-semibold">{title}</h3>
+              <p className="text-sm text-muted-foreground">Top {maxItems} equipamentos (exceto comboios)</p>
+            </div>
           </div>
-          <div>
-            <h3 className="font-semibold">{title}</h3>
-            <p className="text-sm text-muted-foreground">Top {maxItems} maiores consumidores</p>
+          <div className="flex items-center gap-1">
+            <Button
+              variant={periodFilter === 'total' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setPeriodFilter('total')}
+              className="h-7 text-xs"
+            >
+              Total
+            </Button>
+            <Button
+              variant={periodFilter === 'mes' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setPeriodFilter('mes')}
+              className="h-7 text-xs"
+            >
+              Mês
+            </Button>
           </div>
         </div>
       </div>

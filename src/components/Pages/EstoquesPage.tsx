@@ -367,14 +367,14 @@ export function EstoquesPage() {
             title="ESTOQUE DIESEL"
             value={`${metrics.estoqueDiesel.toLocaleString('pt-BR', { minimumFractionDigits: 1 })} L`}
             subtitle="Disponível"
-            variant="primary"
+            variant="blue"
             icon={Fuel}
           />
           <MetricCard
             title="ESTOQUE ARLA"
             value={`${metrics.estoqueArla.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L`}
             subtitle="Disponível"
-            variant="primary"
+            variant="blue"
             icon={Droplet}
           />
         </div>
@@ -385,18 +385,21 @@ export function EstoquesPage() {
             title="SAÍDAS PERÍODO"
             value={`${metrics.saidasGeral.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L`}
             subtitle="Total no período"
+            variant="red"
             icon={TrendingDown}
           />
           <MetricCard
             title="SAÍDAS HOJE"
             value={`${metrics.saidasHoje.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L`}
             subtitle="Consumo do dia"
+            variant="red"
             icon={TrendingDown}
           />
           <MetricCard
             title="ENTRADAS HOJE"
             value={`${metrics.entradasHoje.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L`}
             subtitle="Reposição do dia"
+            variant="green"
             icon={TrendingUp}
           />
         </div>
