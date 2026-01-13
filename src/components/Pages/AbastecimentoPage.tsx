@@ -50,6 +50,7 @@ import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 const SHEET_NAME = 'AbastecimentoCanteiro01';
+const GERAL_SHEET = 'GERAL';
 
 const TABS = [
   { id: 'resumo', label: 'Resumo', icon: BarChart3 },
@@ -88,6 +89,7 @@ function parseDate(dateStr: string): Date | null {
 
 export function AbastecimentoPage() {
   const { data, loading, refetch } = useSheetData(SHEET_NAME);
+  const { data: geralData } = useSheetData(GERAL_SHEET);
   const [activeTab, setActiveTab] = useState('resumo');
   const [search, setSearch] = useState('');
   const [localFilter, setLocalFilter] = useState('all');
@@ -97,6 +99,15 @@ export function AbastecimentoPage() {
   const [startDate, setStartDate] = useState<Date | undefined>(new Date());
   const [endDate, setEndDate] = useState<Date | undefined>(new Date());
   const [isExporting, setIsExporting] = useState(false);
+
+  // Get current stock from GERAL sheet (column G - EstoqueAtual)
+  const estoqueAtual = useMemo(() => {
+    if (!geralData.rows.length) return 0;
+    // Look for EstoqueAtual in the first row or sum all values
+    const firstRow = geralData.rows[0];
+    const estoqueValue = firstRow?.['EstoqueAtual'] || firstRow?.['ESTOQUEATO'] || firstRow?.['Estoque'] || firstRow?.['estoque'] || 0;
+    return parseFloat(String(estoqueValue).replace(',', '.')) || 0;
+  }, [geralData.rows]);
 
   // Get date range based on period filter
   const dateRange = useMemo(() => {
@@ -403,13 +414,14 @@ export function AbastecimentoPage() {
         </div>
 
         {/* Metric Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <MetricCard
             title="REGISTROS NO PERÍODO"
             value={metrics.registros.toString()}
             subtitle={`${PERIOD_OPTIONS.find(p => p.value === periodFilter)?.label || 'Período'}`}
             variant="primary"
             icon={Fuel}
+            className="border-l-4 border-l-blue-500"
           />
           <MetricCard
             title="TOTAL DIESEL"
@@ -417,6 +429,7 @@ export function AbastecimentoPage() {
             subtitle="Litros consumidos"
             variant="primary"
             icon={Droplet}
+            className="border-l-4 border-l-amber-500"
           />
           <MetricCard
             title="TOTAL ARLA"
@@ -424,6 +437,15 @@ export function AbastecimentoPage() {
             subtitle="Litros consumidos"
             variant="primary"
             icon={Calendar}
+            className="border-l-4 border-l-emerald-500"
+          />
+          <MetricCard
+            title="ESTOQUE ATUAL"
+            value={`${estoqueAtual.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L`}
+            subtitle="Combustível disponível"
+            variant="primary"
+            icon={TrendingUp}
+            className="border-l-4 border-l-purple-500"
           />
         </div>
 

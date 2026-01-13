@@ -85,6 +85,8 @@ export function FrotaPage() {
   const [search, setSearch] = useState('');
   const [empresaFilter, setEmpresaFilter] = useState('all');
   const [tipoFilter, setTipoFilter] = useState('all');
+  const [descricaoFilter, setDescricaoFilter] = useState('all');
+  const [groupBy, setGroupBy] = useState<'tipo' | 'empresa' | 'descricao'>('tipo');
   const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
   const [viewMode, setViewMode] = useState<'tipo' | 'tabela'>('tipo');
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
@@ -139,7 +141,16 @@ export function FrotaPage() {
       const tipo = getRowValue(row as any, ['TIPO', 'Tipo', 'tipo', 'CATEGORIA', 'Categoria', 'categoria']).trim();
       if (tipo) unique.add(tipo);
     });
-    return Array.from(unique);
+    return Array.from(unique).sort();
+  }, [data.rows]);
+
+  const descricoes = useMemo(() => {
+    const unique = new Set<string>();
+    data.rows.forEach(row => {
+      const desc = getRowValue(row as any, ['DESCRICAO', 'DESCRIÇÃO', 'Descricao', 'descrição', 'descricao']).trim();
+      if (desc) unique.add(desc);
+    });
+    return Array.from(unique).sort();
   }, [data.rows]);
 
   const filteredRows = useMemo(() => {
@@ -151,9 +162,11 @@ export function FrotaPage() {
 
       const empresaValue = getRowValue(row as any, ['EMPRESA', 'Empresa', 'empresa']);
       const tipoValue = getRowValue(row as any, ['TIPO', 'Tipo', 'tipo', 'CATEGORIA', 'Categoria', 'categoria']);
+      const descricaoValue = getRowValue(row as any, ['DESCRICAO', 'DESCRIÇÃO', 'Descricao', 'descrição', 'descricao']);
 
       const matchesEmpresa = empresaFilter === 'all' || empresaValue === empresaFilter;
       const matchesTipo = tipoFilter === 'all' || tipoValue === tipoFilter;
+      const matchesDescricao = descricaoFilter === 'all' || descricaoValue === descricaoFilter;
 
       // Date filter (if the sheet doesn't have date, we treat it as NOT matching when filter is active)
       let matchesDate = true;
@@ -175,9 +188,9 @@ export function FrotaPage() {
         }
       }
 
-      return matchesSearch && matchesEmpresa && matchesTipo && matchesDate;
+      return matchesSearch && matchesEmpresa && matchesTipo && matchesDescricao && matchesDate;
     });
-  }, [data.rows, search, empresaFilter, tipoFilter, startDate, endDate]);
+  }, [data.rows, search, empresaFilter, tipoFilter, descricaoFilter, startDate, endDate]);
 
   const metrics = useMemo(() => {
     const empresasSet = new Set<string>();
@@ -203,17 +216,32 @@ export function FrotaPage() {
     
     filteredRows.forEach(row => {
       const tipo = getRowValue(row as any, ['TIPO', 'Tipo', 'tipo', 'CATEGORIA', 'Categoria', 'categoria']) || 'Outros';
-      const empresa = getRowValue(row as any, ['EMPRESA', 'Empresa', 'empresa']);
+      const empresa = getRowValue(row as any, ['EMPRESA', 'Empresa', 'empresa']) || 'Não informada';
       const codigo = getRowValue(row as any, ['CODIGO', 'Codigo', 'codigo', 'VEICULO', 'Veiculo', 'veiculo']);
-      const descricao = getRowValue(row as any, ['DESCRICAO', 'DESCRIÇÃO', 'Descricao', 'descrição', 'descricao']);
+      const descricao = getRowValue(row as any, ['DESCRICAO', 'DESCRIÇÃO', 'Descricao', 'descrição', 'descricao']) || 'Sem descrição';
       const categoria = getRowValue(row as any, ['CATEGORIA', 'Categoria', 'categoria']);
 
-      if (!groups[tipo]) {
-        groups[tipo] = { name: tipo, empresas: 0, veiculos: 0, items: [] };
+      // Determine group key based on groupBy setting
+      let groupKey: string;
+      switch (groupBy) {
+        case 'empresa':
+          groupKey = empresa;
+          break;
+        case 'descricao':
+          groupKey = descricao;
+          break;
+        case 'tipo':
+        default:
+          groupKey = tipo;
+          break;
       }
 
-      groups[tipo].veiculos++;
-      groups[tipo].items.push({ codigo, descricao, empresa, categoria });
+      if (!groups[groupKey]) {
+        groups[groupKey] = { name: groupKey, empresas: 0, veiculos: 0, items: [] };
+      }
+
+      groups[groupKey].veiculos++;
+      groups[groupKey].items.push({ codigo, descricao, empresa, categoria });
     });
 
     Object.values(groups).forEach(group => {
@@ -221,8 +249,8 @@ export function FrotaPage() {
       group.empresas = uniqueEmpresas.size;
     });
 
-    return Object.values(groups);
-  }, [filteredRows]);
+    return Object.values(groups).sort((a, b) => a.name.localeCompare(b.name));
+  }, [filteredRows, groupBy]);
 
   const toggleGroup = (name: string) => {
     setExpandedGroups(prev => 
@@ -380,6 +408,50 @@ export function FrotaPage() {
                 ))}
               </SelectContent>
             </Select>
+
+            <Select value={descricaoFilter} onValueChange={setDescricaoFilter}>
+              <SelectTrigger className="w-56">
+                <Truck className="w-4 h-4 mr-2" />
+                <SelectValue placeholder="Todas Descrições" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas Descrições</SelectItem>
+                {descricoes.map(desc => (
+                  <SelectItem key={desc} value={desc}>{desc}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Group By Selection */}
+          <div className="flex items-center gap-4 flex-wrap">
+            <span className="text-sm font-medium text-muted-foreground">Agrupar por:</span>
+            <div className="flex gap-2">
+              <Button 
+                variant={groupBy === 'tipo' ? 'default' : 'outline'} 
+                size="sm"
+                onClick={() => setGroupBy('tipo')}
+              >
+                <Settings className="w-4 h-4 mr-2" />
+                Tipo
+              </Button>
+              <Button 
+                variant={groupBy === 'empresa' ? 'default' : 'outline'} 
+                size="sm"
+                onClick={() => setGroupBy('empresa')}
+              >
+                <Building2 className="w-4 h-4 mr-2" />
+                Empresa
+              </Button>
+              <Button 
+                variant={groupBy === 'descricao' ? 'default' : 'outline'} 
+                size="sm"
+                onClick={() => setGroupBy('descricao')}
+              >
+                <Truck className="w-4 h-4 mr-2" />
+                Descrição
+              </Button>
+            </div>
           </div>
 
           <div className="flex items-center gap-4 flex-wrap">
