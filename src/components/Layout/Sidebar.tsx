@@ -46,9 +46,10 @@ const menuItems: MenuItem[] = [
 interface SidebarProps {
   activeItem: string;
   onItemClick: (id: string) => void;
+  onClose?: () => void;
 }
 
-export function Sidebar({ activeItem, onItemClick }: SidebarProps) {
+export function Sidebar({ activeItem, onItemClick, onClose }: SidebarProps) {
   const [expandedItems, setExpandedItems] = useState<string[]>(['cadastros']);
 
   const toggleExpand = (id: string) => {
@@ -57,6 +58,11 @@ export function Sidebar({ activeItem, onItemClick }: SidebarProps) {
         ? prev.filter(item => item !== id)
         : [...prev, id]
     );
+  };
+
+  const handleItemClick = (id: string) => {
+    onItemClick(id);
+    onClose?.();
   };
 
   return (
@@ -77,7 +83,7 @@ export function Sidebar({ activeItem, onItemClick }: SidebarProps) {
                 if (item.children) {
                   toggleExpand(item.id);
                 } else {
-                  onItemClick(item.id);
+                  handleItemClick(item.id);
                 }
               }}
               className={cn(
@@ -99,7 +105,7 @@ export function Sidebar({ activeItem, onItemClick }: SidebarProps) {
                 {item.children.map((child) => (
                   <button
                     key={child.id}
-                    onClick={() => onItemClick(child.id)}
+                    onClick={() => handleItemClick(child.id)}
                     className={cn(
                       "sidebar-item w-full text-sm",
                       activeItem === child.id && "sidebar-item-active"
