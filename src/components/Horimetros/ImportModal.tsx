@@ -10,8 +10,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
+import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
-import { Upload, FileSpreadsheet, AlertTriangle, CheckCircle, X, Download } from 'lucide-react';
+import { Upload, FileSpreadsheet, AlertTriangle, CheckCircle, X, Download, RefreshCw } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
@@ -50,6 +51,8 @@ interface ParsedRow {
   KM_ATUAL: string;
   OBSERVACAO: string;
   isValid: boolean;
+  isDuplicate: boolean;
+  existingRowIndex?: number;
   error?: string;
 }
 
@@ -119,15 +122,17 @@ export function ImportModal({ open, onOpenChange, onSuccess }: ImportModalProps)
   const [isLoading, setIsLoading] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [importProgress, setImportProgress] = useState(0);
-  const [existingRecords, setExistingRecords] = useState<Set<string>>(new Set());
+  const [overwriteDuplicates, setOverwriteDuplicates] = useState(false);
+  const [existingRecordsMap, setExistingRecordsMap] = useState<Map<string, number>>(new Map());
   const [importStats, setImportStats] = useState<{
     total: number;
     success: number;
     failed: number;
     skipped: number;
+    updated: number;
   } | null>(null);
 
-  // Fetch existing records to check for duplicates
+  // Fetch existing records to check for duplicates (with rowIndex for updates)
   const fetchExistingRecords = useCallback(async () => {
     try {
       const { data, error } = await supabase.functions.invoke('google-sheets', {
@@ -139,23 +144,24 @@ export function ImportModal({ open, onOpenChange, onSuccess }: ImportModalProps)
 
       if (error) {
         console.error('Error fetching existing records:', error);
-        return new Set<string>();
+        return new Map<string, number>();
       }
 
-      const records = new Set<string>();
+      const recordsMap = new Map<string, number>();
       if (data?.rows) {
         data.rows.forEach((row: any) => {
           const date = String(row.DATA || '').trim();
           const vehicle = String(row.VEICULO || '').trim().toUpperCase();
-          if (date && vehicle) {
-            records.add(`${date}|${vehicle}`);
+          const rowIndex = row._rowIndex;
+          if (date && vehicle && rowIndex) {
+            recordsMap.set(`${date}|${vehicle}`, rowIndex);
           }
         });
       }
-      return records;
+      return recordsMap;
     } catch (error) {
       console.error('Error fetching existing records:', error);
-      return new Set<string>();
+      return new Map<string, number>();
     }
   }, []);
 
@@ -169,8 +175,8 @@ export function ImportModal({ open, onOpenChange, onSuccess }: ImportModalProps)
     setIsLoading(true);
 
     // Fetch existing records first
-    const existingSet = await fetchExistingRecords();
-    setExistingRecords(existingSet);
+    const existingMap = await fetchExistingRecords();
+    setExistingRecordsMap(existingMap);
 
     const reader = new FileReader();
     reader.onload = (event) => {
@@ -201,6 +207,8 @@ export function ImportModal({ open, onOpenChange, onSuccess }: ImportModalProps)
           const observacao = String(findValue(row, ['Observacao', 'OBSERVACAO', 'OBSERVAÇÃO', 'Obs', 'OBS']) || '').trim();
 
           let isValid = true;
+          let isDuplicate = false;
+          let existingRowIndex: number | undefined;
           let error: string | undefined;
 
           if (!data) {
@@ -215,9 +223,9 @@ export function ImportModal({ open, onOpenChange, onSuccess }: ImportModalProps)
           } else {
             // Check for duplicate
             const key = `${data}|${veiculo.toUpperCase()}`;
-            if (existingSet.has(key)) {
-              isValid = false;
-              error = 'Registro já existe';
+            if (existingMap.has(key)) {
+              isDuplicate = true;
+              existingRowIndex = existingMap.get(key);
             }
           }
 
@@ -235,19 +243,21 @@ export function ImportModal({ open, onOpenChange, onSuccess }: ImportModalProps)
             KM_ATUAL: kmAtual > 0 ? kmAtual.toString().replace('.', ',') : '',
             OBSERVACAO: observacao,
             isValid,
+            isDuplicate,
+            existingRowIndex,
             error,
           };
         });
 
         setParsedRows(parsed);
         
-        const validCount = parsed.filter(r => r.isValid).length;
-        const invalidCount = parsed.filter(r => !r.isValid).length;
-        const duplicateCount = parsed.filter(r => r.error === 'Registro já existe').length;
+        const validCount = parsed.filter(r => r.isValid && !r.isDuplicate).length;
+        const duplicateCount = parsed.filter(r => r.isDuplicate && r.isValid).length;
+        const errorCount = parsed.filter(r => !r.isValid).length;
         
         toast({
           title: 'Arquivo processado',
-          description: `${validCount} válidos, ${duplicateCount} duplicados, ${invalidCount - duplicateCount} com erros`,
+          description: `${validCount} novos, ${duplicateCount} duplicados, ${errorCount} com erros`,
         });
       } catch (error) {
         console.error('Error parsing file:', error);
@@ -265,14 +275,17 @@ export function ImportModal({ open, onOpenChange, onSuccess }: ImportModalProps)
   }, [toast, fetchExistingRecords]);
 
   const handleImport = async () => {
-    const validRows = parsedRows.filter(r => r.isValid);
-    const skippedRows = parsedRows.filter(r => r.error === 'Registro já existe').length;
+    // Get rows to import: valid non-duplicates + duplicates if overwrite enabled
+    const newRows = parsedRows.filter(r => r.isValid && !r.isDuplicate);
+    const duplicateRows = parsedRows.filter(r => r.isValid && r.isDuplicate);
+    const rowsToImport = overwriteDuplicates ? [...newRows, ...duplicateRows] : newRows;
+    const skippedCount = overwriteDuplicates ? 0 : duplicateRows.length;
     
-    if (validRows.length === 0) {
+    if (rowsToImport.length === 0) {
       toast({
-        title: 'Nenhum registro válido',
-        description: skippedRows > 0 
-          ? `${skippedRows} registros duplicados foram ignorados` 
+        title: 'Nenhum registro para importar',
+        description: skippedCount > 0 
+          ? `${skippedCount} registros duplicados foram ignorados. Ative "Sobrescrever duplicados" para atualizá-los.` 
           : 'Não há registros válidos para importar',
         variant: 'destructive',
       });
@@ -283,13 +296,14 @@ export function ImportModal({ open, onOpenChange, onSuccess }: ImportModalProps)
     setImportProgress(0);
     
     let success = 0;
+    let updated = 0;
     let failed = 0;
 
     // Track imported records to avoid duplicates within the same import
     const importedInSession = new Set<string>();
 
-    for (let i = 0; i < validRows.length; i++) {
-      const row = validRows[i];
+    for (let i = 0; i < rowsToImport.length; i++) {
+      const row = rowsToImport[i];
       const key = `${row.DATA}|${row.VEICULO.toUpperCase()}`;
       
       // Skip if already imported in this session
@@ -313,47 +327,73 @@ export function ImportModal({ open, onOpenChange, onSuccess }: ImportModalProps)
           OBSERVACAO: row.OBSERVACAO,
         };
 
-        const { error } = await supabase.functions.invoke('google-sheets', {
-          body: {
-            action: 'create',
-            sheetName: 'Horimetros',
-            data: rowData,
-          },
-        });
+        // If it's a duplicate and we're overwriting, use update action
+        if (row.isDuplicate && row.existingRowIndex) {
+          const { error } = await supabase.functions.invoke('google-sheets', {
+            body: {
+              action: 'update',
+              sheetName: 'Horimetros',
+              rowIndex: row.existingRowIndex,
+              data: rowData,
+            },
+          });
 
-        if (error) {
-          failed++;
+          if (error) {
+            failed++;
+          } else {
+            updated++;
+            importedInSession.add(key);
+          }
         } else {
-          success++;
-          importedInSession.add(key);
+          const { error } = await supabase.functions.invoke('google-sheets', {
+            body: {
+              action: 'create',
+              sheetName: 'Horimetros',
+              data: rowData,
+            },
+          });
+
+          if (error) {
+            failed++;
+          } else {
+            success++;
+            importedInSession.add(key);
+          }
         }
       } catch (error) {
         console.error('Error importing row:', error);
         failed++;
       }
 
-      setImportProgress(Math.round(((i + 1) / validRows.length) * 100));
+      setImportProgress(Math.round(((i + 1) / rowsToImport.length) * 100));
     }
 
     setImportStats({
-      total: validRows.length,
+      total: rowsToImport.length,
       success,
       failed,
-      skipped: skippedRows,
+      skipped: skippedCount,
+      updated,
     });
 
     setIsImporting(false);
 
+    const descriptions: string[] = [];
+    if (success > 0) descriptions.push(`${success} novos`);
+    if (updated > 0) descriptions.push(`${updated} atualizados`);
+    if (failed > 0) descriptions.push(`${failed} falharam`);
+    if (skippedCount > 0) descriptions.push(`${skippedCount} ignorados`);
+
     if (failed === 0) {
       toast({
         title: 'Importação concluída!',
-        description: `${success} registros importados${skippedRows > 0 ? `, ${skippedRows} duplicados ignorados` : ''}`,
+        description: descriptions.join(', '),
       });
       onSuccess?.();
     } else {
       toast({
         title: 'Importação parcial',
-        description: `${success} importados, ${failed} falharam${skippedRows > 0 ? `, ${skippedRows} duplicados ignorados` : ''}`,
+        description: descriptions.join(', '),
         variant: 'destructive',
       });
     }
@@ -364,6 +404,7 @@ export function ImportModal({ open, onOpenChange, onSuccess }: ImportModalProps)
     setParsedRows([]);
     setImportStats(null);
     setImportProgress(0);
+    setOverwriteDuplicates(false);
     onOpenChange(false);
   };
 
@@ -418,8 +459,10 @@ export function ImportModal({ open, onOpenChange, onSuccess }: ImportModalProps)
     XLSX.writeFile(wb, 'template_horimetros.xlsx');
   };
 
-  const validCount = parsedRows.filter(r => r.isValid).length;
-  const invalidCount = parsedRows.filter(r => !r.isValid).length;
+  const newCount = parsedRows.filter(r => r.isValid && !r.isDuplicate).length;
+  const duplicateCount = parsedRows.filter(r => r.isValid && r.isDuplicate).length;
+  const errorCount = parsedRows.filter(r => !r.isValid).length;
+  const totalToImport = overwriteDuplicates ? newCount + duplicateCount : newCount;
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -471,18 +514,43 @@ export function ImportModal({ open, onOpenChange, onSuccess }: ImportModalProps)
           {parsedRows.length > 0 && !isLoading && (
             <div className="space-y-3">
               {/* Summary */}
-              <div className="flex items-center gap-4 p-3 bg-muted/30 rounded-lg">
+              <div className="flex flex-wrap items-center gap-4 p-3 bg-muted/30 rounded-lg">
                 <div className="flex items-center gap-2">
                   <CheckCircle className="w-4 h-4 text-green-500" />
-                  <span className="text-sm">{validCount} válidos</span>
+                  <span className="text-sm">{newCount} novos</span>
                 </div>
-                {invalidCount > 0 && (
+                {duplicateCount > 0 && (
+                  <div className="flex items-center gap-2">
+                    <RefreshCw className="w-4 h-4 text-blue-500" />
+                    <span className="text-sm">{duplicateCount} duplicados</span>
+                  </div>
+                )}
+                {errorCount > 0 && (
                   <div className="flex items-center gap-2">
                     <AlertTriangle className="w-4 h-4 text-yellow-500" />
-                    <span className="text-sm">{invalidCount} com erros</span>
+                    <span className="text-sm">{errorCount} com erros</span>
                   </div>
                 )}
               </div>
+
+              {/* Overwrite Option */}
+              {duplicateCount > 0 && (
+                <div className="flex items-center justify-between p-3 border rounded-lg">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="overwrite" className="text-sm font-medium">
+                      Sobrescrever duplicados
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Atualizar {duplicateCount} registro(s) existentes com os novos dados
+                    </p>
+                  </div>
+                  <Switch
+                    id="overwrite"
+                    checked={overwriteDuplicates}
+                    onCheckedChange={setOverwriteDuplicates}
+                  />
+                </div>
+              )}
 
               {/* Preview Table */}
               <div className="border rounded-lg overflow-hidden">
@@ -499,10 +567,23 @@ export function ImportModal({ open, onOpenChange, onSuccess }: ImportModalProps)
                     </thead>
                     <tbody>
                       {parsedRows.slice(0, 50).map((row, index) => (
-                        <tr key={index} className={row.isValid ? '' : 'bg-destructive/10'}>
+                        <tr 
+                          key={index} 
+                          className={
+                            !row.isValid 
+                              ? 'bg-destructive/10' 
+                              : row.isDuplicate 
+                                ? 'bg-blue-500/10' 
+                                : ''
+                          }
+                        >
                           <td className="p-2">
                             {row.isValid ? (
-                              <CheckCircle className="w-4 h-4 text-green-500" />
+                              row.isDuplicate ? (
+                                <RefreshCw className="w-4 h-4 text-blue-500" />
+                              ) : (
+                                <CheckCircle className="w-4 h-4 text-green-500" />
+                              )
                             ) : (
                               <span className="flex items-center gap-1 text-destructive">
                                 <X className="w-4 h-4" />
@@ -545,22 +626,26 @@ export function ImportModal({ open, onOpenChange, onSuccess }: ImportModalProps)
           {importStats && (
             <div className="p-4 rounded-lg bg-muted/30 space-y-2">
               <h4 className="font-medium">Resultado da Importação</h4>
-              <div className="grid grid-cols-4 gap-4 text-center">
+              <div className="grid grid-cols-5 gap-2 text-center">
                 <div>
-                  <div className="text-2xl font-bold">{importStats.total}</div>
+                  <div className="text-xl font-bold">{importStats.total}</div>
                   <div className="text-xs text-muted-foreground">Total</div>
                 </div>
                 <div>
-                  <div className="text-2xl font-bold text-green-500">{importStats.success}</div>
-                  <div className="text-xs text-muted-foreground">Sucesso</div>
+                  <div className="text-xl font-bold text-green-500">{importStats.success}</div>
+                  <div className="text-xs text-muted-foreground">Novos</div>
                 </div>
                 <div>
-                  <div className="text-2xl font-bold text-destructive">{importStats.failed}</div>
+                  <div className="text-xl font-bold text-blue-500">{importStats.updated}</div>
+                  <div className="text-xs text-muted-foreground">Atualizados</div>
+                </div>
+                <div>
+                  <div className="text-xl font-bold text-destructive">{importStats.failed}</div>
                   <div className="text-xs text-muted-foreground">Falhas</div>
                 </div>
                 <div>
-                  <div className="text-2xl font-bold text-yellow-500">{importStats.skipped}</div>
-                  <div className="text-xs text-muted-foreground">Duplicados</div>
+                  <div className="text-xl font-bold text-yellow-500">{importStats.skipped}</div>
+                  <div className="text-xs text-muted-foreground">Ignorados</div>
                 </div>
               </div>
             </div>
@@ -571,9 +656,9 @@ export function ImportModal({ open, onOpenChange, onSuccess }: ImportModalProps)
             <Button variant="outline" onClick={handleClose} disabled={isImporting}>
               {importStats ? 'Fechar' : 'Cancelar'}
             </Button>
-            {parsedRows.length > 0 && validCount > 0 && !importStats && (
+            {parsedRows.length > 0 && totalToImport > 0 && !importStats && (
               <Button onClick={handleImport} disabled={isImporting || isLoading}>
-                {isImporting ? 'Importando...' : `Importar ${validCount} registros`}
+                {isImporting ? 'Importando...' : `Importar ${totalToImport} registro${totalToImport !== 1 ? 's' : ''}`}
               </Button>
             )}
           </div>
