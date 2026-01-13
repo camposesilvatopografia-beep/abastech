@@ -22,7 +22,11 @@ import {
   WifiOff,
   RefreshCw,
   Cloud,
-  CloudOff
+  CloudOff,
+  ScanLine,
+  Wrench,
+  Clock,
+  AlertCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -112,6 +116,7 @@ function useVoiceRecognition() {
 
 export function FieldFuelForm({ user, onLogout }: FieldFuelFormProps) {
   const { data: vehiclesData } = useSheetData('Veiculo');
+  const { data: abastecimentoData } = useSheetData('AbastecimentoCanteiro01');
   const [isSaving, setIsSaving] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [activeVoiceField, setActiveVoiceField] = useState<string | null>(null);
@@ -125,6 +130,11 @@ export function FieldFuelForm({ user, onLogout }: FieldFuelFormProps) {
   const [photoHorimeter, setPhotoHorimeter] = useState<File | null>(null);
   const [photoHorimeterPreview, setPhotoHorimeterPreview] = useState<string | null>(null);
   const [isUploadingPhotos, setIsUploadingPhotos] = useState(false);
+  
+  // OCR state
+  const [isProcessingOCR, setIsProcessingOCR] = useState(false);
+  const [ocrPhotoPreview, setOcrPhotoPreview] = useState<string | null>(null);
+  const ocrInputRef = useRef<HTMLInputElement>(null);
   
   const photoPumpInputRef = useRef<HTMLInputElement>(null);
   const photoHorimeterInputRef = useRef<HTMLInputElement>(null);
@@ -143,6 +153,16 @@ export function FieldFuelForm({ user, onLogout }: FieldFuelFormProps) {
   const [arlaQuantity, setArlaQuantity] = useState('');
   const [location, setLocation] = useState('Tanque Canteiro 01');
   const [observations, setObservations] = useState('');
+  
+  // Equipment-specific fields
+  const [equipmentHours, setEquipmentHours] = useState('');
+  const [maintenanceType, setMaintenanceType] = useState('');
+  const [equipmentStatus, setEquipmentStatus] = useState('operando');
+
+  // Check if category is equipment
+  const isEquipment = category.toLowerCase().includes('equipamento') || 
+                      category.toLowerCase().includes('maquina') ||
+                      category.toLowerCase().includes('máquina');
 
   // Voice recognition
   const voice = useVoiceRecognition();
@@ -355,8 +375,8 @@ export function FieldFuelForm({ user, onLogout }: FieldFuelFormProps) {
     }
   }, [voice.transcript, activeVoiceField, vehiclesData.rows]);
 
-  // Handle vehicle selection
-  const handleVehicleSelect = (code: string) => {
+  // Handle vehicle selection - fetch previous horimeter/km
+  const handleVehicleSelect = async (code: string) => {
     setVehicleCode(code);
     const vehicle = vehiclesData.rows.find(v => String(v['Codigo']) === code);
     if (vehicle) {
@@ -365,7 +385,112 @@ export function FieldFuelForm({ user, onLogout }: FieldFuelFormProps) {
       setCompany(String(vehicle['Empresa'] || ''));
       setOperatorName(String(vehicle['Motorista'] || ''));
       setWorkSite(String(vehicle['Obra'] || ''));
+      
+      // Fetch last horimeter/km value from database or sheet
+      await fetchPreviousHorimeter(code);
     }
+  };
+
+  // Fetch previous horimeter/km from records
+  const fetchPreviousHorimeter = async (vehicleCode: string) => {
+    try {
+      // First try from database (field_fuel_records)
+      const { data: dbRecords } = await supabase
+        .from('field_fuel_records')
+        .select('horimeter_current, km_current')
+        .eq('vehicle_code', vehicleCode)
+        .order('record_date', { ascending: false })
+        .order('record_time', { ascending: false })
+        .limit(1);
+
+      if (dbRecords && dbRecords.length > 0) {
+        const lastRecord = dbRecords[0];
+        const value = lastRecord.horimeter_current || lastRecord.km_current || 0;
+        if (value > 0) {
+          setHorimeterPrevious(String(value));
+          toast.info(`Último registro: ${value}`);
+          return;
+        }
+      }
+
+      // If not found in DB, try from sheet data
+      const vehicleRecords = abastecimentoData.rows
+        .filter(row => {
+          const rowVehicle = String(row['VEICULO'] || row['Veiculo'] || '');
+          return rowVehicle === vehicleCode;
+        })
+        .sort((a, b) => {
+          const dateA = String(a['DATA'] || '');
+          const dateB = String(b['DATA'] || '');
+          return dateB.localeCompare(dateA);
+        });
+
+      if (vehicleRecords.length > 0) {
+        const lastRecord = vehicleRecords[0];
+        const horAtual = parseFloat(String(lastRecord['HORIMETRO ATUAL'] || lastRecord['HOR_ATUAL'] || lastRecord['HORIMETRO'] || 0));
+        const kmAtual = parseFloat(String(lastRecord['KM ATUAL'] || lastRecord['KM_ATUAL'] || lastRecord['KM'] || 0));
+        const value = horAtual || kmAtual;
+        
+        if (value > 0) {
+          setHorimeterPrevious(String(value));
+          toast.info(`Último registro: ${value}`);
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching previous horimeter:', err);
+    }
+  };
+
+  // OCR - recognize horimeter value from photo
+  const handleOCRCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsProcessingOCR(true);
+
+    try {
+      // Read file as base64
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const base64 = reader.result as string;
+        setOcrPhotoPreview(base64);
+
+        // Call OCR edge function
+        toast.info('Analisando imagem...');
+        
+        const { data, error } = await supabase.functions.invoke('ocr-horimeter', {
+          body: { image: base64 }
+        });
+
+        if (error) {
+          console.error('OCR error:', error);
+          toast.error('Erro ao analisar imagem');
+          setIsProcessingOCR(false);
+          return;
+        }
+
+        if (data?.success && data?.value) {
+          setHorimeterCurrent(String(data.value));
+          toast.success(`Valor reconhecido: ${data.value}`);
+          
+          // Also set this as the photo for the record
+          setPhotoHorimeter(file);
+          setPhotoHorimeterPreview(base64);
+        } else {
+          toast.error('Não foi possível reconhecer o valor. Tente novamente ou digite manualmente.');
+        }
+        
+        setIsProcessingOCR(false);
+      };
+      reader.readAsDataURL(file);
+    } catch (err) {
+      console.error('OCR capture error:', err);
+      toast.error('Erro ao processar imagem');
+      setIsProcessingOCR(false);
+    }
+
+    // Reset input
+    if (ocrInputRef.current) ocrInputRef.current.value = '';
   };
 
   // Start voice input for a specific field
@@ -579,8 +704,13 @@ export function FieldFuelForm({ user, onLogout }: FieldFuelFormProps) {
     setPhotoPumpPreview(null);
     setPhotoHorimeter(null);
     setPhotoHorimeterPreview(null);
+    setOcrPhotoPreview(null);
+    setEquipmentHours('');
+    setMaintenanceType('');
+    setEquipmentStatus('operando');
     if (photoPumpInputRef.current) photoPumpInputRef.current.value = '';
     if (photoHorimeterInputRef.current) photoHorimeterInputRef.current.value = '';
+    if (ocrInputRef.current) ocrInputRef.current.value = '';
   };
 
   // Get unique vehicles from sheet
@@ -738,6 +868,18 @@ export function FieldFuelForm({ user, onLogout }: FieldFuelFormProps) {
               </div>
             </div>
           )}
+          
+          {/* Previous horimeter/km display */}
+          {horimeterPrevious && (
+            <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 p-3 rounded-lg">
+              <div className="flex items-center gap-2 text-blue-700 dark:text-blue-300">
+                <Clock className="w-4 h-4" />
+                <span className="text-sm font-medium">
+                  Último registro: <span className="font-bold">{horimeterPrevious}</span>
+                </span>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Fuel Quantity */}
@@ -769,25 +911,72 @@ export function FieldFuelForm({ user, onLogout }: FieldFuelFormProps) {
           />
         </div>
 
-        {/* Horimeter */}
+        {/* Horimeter with OCR */}
         <div className="bg-card rounded-xl border border-border p-4 space-y-3">
           <div className="flex items-center justify-between">
             <Label className="flex items-center gap-2 text-base">
               <Gauge className="w-4 h-4" />
               Horímetro / KM Atual
             </Label>
-            {voice.isSupported && (
+            <div className="flex items-center gap-1">
+              {/* OCR Button */}
+              <input
+                ref={ocrInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={handleOCRCapture}
+                className="hidden"
+              />
               <Button
                 type="button"
                 size="sm"
                 variant="outline"
-                onClick={() => startVoiceForField('horimeter')}
-                className={cn(activeVoiceField === 'horimeter' && voice.isListening && "bg-red-100")}
+                onClick={() => ocrInputRef.current?.click()}
+                disabled={isProcessingOCR}
+                className="gap-1"
+                title="Tirar foto para reconhecer valor"
               >
-                <Mic className="w-4 h-4" />
+                {isProcessingOCR ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <>
+                    <ScanLine className="w-4 h-4" />
+                    <span className="text-xs hidden sm:inline">OCR</span>
+                  </>
+                )}
               </Button>
-            )}
+              {voice.isSupported && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => startVoiceForField('horimeter')}
+                  className={cn(activeVoiceField === 'horimeter' && voice.isListening && "bg-red-100")}
+                >
+                  <Mic className="w-4 h-4" />
+                </Button>
+              )}
+            </div>
           </div>
+          
+          {/* OCR Preview */}
+          {ocrPhotoPreview && isProcessingOCR && (
+            <div className="relative">
+              <img 
+                src={ocrPhotoPreview} 
+                alt="Analisando" 
+                className="w-full h-24 object-cover rounded-lg opacity-50"
+              />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="bg-background/90 px-3 py-2 rounded-lg flex items-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span className="text-sm">Reconhecendo valor...</span>
+                </div>
+              </div>
+            </div>
+          )}
+          
           <Input
             type="number"
             inputMode="decimal"
@@ -796,7 +985,77 @@ export function FieldFuelForm({ user, onLogout }: FieldFuelFormProps) {
             onChange={(e) => setHorimeterCurrent(e.target.value)}
             className="h-12 text-lg text-center"
           />
+          
+          {/* Validation warning */}
+          {horimeterPrevious && horimeterCurrent && parseFloat(horimeterCurrent) < parseFloat(horimeterPrevious) && (
+            <div className="bg-yellow-50 dark:bg-yellow-950 border border-yellow-200 dark:border-yellow-800 p-2 rounded-lg">
+              <div className="flex items-center gap-2 text-yellow-700 dark:text-yellow-300 text-sm">
+                <AlertCircle className="w-4 h-4" />
+                <span>Valor atual menor que anterior. Verifique!</span>
+              </div>
+            </div>
+          )}
         </div>
+
+        {/* Equipment-specific fields */}
+        {isEquipment && (
+          <div className="bg-card rounded-xl border border-orange-200 dark:border-orange-800 p-4 space-y-4">
+            <div className="flex items-center gap-2 text-orange-600 dark:text-orange-400">
+              <Wrench className="w-5 h-5" />
+              <Label className="text-base font-medium">Dados do Equipamento</Label>
+            </div>
+            
+            {/* Equipment Status */}
+            <div className="space-y-2">
+              <Label className="text-sm">Status do Equipamento</Label>
+              <Select value={equipmentStatus} onValueChange={setEquipmentStatus}>
+                <SelectTrigger className="h-10">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="operando">✅ Operando normalmente</SelectItem>
+                  <SelectItem value="manutencao_preventiva">🔧 Manutenção preventiva</SelectItem>
+                  <SelectItem value="manutencao_corretiva">⚠️ Manutenção corretiva</SelectItem>
+                  <SelectItem value="parado">⛔ Parado/Aguardando</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            {/* Maintenance Type if in maintenance */}
+            {(equipmentStatus === 'manutencao_preventiva' || equipmentStatus === 'manutencao_corretiva') && (
+              <div className="space-y-2">
+                <Label className="text-sm">Tipo de Manutenção</Label>
+                <Select value={maintenanceType} onValueChange={setMaintenanceType}>
+                  <SelectTrigger className="h-10">
+                    <SelectValue placeholder="Selecione o tipo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="troca_oleo">Troca de óleo</SelectItem>
+                    <SelectItem value="troca_filtros">Troca de filtros</SelectItem>
+                    <SelectItem value="reparo_hidraulico">Reparo hidráulico</SelectItem>
+                    <SelectItem value="reparo_eletrico">Reparo elétrico</SelectItem>
+                    <SelectItem value="reparo_mecanico">Reparo mecânico</SelectItem>
+                    <SelectItem value="revisao_geral">Revisão geral</SelectItem>
+                    <SelectItem value="outro">Outro</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            
+            {/* Equipment Hours Today */}
+            <div className="space-y-2">
+              <Label className="text-sm">Horas Trabalhadas Hoje</Label>
+              <Input
+                type="number"
+                inputMode="decimal"
+                placeholder="Ex: 8"
+                value={equipmentHours}
+                onChange={(e) => setEquipmentHours(e.target.value)}
+                className="h-10"
+              />
+            </div>
+          </div>
+        )}
 
         {/* ARLA */}
         <div className="bg-card rounded-xl border border-border p-4 space-y-3">
