@@ -94,6 +94,7 @@ export function HorimetrosPage() {
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
   const [quickFilter, setQuickFilter] = useState<string | null>('mes');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [vehicleFilter, setVehicleFilter] = useState<string>('all');
   const [showNewModal, setShowNewModal] = useState(false);
   const [selectedPendingVehicle, setSelectedPendingVehicle] = useState<string | undefined>(undefined);
   const [isFixingZeroed, setIsFixingZeroed] = useState(false);
@@ -123,6 +124,16 @@ export function HorimetrosPage() {
     });
     return Array.from(unique).sort();
   }, [data.rows, vehicleData.rows]);
+
+  // Get unique vehicles from data
+  const uniqueVehicles = useMemo(() => {
+    const unique = new Set<string>();
+    data.rows.forEach(row => {
+      const veiculo = getRowValue(row as any, ['Veiculo', 'VEICULO', 'VEÍCULO', 'EQUIPAMENTO']);
+      if (veiculo) unique.add(veiculo);
+    });
+    return Array.from(unique).sort();
+  }, [data.rows]);
 
   // Test connection on mount
   useEffect(() => {
@@ -223,6 +234,13 @@ export function HorimetrosPage() {
         matchesCategory = rowCat.toLowerCase() === categoryFilter.toLowerCase();
       }
 
+      // Vehicle filter
+      let matchesVehicle = true;
+      if (vehicleFilter !== 'all') {
+        const rowVehicle = getRowValue(row as any, ['Veiculo', 'VEICULO', 'VEÍCULO', 'EQUIPAMENTO']);
+        matchesVehicle = rowVehicle === vehicleFilter;
+      }
+
       let matchesDate = true;
       if (startDate || endDate) {
         const rowDateStr = String(row['DATA'] || row['Data'] || '');
@@ -244,9 +262,9 @@ export function HorimetrosPage() {
         }
       }
 
-      return matchesSearch && matchesDate && matchesCategory;
+      return matchesSearch && matchesDate && matchesCategory && matchesVehicle;
     });
-  }, [data.rows, search, startDate, endDate, categoryFilter]);
+  }, [data.rows, search, startDate, endDate, categoryFilter, vehicleFilter]);
 
   // Find zeroed records that need correction
   const zeroedRecords = useMemo(() => {
@@ -617,39 +635,53 @@ export function HorimetrosPage() {
     const doc = new jsPDF();
     
     doc.setFontSize(18);
-    doc.text('Relatório de Horímetros', 14, 22);
+    const title = vehicleFilter !== 'all' 
+      ? `Relatório de Horímetros - ${vehicleFilter}`
+      : 'Relatório de Horímetros';
+    doc.text(title, 14, 22);
     
     doc.setFontSize(10);
     const dateRange = startDate && endDate 
       ? `${format(startDate, 'dd/MM/yyyy')} até ${format(endDate, 'dd/MM/yyyy')}`
       : 'Todo período';
     doc.text(`Período: ${dateRange}`, 14, 30);
-    doc.text(`Gerado em: ${format(new Date(), 'dd/MM/yyyy HH:mm', { locale: ptBR })}`, 14, 36);
+    
+    let filterInfo = '';
+    if (categoryFilter !== 'all') filterInfo += `Categoria: ${categoryFilter}  `;
+    if (vehicleFilter !== 'all') filterInfo += `Veículo: ${vehicleFilter}`;
+    if (filterInfo) doc.text(filterInfo, 14, 36);
+    
+    doc.text(`Gerado em: ${format(new Date(), 'dd/MM/yyyy HH:mm', { locale: ptBR })}`, 14, filterInfo ? 42 : 36);
 
+    const startY = filterInfo ? 52 : 46;
     doc.setFontSize(12);
-    doc.text('Resumo:', 14, 46);
+    doc.text('Resumo:', 14, startY);
     doc.setFontSize(10);
-    doc.text(`Horas Totais: ${metrics.horasTotais.toLocaleString('pt-BR', { minimumFractionDigits: 1 })} h`, 14, 54);
-    doc.text(`Média por Registro: ${metrics.mediaRegistro.toLocaleString('pt-BR', { minimumFractionDigits: 1 })} h`, 14, 60);
-    doc.text(`Total de Registros: ${metrics.registros}`, 14, 66);
-    doc.text(`Zerados: ${metrics.zerados}`, 14, 72);
+    doc.text(`Horas Totais: ${metrics.horasTotais.toLocaleString('pt-BR', { minimumFractionDigits: 1 })} h`, 14, startY + 8);
+    doc.text(`Média por Registro: ${metrics.mediaRegistro.toLocaleString('pt-BR', { minimumFractionDigits: 1 })} h`, 14, startY + 14);
+    doc.text(`Total de Registros: ${metrics.registros}`, 14, startY + 20);
+    doc.text(`Zerados: ${metrics.zerados}`, 14, startY + 26);
 
-    const tableData = filteredRows.slice(0, 100).map(row => [
+    const tableData = filteredRows.map(row => [
       getRowValue(row as any, ['VEICULO', 'EQUIPAMENTO', 'Veiculo', 'Equipamento']),
       getRowValue(row as any, ['DATA', 'Data']),
-      getRowValue(row as any, ['HORAS', 'HORIMETRO', 'Horimetro', 'KM']),
-      getRowValue(row as any, ['OPERADOR', 'Operador', 'MOTORISTA', 'Motorista'])
+      getRowValue(row as any, ['Hor_Anterior', 'HOR_ANTERIOR', 'HORIMETRO_ANTERIOR', 'Km_Anterior', 'KM_ANTERIOR']) || '-',
+      getRowValue(row as any, ['Hor_Atual', 'HOR_ATUAL', 'HORIMETRO', 'HORAS', 'Km_Atual', 'KM_ATUAL', 'KM']) || '-',
+      getRowValue(row as any, ['OPERADOR', 'Operador', 'MOTORISTA', 'Motorista']) || '-'
     ]);
 
     autoTable(doc, {
-      head: [['Veículo', 'Data', 'Horas/KM', 'Operador']],
+      head: [['Veículo', 'Data', 'Anterior', 'Atual', 'Operador']],
       body: tableData,
-      startY: 82,
+      startY: startY + 36,
       styles: { fontSize: 8 },
       headStyles: { fillColor: [59, 130, 246] }
     });
 
-    doc.save(`horimetros_${format(new Date(), 'yyyy-MM-dd')}.pdf`);
+    const fileName = vehicleFilter !== 'all' 
+      ? `horimetros_${vehicleFilter}_${format(new Date(), 'yyyy-MM-dd')}.pdf`
+      : `horimetros_${format(new Date(), 'yyyy-MM-dd')}.pdf`;
+    doc.save(fileName);
   };
 
   return (
@@ -846,6 +878,18 @@ export function HorimetrosPage() {
                 <option key={cat} value={cat}>{cat}</option>
               ))}
             </select>
+
+            {/* Vehicle Filter */}
+            <select
+              value={vehicleFilter}
+              onChange={(e) => setVehicleFilter(e.target.value)}
+              className="h-9 px-3 py-1 rounded-md border border-input bg-background text-sm min-w-[150px]"
+            >
+              <option value="all">Todos Veículos</option>
+              {uniqueVehicles.map(v => (
+                <option key={v} value={v}>{v}</option>
+              ))}
+            </select>
             
             <div className="flex items-center gap-2">
               <Popover>
@@ -922,15 +966,15 @@ export function HorimetrosPage() {
               </Button>
             </div>
 
-            {(startDate || endDate || categoryFilter !== 'all') && (
-              <Button variant="ghost" size="sm" onClick={() => { clearDateFilter(); setCategoryFilter('all'); }}>
+            {(startDate || endDate || categoryFilter !== 'all' || vehicleFilter !== 'all') && (
+              <Button variant="ghost" size="sm" onClick={() => { clearDateFilter(); setCategoryFilter('all'); setVehicleFilter('all'); }}>
                 <X className="w-4 h-4 mr-1" />
                 Limpar Filtros
               </Button>
             )}
           </div>
 
-          <div className="flex items-center gap-4 text-sm">
+          <div className="flex items-center gap-4 text-sm flex-wrap">
             <div className="flex items-center gap-2">
               <Calendar className="w-4 h-4 text-muted-foreground" />
               <span className="text-muted-foreground">Período:</span>
@@ -944,6 +988,12 @@ export function HorimetrosPage() {
               <div className="flex items-center gap-2">
                 <span className="text-muted-foreground">Categoria:</span>
                 <span className="font-medium text-primary">{categoryFilter}</span>
+              </div>
+            )}
+            {vehicleFilter !== 'all' && (
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground">Veículo:</span>
+                <span className="font-medium text-primary">{vehicleFilter}</span>
               </div>
             )}
             <span className="text-muted-foreground">• {filteredRows.length} registros • {vehicleSummary.length} veículos</span>
