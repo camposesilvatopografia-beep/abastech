@@ -49,6 +49,7 @@ interface FieldUser {
   name: string;
   username: string;
   role: string;
+  assigned_location?: string;
 }
 
 interface FieldFuelFormProps {
@@ -155,7 +156,7 @@ export function FieldFuelForm({ user, onLogout }: FieldFuelFormProps) {
   const [fuelQuantity, setFuelQuantity] = useState('');
   const [fuelType, setFuelType] = useState('Diesel');
   const [arlaQuantity, setArlaQuantity] = useState('');
-  const [location, setLocation] = useState('Tanque Canteiro 01');
+  const [location, setLocation] = useState(user.assigned_location || 'Tanque Canteiro 01');
   const [observations, setObservations] = useState('');
   
   // Equipment-specific fields (optional)
