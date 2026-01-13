@@ -7,7 +7,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 interface FieldLoginPageProps {
-  onLogin: (user: { id: string; name: string; username: string; role: string; assigned_location?: string }) => void;
+  onLogin: (user: { id: string; name: string; username: string; role: string; assigned_locations?: string[] }) => void;
 }
 
 export function FieldLoginPage({ onLogin }: FieldLoginPageProps) {
@@ -28,7 +28,7 @@ export function FieldLoginPage({ onLogin }: FieldLoginPageProps) {
     try {
       const { data, error } = await supabase
         .from('field_users')
-        .select('id, name, username, password_hash, role, active, assigned_location')
+        .select('id, name, username, password_hash, role, active, assigned_locations')
         .eq('username', username.toLowerCase().trim())
         .single();
 
@@ -54,7 +54,7 @@ export function FieldLoginPage({ onLogin }: FieldLoginPageProps) {
         name: data.name,
         username: data.username,
         role: data.role || 'operador',
-        assigned_location: (data as any).assigned_location || 'Tanque Canteiro 01'
+        assigned_locations: (data as any).assigned_locations || ['Tanque Canteiro 01']
       });
     } catch (err) {
       console.error('Login error:', err);
