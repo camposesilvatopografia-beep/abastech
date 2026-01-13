@@ -10,20 +10,113 @@ import {
   Calendar,
   X,
   CheckCircle,
-  Timer
+  Timer,
+  FileText
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { MetricCard } from '@/components/Dashboard/MetricCard';
 import { useSheetData } from '@/hooks/useGoogleSheets';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { cn } from '@/lib/utils';
+import { format, parse, isValid, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 
 const SHEET_NAME = 'Horimetros';
+
+function parseDate(dateStr: string): Date | null {
+  if (!dateStr) return null;
+  const formats = ['dd/MM/yyyy', 'yyyy-MM-dd', 'dd-MM-yyyy'];
+  for (const fmt of formats) {
+    const parsed = parse(dateStr, fmt, new Date());
+    if (isValid(parsed)) return parsed;
+  }
+  return null;
+}
 
 export function HorimetrosPage() {
   const { data, loading, refetch } = useSheetData(SHEET_NAME);
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState<'sistema' | 'sheets'>('sheets');
+  const [startDate, setStartDate] = useState<Date | undefined>(undefined);
+  const [endDate, setEndDate] = useState<Date | undefined>(undefined);
+  const [quickFilter, setQuickFilter] = useState<string | null>('hoje');
+
+  const applyQuickFilter = (filter: string) => {
+    const today = new Date();
+    setQuickFilter(filter);
+    
+    switch (filter) {
+      case 'hoje':
+        setStartDate(today);
+        setEndDate(today);
+        break;
+      case 'semana':
+        const weekStart = new Date(today);
+        weekStart.setDate(today.getDate() - 7);
+        setStartDate(weekStart);
+        setEndDate(today);
+        break;
+      case 'mes':
+        const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+        setStartDate(monthStart);
+        setEndDate(today);
+        break;
+      case 'todos':
+        setStartDate(undefined);
+        setEndDate(undefined);
+        break;
+    }
+  };
+
+  const clearDateFilter = () => {
+    setStartDate(undefined);
+    setEndDate(undefined);
+    setQuickFilter(null);
+  };
+
+  const filteredRows = useMemo(() => {
+    return data.rows.filter(row => {
+      const matchesSearch = !search || 
+        Object.values(row).some(v => 
+          String(v).toLowerCase().includes(search.toLowerCase())
+        );
+
+      let matchesDate = true;
+      if (startDate || endDate) {
+        const rowDateStr = String(row['DATA'] || '');
+        const rowDate = parseDate(rowDateStr);
+        
+        if (rowDate) {
+          if (startDate && endDate) {
+            matchesDate = isWithinInterval(rowDate, {
+              start: startOfDay(startDate),
+              end: endOfDay(endDate)
+            });
+          } else if (startDate) {
+            matchesDate = rowDate >= startOfDay(startDate);
+          } else if (endDate) {
+            matchesDate = rowDate <= endOfDay(endDate);
+          }
+        } else {
+          matchesDate = false;
+        }
+      }
+
+      return matchesSearch && matchesDate;
+    });
+  }, [data.rows, search, startDate, endDate]);
 
   const metrics = useMemo(() => {
     let horasTotais = 0;
@@ -31,7 +124,7 @@ export function HorimetrosPage() {
     let zerados = 0;
     let inconsistentes = 0;
 
-    data.rows.forEach(row => {
+    filteredRows.forEach(row => {
       const horas = parseFloat(String(row['HORAS'] || row['HORIMETRO'] || '0').replace(',', '.')) || 0;
       horasTotais += horas;
       registros++;
@@ -48,10 +141,9 @@ export function HorimetrosPage() {
       inconsistentes,
       zerados
     };
-  }, [data.rows]);
+  }, [filteredRows]);
 
   const pendingEquipments = useMemo(() => {
-    // Simulated pending equipments
     return [
       { codigo: 'CM-122', descricao: 'Caminhão Basculante' },
       { codigo: 'CM-133', descricao: 'Caminhão Basculante' },
@@ -72,6 +164,45 @@ export function HorimetrosPage() {
     ];
   }, []);
 
+  const exportToPDF = () => {
+    const doc = new jsPDF();
+    
+    doc.setFontSize(18);
+    doc.text('Relatório de Horímetros', 14, 22);
+    
+    doc.setFontSize(10);
+    const dateRange = startDate && endDate 
+      ? `${format(startDate, 'dd/MM/yyyy')} até ${format(endDate, 'dd/MM/yyyy')}`
+      : 'Todo período';
+    doc.text(`Período: ${dateRange}`, 14, 30);
+    doc.text(`Gerado em: ${format(new Date(), 'dd/MM/yyyy HH:mm', { locale: ptBR })}`, 14, 36);
+
+    doc.setFontSize(12);
+    doc.text('Resumo:', 14, 46);
+    doc.setFontSize(10);
+    doc.text(`Horas Totais: ${metrics.horasTotais.toLocaleString('pt-BR', { minimumFractionDigits: 1 })} h`, 14, 54);
+    doc.text(`Média por Registro: ${metrics.mediaRegistro.toLocaleString('pt-BR', { minimumFractionDigits: 1 })} h`, 14, 60);
+    doc.text(`Total de Registros: ${metrics.registros}`, 14, 66);
+    doc.text(`Zerados: ${metrics.zerados}`, 14, 72);
+
+    const tableData = filteredRows.slice(0, 100).map(row => [
+      String(row['VEICULO'] || row['EQUIPAMENTO'] || ''),
+      String(row['DATA'] || ''),
+      String(row['HORAS'] || row['HORIMETRO'] || ''),
+      String(row['OPERADOR'] || '')
+    ]);
+
+    autoTable(doc, {
+      head: [['Veículo', 'Data', 'Horas', 'Operador']],
+      body: tableData,
+      startY: 82,
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: [59, 130, 246] }
+    });
+
+    doc.save(`horimetros_${format(new Date(), 'yyyy-MM-dd')}.pdf`);
+  };
+
   return (
     <div className="flex-1 p-6 overflow-auto">
       <div className="space-y-6">
@@ -88,9 +219,6 @@ export function HorimetrosPage() {
           </div>
           
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" className="text-primary border-primary">
-              Testar Sync
-            </Button>
             <Button variant="outline" size="sm" onClick={() => refetch()} disabled={loading}>
               <RefreshCw className={cn("w-4 h-4 mr-2", loading && "animate-spin")} />
               Atualizar
@@ -101,11 +229,11 @@ export function HorimetrosPage() {
             </Button>
             <Button variant="outline" size="sm">
               <Upload className="w-4 h-4 mr-2" />
-              Importar do Sheets
+              Importar
             </Button>
-            <Button variant="outline" size="sm">
-              <Download className="w-4 h-4 mr-2" />
-              Exportar
+            <Button variant="outline" size="sm" onClick={exportToPDF}>
+              <FileText className="w-4 h-4 mr-2" />
+              Exportar PDF
             </Button>
             <Button className="bg-primary hover:bg-primary/90">
               <Plus className="w-4 h-4 mr-2" />
@@ -160,60 +288,138 @@ export function HorimetrosPage() {
         </div>
 
         {/* Filters */}
-        <div className="flex items-center gap-4 flex-wrap">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar veículo, operador, obra..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-10"
-            />
+        <div className="bg-card rounded-lg border border-border p-4 space-y-4">
+          <div className="flex items-center gap-4 flex-wrap">
+            <div className="relative flex-1 max-w-md">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar veículo, operador, obra..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-2">
+                    <Calendar className="w-4 h-4" />
+                    {startDate ? format(startDate, 'dd/MM/yyyy') : 'Data início'}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <CalendarComponent
+                    mode="single"
+                    selected={startDate}
+                    onSelect={(date) => {
+                      setStartDate(date);
+                      setQuickFilter(null);
+                    }}
+                    locale={ptBR}
+                  />
+                </PopoverContent>
+              </Popover>
+              
+              <span className="text-sm text-muted-foreground">até</span>
+              
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-2">
+                    <Calendar className="w-4 h-4" />
+                    {endDate ? format(endDate, 'dd/MM/yyyy') : 'Data fim'}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <CalendarComponent
+                    mode="single"
+                    selected={endDate}
+                    onSelect={(date) => {
+                      setEndDate(date);
+                      setQuickFilter(null);
+                    }}
+                    locale={ptBR}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Button
+                variant={quickFilter === 'hoje' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => applyQuickFilter('hoje')}
+              >
+                Hoje
+              </Button>
+              <Button
+                variant={quickFilter === 'semana' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => applyQuickFilter('semana')}
+              >
+                7 dias
+              </Button>
+              <Button
+                variant={quickFilter === 'mes' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => applyQuickFilter('mes')}
+              >
+                Mês
+              </Button>
+              <Button
+                variant={quickFilter === 'todos' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => applyQuickFilter('todos')}
+              >
+                Todos
+              </Button>
+            </div>
+
+            {(startDate || endDate) && (
+              <Button variant="ghost" size="sm" onClick={clearDateFilter}>
+                <X className="w-4 h-4 mr-1" />
+                Limpar
+              </Button>
+            )}
           </div>
-          
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">Data</span>
-            <span className="text-sm font-medium">Período</span>
-            <Button variant="outline" size="sm">
-              <Calendar className="w-4 h-4 mr-2" />
-              13/01/2026
-            </Button>
-            <span className="filter-badge">
-              Hoje
-              <X className="w-3 h-3 cursor-pointer" />
+
+          <div className="flex items-center gap-2 text-sm">
+            <Calendar className="w-4 h-4 text-muted-foreground" />
+            <span className="text-muted-foreground">Período:</span>
+            <span className="font-medium">
+              {startDate && endDate 
+                ? `${format(startDate, 'dd/MM/yyyy')} até ${format(endDate, 'dd/MM/yyyy')}`
+                : 'Todo período'}
             </span>
+            <span className="text-muted-foreground">• {filteredRows.length} registros</span>
           </div>
         </div>
-
-        <p className="text-sm text-muted-foreground">
-          {data.rows.length} registros encontrados • Período: <span className="font-medium text-foreground">Hoje</span>
-        </p>
 
         {/* Metric Cards */}
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <MetricCard
             title="HORAS TOTAIS"
             value={`${metrics.horasTotais.toLocaleString('pt-BR', { minimumFractionDigits: 1 })} h`}
-            subtitle="Hoje"
+            subtitle="No período"
             variant="primary"
             icon={Clock}
           />
           <MetricCard
             title="MÉDIA POR REGISTRO"
             value={`${metrics.mediaRegistro.toLocaleString('pt-BR', { minimumFractionDigits: 1 })} h`}
-            subtitle="Hoje"
+            subtitle="No período"
             icon={Timer}
           />
           <MetricCard
             title="REGISTROS"
             value={metrics.registros.toString()}
-            subtitle="Hoje"
+            subtitle="No período"
             icon={CheckCircle}
           />
           <MetricCard
             title="FALTAM CADASTRAR"
             value={Math.max(0, metrics.faltamCadastrar).toString()}
-            subtitle="Hoje"
+            subtitle="Pendentes"
             variant="primary"
             icon={Clock}
           />
@@ -223,6 +429,50 @@ export function HorimetrosPage() {
             subtitle="Valores negativos"
             icon={AlertTriangle}
           />
+        </div>
+
+        {/* Data Table */}
+        <div className="bg-card rounded-lg border border-border overflow-hidden">
+          <div className="p-4 border-b border-border">
+            <h2 className="font-semibold">Registros de Horímetros</h2>
+            <p className="text-sm text-muted-foreground">Dados do período selecionado</p>
+          </div>
+          
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/50">
+                <TableHead>Veículo</TableHead>
+                <TableHead>Data</TableHead>
+                <TableHead className="text-right">Horas</TableHead>
+                <TableHead>Operador</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={4} className="text-center py-8">
+                    <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-muted-foreground" />
+                    Carregando dados...
+                  </TableCell>
+                </TableRow>
+              ) : filteredRows.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                    Nenhum registro encontrado para o período
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredRows.slice(0, 50).map((row, idx) => (
+                  <TableRow key={idx}>
+                    <TableCell className="font-medium">{row['VEICULO'] || row['EQUIPAMENTO']}</TableCell>
+                    <TableCell>{row['DATA']}</TableCell>
+                    <TableCell className="text-right">{row['HORAS'] || row['HORIMETRO']}</TableCell>
+                    <TableCell>{row['OPERADOR']}</TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
         </div>
 
         {/* Pending Equipments */}
