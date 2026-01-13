@@ -678,6 +678,11 @@ export function FieldFuelForm({ user, onLogout }: FieldFuelFormProps) {
         toast.error('Preencha veículo e quantidade');
         return;
       }
+      // Validate horimeter for equipment
+      if (isEquipment && !horimeterCurrent) {
+        toast.error('Horímetro Atual é obrigatório para equipamentos');
+        return;
+      }
     } else {
       // Entrada validation
       if (!supplier || !fuelQuantity) {
