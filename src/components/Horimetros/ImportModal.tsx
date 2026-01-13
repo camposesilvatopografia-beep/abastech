@@ -119,13 +119,47 @@ export function ImportModal({ open, onOpenChange, onSuccess }: ImportModalProps)
   const [isLoading, setIsLoading] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [importProgress, setImportProgress] = useState(0);
+  const [existingRecords, setExistingRecords] = useState<Set<string>>(new Set());
   const [importStats, setImportStats] = useState<{
     total: number;
     success: number;
     failed: number;
+    skipped: number;
   } | null>(null);
 
-  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+  // Fetch existing records to check for duplicates
+  const fetchExistingRecords = useCallback(async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke('google-sheets', {
+        body: {
+          action: 'getData',
+          sheetName: 'Horimetros',
+        },
+      });
+
+      if (error) {
+        console.error('Error fetching existing records:', error);
+        return new Set<string>();
+      }
+
+      const records = new Set<string>();
+      if (data?.rows) {
+        data.rows.forEach((row: any) => {
+          const date = String(row.DATA || '').trim();
+          const vehicle = String(row.VEICULO || '').trim().toUpperCase();
+          if (date && vehicle) {
+            records.add(`${date}|${vehicle}`);
+          }
+        });
+      }
+      return records;
+    } catch (error) {
+      console.error('Error fetching existing records:', error);
+      return new Set<string>();
+    }
+  }, []);
+
+  const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
     if (!selectedFile) return;
 
@@ -133,6 +167,10 @@ export function ImportModal({ open, onOpenChange, onSuccess }: ImportModalProps)
     setParsedRows([]);
     setImportStats(null);
     setIsLoading(true);
+
+    // Fetch existing records first
+    const existingSet = await fetchExistingRecords();
+    setExistingRecords(existingSet);
 
     const reader = new FileReader();
     reader.onload = (event) => {
@@ -174,6 +212,13 @@ export function ImportModal({ open, onOpenChange, onSuccess }: ImportModalProps)
           } else if (horAtual === 0 && kmAtual === 0) {
             isValid = false;
             error = 'Horímetro/KM atual não informado';
+          } else {
+            // Check for duplicate
+            const key = `${data}|${veiculo.toUpperCase()}`;
+            if (existingSet.has(key)) {
+              isValid = false;
+              error = 'Registro já existe';
+            }
           }
 
           return {
@@ -198,10 +243,11 @@ export function ImportModal({ open, onOpenChange, onSuccess }: ImportModalProps)
         
         const validCount = parsed.filter(r => r.isValid).length;
         const invalidCount = parsed.filter(r => !r.isValid).length;
+        const duplicateCount = parsed.filter(r => r.error === 'Registro já existe').length;
         
         toast({
           title: 'Arquivo processado',
-          description: `${validCount} registros válidos, ${invalidCount} com erros`,
+          description: `${validCount} válidos, ${duplicateCount} duplicados, ${invalidCount - duplicateCount} com erros`,
         });
       } catch (error) {
         console.error('Error parsing file:', error);
@@ -216,14 +262,18 @@ export function ImportModal({ open, onOpenChange, onSuccess }: ImportModalProps)
     };
 
     reader.readAsArrayBuffer(selectedFile);
-  }, [toast]);
+  }, [toast, fetchExistingRecords]);
 
   const handleImport = async () => {
     const validRows = parsedRows.filter(r => r.isValid);
+    const skippedRows = parsedRows.filter(r => r.error === 'Registro já existe').length;
+    
     if (validRows.length === 0) {
       toast({
         title: 'Nenhum registro válido',
-        description: 'Não há registros válidos para importar',
+        description: skippedRows > 0 
+          ? `${skippedRows} registros duplicados foram ignorados` 
+          : 'Não há registros válidos para importar',
         variant: 'destructive',
       });
       return;
@@ -235,8 +285,17 @@ export function ImportModal({ open, onOpenChange, onSuccess }: ImportModalProps)
     let success = 0;
     let failed = 0;
 
+    // Track imported records to avoid duplicates within the same import
+    const importedInSession = new Set<string>();
+
     for (let i = 0; i < validRows.length; i++) {
       const row = validRows[i];
+      const key = `${row.DATA}|${row.VEICULO.toUpperCase()}`;
+      
+      // Skip if already imported in this session
+      if (importedInSession.has(key)) {
+        continue;
+      }
       
       try {
         const rowData = {
@@ -266,6 +325,7 @@ export function ImportModal({ open, onOpenChange, onSuccess }: ImportModalProps)
           failed++;
         } else {
           success++;
+          importedInSession.add(key);
         }
       } catch (error) {
         console.error('Error importing row:', error);
@@ -279,6 +339,7 @@ export function ImportModal({ open, onOpenChange, onSuccess }: ImportModalProps)
       total: validRows.length,
       success,
       failed,
+      skipped: skippedRows,
     });
 
     setIsImporting(false);
@@ -286,13 +347,13 @@ export function ImportModal({ open, onOpenChange, onSuccess }: ImportModalProps)
     if (failed === 0) {
       toast({
         title: 'Importação concluída!',
-        description: `${success} registros importados com sucesso`,
+        description: `${success} registros importados${skippedRows > 0 ? `, ${skippedRows} duplicados ignorados` : ''}`,
       });
       onSuccess?.();
     } else {
       toast({
         title: 'Importação parcial',
-        description: `${success} importados, ${failed} falharam`,
+        description: `${success} importados, ${failed} falharam${skippedRows > 0 ? `, ${skippedRows} duplicados ignorados` : ''}`,
         variant: 'destructive',
       });
     }
@@ -484,7 +545,7 @@ export function ImportModal({ open, onOpenChange, onSuccess }: ImportModalProps)
           {importStats && (
             <div className="p-4 rounded-lg bg-muted/30 space-y-2">
               <h4 className="font-medium">Resultado da Importação</h4>
-              <div className="grid grid-cols-3 gap-4 text-center">
+              <div className="grid grid-cols-4 gap-4 text-center">
                 <div>
                   <div className="text-2xl font-bold">{importStats.total}</div>
                   <div className="text-xs text-muted-foreground">Total</div>
@@ -496,6 +557,10 @@ export function ImportModal({ open, onOpenChange, onSuccess }: ImportModalProps)
                 <div>
                   <div className="text-2xl font-bold text-destructive">{importStats.failed}</div>
                   <div className="text-xs text-muted-foreground">Falhas</div>
+                </div>
+                <div>
+                  <div className="text-2xl font-bold text-yellow-500">{importStats.skipped}</div>
+                  <div className="text-xs text-muted-foreground">Duplicados</div>
                 </div>
               </div>
             </div>
