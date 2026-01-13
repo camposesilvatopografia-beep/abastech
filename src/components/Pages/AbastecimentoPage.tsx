@@ -120,6 +120,7 @@ export function AbastecimentoPage() {
   const [isExporting, setIsExporting] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<any>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
+  const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
 
   // Get current stock from GERAL sheet (column G - EstoqueAtual)
   const estoqueAtual = useMemo(() => {
@@ -1754,57 +1755,78 @@ export function AbastecimentoPage() {
                 </div>
               </div>
 
-              {/* Photos */}
-              {(selectedRecord['FOTO BOMBA'] || selectedRecord['FOTO HORIMETRO']) && (
-                <div className="space-y-3">
-                  <h4 className="font-semibold text-sm flex items-center gap-2">
-                    <Image className="w-4 h-4" />
-                    Fotos
-                  </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {selectedRecord['FOTO BOMBA'] && (
-                      <div className="space-y-2">
-                        <span className="text-xs text-muted-foreground">Foto Bomba</span>
-                        <a 
-                          href={String(selectedRecord['FOTO BOMBA'])} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="block"
-                        >
-                          <img 
-                            src={String(selectedRecord['FOTO BOMBA'])} 
-                            alt="Foto Bomba" 
-                            className="w-full h-48 object-cover rounded-lg border border-border hover:opacity-90 transition-opacity cursor-pointer"
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).style.display = 'none';
-                            }}
-                          />
-                        </a>
+              {/* Photos Section - Always show */}
+              <div className="space-y-3">
+                <h4 className="font-semibold text-sm flex items-center gap-2">
+                  <Image className="w-4 h-4" />
+                  Fotos
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Foto Bomba */}
+                  <div className="space-y-2">
+                    <span className="text-xs text-muted-foreground">Foto Bomba</span>
+                    {selectedRecord['FOTO BOMBA'] && String(selectedRecord['FOTO BOMBA']).trim() ? (
+                      <div 
+                        className="relative group cursor-pointer"
+                        onClick={() => setFullscreenImage(String(selectedRecord['FOTO BOMBA']))}
+                      >
+                        <img 
+                          src={String(selectedRecord['FOTO BOMBA'])} 
+                          alt="Foto Bomba" 
+                          className="w-full h-48 object-cover rounded-lg border border-border group-hover:opacity-90 transition-opacity"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).parentElement!.innerHTML = `
+                              <div class="w-full h-48 bg-muted/30 rounded-lg border border-border flex items-center justify-center">
+                                <span class="text-muted-foreground text-sm">Erro ao carregar imagem</span>
+                              </div>
+                            `;
+                          }}
+                        />
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors rounded-lg flex items-center justify-center">
+                          <Eye className="w-8 h-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="w-full h-48 bg-muted/30 rounded-lg border border-dashed border-border flex flex-col items-center justify-center gap-2">
+                        <Image className="w-8 h-8 text-muted-foreground/50" />
+                        <span className="text-muted-foreground text-sm">Sem foto</span>
                       </div>
                     )}
-                    {selectedRecord['FOTO HORIMETRO'] && (
-                      <div className="space-y-2">
-                        <span className="text-xs text-muted-foreground">Foto Horímetro</span>
-                        <a 
-                          href={String(selectedRecord['FOTO HORIMETRO'])} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="block"
-                        >
-                          <img 
-                            src={String(selectedRecord['FOTO HORIMETRO'])} 
-                            alt="Foto Horímetro" 
-                            className="w-full h-48 object-cover rounded-lg border border-border hover:opacity-90 transition-opacity cursor-pointer"
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).style.display = 'none';
-                            }}
-                          />
-                        </a>
+                  </div>
+                  
+                  {/* Foto Horímetro */}
+                  <div className="space-y-2">
+                    <span className="text-xs text-muted-foreground">Foto Horímetro</span>
+                    {selectedRecord['FOTO HORIMETRO'] && String(selectedRecord['FOTO HORIMETRO']).trim() ? (
+                      <div 
+                        className="relative group cursor-pointer"
+                        onClick={() => setFullscreenImage(String(selectedRecord['FOTO HORIMETRO']))}
+                      >
+                        <img 
+                          src={String(selectedRecord['FOTO HORIMETRO'])} 
+                          alt="Foto Horímetro" 
+                          className="w-full h-48 object-cover rounded-lg border border-border group-hover:opacity-90 transition-opacity"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).parentElement!.innerHTML = `
+                              <div class="w-full h-48 bg-muted/30 rounded-lg border border-border flex items-center justify-center">
+                                <span class="text-muted-foreground text-sm">Erro ao carregar imagem</span>
+                              </div>
+                            `;
+                          }}
+                        />
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors rounded-lg flex items-center justify-center">
+                          <Eye className="w-8 h-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="w-full h-48 bg-muted/30 rounded-lg border border-dashed border-border flex flex-col items-center justify-center gap-2">
+                        <Image className="w-8 h-8 text-muted-foreground/50" />
+                        <span className="text-muted-foreground text-sm">Sem foto</span>
                       </div>
                     )}
                   </div>
                 </div>
-              )}
+              </div>
 
               {/* Observations */}
               {selectedRecord['OBSERVAÇÃO'] && (
@@ -1819,6 +1841,27 @@ export function AbastecimentoPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Fullscreen Image Modal */}
+      {fullscreenImage && (
+        <div 
+          className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center p-4"
+          onClick={() => setFullscreenImage(null)}
+        >
+          <button
+            className="absolute top-4 right-4 text-white hover:text-gray-300 transition-colors"
+            onClick={() => setFullscreenImage(null)}
+          >
+            <X className="w-8 h-8" />
+          </button>
+          <img 
+            src={fullscreenImage} 
+            alt="Foto em tela cheia" 
+            className="max-w-full max-h-full object-contain rounded-lg"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </div>
   );
 }
