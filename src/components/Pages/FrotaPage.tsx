@@ -40,7 +40,7 @@ import autoTable from 'jspdf-autotable';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 
-const SHEET_NAME = 'Veiculos';
+const SHEET_NAME = 'Veiculo';
 
 interface VehicleGroup {
   name: string;
@@ -56,12 +56,28 @@ interface VehicleGroup {
 
 function parseDate(dateStr: string): Date | null {
   if (!dateStr) return null;
-  const formats = ['dd/MM/yyyy', 'yyyy-MM-dd', 'dd-MM-yyyy'];
+  const cleaned = dateStr.trim();
+  const formats = [
+    'dd/MM/yyyy',
+    'dd/MM/yyyy HH:mm',
+    'dd/MM/yyyy HH:mm:ss',
+    'yyyy-MM-dd',
+    'yyyy-MM-dd HH:mm',
+    'yyyy-MM-dd HH:mm:ss',
+    'dd-MM-yyyy',
+  ];
   for (const fmt of formats) {
-    const parsed = parse(dateStr, fmt, new Date());
+    const parsed = parse(cleaned, fmt, new Date());
     if (isValid(parsed)) return parsed;
   }
   return null;
+}
+
+function getRowValue(row: Record<string, any>, keys: string[]): string {
+  for (const k of keys) {
+    if (row[k] !== undefined && row[k] !== null && String(row[k]).trim() !== '') return String(row[k]);
+  }
+  return '';
 }
 
 export function FrotaPage() {
@@ -111,7 +127,7 @@ export function FrotaPage() {
   const empresas = useMemo(() => {
     const unique = new Set<string>();
     data.rows.forEach(row => {
-      const empresa = String(row['EMPRESA'] || '').trim();
+      const empresa = getRowValue(row as any, ['EMPRESA', 'Empresa', 'empresa']).trim();
       if (empresa) unique.add(empresa);
     });
     return Array.from(unique);
@@ -120,7 +136,7 @@ export function FrotaPage() {
   const tipos = useMemo(() => {
     const unique = new Set<string>();
     data.rows.forEach(row => {
-      const tipo = String(row['TIPO'] || row['CATEGORIA'] || '').trim();
+      const tipo = getRowValue(row as any, ['TIPO', 'Tipo', 'tipo', 'CATEGORIA', 'Categoria', 'categoria']).trim();
       if (tipo) unique.add(tipo);
     });
     return Array.from(unique);
@@ -132,29 +148,33 @@ export function FrotaPage() {
         Object.values(row).some(v => 
           String(v).toLowerCase().includes(search.toLowerCase())
         );
-      const matchesEmpresa = empresaFilter === 'all' || row['EMPRESA'] === empresaFilter;
-      const matchesTipo = tipoFilter === 'all' || row['TIPO'] === tipoFilter || row['CATEGORIA'] === tipoFilter;
-      
-      // Date filter
+
+      const empresaValue = getRowValue(row as any, ['EMPRESA', 'Empresa', 'empresa']);
+      const tipoValue = getRowValue(row as any, ['TIPO', 'Tipo', 'tipo', 'CATEGORIA', 'Categoria', 'categoria']);
+
+      const matchesEmpresa = empresaFilter === 'all' || empresaValue === empresaFilter;
+      const matchesTipo = tipoFilter === 'all' || tipoValue === tipoFilter;
+
+      // Date filter (if the sheet doesn't have date, we treat it as NOT matching when filter is active)
       let matchesDate = true;
       if (startDate || endDate) {
-        const rowDateStr = String(row['DATA'] || row['DATA_CADASTRO'] || '');
+        const rowDateStr = getRowValue(row as any, ['DATA', 'Data', 'data', 'DATA_CADASTRO', 'Data_Cadastro', 'data_cadastro']);
         const rowDate = parseDate(rowDateStr);
-        
-        if (rowDate) {
-          if (startDate && endDate) {
-            matchesDate = isWithinInterval(rowDate, {
-              start: startOfDay(startDate),
-              end: endOfDay(endDate)
-            });
-          } else if (startDate) {
-            matchesDate = rowDate >= startOfDay(startDate);
-          } else if (endDate) {
-            matchesDate = rowDate <= endOfDay(endDate);
-          }
+
+        if (!rowDate) return false;
+
+        if (startDate && endDate) {
+          matchesDate = isWithinInterval(rowDate, {
+            start: startOfDay(startDate),
+            end: endOfDay(endDate),
+          });
+        } else if (startDate) {
+          matchesDate = rowDate >= startOfDay(startDate);
+        } else if (endDate) {
+          matchesDate = rowDate <= endOfDay(endDate);
         }
       }
-      
+
       return matchesSearch && matchesEmpresa && matchesTipo && matchesDate;
     });
   }, [data.rows, search, empresaFilter, tipoFilter, startDate, endDate]);
@@ -164,8 +184,8 @@ export function FrotaPage() {
     const categorias = new Set<string>();
     
     filteredRows.forEach(row => {
-      const empresa = String(row['EMPRESA'] || '').trim();
-      const categoria = String(row['CATEGORIA'] || row['TIPO'] || '').trim();
+      const empresa = getRowValue(row as any, ['EMPRESA', 'Empresa', 'empresa']).trim();
+      const categoria = getRowValue(row as any, ['CATEGORIA', 'Categoria', 'categoria', 'TIPO', 'Tipo', 'tipo']).trim();
       if (empresa) empresasSet.add(empresa);
       if (categoria) categorias.add(categoria);
     });
@@ -182,16 +202,16 @@ export function FrotaPage() {
     const groups: Record<string, VehicleGroup> = {};
     
     filteredRows.forEach(row => {
-      const tipo = String(row['TIPO'] || row['CATEGORIA'] || 'Outros').trim();
-      const empresa = String(row['EMPRESA'] || '').trim();
-      const codigo = String(row['CODIGO'] || row['VEICULO'] || '').trim();
-      const descricao = String(row['DESCRICAO'] || row['DESCRIÇÃO'] || '').trim();
-      const categoria = String(row['CATEGORIA'] || '').trim();
-      
+      const tipo = getRowValue(row as any, ['TIPO', 'Tipo', 'tipo', 'CATEGORIA', 'Categoria', 'categoria']) || 'Outros';
+      const empresa = getRowValue(row as any, ['EMPRESA', 'Empresa', 'empresa']);
+      const codigo = getRowValue(row as any, ['CODIGO', 'Codigo', 'codigo', 'VEICULO', 'Veiculo', 'veiculo']);
+      const descricao = getRowValue(row as any, ['DESCRICAO', 'DESCRIÇÃO', 'Descricao', 'descrição', 'descricao']);
+      const categoria = getRowValue(row as any, ['CATEGORIA', 'Categoria', 'categoria']);
+
       if (!groups[tipo]) {
         groups[tipo] = { name: tipo, empresas: 0, veiculos: 0, items: [] };
       }
-      
+
       groups[tipo].veiculos++;
       groups[tipo].items.push({ codigo, descricao, empresa, categoria });
     });
