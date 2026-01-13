@@ -169,6 +169,15 @@ async function getAccessToken(): Promise<string> {
   }
 }
 
+// Helper to format sheet range - wraps sheet name in single quotes if it contains special characters
+function formatRange(sheetName: string, cellRange: string = "A:ZZ"): string {
+  // If sheet name has spaces or special characters, wrap in single quotes
+  if (/[^A-Za-z0-9_]/.test(sheetName)) {
+    return `'${sheetName.replace(/'/g, "''")}'!${cellRange}`;
+  }
+  return `${sheetName}!${cellRange}`;
+}
+
 async function getSheetData(accessToken: string, sheetId: string, range: string): Promise<any[][]> {
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(range)}`;
 
@@ -320,7 +329,7 @@ serve(async (req) => {
         break;
 
       case "getData": {
-        const sheetRange = range || `${sheetName}!A:ZZ`;
+        const sheetRange = range || formatRange(sheetName);
         const rawData = await getSheetData(accessToken, sheetId, sheetRange);
 
         if (rawData.length === 0) {
@@ -343,13 +352,13 @@ serve(async (req) => {
         if (!sheetName || !data) {
           throw new Error("sheetName and data are required for create action");
         }
-        const createHeaders = await getSheetData(accessToken, sheetId, `${sheetName}!1:1`);
+        const createHeaders = await getSheetData(accessToken, sheetId, formatRange(sheetName, "1:1"));
         if (createHeaders.length === 0) {
           throw new Error("No headers found in sheet");
         }
         const headerRow = createHeaders[0];
         const newRowValues = headerRow.map((header: string) => data[header] ?? "");
-        await appendRow(accessToken, sheetId, `${sheetName}!A:ZZ`, newRowValues);
+        await appendRow(accessToken, sheetId, formatRange(sheetName), newRowValues);
         result = { success: true, message: "Row created successfully" };
         break;
       }
@@ -358,13 +367,13 @@ serve(async (req) => {
         if (!sheetName || !data || rowIndex === undefined) {
           throw new Error("sheetName, data, and rowIndex are required for update action");
         }
-        const updateHeaders = await getSheetData(accessToken, sheetId, `${sheetName}!1:1`);
+        const updateHeaders = await getSheetData(accessToken, sheetId, formatRange(sheetName, "1:1"));
         if (updateHeaders.length === 0) {
           throw new Error("No headers found in sheet");
         }
         const updateHeaderRow = updateHeaders[0];
         const updateValues = updateHeaderRow.map((header: string) => data[header] ?? "");
-        await updateRow(accessToken, sheetId, `${sheetName}!A${rowIndex}`, updateValues);
+        await updateRow(accessToken, sheetId, formatRange(sheetName, `A${rowIndex}`), updateValues);
         result = { success: true, message: "Row updated successfully" };
         break;
       }
