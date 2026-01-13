@@ -400,7 +400,7 @@ export const HorimeterModal = forwardRef<HTMLDivElement, HorimeterModalProps>(
     return (
       <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-2xl" ref={ref}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto" ref={ref}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Clock className="w-5 h-5 text-primary" />
@@ -419,17 +419,17 @@ export const HorimeterModal = forwardRef<HTMLDivElement, HorimeterModalProps>(
               <span className="ml-2">Carregando dados...</span>
             </div>
           ) : (
-            <div className="space-y-6">
+            <div className="space-y-4">
               {/* Vehicle Selection */}
-              <div className="space-y-2">
-                <Label htmlFor="vehicle">Veículo/Equipamento *</Label>
+              <div className="space-y-1">
+                <Label htmlFor="vehicle" className="text-sm">Veículo/Equipamento *</Label>
                 <Select value={selectedVehicle} onValueChange={setSelectedVehicle}>
-                  <SelectTrigger>
+                  <SelectTrigger className="h-9">
                     <SelectValue placeholder="Selecione o veículo" />
                   </SelectTrigger>
-                  <SelectContent className="max-h-[300px]">
+                  <SelectContent className="max-h-[250px]">
                     {vehicles.length === 0 ? (
-                      <div className="p-4 text-center text-muted-foreground">
+                      <div className="p-3 text-center text-muted-foreground text-sm">
                         Nenhum veículo encontrado
                       </div>
                     ) : (
@@ -443,91 +443,69 @@ export const HorimeterModal = forwardRef<HTMLDivElement, HorimeterModalProps>(
                 </Select>
               </div>
 
-              {/* Vehicle Info */}
+              {/* Vehicle Info - Compact */}
               {vehicleInfo && (
-                <div className="bg-muted/30 rounded-lg p-4 space-y-3">
-                  <h4 className="font-medium">Informações do Veículo</h4>
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <span className="text-muted-foreground">Descrição:</span>{' '}
-                      <span className="font-medium">{vehicleInfo.descricao || '-'}</span>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Tipo:</span>{' '}
-                      <span className="font-medium">{vehicleInfo.tipo || '-'}</span>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Empresa:</span>{' '}
-                      <span className="font-medium">{vehicleInfo.empresa || '-'}</span>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Tipo de Registro:</span>{' '}
-                      <span className="font-medium">{vehicleInfo.usaKm ? 'Quilometragem (KM)' : 'Horímetro (Horas)'}</span>
-                    </div>
-                  </div>
-                  
-                  {/* Last Reading - Prominent */}
-                  <div className="mt-3 p-3 bg-primary/10 rounded-lg">
-                    <span className="text-muted-foreground">Último Registro:</span>{' '}
-                    <span className="text-xl font-bold text-primary">
-                      {previousValue > 0 ? previousValue.toLocaleString('pt-BR', { minimumFractionDigits: 1 }) : '0'} {vehicleInfo.usaKm ? 'km' : 'h'}
+                <div className="bg-muted/30 rounded-lg p-3 space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">{vehicleInfo.descricao || vehicleInfo.tipo}</span>
+                    <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">
+                      {vehicleInfo.usaKm ? 'KM' : 'Horímetro'}
                     </span>
                   </div>
-
-                  {/* Monthly Total - Very Prominent */}
-                  <div className="p-4 bg-gradient-to-r from-emerald-500/20 to-emerald-500/10 rounded-lg border border-emerald-500/30">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <TrendingUp className="w-5 h-5 text-emerald-500" />
-                        <span className="font-medium text-emerald-700 dark:text-emerald-300">
-                          Total no Mês ({format(new Date(), 'MMMM', { locale: ptBR })})
-                        </span>
+                  
+                  {/* Last Reading + Monthly Total in row */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="p-2 bg-primary/10 rounded-lg text-center">
+                      <div className="text-xs text-muted-foreground">Último Registro</div>
+                      <div className="text-lg font-bold text-primary">
+                        {previousValue > 0 ? previousValue.toLocaleString('pt-BR', { minimumFractionDigits: 1 }) : '0'} 
+                        <span className="text-xs font-normal ml-1">{vehicleInfo.usaKm ? 'km' : 'h'}</span>
                       </div>
-                      <div className="text-right">
-                        <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
-                          {monthlyTotal.total.toLocaleString('pt-BR', { minimumFractionDigits: 1 })} {vehicleInfo.usaKm ? 'km' : 'h'}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {monthlyTotal.count} registros no mês
-                        </div>
+                    </div>
+                    <div className="p-2 bg-emerald-500/10 rounded-lg text-center border border-emerald-500/20">
+                      <div className="text-xs text-muted-foreground flex items-center justify-center gap-1">
+                        <TrendingUp className="w-3 h-3 text-emerald-500" />
+                        Total Mês
+                      </div>
+                      <div className="text-lg font-bold text-emerald-600">
+                        {monthlyTotal.total.toLocaleString('pt-BR', { minimumFractionDigits: 1 })}
+                        <span className="text-xs font-normal ml-1">{vehicleInfo.usaKm ? 'km' : 'h'}</span>
                       </div>
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* History Table */}
-              {vehicleHistory.length > 0 && (
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <History className="w-4 h-4 text-muted-foreground" />
-                    <h4 className="font-medium text-sm">Histórico (últimos 5 registros)</h4>
+              {/* History Table - Compact */}
+              {vehicleHistory.length > 0 && !isEditMode && (
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1.5">
+                    <History className="w-3.5 h-3.5 text-muted-foreground" />
+                    <h4 className="font-medium text-xs text-muted-foreground">Histórico</h4>
                   </div>
                   <div className="bg-muted/20 rounded-lg overflow-hidden">
-                    <table className="w-full text-sm">
+                    <table className="w-full text-xs">
                       <thead className="bg-muted/50">
                         <tr>
-                          <th className="px-3 py-2 text-left">Data</th>
-                          <th className="px-3 py-2 text-right">{vehicleInfo?.usaKm ? 'KM' : 'Horas'}</th>
-                          <th className="px-3 py-2 text-right">Intervalo</th>
-                          <th className="px-3 py-2 text-left">Operador</th>
+                          <th className="px-2 py-1.5 text-left font-medium">Data</th>
+                          <th className="px-2 py-1.5 text-right font-medium">{vehicleInfo?.usaKm ? 'KM' : 'Horas'}</th>
+                          <th className="px-2 py-1.5 text-right font-medium">Intervalo</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {vehicleHistory.map((record, idx) => (
+                        {vehicleHistory.slice(0, 3).map((record, idx) => (
                           <tr key={idx} className="border-t border-border/50">
-                            <td className="px-3 py-2">{record.data}</td>
-                            <td className="px-3 py-2 text-right font-medium">
+                            <td className="px-2 py-1.5">{record.data}</td>
+                            <td className="px-2 py-1.5 text-right font-medium">
                               {record.horas.toLocaleString('pt-BR', { minimumFractionDigits: 1 })}
                             </td>
-                            <td className="px-3 py-2 text-right">
-                              {record.intervalo > 0 && (
+                            <td className="px-2 py-1.5 text-right">
+                              {record.intervalo > 0 ? (
                                 <span className="text-emerald-500">
                                   +{record.intervalo.toLocaleString('pt-BR', { minimumFractionDigits: 1 })}
                                 </span>
-                              )}
+                              ) : '-'}
                             </td>
-                            <td className="px-3 py-2">{record.operador || '-'}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -537,14 +515,14 @@ export const HorimeterModal = forwardRef<HTMLDivElement, HorimeterModalProps>(
               )}
 
               {/* Date Selection */}
-              <div className="space-y-2">
-                <Label>Data do Registro *</Label>
+              <div className="space-y-1">
+                <Label className="text-sm">Data do Registro *</Label>
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button
                       variant="outline"
                       className={cn(
-                        "w-full justify-start text-left font-normal",
+                        "w-full justify-start text-left font-normal h-9",
                         !selectedDate && "text-muted-foreground",
                         hasDuplicateRecord && "border-destructive"
                       )}
@@ -565,22 +543,18 @@ export const HorimeterModal = forwardRef<HTMLDivElement, HorimeterModalProps>(
                     />
                   </PopoverContent>
                 </Popover>
-                {hasDuplicateRecord ? (
+                {hasDuplicateRecord && (
                   <div className="flex items-center gap-1 text-destructive text-xs">
                     <AlertTriangle className="w-3 h-3" />
                     Já existe um registro para este veículo nesta data
                   </div>
-                ) : (
-                  <p className="text-xs text-muted-foreground">
-                    Padrão: data atual. Altere para registros retroativos.
-                  </p>
                 )}
               </div>
 
-              {/* Current Value Input */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="currentValue">
+              {/* Current Value + Operator in row */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label htmlFor="currentValue" className="text-sm">
                     {vehicleInfo?.usaKm ? 'KM Atual *' : 'Horímetro Atual *'}
                   </Label>
                   <Input
@@ -589,7 +563,7 @@ export const HorimeterModal = forwardRef<HTMLDivElement, HorimeterModalProps>(
                     placeholder={vehicleInfo?.usaKm ? 'Ex: 125000' : 'Ex: 4500.5'}
                     value={currentValue}
                     onChange={(e) => setCurrentValue(e.target.value)}
-                    className="text-lg font-semibold"
+                    className="h-9 text-base font-semibold"
                   />
                   {previousValue > 0 && currentValue && parseNumber(currentValue) < previousValue && (
                     <div className="flex items-center gap-1 text-amber-500 text-xs">
@@ -598,43 +572,45 @@ export const HorimeterModal = forwardRef<HTMLDivElement, HorimeterModalProps>(
                     </div>
                   )}
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="operador">Operador/Motorista</Label>
+                <div className="space-y-1">
+                  <Label htmlFor="operador" className="text-sm">Operador</Label>
                   <Input
                     id="operador"
                     type="text"
                     placeholder="Nome do operador"
                     value={operador}
                     onChange={(e) => setOperador(e.target.value)}
+                    className="h-9"
                   />
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="observacao">Observação</Label>
+              <div className="space-y-1">
+                <Label htmlFor="observacao" className="text-sm">Observação</Label>
                 <Input
                   id="observacao"
                   type="text"
-                  placeholder="Observações adicionais (opcional)"
+                  placeholder="Observações (opcional)"
                   value={observacao}
                   onChange={(e) => setObservacao(e.target.value)}
+                  className="h-9"
                 />
               </div>
 
               {/* Actions */}
-              <div className="flex justify-end gap-3 pt-4 border-t">
-                <Button variant="outline" onClick={() => onOpenChange(false)}>
+              <div className="flex justify-end gap-2 pt-3 border-t">
+                <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
                   Cancelar
                 </Button>
-                <Button onClick={handleButtonClick} disabled={isSaving || !selectedVehicle || !currentValue || hasDuplicateRecord}>
+                <Button size="sm" onClick={handleButtonClick} disabled={isSaving || !selectedVehicle || !currentValue || hasDuplicateRecord}>
                   {isSaving ? (
                     <>
-                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                      <RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" />
                       Salvando...
                     </>
                   ) : (
                     <>
-                      <Save className="w-4 h-4 mr-2" />
+                      <Save className="w-3.5 h-3.5 mr-1.5" />
                       {isEditMode ? 'Atualizar' : 'Salvar'}
                     </>
                   )}

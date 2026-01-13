@@ -1161,30 +1161,34 @@ export function HorimetrosPage() {
                   <TableRow className="bg-muted/50">
                     <TableHead>Veículo</TableHead>
                     <TableHead>Data</TableHead>
-                    <TableHead className="text-right">Horas/KM</TableHead>
+                    <TableHead className="text-right">Anterior</TableHead>
+                    <TableHead className="text-right">Atual</TableHead>
+                    <TableHead className="text-right">Intervalo</TableHead>
                     <TableHead>Operador</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead className="text-center">Ações</TableHead>
+                    <TableHead className="text-center w-16">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {loading ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center py-8">
+                      <TableCell colSpan={8} className="text-center py-8">
                         <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-muted-foreground" />
                         Carregando dados...
                       </TableCell>
                     </TableRow>
                   ) : filteredRows.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                         Nenhum registro encontrado para o período
                       </TableCell>
                     </TableRow>
                   ) : (
                     filteredRows.slice(0, 50).map((row, idx) => {
-                      const horas = parseNumber(getRowValue(row as any, ['HORAS', 'HORIMETRO', 'Horimetro', 'Hor_Atual', 'KM', 'Km_Atual']));
-                      const isZeroed = horas === 0;
+                      const horasAtual = parseNumber(getRowValue(row as any, ['HORAS', 'HORIMETRO', 'Horimetro', 'Hor_Atual', 'KM', 'Km_Atual']));
+                      const horasAnterior = parseNumber(getRowValue(row as any, ['HORIMETRO_ANTERIOR', 'Hor_Anterior', 'HOR_ANTERIOR', 'KM_ANTERIOR', 'Km_Anterior']));
+                      const intervalo = horasAnterior > 0 ? horasAtual - horasAnterior : 0;
+                      const isZeroed = horasAtual === 0;
                       const rowIndex = (row as any)._rowIndex;
                       const veiculo = getRowValue(row as any, ['VEICULO', 'EQUIPAMENTO', 'Veiculo', 'Equipamento']);
                       const dataStr = getRowValue(row as any, ['DATA', 'Data']);
@@ -1192,16 +1196,22 @@ export function HorimetrosPage() {
                       const observacaoVal = getRowValue(row as any, ['OBSERVACAO', 'Observacao', 'OBS', 'Obs']);
                       
                       return (
-                        <TableRow key={idx} className={isZeroed ? 'bg-warning/5' : ''}>
-                          <TableCell className="font-medium">
+                        <TableRow key={idx} className={cn("text-sm", isZeroed && 'bg-warning/5')}>
+                          <TableCell className="font-medium py-2">
                             {veiculo}
                           </TableCell>
-                          <TableCell>{dataStr}</TableCell>
-                          <TableCell className={cn("text-right", isZeroed && "text-warning")}>
-                            {horas.toLocaleString('pt-BR', { minimumFractionDigits: 1 })}
+                          <TableCell className="py-2">{dataStr}</TableCell>
+                          <TableCell className="text-right py-2 text-muted-foreground">
+                            {horasAnterior > 0 ? horasAnterior.toLocaleString('pt-BR', { minimumFractionDigits: 1 }) : '-'}
                           </TableCell>
-                          <TableCell>{operadorVal}</TableCell>
-                          <TableCell>
+                          <TableCell className={cn("text-right py-2 font-medium", isZeroed && "text-warning")}>
+                            {horasAtual.toLocaleString('pt-BR', { minimumFractionDigits: 1 })}
+                          </TableCell>
+                          <TableCell className={cn("text-right py-2", intervalo > 0 ? "text-emerald-500 font-medium" : "text-muted-foreground")}>
+                            {intervalo > 0 ? `+${intervalo.toLocaleString('pt-BR', { minimumFractionDigits: 1 })}` : '-'}
+                          </TableCell>
+                          <TableCell className="py-2 max-w-[150px] truncate" title={operadorVal}>{operadorVal}</TableCell>
+                          <TableCell className="py-2">
                             {isZeroed ? (
                               <span className="inline-flex items-center gap-1 text-xs text-warning">
                                 <AlertTriangle className="w-3 h-3" />
@@ -1214,7 +1224,7 @@ export function HorimetrosPage() {
                               </span>
                             )}
                           </TableCell>
-                          <TableCell className="text-center">
+                          <TableCell className="text-center py-2">
                             <Button
                               variant="ghost"
                               size="sm"
@@ -1223,15 +1233,15 @@ export function HorimetrosPage() {
                                   rowIndex,
                                   data: dataStr,
                                   veiculo,
-                                  horas,
+                                  horas: horasAtual,
                                   operador: operadorVal,
                                   observacao: observacaoVal,
                                 });
                                 setShowNewModal(true);
                               }}
-                              className="h-8 w-8 p-0"
+                              className="h-7 w-7 p-0"
                             >
-                              <Pencil className="w-4 h-4" />
+                              <Pencil className="w-3.5 h-3.5" />
                             </Button>
                           </TableCell>
                         </TableRow>
