@@ -297,20 +297,20 @@ export function AbastecimentoPage() {
       summary[local].arla += arlaQtd;
       summary[local].valor += valor;
 
-      // Add detailed record with anterior/atual values
+      // Add detailed record with anterior/atual values - use exact column names from sheet
       recordsByLocal[local].push({
         data: String(row['DATA'] || ''),
         codigo: String(row['VEICULO'] || row['Veiculo'] || row['CODIGO'] || ''),
         veiculo: String(row['VEICULO'] || row['Veiculo'] || ''),
-        descricao: String(row['DESCRIÇÃO'] || row['DESCRICAO'] || row['Descricao'] || row['TIPO'] || ''),
+        descricao: String(row['DESCRICAO'] || row['DESCRIÇÃO'] || row['Descricao'] || row['TIPO'] || ''),
         motorista: String(row['MOTORISTA'] || row['Motorista'] || row['OPERADOR'] || row['Operador'] || ''),
         quantidade,
         categoria: String(row['CATEGORIA'] || row['Categoria'] || row['TIPO'] || ''),
         empresa: String(row['EMPRESA'] || row['Empresa'] || row['COMPANY'] || ''),
-        horAnterior: parseNumber(row['HOR_ANTERIOR'] || row['HORIMETRO_ANTERIOR'] || row['HORAS_ANTERIOR'] || row['Hor_Anterior'] || 0),
-        horAtual: parseNumber(row['HOR_ATUAL'] || row['HORIMETRO'] || row['Horimetro'] || row['HORAS'] || row['Hor_Atual'] || 0),
-        kmAnterior: parseNumber(row['KM_ANTERIOR'] || row['QUILOMETRAGEM_ANTERIOR'] || row['Km_Anterior'] || 0),
-        kmAtual: parseNumber(row['KM_ATUAL'] || row['KM'] || row['Km'] || row['QUILOMETRAGEM'] || row['Km_Atual'] || 0),
+        horAnterior: parseNumber(row['HORIMETRO ANTERIOR'] || row['HOR_ANTERIOR'] || row['HORIMETRO_ANTERIOR'] || 0),
+        horAtual: parseNumber(row['HORIMETRO ATUAL'] || row['HOR_ATUAL'] || row['HORIMETRO'] || row['Horimetro'] || 0),
+        kmAnterior: parseNumber(row['KM ANTERIOR'] || row['KM_ANTERIOR'] || 0),
+        kmAtual: parseNumber(row['KM ATUAL'] || row['KM_ATUAL'] || row['KM'] || row['Km'] || 0),
       });
     });
 
