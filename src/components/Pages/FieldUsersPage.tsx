@@ -65,6 +65,7 @@ interface FieldUser {
   active: boolean;
   created_at: string;
   updated_at: string;
+  assigned_location?: string;
 }
 
 interface FuelRecord {
@@ -86,7 +87,16 @@ interface UserFormData {
   password: string;
   role: string;
   active: boolean;
+  assigned_location: string;
 }
+
+const LOCATION_OPTIONS = [
+  'Tanque Canteiro 01',
+  'Tanque Canteiro 02',
+  'Comboio 01',
+  'Comboio 02',
+  'Comboio 03',
+];
 
 const initialFormData: UserFormData = {
   name: '',
@@ -94,6 +104,7 @@ const initialFormData: UserFormData = {
   password: '',
   role: 'operador',
   active: true,
+  assigned_location: 'Tanque Canteiro 01',
 };
 
 export function FieldUsersPage() {
@@ -200,6 +211,7 @@ export function FieldUsersPage() {
       password: '',
       role: user.role || 'operador',
       active: user.active,
+      assigned_location: user.assigned_location || 'Tanque Canteiro 01',
     });
     setShowPassword(false);
     setShowModal(true);
@@ -225,6 +237,7 @@ export function FieldUsersPage() {
           username: formData.username.trim().toLowerCase(),
           role: formData.role,
           active: formData.active,
+          assigned_location: formData.assigned_location,
           updated_at: new Date().toISOString(),
         };
 
@@ -260,7 +273,8 @@ export function FieldUsersPage() {
           password_hash: formData.password,
           role: formData.role,
           active: formData.active,
-        });
+          assigned_location: formData.assigned_location,
+        } as any);
 
         if (error) throw error;
         toast.success('Usuário criado com sucesso!');
@@ -592,6 +606,31 @@ export function FieldUsersPage() {
                   </SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="location" className="flex items-center gap-2">
+                <MapPin className="w-4 h-4" />
+                Local de Trabalho
+              </Label>
+              <Select
+                value={formData.assigned_location}
+                onValueChange={(value) => setFormData({ ...formData, assigned_location: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {LOCATION_OPTIONS.map((loc) => (
+                    <SelectItem key={loc} value={loc}>
+                      {loc}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Este local será pré-selecionado no formulário do usuário
+              </p>
             </div>
 
             {editingUser && (
