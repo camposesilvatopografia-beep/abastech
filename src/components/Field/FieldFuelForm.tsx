@@ -17,7 +17,12 @@ import {
   X,
   Image,
   Loader2,
-  Trash2
+  Trash2,
+  Wifi,
+  WifiOff,
+  RefreshCw,
+  Cloud,
+  CloudOff
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -110,6 +115,9 @@ export function FieldFuelForm({ user, onLogout }: FieldFuelFormProps) {
   const [isSaving, setIsSaving] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [activeVoiceField, setActiveVoiceField] = useState<string | null>(null);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [pendingCount, setPendingCount] = useState(0);
+  const [isSyncing, setIsSyncing] = useState(false);
   
   // Photo state
   const [photoPump, setPhotoPump] = useState<File | null>(null);
@@ -138,6 +146,111 @@ export function FieldFuelForm({ user, onLogout }: FieldFuelFormProps) {
 
   // Voice recognition
   const voice = useVoiceRecognition();
+
+  // Monitor online status
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+      toast.success('Conexão restabelecida!');
+      // Auto-sync pending records when back online
+      syncPendingRecords();
+    };
+    const handleOffline = () => {
+      setIsOnline(false);
+      toast.warning('Sem conexão. Registros serão salvos localmente.');
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    // Check for pending records on mount
+    checkPendingRecords();
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  // Check pending records count
+  const checkPendingRecords = async () => {
+    try {
+      const { count } = await supabase
+        .from('field_fuel_records')
+        .select('*', { count: 'exact', head: true })
+        .eq('synced_to_sheet', false)
+        .eq('user_id', user.id);
+      
+      setPendingCount(count || 0);
+    } catch (err) {
+      console.error('Error checking pending records:', err);
+    }
+  };
+
+  // Sync pending records to Google Sheets
+  const syncPendingRecords = async () => {
+    if (isSyncing || !isOnline) return;
+    
+    setIsSyncing(true);
+    
+    try {
+      const { data: pendingRecords, error } = await supabase
+        .from('field_fuel_records')
+        .select('*')
+        .eq('synced_to_sheet', false)
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
+      if (!pendingRecords || pendingRecords.length === 0) {
+        setPendingCount(0);
+        setIsSyncing(false);
+        return;
+      }
+
+      let synced = 0;
+      for (const record of pendingRecords) {
+        const syncSuccess = await syncToGoogleSheets({
+          date: new Date(record.record_date).toLocaleDateString('pt-BR'),
+          time: record.record_time,
+          vehicleCode: record.vehicle_code,
+          vehicleDescription: record.vehicle_description || '',
+          category: record.category || '',
+          operatorName: record.operator_name || '',
+          company: record.company || '',
+          workSite: record.work_site || '',
+          horimeterPrevious: record.horimeter_previous || 0,
+          horimeterCurrent: record.horimeter_current || 0,
+          fuelQuantity: record.fuel_quantity,
+          fuelType: record.fuel_type || 'Diesel',
+          arlaQuantity: record.arla_quantity || 0,
+          location: record.location || '',
+          observations: record.observations || '',
+          photoPumpUrl: record.photo_pump_url,
+          photoHorimeterUrl: record.photo_horimeter_url,
+        });
+
+        if (syncSuccess) {
+          await supabase
+            .from('field_fuel_records')
+            .update({ synced_to_sheet: true })
+            .eq('id', record.id);
+          synced++;
+        }
+      }
+
+      if (synced > 0) {
+        toast.success(`${synced} registro(s) sincronizado(s) com sucesso!`);
+      }
+      
+      await checkPendingRecords();
+    } catch (err) {
+      console.error('Error syncing pending records:', err);
+      toast.error('Erro ao sincronizar registros pendentes');
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   // Handle photo capture
   const handlePhotoCapture = (type: 'pump' | 'horimeter') => (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -273,6 +386,71 @@ export function FieldFuelForm({ user, onLogout }: FieldFuelFormProps) {
     }
   };
 
+  // Sync to Google Sheets
+  const syncToGoogleSheets = async (recordData: {
+    date: string;
+    time: string;
+    vehicleCode: string;
+    vehicleDescription: string;
+    category: string;
+    operatorName: string;
+    company: string;
+    workSite: string;
+    horimeterPrevious: number;
+    horimeterCurrent: number;
+    fuelQuantity: number;
+    fuelType: string;
+    arlaQuantity: number;
+    location: string;
+    observations: string;
+    photoPumpUrl: string | null;
+    photoHorimeterUrl: string | null;
+  }): Promise<boolean> => {
+    try {
+      // Format data according to sheet columns
+      const sheetData = {
+        'DATA': recordData.date,
+        'HORA': recordData.time,
+        'VEICULO': recordData.vehicleCode,
+        'DESCRICAO': recordData.vehicleDescription,
+        'CATEGORIA': recordData.category,
+        'MOTORISTA': recordData.operatorName,
+        'EMPRESA': recordData.company,
+        'OBRA': recordData.workSite,
+        'HORIMETRO ANTERIOR': recordData.horimeterPrevious || '',
+        'HORIMETRO ATUAL': recordData.horimeterCurrent || '',
+        'KM ANTERIOR': '',
+        'KM ATUAL': '',
+        'QUANTIDADE': recordData.fuelQuantity,
+        'QUANTIDADE DE ARLA': recordData.arlaQuantity || '',
+        'TIPO DE COMBUSTIVEL': recordData.fuelType,
+        'LOCAL': recordData.location,
+        'TIPO': 'Saída',
+        'OBSERVAÇÃO': recordData.observations || '',
+        'FOTO BOMBA': recordData.photoPumpUrl || '',
+        'FOTO HORIMETRO': recordData.photoHorimeterUrl || '',
+      };
+
+      const response = await supabase.functions.invoke('google-sheets', {
+        body: {
+          action: 'create',
+          sheetName: 'AbastecimentoCanteiro01',
+          data: sheetData,
+        },
+      });
+
+      if (response.error) {
+        console.error('Sync error:', response.error);
+        return false;
+      }
+
+      return true;
+    } catch (err) {
+      console.error('Sync to sheets failed:', err);
+      return false;
+    }
+  };
+
   // Save record
   const handleSave = async () => {
     if (!vehicleCode || !fuelQuantity) {
@@ -300,7 +478,13 @@ export function FieldFuelForm({ user, onLogout }: FieldFuelFormProps) {
 
       setIsUploadingPhotos(false);
 
-      const { error } = await supabase
+      // Get current date and time
+      const now = new Date();
+      const recordDate = now.toLocaleDateString('pt-BR');
+      const recordTime = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+      // Save to database first
+      const { data: savedRecord, error } = await supabase
         .from('field_fuel_records')
         .insert({
           user_id: user.id,
@@ -318,10 +502,45 @@ export function FieldFuelForm({ user, onLogout }: FieldFuelFormProps) {
           location,
           observations,
           photo_pump_url: photoPumpUrl,
-          photo_horimeter_url: photoHorimeterUrl
-        });
+          photo_horimeter_url: photoHorimeterUrl,
+          record_date: now.toISOString().split('T')[0],
+          record_time: recordTime,
+          synced_to_sheet: false,
+        })
+        .select()
+        .single();
 
       if (error) throw error;
+
+      // Sync to Google Sheets
+      toast.info('Sincronizando com planilha...');
+      const syncSuccess = await syncToGoogleSheets({
+        date: recordDate,
+        time: recordTime,
+        vehicleCode,
+        vehicleDescription,
+        category,
+        operatorName: operatorName || user.name,
+        company,
+        workSite,
+        horimeterPrevious: parseFloat(horimeterPrevious) || 0,
+        horimeterCurrent: parseFloat(horimeterCurrent) || 0,
+        fuelQuantity: parseFloat(fuelQuantity) || 0,
+        fuelType,
+        arlaQuantity: parseFloat(arlaQuantity) || 0,
+        location,
+        observations,
+        photoPumpUrl,
+        photoHorimeterUrl,
+      });
+
+      // Update sync status in database
+      if (syncSuccess && savedRecord) {
+        await supabase
+          .from('field_fuel_records')
+          .update({ synced_to_sheet: true })
+          .eq('id', savedRecord.id);
+      }
 
       setShowSuccess(true);
       setTimeout(() => {
@@ -329,7 +548,12 @@ export function FieldFuelForm({ user, onLogout }: FieldFuelFormProps) {
         resetForm();
       }, 2000);
       
-      toast.success('Abastecimento registrado!');
+      // Update pending count
+      await checkPendingRecords();
+      
+      toast.success(syncSuccess 
+        ? 'Abastecimento registrado e sincronizado!' 
+        : 'Abastecimento registrado! (Sincronização pendente)');
     } catch (err) {
       console.error('Save error:', err);
       toast.error('Erro ao salvar');
@@ -389,16 +613,68 @@ export function FieldFuelForm({ user, onLogout }: FieldFuelFormProps) {
               <p className="text-xs opacity-90">{user.name}</p>
             </div>
           </div>
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            onClick={onLogout}
-            className="text-primary-foreground hover:bg-primary-foreground/20"
-          >
-            <LogOut className="w-5 h-5" />
-          </Button>
+          <div className="flex items-center gap-2">
+            {/* Sync status */}
+            <div className="flex items-center gap-1">
+              {isOnline ? (
+                <Cloud className="w-4 h-4 text-green-300" />
+              ) : (
+                <CloudOff className="w-4 h-4 text-yellow-300" />
+              )}
+              {pendingCount > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={syncPendingRecords}
+                  disabled={isSyncing || !isOnline}
+                  className="text-primary-foreground hover:bg-primary-foreground/20 h-8 px-2"
+                >
+                  {isSyncing ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <>
+                      <RefreshCw className="w-4 h-4 mr-1" />
+                      <span className="text-xs">{pendingCount}</span>
+                    </>
+                  )}
+                </Button>
+              )}
+            </div>
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={onLogout}
+              className="text-primary-foreground hover:bg-primary-foreground/20"
+            >
+              <LogOut className="w-5 h-5" />
+            </Button>
+          </div>
         </div>
       </div>
+
+      {/* Connection status banner */}
+      {!isOnline && (
+        <div className="bg-yellow-500 text-yellow-900 p-2 flex items-center justify-center gap-2 text-sm">
+          <WifiOff className="w-4 h-4" />
+          <span>Modo offline - registros serão sincronizados quando houver conexão</span>
+        </div>
+      )}
+
+      {/* Pending sync banner */}
+      {isOnline && pendingCount > 0 && !isSyncing && (
+        <div className="bg-blue-500 text-white p-2 flex items-center justify-center gap-2 text-sm">
+          <Cloud className="w-4 h-4" />
+          <span>{pendingCount} registro(s) pendente(s)</span>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={syncPendingRecords}
+            className="text-white hover:bg-white/20 h-6 px-2 text-xs"
+          >
+            Sincronizar agora
+          </Button>
+        </div>
+      )}
 
       {/* Voice status */}
       {voice.isListening && (
