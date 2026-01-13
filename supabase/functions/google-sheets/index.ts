@@ -9,7 +9,7 @@ interface SheetRow {
   [key: string]: string | number | boolean | null;
 }
 
-// Create JWT manually without external library issues
+// Create JWT manually
 async function createJWT(privateKeyPem: string, payload: object): Promise<string> {
   const header = { alg: 'RS256', typ: 'JWT' };
   
@@ -27,11 +27,13 @@ async function createJWT(privateKeyPem: string, payload: object): Promise<string
   const payloadB64 = base64url(JSON.stringify(payload));
   const signingInput = `${headerB64}.${payloadB64}`;
   
-  // Import the private key
+  // Extract the base64 content between headers
   const pemContents = privateKeyPem
     .replace(/-----BEGIN PRIVATE KEY-----/g, '')
     .replace(/-----END PRIVATE KEY-----/g, '')
-    .replace(/\s/g, '');
+    .replace(/[\r\n\s]/g, '');
+  
+  console.log('PEM contents length after cleanup:', pemContents.length);
   
   const binaryKey = Uint8Array.from(atob(pemContents), c => c.charCodeAt(0));
   
@@ -54,32 +56,64 @@ async function createJWT(privateKeyPem: string, payload: object): Promise<string
   return `${signingInput}.${signatureB64}`;
 }
 
+function formatPrivateKey(rawKey: string): string {
+  console.log('Raw key first 50 chars:', rawKey.substring(0, 50));
+  console.log('Raw key last 50 chars:', rawKey.substring(rawKey.length - 50));
+  
+  // Replace various escape sequences
+  let key = rawKey
+    .replace(/\\\\n/g, '\n')  // Double escaped
+    .replace(/\\n/g, '\n')     // Single escaped
+    .replace(/\\r/g, '')       // Carriage returns
+    .replace(/"/g, '')         // Remove quotes
+    .trim();
+  
+  // Check if key already has proper format
+  if (key.includes('-----BEGIN PRIVATE KEY-----') && key.includes('-----END PRIVATE KEY-----')) {
+    console.log('Key has proper PEM format');
+    return key;
+  }
+  
+  // If key is just the base64 content without headers, add them
+  // Remove any remaining whitespace and add proper PEM format
+  const cleanBase64 = key.replace(/[\r\n\s]/g, '');
+  
+  // Check if it looks like base64 (only valid base64 characters)
+  if (/^[A-Za-z0-9+/=]+$/.test(cleanBase64) && cleanBase64.length > 100) {
+    console.log('Key appears to be raw base64, adding PEM headers');
+    // Format with line breaks every 64 characters
+    const formattedKey = cleanBase64.match(/.{1,64}/g)?.join('\n') || cleanBase64;
+    return `-----BEGIN PRIVATE KEY-----\n${formattedKey}\n-----END PRIVATE KEY-----`;
+  }
+  
+  // Last attempt: maybe the header is there but mangled
+  if (key.includes('BEGIN') && key.includes('PRIVATE') && key.includes('KEY')) {
+    console.log('Key contains partial header, attempting to fix');
+    // Try to extract just the base64 portion
+    const base64Match = key.match(/[A-Za-z0-9+/=]{100,}/);
+    if (base64Match) {
+      const formattedKey = base64Match[0].match(/.{1,64}/g)?.join('\n') || base64Match[0];
+      return `-----BEGIN PRIVATE KEY-----\n${formattedKey}\n-----END PRIVATE KEY-----`;
+    }
+  }
+  
+  console.log('Could not parse key format');
+  throw new Error('Invalid private key format. Please paste the complete private key from your service account JSON file, including -----BEGIN PRIVATE KEY----- and -----END PRIVATE KEY-----');
+}
+
 async function getAccessToken(): Promise<string> {
   const serviceAccountEmail = Deno.env.get('GOOGLE_SERVICE_ACCOUNT_EMAIL');
-  let privateKeyRaw = Deno.env.get('GOOGLE_PRIVATE_KEY');
+  const privateKeyRaw = Deno.env.get('GOOGLE_PRIVATE_KEY');
   
   if (!serviceAccountEmail || !privateKeyRaw) {
     throw new Error('Missing Google Service Account credentials. Please configure GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_PRIVATE_KEY.');
   }
 
   console.log('Service Account Email:', serviceAccountEmail);
-  console.log('Private Key length:', privateKeyRaw.length);
+  console.log('Private Key raw length:', privateKeyRaw.length);
 
-  // Handle the private key format - replace escaped newlines with actual newlines
-  let privateKey = privateKeyRaw
-    .replace(/\\n/g, '\n')
-    .replace(/\\\\n/g, '\n');
-  
-  // If it doesn't start with the PEM header, it might be double-escaped or have issues
-  if (!privateKey.includes('-----BEGIN PRIVATE KEY-----')) {
-    // Try to fix common formatting issues
-    privateKey = privateKey.replace(/"/g, '');
-    if (!privateKey.includes('-----BEGIN PRIVATE KEY-----')) {
-      throw new Error('Invalid private key format. Key should start with -----BEGIN PRIVATE KEY-----');
-    }
-  }
-  
-  console.log('Private key format validated');
+  const privateKey = formatPrivateKey(privateKeyRaw);
+  console.log('Private key formatted, length:', privateKey.length);
 
   const now = Math.floor(Date.now() / 1000);
   const payload = {
@@ -175,7 +209,6 @@ async function updateRow(accessToken: string, sheetId: string, range: string, va
 }
 
 async function deleteRow(accessToken: string, sheetId: string, sheetName: string, rowIndex: number): Promise<void> {
-  // First, get the sheet's gid
   const metaUrl = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}`;
   const metaResponse = await fetch(metaUrl, {
     headers: { Authorization: `Bearer ${accessToken}` },
@@ -194,7 +227,6 @@ async function deleteRow(accessToken: string, sheetId: string, sheetName: string
 
   const sheetGid = sheet.properties.sheetId;
 
-  // Delete the row using batchUpdate
   const batchUrl = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}:batchUpdate`;
   
   const response = await fetch(batchUrl, {
@@ -240,7 +272,6 @@ async function getSheetNames(accessToken: string, sheetId: string): Promise<stri
 }
 
 serve(async (req) => {
-  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -274,7 +305,7 @@ serve(async (req) => {
         } else {
           const headers = rawData[0];
           const rows = rawData.slice(1).map((row, index) => {
-            const obj: SheetRow = { _rowIndex: index + 2 }; // +2 because 1-indexed and header row
+            const obj: SheetRow = { _rowIndex: index + 2 };
             headers.forEach((header: string, colIndex: number) => {
               obj[header] = row[colIndex] ?? '';
             });
@@ -288,7 +319,6 @@ serve(async (req) => {
         if (!sheetName || !data) {
           throw new Error('sheetName and data are required for create action');
         }
-        // Get headers first
         const createHeaders = await getSheetData(accessToken, sheetId, `${sheetName}!1:1`);
         if (createHeaders.length === 0) {
           throw new Error('No headers found in sheet');
@@ -303,7 +333,6 @@ serve(async (req) => {
         if (!sheetName || !data || rowIndex === undefined) {
           throw new Error('sheetName, data, and rowIndex are required for update action');
         }
-        // Get headers first
         const updateHeaders = await getSheetData(accessToken, sheetId, `${sheetName}!1:1`);
         if (updateHeaders.length === 0) {
           throw new Error('No headers found in sheet');
@@ -318,7 +347,7 @@ serve(async (req) => {
         if (!sheetName || rowIndex === undefined) {
           throw new Error('sheetName and rowIndex are required for delete action');
         }
-        await deleteRow(accessToken, sheetId, sheetName, rowIndex - 1); // Convert to 0-indexed
+        await deleteRow(accessToken, sheetId, sheetName, rowIndex - 1);
         result = { success: true, message: 'Row deleted successfully' };
         break;
 
