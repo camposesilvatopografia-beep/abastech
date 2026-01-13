@@ -13,7 +13,8 @@ import {
   ChevronRight,
   LogOut,
   User,
-  Smartphone
+  Smartphone,
+  Users
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Link } from 'react-router-dom';
@@ -122,14 +123,21 @@ export function Sidebar({ activeItem, onItemClick, onClose }: SidebarProps) {
         ))}
       </nav>
 
-      {/* Field App Link */}
-      <div className="px-3 py-2 border-t border-sidebar-border">
+      {/* Field App Links */}
+      <div className="px-3 py-2 border-t border-sidebar-border space-y-1">
         <Link
           to="/campo"
           className="sidebar-item w-full flex items-center gap-2 bg-primary/10 hover:bg-primary/20 text-primary"
         >
           <Smartphone className="w-5 h-5" />
           <span className="text-sm font-medium">Apontamento Campo</span>
+        </Link>
+        <Link
+          to="/campo/usuarios"
+          className="sidebar-item w-full flex items-center gap-2 hover:bg-sidebar-accent"
+        >
+          <Users className="w-5 h-5" />
+          <span className="text-sm">Usuários de Campo</span>
         </Link>
       </div>
 
