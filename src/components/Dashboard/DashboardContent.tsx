@@ -13,6 +13,7 @@ import { useToast } from '@/hooks/use-toast';
 const GERAL_SHEET = 'GERAL';
 const ABASTECIMENTO_SHEET = 'AbastecimentoCanteiro01';
 const VEHICLE_SHEET = 'Veiculo';
+const ARLA_SHEET = 'EstoqueArla';
 
 function parseNumber(value: any): number {
   if (!value) return 0;
@@ -24,6 +25,7 @@ export function DashboardContent() {
   const { data: geralData, loading } = useSheetData(GERAL_SHEET);
   const { data: abastecimentoData } = useSheetData(ABASTECIMENTO_SHEET);
   const { data: vehicleData } = useSheetData(VEHICLE_SHEET);
+  const { data: arlaData } = useSheetData(ARLA_SHEET);
   const [isSending, setIsSending] = useState(false);
   const { toast } = useToast();
 
@@ -44,7 +46,6 @@ export function DashboardContent() {
         saidaComboios: 0,
         saidaEquipamentos: 0,
         estoqueAtual: 0,
-        estoqueArla: 0,
         totalSaidas: 0
       };
     }
@@ -57,7 +58,6 @@ export function DashboardContent() {
     const saidaComboios = parseNumber(lastRow?.['Saidas_Para_Comboios']);
     const saidaEquipamentos = parseNumber(lastRow?.['Saida']);
     const estoqueAtual = parseNumber(lastRow?.['EstoqueAtual']);
-    const estoqueArla = parseNumber(lastRow?.['EstoqueArla'] || lastRow?.['Arla'] || 0);
     const totalSaidas = saidaComboios + saidaEquipamentos;
 
     return {
@@ -66,10 +66,16 @@ export function DashboardContent() {
       saidaComboios,
       saidaEquipamentos,
       estoqueAtual,
-      estoqueArla,
       totalSaidas
     };
   }, [geralData.rows]);
+
+  // Get ARLA stock from EstoqueArla sheet - last row
+  const estoqueArla = useMemo(() => {
+    if (!arlaData.rows.length) return 0;
+    const lastRow = arlaData.rows[arlaData.rows.length - 1];
+    return parseNumber(lastRow?.['EstoqueAtual']);
+  }, [arlaData.rows]);
 
   // Get recent activities from abastecimento data
   const recentActivities = useMemo(() => {
@@ -116,6 +122,15 @@ export function DashboardContent() {
     }));
   }, [abastecimentoData.rows]);
 
+  // Raw consumption data for month filtering
+  const rawConsumptionData = useMemo(() => {
+    return abastecimentoData.rows.map(row => ({
+      veiculo: String(row['VEICULO'] || row['Veiculo'] || '').trim(),
+      data: String(row['DATA'] || row['Data'] || ''),
+      quantidade: parseNumber(row['QUANTIDADE'] || row['Quantidade'])
+    }));
+  }, [abastecimentoData.rows]);
+
   const summaryRows = [
     { label: 'Estoque Anterior', value: stockData.estoqueAnterior.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) },
     { label: '+ Entradas', value: stockData.entrada.toLocaleString('pt-BR', { minimumFractionDigits: 2 }), isPositive: true },
@@ -144,7 +159,7 @@ export function DashboardContent() {
 • *Estoque Atual: ${stockData.estoqueAtual.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} L*
 
 💧 *ARLA*
-• Estoque: ${stockData.estoqueArla.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L
+• Estoque: ${estoqueArla.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L
 
 📈 *Movimentação*
 • ${recentActivities.length > 0 ? recentActivities.length : 0} abastecimentos registrados
@@ -232,7 +247,7 @@ _Sistema Abastech_`;
           />
           <MetricCard
             title="ESTOQUE ARLA"
-            value={`${stockData.estoqueArla.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L`}
+            value={`${estoqueArla.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L`}
             subtitle="Arla disponível"
             icon={Droplet}
             className="border-l-4 border-l-cyan-500"
@@ -248,6 +263,7 @@ _Sistema Abastech_`;
           />
           <ConsumptionRanking 
             data={consumptionRanking}
+            rawData={rawConsumptionData}
             vehicleData={vehicleInfo}
             title="Ranking de Consumo"
             maxItems={10}
