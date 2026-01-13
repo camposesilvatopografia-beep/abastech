@@ -9,9 +9,13 @@ import { HorimetrosPage } from '@/components/Pages/HorimetrosPage';
 import { ManutencaoPage } from '@/components/Pages/ManutencaoPage';
 import { AlertasPage } from '@/components/Pages/AlertasPage';
 import { CadastroPage } from '@/components/Pages/CadastroPage';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { Sheet, SheetContent } from '@/components/ui/sheet';
 
 const Index = () => {
   const [activeItem, setActiveItem] = useState('dashboard');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const isMobile = useIsMobile();
 
   const renderContent = () => {
     switch (activeItem) {
@@ -49,10 +53,29 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background flex">
-      <Sidebar activeItem={activeItem} onItemClick={setActiveItem} />
+      {/* Desktop Sidebar */}
+      {!isMobile && (
+        <Sidebar activeItem={activeItem} onItemClick={setActiveItem} />
+      )}
+      
+      {/* Mobile Sidebar Sheet */}
+      {isMobile && (
+        <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
+          <SheetContent side="left" className="p-0 w-60">
+            <Sidebar 
+              activeItem={activeItem} 
+              onItemClick={setActiveItem}
+              onClose={() => setSidebarOpen(false)}
+            />
+          </SheetContent>
+        </Sheet>
+      )}
       
       <div className="flex-1 flex flex-col min-w-0">
-        <TopBar />
+        <TopBar 
+          onMenuClick={() => setSidebarOpen(true)}
+          showMenuButton={isMobile}
+        />
         {renderContent()}
       </div>
     </div>

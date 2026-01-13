@@ -167,23 +167,23 @@ _Sistema Abastech_`;
   };
 
   return (
-    <div className="flex-1 p-6 overflow-auto">
-      <div className="space-y-6">
+    <div className="flex-1 p-3 md:p-6 overflow-auto">
+      <div className="space-y-4 md:space-y-6">
         {/* Filter Bar */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <FilterBar totalRecords={totalRecords} />
           <Button 
             onClick={handleWhatsAppExport} 
             disabled={isSending}
-            className="bg-green-600 hover:bg-green-700 gap-2"
+            className="bg-green-600 hover:bg-green-700 gap-2 w-full sm:w-auto"
           >
             <MessageCircle className="w-4 h-4" />
-            Enviar via WhatsApp
+            <span className="sm:inline">WhatsApp</span>
           </Button>
         </div>
 
         {/* Primary Stock KPIs - Different colors */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
           <MetricCard
             title="ESTOQUE ANTERIOR"
             value={`${stockData.estoqueAnterior.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} L`}
@@ -215,7 +215,7 @@ _Sistema Abastech_`;
         </div>
 
         {/* Secondary KPIs - Exits detail and ARLA */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4">
           <MetricCard
             title="SAÍDA P/ COMBOIOS"
             value={`${stockData.saidaComboios.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} L`}
@@ -274,29 +274,29 @@ _Sistema Abastech_`;
               </div>
             ) : (
               recentActivities.map((activity) => (
-                <div key={activity.id} className="p-4 hover:bg-muted/50 transition-colors">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-lg bg-amber-500/10 flex items-center justify-center">
-                        <Fuel className="w-5 h-5 text-amber-500" />
+                <div key={activity.id} className="p-3 md:p-4 hover:bg-muted/50 transition-colors">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-4">
+                    <div className="flex items-center gap-3 md:gap-4">
+                      <div className="w-8 h-8 md:w-10 md:h-10 rounded-lg bg-amber-500/10 flex items-center justify-center shrink-0">
+                        <Fuel className="w-4 h-4 md:w-5 md:h-5 text-amber-500" />
                       </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium">{activity.veiculo}</span>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-medium text-sm md:text-base">{activity.veiculo}</span>
                           <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-500">
                             {activity.combustivel}
                           </span>
                         </div>
-                        <p className="text-sm text-muted-foreground">
+                        <p className="text-xs md:text-sm text-muted-foreground truncate">
                           {activity.motorista} • {activity.local}
                         </p>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <div className="font-semibold text-primary">
+                    <div className="text-left sm:text-right ml-11 sm:ml-0 shrink-0">
+                      <div className="font-semibold text-primary text-sm md:text-base">
                         {activity.quantidade.toLocaleString('pt-BR', { minimumFractionDigits: 1 })} L
                       </div>
-                      <div className="text-sm text-muted-foreground flex items-center gap-1 justify-end">
+                      <div className="text-xs md:text-sm text-muted-foreground flex items-center gap-1 sm:justify-end">
                         <Calendar className="w-3 h-3" />
                         {activity.data} {activity.hora}
                       </div>

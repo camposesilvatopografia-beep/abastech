@@ -65,26 +65,26 @@ export function MetricCard({
 
   return (
     <div className={cn(
-      "rounded-lg p-4 relative overflow-hidden",
+      "rounded-lg p-3 md:p-4 relative overflow-hidden",
       styles.container,
       className
     )}>
-      <div className="flex justify-between items-start">
-        <div className="space-y-1">
+      <div className="flex justify-between items-start gap-2">
+        <div className="space-y-0.5 md:space-y-1 min-w-0">
           <p className={cn(
-            "text-xs font-semibold uppercase tracking-wider",
+            "text-[10px] md:text-xs font-semibold uppercase tracking-wider truncate",
             styles.title
           )}>
             {title}
           </p>
           <p className={cn(
-            "text-2xl font-bold",
+            "text-lg md:text-2xl font-bold truncate",
             styles.value
           )}>
             {value}
           </p>
           <p className={cn(
-            "text-xs",
+            "text-[10px] md:text-xs truncate",
             styles.subtitle
           )}>
             {subtitle}
@@ -93,11 +93,11 @@ export function MetricCard({
         
         {Icon && (
           <div className={cn(
-            "w-10 h-10 rounded-lg flex items-center justify-center",
+            "w-8 h-8 md:w-10 md:h-10 rounded-lg flex items-center justify-center shrink-0",
             styles.iconBg
           )}>
             <Icon className={cn(
-              "w-5 h-5",
+              "w-4 h-4 md:w-5 md:h-5",
               styles.iconColor
             )} />
           </div>
