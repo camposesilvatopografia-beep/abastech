@@ -15,7 +15,8 @@ import {
   Wrench,
   Wifi,
   WifiOff,
-  Database
+  Database,
+  Pencil
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -97,6 +98,14 @@ export function HorimetrosPage() {
   const [vehicleFilter, setVehicleFilter] = useState<string>('all');
   const [showNewModal, setShowNewModal] = useState(false);
   const [selectedPendingVehicle, setSelectedPendingVehicle] = useState<string | undefined>(undefined);
+  const [editingRecord, setEditingRecord] = useState<{
+    rowIndex: number;
+    data: string;
+    veiculo: string;
+    horas: number;
+    operador: string;
+    observacao: string;
+  } | null>(null);
   const [isFixingZeroed, setIsFixingZeroed] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'checking' | 'connected' | 'error'>('checking');
   const [isTesting, setIsTesting] = useState(false);
@@ -1155,19 +1164,20 @@ export function HorimetrosPage() {
                     <TableHead className="text-right">Horas/KM</TableHead>
                     <TableHead>Operador</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead className="text-center">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {loading ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center py-8">
+                      <TableCell colSpan={6} className="text-center py-8">
                         <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-muted-foreground" />
                         Carregando dados...
                       </TableCell>
                     </TableRow>
                   ) : filteredRows.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                         Nenhum registro encontrado para o período
                       </TableCell>
                     </TableRow>
@@ -1175,17 +1185,22 @@ export function HorimetrosPage() {
                     filteredRows.slice(0, 50).map((row, idx) => {
                       const horas = parseNumber(getRowValue(row as any, ['HORAS', 'HORIMETRO', 'Horimetro', 'Hor_Atual', 'KM', 'Km_Atual']));
                       const isZeroed = horas === 0;
+                      const rowIndex = (row as any)._rowIndex;
+                      const veiculo = getRowValue(row as any, ['VEICULO', 'EQUIPAMENTO', 'Veiculo', 'Equipamento']);
+                      const dataStr = getRowValue(row as any, ['DATA', 'Data']);
+                      const operadorVal = getRowValue(row as any, ['OPERADOR', 'Operador', 'MOTORISTA', 'Motorista']);
+                      const observacaoVal = getRowValue(row as any, ['OBSERVACAO', 'Observacao', 'OBS', 'Obs']);
                       
                       return (
                         <TableRow key={idx} className={isZeroed ? 'bg-warning/5' : ''}>
                           <TableCell className="font-medium">
-                            {getRowValue(row as any, ['VEICULO', 'EQUIPAMENTO', 'Veiculo', 'Equipamento'])}
+                            {veiculo}
                           </TableCell>
-                          <TableCell>{getRowValue(row as any, ['DATA', 'Data'])}</TableCell>
+                          <TableCell>{dataStr}</TableCell>
                           <TableCell className={cn("text-right", isZeroed && "text-warning")}>
                             {horas.toLocaleString('pt-BR', { minimumFractionDigits: 1 })}
                           </TableCell>
-                          <TableCell>{getRowValue(row as any, ['OPERADOR', 'Operador', 'MOTORISTA', 'Motorista'])}</TableCell>
+                          <TableCell>{operadorVal}</TableCell>
                           <TableCell>
                             {isZeroed ? (
                               <span className="inline-flex items-center gap-1 text-xs text-warning">
@@ -1198,6 +1213,26 @@ export function HorimetrosPage() {
                                 OK
                               </span>
                             )}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setEditingRecord({
+                                  rowIndex,
+                                  data: dataStr,
+                                  veiculo,
+                                  horas,
+                                  operador: operadorVal,
+                                  observacao: observacaoVal,
+                                });
+                                setShowNewModal(true);
+                              }}
+                              className="h-8 w-8 p-0"
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </Button>
                           </TableCell>
                         </TableRow>
                       );
@@ -1230,15 +1265,19 @@ export function HorimetrosPage() {
         )}
       </div>
 
-      {/* New Horimeter Modal */}
+      {/* New/Edit Horimeter Modal */}
       <HorimeterModal 
         open={showNewModal} 
         onOpenChange={(open) => {
           setShowNewModal(open);
-          if (!open) setSelectedPendingVehicle(undefined);
+          if (!open) {
+            setSelectedPendingVehicle(undefined);
+            setEditingRecord(null);
+          }
         }}
         onSuccess={() => refetch()}
         initialVehicle={selectedPendingVehicle}
+        editRecord={editingRecord}
       />
     </div>
   );
