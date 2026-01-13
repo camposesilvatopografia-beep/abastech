@@ -43,41 +43,41 @@ export function CadastroPage({ sheetName, title, subtitle }: CadastroPageProps) 
   const displayHeaders = data.headers.filter(h => h !== '_rowIndex').slice(0, 6);
 
   return (
-    <div className="flex-1 p-6 overflow-auto">
-      <div className="space-y-6">
+    <div className="flex-1 p-3 md:p-6 overflow-auto">
+      <div className="space-y-4 md:space-y-6">
         {/* Header */}
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
-              <Users className="w-6 h-6 text-primary" />
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+          <div className="flex items-center gap-3 md:gap-4">
+            <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+              <Users className="w-5 h-5 md:w-6 md:h-6 text-primary" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold">{title}</h1>
-              <p className="text-muted-foreground">{subtitle}</p>
+              <h1 className="text-xl md:text-2xl font-bold">{title}</h1>
+              <p className="text-sm text-muted-foreground">{subtitle}</p>
             </div>
           </div>
           
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => refetch()} disabled={loading}>
-              <RefreshCw className={cn("w-4 h-4 mr-2", loading && "animate-spin")} />
-              Atualizar
+              <RefreshCw className={cn("w-4 h-4 sm:mr-2", loading && "animate-spin")} />
+              <span className="hidden sm:inline">Atualizar</span>
             </Button>
             <Button className="bg-primary hover:bg-primary/90">
-              <Plus className="w-4 h-4 mr-2" />
-              Novo
+              <Plus className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Novo</span>
             </Button>
           </div>
         </div>
 
         {/* Connection Status */}
         <div className="flex items-center gap-2 text-sm">
-          <span className="w-2 h-2 rounded-full bg-success" />
-          <span className="text-success font-medium">Conectado ao Google Sheets</span>
+          <span className="w-2 h-2 rounded-full bg-success shrink-0" />
+          <span className="text-success font-medium">Conectado</span>
           <span className="text-muted-foreground">• {data.rows.length} registros</span>
         </div>
 
         {/* Search */}
-        <div className="relative max-w-md">
+        <div className="relative w-full md:max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
             placeholder="Buscar..."

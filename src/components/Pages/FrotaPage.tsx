@@ -297,49 +297,50 @@ export function FrotaPage() {
   };
 
   return (
-    <div className="flex-1 p-6 overflow-auto">
-      <div className="space-y-6">
+    <div className="flex-1 p-3 md:p-6 overflow-auto">
+      <div className="space-y-4 md:space-y-6">
         {/* Header */}
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
-              <Truck className="w-6 h-6 text-primary" />
+        <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
+          <div className="flex items-center gap-3 md:gap-4">
+            <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+              <Truck className="w-5 h-5 md:w-6 md:h-6 text-primary" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold">Gestão de Frota</h1>
-              <p className="text-muted-foreground">Cadastro e monitoramento de veículos e equipamentos</p>
+              <h1 className="text-xl md:text-2xl font-bold">Gestão de Frota</h1>
+              <p className="text-sm text-muted-foreground">Veículos e equipamentos</p>
             </div>
           </div>
           
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => refetch()} disabled={loading}>
-              <RefreshCw className={cn("w-4 h-4 mr-2", loading && "animate-spin")} />
-              Atualizar
+              <RefreshCw className={cn("w-4 h-4 sm:mr-2", loading && "animate-spin")} />
+              <span className="hidden sm:inline">Atualizar</span>
             </Button>
-            <Button variant="outline" size="sm">
-              <Printer className="w-4 h-4 mr-2" />
-              Imprimir
+            <Button variant="outline" size="sm" className="hidden sm:flex">
+              <Printer className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Imprimir</span>
             </Button>
             <Button variant="outline" size="sm" onClick={exportToPDF}>
-              <FileText className="w-4 h-4 mr-2" />
-              Exportar PDF
+              <FileText className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">PDF</span>
             </Button>
             <Button className="bg-primary hover:bg-primary/90">
-              <Plus className="w-4 h-4 mr-2" />
-              Novo Veículo
+              <Plus className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Novo Veículo</span>
+              <span className="sm:hidden">Novo</span>
             </Button>
           </div>
         </div>
 
         {/* Connection Status */}
         <div className="flex items-center gap-2 text-sm">
-          <span className="w-2 h-2 rounded-full bg-success" />
-          <span className="text-success font-medium">Conectado ao Google Sheets</span>
+          <span className="w-2 h-2 rounded-full bg-success shrink-0" />
+          <span className="text-success font-medium">Conectado</span>
           <span className="text-muted-foreground">• {filteredRows.length} veículos</span>
         </div>
 
-        {/* Metric Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        {/* Metric Cards - Responsive Grid */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
           <MetricCard
             title="TOTAL DE VEÍCULOS"
             value={metrics.totalVeiculos.toString()}
@@ -350,7 +351,7 @@ export function FrotaPage() {
           <MetricCard
             title="TIPOS DE EQUIPAMENTO"
             value={metrics.tiposEquipamento.toString()}
-            subtitle="Categorias diferentes"
+            subtitle="Categorias"
             variant="primary"
             icon={Settings}
           />
@@ -371,91 +372,80 @@ export function FrotaPage() {
         </div>
 
         {/* Filters */}
-        <div className="bg-card rounded-lg border border-border p-4 space-y-4">
-          <div className="flex items-center gap-4 flex-wrap">
-            <div className="relative flex-1 max-w-md">
+        <div className="bg-card rounded-lg border border-border p-3 md:p-4 space-y-3 md:space-y-4">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4">
+            <div className="relative flex-1 sm:max-w-md">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
-                placeholder="Buscar por código, motorista..."
+                placeholder="Buscar..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-10"
               />
             </div>
             
-            <Select value={empresaFilter} onValueChange={setEmpresaFilter}>
-              <SelectTrigger className="w-48">
-                <Building2 className="w-4 h-4 mr-2" />
-                <SelectValue placeholder="Todas Empresas" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todas Empresas</SelectItem>
-                {empresas.map(empresa => (
-                  <SelectItem key={empresa} value={empresa}>{empresa}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex flex-wrap gap-2">
+              <Select value={empresaFilter} onValueChange={setEmpresaFilter}>
+                <SelectTrigger className="w-full sm:w-40">
+                  <Building2 className="w-4 h-4 mr-2" />
+                  <SelectValue placeholder="Empresa" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas Empresas</SelectItem>
+                  {empresas.map(empresa => (
+                    <SelectItem key={empresa} value={empresa}>{empresa}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
 
-            <Select value={tipoFilter} onValueChange={setTipoFilter}>
-              <SelectTrigger className="w-48">
-                <Settings className="w-4 h-4 mr-2" />
-                <SelectValue placeholder="Todos Tipos" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos Tipos</SelectItem>
-                {tipos.map(tipo => (
-                  <SelectItem key={tipo} value={tipo}>{tipo}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select value={descricaoFilter} onValueChange={setDescricaoFilter}>
-              <SelectTrigger className="w-56">
-                <Truck className="w-4 h-4 mr-2" />
-                <SelectValue placeholder="Todas Descrições" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todas Descrições</SelectItem>
-                {descricoes.map(desc => (
-                  <SelectItem key={desc} value={desc}>{desc}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              <Select value={tipoFilter} onValueChange={setTipoFilter}>
+                <SelectTrigger className="w-full sm:w-36">
+                  <Settings className="w-4 h-4 mr-2" />
+                  <SelectValue placeholder="Tipo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos Tipos</SelectItem>
+                  {tipos.map(tipo => (
+                    <SelectItem key={tipo} value={tipo}>{tipo}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           {/* Group By Selection */}
-          <div className="flex items-center gap-4 flex-wrap">
-            <span className="text-sm font-medium text-muted-foreground">Agrupar por:</span>
-            <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4">
+            <span className="text-sm font-medium text-muted-foreground">Agrupar:</span>
+            <div className="flex flex-wrap gap-2">
               <Button 
                 variant={groupBy === 'tipo' ? 'default' : 'outline'} 
                 size="sm"
                 onClick={() => setGroupBy('tipo')}
               >
-                <Settings className="w-4 h-4 mr-2" />
-                Tipo
+                <Settings className="w-4 h-4 sm:mr-2" />
+                <span className="hidden sm:inline">Tipo</span>
               </Button>
               <Button 
                 variant={groupBy === 'empresa' ? 'default' : 'outline'} 
                 size="sm"
                 onClick={() => setGroupBy('empresa')}
               >
-                <Building2 className="w-4 h-4 mr-2" />
-                Empresa
+                <Building2 className="w-4 h-4 sm:mr-2" />
+                <span className="hidden sm:inline">Empresa</span>
               </Button>
               <Button 
                 variant={groupBy === 'descricao' ? 'default' : 'outline'} 
                 size="sm"
                 onClick={() => setGroupBy('descricao')}
               >
-                <Truck className="w-4 h-4 mr-2" />
-                Descrição
+                <Truck className="w-4 h-4 sm:mr-2" />
+                <span className="hidden sm:inline">Descrição</span>
               </Button>
             </div>
           </div>
 
-          <div className="flex items-center gap-4 flex-wrap">
-            <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2 flex-wrap">
               <Popover>
                 <PopoverTrigger asChild>
                   <Button variant="outline" size="sm" className="gap-2">
