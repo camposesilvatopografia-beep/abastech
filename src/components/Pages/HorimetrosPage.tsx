@@ -95,6 +95,7 @@ export function HorimetrosPage() {
   const [quickFilter, setQuickFilter] = useState<string | null>('mes');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [showNewModal, setShowNewModal] = useState(false);
+  const [selectedPendingVehicle, setSelectedPendingVehicle] = useState<string | undefined>(undefined);
   const [isFixingZeroed, setIsFixingZeroed] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'checking' | 'connected' | 'error'>('checking');
   const [isTesting, setIsTesting] = useState(false);
@@ -318,7 +319,11 @@ export function HorimetrosPage() {
       const kmAnterior = parseNumber(getRowValue(row as any, ['Km_Anterior', 'KM_ANTERIOR', 'QUILOMETRAGEM_ANTERIOR']));
       const kmAtual = parseNumber(getRowValue(row as any, ['Km_Atual', 'KM_ATUAL', 'QUILOMETRAGEM_ATUAL', 'KM']));
 
-      const usaKm = kmAtual > 0 || kmAnterior > 0;
+      // Determine if uses KM based on category: "Veículo" uses km, "Equipamento" uses h
+      const categoriaLower = categoria.toLowerCase();
+      const usaKm = categoriaLower.includes('veículo') || categoriaLower.includes('veiculo') || 
+                   categoriaLower === 'veiculo' || categoriaLower === 'veículo' ||
+                   kmAtual > 0 || kmAnterior > 0;
 
       const rowDateStr = getRowValue(row as any, ['Data', 'DATA']);
       const rowDate = parseDate(rowDateStr);
@@ -982,11 +987,17 @@ export function HorimetrosPage() {
                     </TableRow>
                   ) : (
                     vehicleSummary.map((item, idx) => {
-                      const anterior = item.usaKm ? item.kmAnterior : item.horAnterior;
-                      const atual = item.usaKm ? item.kmAtual : item.horAtual;
-                      const intervalo = item.usaKm ? item.intervaloKm : item.intervaloHor;
-                      const totalMes = item.usaKm ? item.totalMesKm : item.totalMesHor;
-                      const unidade = item.usaKm ? 'km' : 'h';
+                      // Determine unit based on category: "Veículo" = km, "Equipamento" = h
+                      const categoriaLower = (item.categoria || '').toLowerCase();
+                      const isVeiculo = categoriaLower.includes('veículo') || categoriaLower.includes('veiculo') || 
+                                       categoriaLower === 'veículo' || categoriaLower === 'veiculo';
+                      const usesKm = isVeiculo || item.usaKm;
+                      
+                      const anterior = usesKm ? item.kmAnterior : item.horAnterior;
+                      const atual = usesKm ? item.kmAtual : item.horAtual;
+                      const intervalo = usesKm ? item.intervaloKm : item.intervaloHor;
+                      const totalMes = usesKm ? item.totalMesKm : item.totalMesHor;
+                      const unidade = usesKm ? 'km' : 'h';
                       
                       return (
                         <TableRow key={idx}>
@@ -1154,7 +1165,10 @@ export function HorimetrosPage() {
                   <div 
                     key={equip.codigo} 
                     className="bg-card rounded-lg border border-border p-3 text-center hover:bg-muted/50 cursor-pointer"
-                    onClick={() => setShowNewModal(true)}
+                    onClick={() => {
+                      setSelectedPendingVehicle(equip.codigo);
+                      setShowNewModal(true);
+                    }}
                   >
                     <div className="font-semibold text-primary">{equip.codigo}</div>
                     <div className="text-xs text-muted-foreground truncate">{equip.descricao}</div>
@@ -1169,8 +1183,12 @@ export function HorimetrosPage() {
       {/* New Horimeter Modal */}
       <HorimeterModal 
         open={showNewModal} 
-        onOpenChange={setShowNewModal}
+        onOpenChange={(open) => {
+          setShowNewModal(open);
+          if (!open) setSelectedPendingVehicle(undefined);
+        }}
         onSuccess={() => refetch()}
+        initialVehicle={selectedPendingVehicle}
       />
     </div>
   );

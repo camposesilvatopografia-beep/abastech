@@ -26,6 +26,7 @@ interface HorimeterModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess?: () => void;
+  initialVehicle?: string;
 }
 
 function parseNumber(value: any): number {
@@ -52,12 +53,12 @@ function getRowValue(row: Record<string, any>, keys: string[]): string {
 }
 
 export const HorimeterModal = forwardRef<HTMLDivElement, HorimeterModalProps>(
-  function HorimeterModal({ open, onOpenChange, onSuccess }, ref) {
+  function HorimeterModal({ open, onOpenChange, onSuccess, initialVehicle }, ref) {
     const { data: vehicleData, loading: vehicleLoading, refetch: refetchVehicles } = useSheetData('Veiculo');
     const { data: horimeterData, create, refetch: refetchHorimeters, loading: horimeterLoading } = useSheetData('Horimetros');
     const { toast } = useToast();
     
-    const [selectedVehicle, setSelectedVehicle] = useState('');
+    const [selectedVehicle, setSelectedVehicle] = useState(initialVehicle || '');
     const [currentValue, setCurrentValue] = useState('');
     const [operador, setOperador] = useState('');
     const [observacao, setObservacao] = useState('');
@@ -193,13 +194,16 @@ export const HorimeterModal = forwardRef<HTMLDivElement, HorimeterModalProps>(
       setObservacao('');
     }, [selectedVehicle]);
 
-    // Refresh data when modal opens
+    // Refresh data when modal opens and set initial vehicle
     useEffect(() => {
       if (open) {
         refetchVehicles();
         refetchHorimeters();
+        if (initialVehicle) {
+          setSelectedVehicle(initialVehicle);
+        }
       }
-    }, [open, refetchVehicles, refetchHorimeters]);
+    }, [open, refetchVehicles, refetchHorimeters, initialVehicle]);
 
     const handleSave = async () => {
       if (!selectedVehicle) {
