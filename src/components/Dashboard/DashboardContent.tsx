@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react';
-import { Droplet, TrendingDown, TrendingUp, Package, Truck, ArrowDownCircle, ArrowUpCircle, Clock, Fuel, Calendar, MessageCircle, Send } from 'lucide-react';
+import { Droplet, TrendingDown, TrendingUp, Package, Truck, ArrowDownCircle, ArrowUpCircle, Clock, Fuel, Calendar, MessageCircle } from 'lucide-react';
 import { FilterBar } from './FilterBar';
 import { MetricCard } from './MetricCard';
 import { StockSummary } from './StockSummary';
+import { ConsumptionRanking } from './ConsumptionRanking';
 import { useSheetData } from '@/hooks/useGoogleSheets';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -78,6 +79,31 @@ export function DashboardContent() {
         combustivel: String(row['TIPO DE COMBUSTIVEL'] || row['Combustivel'] || 'Diesel'),
         local: String(row['LOCAL'] || row['Local'] || 'N/A')
       }));
+  }, [abastecimentoData.rows]);
+
+  // Calculate consumption ranking by vehicle
+  const consumptionRanking = useMemo(() => {
+    const vehicleMap = new Map<string, { totalLitros: number; abastecimentos: number }>();
+    
+    abastecimentoData.rows.forEach(row => {
+      const veiculo = String(row['VEICULO'] || row['Veiculo'] || '').trim();
+      const quantidade = parseNumber(row['QUANTIDADE'] || row['Quantidade']);
+      
+      if (!veiculo || quantidade <= 0) return;
+      
+      const existing = vehicleMap.get(veiculo) || { totalLitros: 0, abastecimentos: 0 };
+      vehicleMap.set(veiculo, {
+        totalLitros: existing.totalLitros + quantidade,
+        abastecimentos: existing.abastecimentos + 1
+      });
+    });
+    
+    return Array.from(vehicleMap.entries()).map(([veiculo, data]) => ({
+      veiculo,
+      totalLitros: data.totalLitros,
+      abastecimentos: data.abastecimentos,
+      mediaPorAbastecimento: data.abastecimentos > 0 ? data.totalLitros / data.abastecimentos : 0
+    }));
   }, [abastecimentoData.rows]);
 
   const summaryRows = [
@@ -207,12 +233,17 @@ _Sistema Abastech_`;
           />
         </div>
 
-        {/* Summary Only - Chart removed */}
+        {/* Summary and Ranking */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <StockSummary
             title="Resumo de Estoque"
             subtitle="Diesel - Último registro"
             rows={summaryRows}
+          />
+          <ConsumptionRanking 
+            data={consumptionRanking}
+            title="Ranking de Consumo"
+            maxItems={10}
           />
         </div>
 

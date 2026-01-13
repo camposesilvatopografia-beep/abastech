@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { 
   Clock,
   RefreshCw,
@@ -12,7 +12,10 @@ import {
   CheckCircle,
   Timer,
   FileText,
-  Wrench
+  Wrench,
+  Wifi,
+  WifiOff,
+  Database
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -35,6 +38,7 @@ import autoTable from 'jspdf-autotable';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { HorimeterModal } from '@/components/Horimetros/HorimeterModal';
+import { supabase } from '@/integrations/supabase/client';
 
 const SHEET_NAME = 'Horimetros';
 
@@ -71,6 +75,64 @@ export function HorimetrosPage() {
   const [quickFilter, setQuickFilter] = useState<string | null>('hoje');
   const [showNewModal, setShowNewModal] = useState(false);
   const [isFixingZeroed, setIsFixingZeroed] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<'checking' | 'connected' | 'error'>('checking');
+  const [isTesting, setIsTesting] = useState(false);
+
+  // Test connection on mount
+  useEffect(() => {
+    testConnection();
+  }, []);
+
+  const testConnection = async () => {
+    setIsTesting(true);
+    setConnectionStatus('checking');
+    
+    try {
+      const { data: result, error } = await supabase.functions.invoke('google-sheets', {
+        body: { action: 'getSheetNames' },
+      });
+      
+      if (error) {
+        console.error('Connection test failed:', error);
+        setConnectionStatus('error');
+        toast({
+          title: 'Erro de conexão',
+          description: 'Falha ao conectar com o Google Sheets',
+          variant: 'destructive',
+        });
+      } else {
+        setConnectionStatus('connected');
+        toast({
+          title: 'Conexão OK',
+          description: 'Conectado ao Google Sheets com sucesso',
+        });
+      }
+    } catch (err) {
+      console.error('Connection test error:', err);
+      setConnectionStatus('error');
+    } finally {
+      setIsTesting(false);
+    }
+  };
+
+  const syncData = async () => {
+    setIsTesting(true);
+    try {
+      await refetch();
+      toast({
+        title: 'Dados Sincronizados',
+        description: `${data.rows.length} registros carregados`,
+      });
+    } catch (err) {
+      toast({
+        title: 'Erro ao sincronizar',
+        description: 'Falha ao carregar dados do Google Sheets',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsTesting(false);
+    }
+  };
 
   const applyQuickFilter = (filter: string) => {
     const today = new Date();
@@ -331,12 +393,33 @@ export function HorimetrosPage() {
               <h1 className="text-2xl font-bold">Horímetros</h1>
               <p className="text-muted-foreground">Controle de horas trabalhadas dos equipamentos</p>
             </div>
+            {/* Connection Status */}
+            <div className={cn(
+              "flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium",
+              connectionStatus === 'connected' && "bg-emerald-500/10 text-emerald-500",
+              connectionStatus === 'error' && "bg-red-500/10 text-red-500",
+              connectionStatus === 'checking' && "bg-amber-500/10 text-amber-500"
+            )}>
+              {connectionStatus === 'connected' && <Wifi className="w-3 h-3" />}
+              {connectionStatus === 'error' && <WifiOff className="w-3 h-3" />}
+              {connectionStatus === 'checking' && <RefreshCw className="w-3 h-3 animate-spin" />}
+              {connectionStatus === 'connected' ? 'Conectado' : connectionStatus === 'error' ? 'Desconectado' : 'Verificando...'}
+            </div>
           </div>
           
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => refetch()} disabled={loading}>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={testConnection} 
+              disabled={isTesting}
+            >
+              <Database className={cn("w-4 h-4 mr-2", isTesting && "animate-pulse")} />
+              Testar Conexão
+            </Button>
+            <Button variant="outline" size="sm" onClick={syncData} disabled={loading || isTesting}>
               <RefreshCw className={cn("w-4 h-4 mr-2", loading && "animate-spin")} />
-              Atualizar
+              Sincronizar
             </Button>
             <Button 
               variant="outline" 
@@ -351,10 +434,6 @@ export function HorimetrosPage() {
                 <Wrench className="w-4 h-4 mr-2" />
               )}
               Corrigir Zerados ({zeroedRecords.length})
-            </Button>
-            <Button variant="outline" size="sm">
-              <Upload className="w-4 h-4 mr-2" />
-              Importar
             </Button>
             <Button variant="outline" size="sm" onClick={exportToPDF}>
               <FileText className="w-4 h-4 mr-2" />
