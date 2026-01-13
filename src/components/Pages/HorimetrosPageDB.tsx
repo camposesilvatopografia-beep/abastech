@@ -47,7 +47,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
-import { format, startOfDay, endOfDay, isWithinInterval, startOfMonth, endOfMonth } from 'date-fns';
+import { format, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -64,9 +64,7 @@ export function HorimetrosPageDB() {
 
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState<'resumo' | 'detalhes'>('resumo');
-  const [startDate, setStartDate] = useState<Date | undefined>(undefined);
-  const [endDate, setEndDate] = useState<Date | undefined>(undefined);
-  const [quickFilter, setQuickFilter] = useState<string | null>('mes');
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [vehicleFilter, setVehicleFilter] = useState<string>('all');
   const [showNewModal, setShowNewModal] = useState(false);
@@ -86,47 +84,8 @@ export function HorimetrosPageDB() {
     return Array.from(unique).sort();
   }, [vehicles]);
 
-  // Apply quick filter on mount
-  useMemo(() => {
-    if (quickFilter === 'mes') {
-      const today = new Date();
-      const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
-      setStartDate(monthStart);
-      setEndDate(today);
-    }
-  }, []);
-
-  const applyQuickFilter = (filter: string) => {
-    const today = new Date();
-    setQuickFilter(filter);
-    
-    switch (filter) {
-      case 'hoje':
-        setStartDate(today);
-        setEndDate(today);
-        break;
-      case 'semana':
-        const weekStart = new Date(today);
-        weekStart.setDate(today.getDate() - 7);
-        setStartDate(weekStart);
-        setEndDate(today);
-        break;
-      case 'mes':
-        const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
-        setStartDate(monthStart);
-        setEndDate(today);
-        break;
-      case 'todos':
-        setStartDate(undefined);
-        setEndDate(undefined);
-        break;
-    }
-  };
-
   const clearDateFilter = () => {
-    setStartDate(undefined);
-    setEndDate(undefined);
-    setQuickFilter(null);
+    setSelectedDate(undefined);
   };
 
   // Filtered readings
@@ -151,26 +110,16 @@ export function HorimetrosPageDB() {
         matchesVehicle = reading.vehicle_id === vehicleFilter;
       }
 
-      // Date filter
+      // Date filter - single date only
       let matchesDate = true;
-      if (startDate || endDate) {
+      if (selectedDate) {
         const readingDate = new Date(reading.reading_date + 'T00:00:00');
-        
-        if (startDate && endDate) {
-          matchesDate = isWithinInterval(readingDate, {
-            start: startOfDay(startDate),
-            end: endOfDay(endDate)
-          });
-        } else if (startDate) {
-          matchesDate = readingDate >= startOfDay(startDate);
-        } else if (endDate) {
-          matchesDate = readingDate <= endOfDay(endDate);
-        }
+        matchesDate = format(readingDate, 'yyyy-MM-dd') === format(selectedDate, 'yyyy-MM-dd');
       }
 
       return matchesSearch && matchesDate && matchesCategory && matchesVehicle;
     });
-  }, [readings, search, startDate, endDate, categoryFilter, vehicleFilter]);
+  }, [readings, search, selectedDate, categoryFilter, vehicleFilter]);
 
   // Metrics
   const metrics = useMemo(() => {
@@ -270,10 +219,10 @@ export function HorimetrosPageDB() {
     doc.text('Relatório de Horímetros', 14, 22);
     
     doc.setFontSize(10);
-    const dateRange = startDate && endDate 
-      ? `${format(startDate, 'dd/MM/yyyy')} até ${format(endDate, 'dd/MM/yyyy')}`
-      : 'Todo período';
-    doc.text(`Período: ${dateRange}`, 14, 30);
+    const dateInfo = selectedDate 
+      ? format(selectedDate, 'dd/MM/yyyy')
+      : 'Todas as datas';
+    doc.text(`Data: ${dateInfo}`, 14, 30);
     doc.text(`Gerado em: ${format(new Date(), 'dd/MM/yyyy HH:mm', { locale: ptBR })}`, 14, 36);
 
     const tableData = filteredReadings.map(r => [
@@ -403,56 +352,26 @@ export function HorimetrosPageDB() {
           />
         </div>
 
-        {/* Filters */}
+        {/* Date Filter */}
         <div className="flex flex-col md:flex-row gap-3 items-start md:items-center">
-          <div className="flex flex-wrap gap-2">
-            {['hoje', 'semana', 'mes', 'todos'].map(filter => (
-              <Button
-                key={filter}
-                variant={quickFilter === filter ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => applyQuickFilter(filter)}
-              >
-                {filter === 'hoje' ? 'Hoje' : filter === 'semana' ? 'Semana' : filter === 'mes' ? 'Mês' : 'Todos'}
-              </Button>
-            ))}
-          </div>
-
           <div className="flex gap-2 items-center">
             <Popover>
               <PopoverTrigger asChild>
                 <Button variant="outline" size="sm">
                   <Calendar className="w-4 h-4 mr-2" />
-                  {startDate ? format(startDate, 'dd/MM') : 'Início'}
+                  {selectedDate ? format(selectedDate, 'dd/MM/yyyy') : 'Selecionar Data'}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0 bg-background" align="start">
                 <CalendarComponent
                   mode="single"
-                  selected={startDate}
-                  onSelect={setStartDate}
+                  selected={selectedDate}
+                  onSelect={setSelectedDate}
                   locale={ptBR}
                 />
               </PopoverContent>
             </Popover>
-            <span className="text-muted-foreground">até</span>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" size="sm">
-                  <Calendar className="w-4 h-4 mr-2" />
-                  {endDate ? format(endDate, 'dd/MM') : 'Fim'}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0 bg-background" align="start">
-                <CalendarComponent
-                  mode="single"
-                  selected={endDate}
-                  onSelect={setEndDate}
-                  locale={ptBR}
-                />
-              </PopoverContent>
-            </Popover>
-            {(startDate || endDate) && (
+            {selectedDate && (
               <Button variant="ghost" size="sm" onClick={clearDateFilter}>
                 <X className="w-4 h-4" />
               </Button>
