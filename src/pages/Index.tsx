@@ -5,7 +5,7 @@ import { DashboardContent } from '@/components/Dashboard/DashboardContent';
 import { AbastecimentoPage } from '@/components/Pages/AbastecimentoPage';
 import { EstoquesPage } from '@/components/Pages/EstoquesPage';
 import { FrotaPage } from '@/components/Pages/FrotaPage';
-import { HorimetrosPage } from '@/components/Pages/HorimetrosPage';
+import { HorimetrosPageDB } from '@/components/Pages/HorimetrosPageDB';
 import { ManutencaoPage } from '@/components/Pages/ManutencaoPage';
 import { AlertasPage } from '@/components/Pages/AlertasPage';
 import { CadastroPage } from '@/components/Pages/CadastroPage';
@@ -28,7 +28,7 @@ const Index = () => {
       case 'frota':
         return <FrotaPage />;
       case 'horimetros':
-        return <HorimetrosPage />;
+        return <HorimetrosPageDB />;
       case 'manutencao':
         return <ManutencaoPage />;
       case 'alertas':
