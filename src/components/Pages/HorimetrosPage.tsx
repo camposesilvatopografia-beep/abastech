@@ -40,6 +40,7 @@ import autoTable from 'jspdf-autotable';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { HorimeterModal } from '@/components/Horimetros/HorimeterModal';
+import { ImportModal } from '@/components/Horimetros/ImportModal';
 import { supabase } from '@/integrations/supabase/client';
 import * as XLSX from 'xlsx';
 
@@ -120,6 +121,7 @@ export function HorimetrosPage() {
     vehiclesAffected: number;
   }>(null);
   const [autoFixEnabled, setAutoFixEnabled] = useState(true);
+  const [showImportModal, setShowImportModal] = useState(false);
 
   // Get unique categories from data
   const categories = useMemo(() => {
@@ -799,6 +801,10 @@ export function HorimetrosPage() {
                 <FileSpreadsheet className="w-4 h-4 sm:mr-2" />
                 <span className="hidden sm:inline">Excel</span>
               </Button>
+              <Button variant="outline" size="sm" onClick={() => setShowImportModal(true)} className="shrink-0">
+                <Upload className="w-4 h-4 sm:mr-2" />
+                <span className="hidden sm:inline">Importar</span>
+              </Button>
               <Button variant="outline" size="sm" onClick={syncData} disabled={loading || isTesting} className="shrink-0">
                 <RefreshCw className={cn("w-4 h-4 sm:mr-2", loading && "animate-spin")} />
                 <span className="hidden sm:inline">Sincronizar</span>
@@ -1363,6 +1369,13 @@ export function HorimetrosPage() {
         onSuccess={() => refetch()}
         initialVehicle={selectedPendingVehicle}
         editRecord={editingRecord}
+      />
+
+      {/* Import Modal */}
+      <ImportModal
+        open={showImportModal}
+        onOpenChange={setShowImportModal}
+        onSuccess={() => refetch()}
       />
     </div>
   );
