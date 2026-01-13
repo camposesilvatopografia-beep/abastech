@@ -818,11 +818,16 @@ export function FieldFuelForm({ user, onLogout }: FieldFuelFormProps) {
           .eq('id', savedRecord.id);
       }
 
+      // Haptic feedback - vibrate on success
+      if ('vibrate' in navigator) {
+        navigator.vibrate([100, 50, 100]); // Short vibration pattern
+      }
+
       setShowSuccess(true);
       setTimeout(() => {
         setShowSuccess(false);
         resetForm();
-      }, 2000);
+      }, 2500);
       
       // Update pending count
       await checkPendingRecords();
