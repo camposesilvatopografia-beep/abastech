@@ -57,7 +57,7 @@ import { DatabaseHorimeterModal } from '@/components/Horimetros/DatabaseHorimete
 import { SyncModal } from '@/components/Horimetros/SyncModal';
 import * as XLSX from 'xlsx';
 
-export function HorimetrosPage() {
+export function HorimetrosPageDB() {
   const { vehicles, loading: vehiclesLoading, refetch: refetchVehicles } = useVehicles();
   const { readings, loading: readingsLoading, refetch: refetchReadings, deleteReading } = useHorimeterReadings();
   const { toast } = useToast();
