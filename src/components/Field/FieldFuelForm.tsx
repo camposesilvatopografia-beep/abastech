@@ -196,9 +196,11 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
   };
 
   // Check if category is equipment
-  const isEquipment = category.toLowerCase().includes('equipamento') || 
-                      category.toLowerCase().includes('maquina') ||
-                      category.toLowerCase().includes('máquina');
+  const isEquipment = category ? (
+    category.toLowerCase().includes('equipamento') || 
+    category.toLowerCase().includes('maquina') ||
+    category.toLowerCase().includes('máquina')
+  ) : false;
 
   // Voice recognition
   const voice = useVoiceRecognition();
