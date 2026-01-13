@@ -1,0 +1,314 @@
+import { useState, useMemo } from 'react';
+import { 
+  Wrench,
+  RefreshCw,
+  FileSpreadsheet,
+  Plus,
+  Search,
+  Calendar,
+  ClipboardList,
+  LayoutGrid,
+  BarChart3,
+  TrendingUp,
+  Clock,
+  AlertTriangle,
+  CheckCircle,
+  Edit
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { MetricCard } from '@/components/Dashboard/MetricCard';
+import { Badge } from '@/components/ui/badge';
+import { useSheetData } from '@/hooks/useGoogleSheets';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { cn } from '@/lib/utils';
+
+const SHEET_NAME = 'Manutencao';
+
+const TABS = [
+  { id: 'ordens', label: 'Ordens de Serviço', icon: ClipboardList },
+  { id: 'quadro', label: 'Quadro Resumo', icon: LayoutGrid },
+  { id: 'ranking', label: 'Ranking', icon: BarChart3 },
+  { id: 'problemas', label: 'Problemas Recorrentes', icon: TrendingUp },
+];
+
+export function ManutencaoPage() {
+  const { data, loading, refetch } = useSheetData(SHEET_NAME);
+  const [activeTab, setActiveTab] = useState('ordens');
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+
+  const metrics = useMemo(() => {
+    let emManutencao = 0;
+    let aguardandoPecas = 0;
+    let urgentes = 0;
+    let finalizadas = 0;
+
+    data.rows.forEach(row => {
+      const status = String(row['STATUS'] || '').toLowerCase();
+      const prioridade = String(row['PRIORIDADE'] || '').toLowerCase();
+
+      if (status.includes('andamento') || status.includes('aberta')) {
+        emManutencao++;
+      }
+      if (status.includes('aguardando') || status.includes('peças') || status.includes('pecas')) {
+        aguardandoPecas++;
+      }
+      if (prioridade.includes('alta') || prioridade.includes('máxima') || prioridade.includes('urgente')) {
+        urgentes++;
+      }
+      if (status.includes('finalizada') || status.includes('concluída') || status.includes('concluida')) {
+        finalizadas++;
+      }
+    });
+
+    return { emManutencao, aguardandoPecas, urgentes, finalizadas };
+  }, [data.rows]);
+
+  const filteredRows = useMemo(() => {
+    return data.rows.filter(row => {
+      const matchesSearch = !search || 
+        Object.values(row).some(v => 
+          String(v).toLowerCase().includes(search.toLowerCase())
+        );
+      const status = String(row['STATUS'] || '').toLowerCase();
+      const matchesStatus = statusFilter === 'all' || status.includes(statusFilter);
+      
+      return matchesSearch && matchesStatus;
+    });
+  }, [data.rows, search, statusFilter]);
+
+  const getStatusBadge = (status: string) => {
+    const s = status.toLowerCase();
+    if (s.includes('finalizada') || s.includes('concluída')) {
+      return <Badge className="bg-success/20 text-success border-success/30">Finalizada</Badge>;
+    }
+    if (s.includes('andamento') || s.includes('aberta')) {
+      return <Badge className="bg-primary/20 text-primary border-primary/30">Em Andamento</Badge>;
+    }
+    if (s.includes('aguardando')) {
+      return <Badge className="bg-warning/20 text-warning border-warning/30">Aguardando</Badge>;
+    }
+    return <Badge variant="outline">{status}</Badge>;
+  };
+
+  const getTipoBadge = (tipo: string) => {
+    const t = tipo.toLowerCase();
+    if (t.includes('corretiva')) {
+      return <Badge className="bg-destructive/20 text-destructive border-destructive/30">Corretiva</Badge>;
+    }
+    if (t.includes('preventiva')) {
+      return <Badge className="bg-success/20 text-success border-success/30">Preventiva</Badge>;
+    }
+    return <Badge variant="outline">{tipo}</Badge>;
+  };
+
+  const getPrioridadeBadge = (prioridade: string) => {
+    const p = prioridade.toLowerCase();
+    if (p.includes('alta') || p.includes('máxima') || p.includes('urgente')) {
+      return <Badge className="bg-destructive/20 text-destructive border-destructive/30">Alta</Badge>;
+    }
+    if (p.includes('média') || p.includes('media')) {
+      return <Badge className="bg-warning/20 text-warning border-warning/30">Média</Badge>;
+    }
+    return <Badge className="bg-muted text-muted-foreground">Baixa</Badge>;
+  };
+
+  return (
+    <div className="flex-1 p-6 overflow-auto">
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex items-start justify-between">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
+              <Wrench className="w-6 h-6 text-primary" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold">Ordens de Serviço</h1>
+              <p className="text-muted-foreground">Gestão de manutenção preventiva e corretiva</p>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => refetch()} disabled={loading}>
+              <RefreshCw className={cn("w-4 h-4 mr-2", loading && "animate-spin")} />
+              Atualizar
+            </Button>
+            <Button variant="outline" size="sm">
+              <FileSpreadsheet className="w-4 h-4 mr-2" />
+              Exportar XLSX
+            </Button>
+            <Button className="bg-primary hover:bg-primary/90">
+              <Plus className="w-4 h-4 mr-2" />
+              Nova O.S.
+            </Button>
+          </div>
+        </div>
+
+        {/* Metric Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <MetricCard
+            title="EM MANUTENÇÃO"
+            value={metrics.emManutencao.toString()}
+            subtitle="Abertas + Em andamento"
+            variant="primary"
+            icon={Wrench}
+          />
+          <MetricCard
+            title="AGUARDANDO PEÇAS"
+            value={metrics.aguardandoPecas.toString()}
+            subtitle="Paradas por falta de peças"
+            variant="primary"
+            icon={Clock}
+          />
+          <MetricCard
+            title="URGENTES"
+            value={metrics.urgentes.toString()}
+            subtitle="Prioridade máxima"
+            variant="primary"
+            icon={AlertTriangle}
+          />
+          <MetricCard
+            title="FINALIZADAS"
+            value={metrics.finalizadas.toString()}
+            subtitle="Total concluídas"
+            variant="primary"
+            icon={CheckCircle}
+          />
+        </div>
+
+        {/* Tabs */}
+        <div className="flex items-center gap-2 border-b border-border">
+          {TABS.map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={cn(
+                "flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors border-b-2 -mb-px",
+                activeTab === tab.id
+                  ? "border-primary text-foreground bg-muted/50"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <tab.icon className="w-4 h-4" />
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Filters */}
+        <div className="flex items-center gap-4 flex-wrap">
+          <div className="relative flex-1 max-w-sm">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar veículo, nº OS, mecânico..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+          
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-48">
+              <SelectValue placeholder="Todos os Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os Status</SelectItem>
+              <SelectItem value="andamento">Em Andamento</SelectItem>
+              <SelectItem value="finalizada">Finalizada</SelectItem>
+              <SelectItem value="aguardando">Aguardando Peças</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">Data</span>
+            <span className="text-sm font-medium">Período</span>
+            <Button variant="outline" size="sm">
+              <Calendar className="w-4 h-4 mr-2" />
+              Selecionar data
+            </Button>
+            <Button variant="outline" size="sm">Hoje</Button>
+          </div>
+        </div>
+
+        <p className="text-sm text-muted-foreground">
+          {filteredRows.length} ordens encontradas • Período: <span className="font-medium text-foreground">Todo Período</span>
+        </p>
+
+        {/* Table */}
+        {activeTab === 'ordens' && (
+          <div className="bg-card rounded-lg border border-border overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/50">
+                  <TableHead>Nº OS</TableHead>
+                  <TableHead>Data</TableHead>
+                  <TableHead>Veículo</TableHead>
+                  <TableHead>Tipo</TableHead>
+                  <TableHead>Problema</TableHead>
+                  <TableHead>Mecânico</TableHead>
+                  <TableHead>Prioridade</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {loading ? (
+                  <TableRow>
+                    <TableCell colSpan={9} className="text-center py-8">
+                      <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-muted-foreground" />
+                      Carregando dados...
+                    </TableCell>
+                  </TableRow>
+                ) : filteredRows.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                      Nenhuma ordem de serviço encontrada
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredRows.slice(0, 50).map((row, index) => (
+                    <TableRow key={row._rowIndex || index}>
+                      <TableCell className="font-medium">{row['N_OS'] || row['OS'] || `OS-${String(index + 1).padStart(5, '0')}`}</TableCell>
+                      <TableCell>{row['DATA']}</TableCell>
+                      <TableCell>
+                        <div>
+                          <p className="font-medium">{row['VEICULO']}</p>
+                          <p className="text-xs text-muted-foreground">{row['DESCRICAO'] || row['TIPO_VEICULO']}</p>
+                        </div>
+                      </TableCell>
+                      <TableCell>{getTipoBadge(String(row['TIPO'] || 'Corretiva'))}</TableCell>
+                      <TableCell className="max-w-32 truncate">{row['PROBLEMA'] || row['DESCRICAO_PROBLEMA']}</TableCell>
+                      <TableCell>{row['MECANICO'] || row['RESPONSAVEL']}</TableCell>
+                      <TableCell>{getPrioridadeBadge(String(row['PRIORIDADE'] || 'Média'))}</TableCell>
+                      <TableCell>{getStatusBadge(String(row['STATUS'] || 'Em Andamento'))}</TableCell>
+                      <TableCell className="text-right">
+                        <Button variant="ghost" size="icon">
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
