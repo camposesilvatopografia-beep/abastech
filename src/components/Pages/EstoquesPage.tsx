@@ -132,6 +132,8 @@ export function EstoquesPage() {
       const arla = parseFloat(String(row['QUANTIDADE DE ARLA'] || '0').replace(',', '.')) || 0;
       const rowDate = String(row['DATA'] || '');
       const tipo = String(row['TIPO'] || '').toLowerCase();
+      const fornecedor = String(row['FORNECEDOR'] || '').trim();
+      const local = String(row['LOCAL'] || '').toLowerCase();
 
       totalDiesel += quantidade;
       totalArla += arla;
@@ -139,7 +141,11 @@ export function EstoquesPage() {
       if (rowDate === today) {
         if (tipo.includes('saida') || tipo.includes('saída')) {
           saidasHoje += quantidade;
-        } else if (tipo.includes('entrada')) {
+        }
+        
+        // Entradas de fornecedor apenas nos tanques 01 ou 02
+        if (fornecedor && (local.includes('tanque 01') || local.includes('tanque 02') || 
+            local.includes('tanque canteiro 01') || local.includes('tanque canteiro 02'))) {
           entradasHoje += quantidade;
         }
       }
@@ -152,7 +158,6 @@ export function EstoquesPage() {
     return {
       estoqueDiesel,
       estoqueArla,
-      saidasGeral: totalDiesel,
       saidasHoje,
       entradasHoje
     };
@@ -195,7 +200,7 @@ export function EstoquesPage() {
     doc.setFontSize(10);
     doc.text(`Estoque Diesel: ${metrics.estoqueDiesel.toLocaleString('pt-BR')} L`, 14, 54);
     doc.text(`Estoque Arla: ${metrics.estoqueArla.toLocaleString('pt-BR')} L`, 14, 60);
-    doc.text(`Saídas Período: ${metrics.saidasGeral.toLocaleString('pt-BR')} L`, 14, 66);
+    doc.text(`Saídas Hoje: ${metrics.saidasHoje.toLocaleString('pt-BR')} L`, 14, 66);
 
     // Table
     const tableData = stockHistory.map(([date, values]) => [
@@ -374,20 +379,13 @@ export function EstoquesPage() {
             title="ESTOQUE ARLA"
             value={`${metrics.estoqueArla.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L`}
             subtitle="Disponível"
-            variant="blue"
+            variant="primary"
             icon={Droplet}
           />
         </div>
 
         {/* Movement Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <MetricCard
-            title="SAÍDAS PERÍODO"
-            value={`${metrics.saidasGeral.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L`}
-            subtitle="Total no período"
-            variant="red"
-            icon={TrendingDown}
-          />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <MetricCard
             title="SAÍDAS HOJE"
             value={`${metrics.saidasHoje.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L`}
@@ -398,7 +396,7 @@ export function EstoquesPage() {
           <MetricCard
             title="ENTRADAS HOJE"
             value={`${metrics.entradasHoje.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L`}
-            subtitle="Reposição do dia"
+            subtitle="Fornecedor → Tanques 01/02"
             variant="green"
             icon={TrendingUp}
           />

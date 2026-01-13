@@ -2,26 +2,47 @@ import { useMemo, useState } from 'react';
 import { Trophy, TrendingUp, Fuel, ChevronDown, ChevronUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { startOfMonth, endOfMonth, isWithinInterval, parse, isValid } from 'date-fns';
 
 interface VehicleInfo {
   veiculo: string;
   descricao?: string;
 }
 
+interface ConsumptionData {
+  veiculo: string;
+  data?: string;
+  quantidade: number;
+}
+
+interface RankingItem {
+  veiculo: string;
+  totalLitros: number;
+  abastecimentos: number;
+  mediaPorAbastecimento: number;
+}
+
 interface ConsumptionRankingProps {
-  data: Array<{
-    veiculo: string;
-    totalLitros: number;
-    abastecimentos: number;
-    mediaPorAbastecimento: number;
-  }>;
+  data: RankingItem[];
+  rawData?: ConsumptionData[];
   vehicleData?: VehicleInfo[];
   title?: string;
   maxItems?: number;
 }
 
+function parseDate(dateStr: string): Date | null {
+  if (!dateStr) return null;
+  const formats = ['dd/MM/yyyy', 'yyyy-MM-dd', 'dd-MM-yyyy'];
+  for (const fmt of formats) {
+    const parsed = parse(dateStr, fmt, new Date());
+    if (isValid(parsed)) return parsed;
+  }
+  return null;
+}
+
 export function ConsumptionRanking({ 
   data, 
+  rawData = [],
   vehicleData = [],
   title = "Ranking de Consumo", 
   maxItems = 10 
@@ -29,9 +50,8 @@ export function ConsumptionRanking({
   const [periodFilter, setPeriodFilter] = useState<'total' | 'mes'>('total');
 
   // Filter out "CAMINHAO COMBOIO" vehicles based on description from vehicleData
-  const filteredData = useMemo(() => {
-    // Create a set of comboio vehicles based on description
-    const comboioVehicles = new Set(
+  const comboioVehicles = useMemo(() => {
+    return new Set(
       vehicleData
         .filter(v => {
           const desc = (v.descricao || '').toLowerCase();
@@ -39,21 +59,60 @@ export function ConsumptionRanking({
         })
         .map(v => v.veiculo.trim().toUpperCase())
     );
+  }, [vehicleData]);
 
-    return data.filter(item => {
-      const vehicleName = item.veiculo.trim().toUpperCase();
-      // Also check if the vehicle name itself contains "comboio"
-      if (vehicleName.includes('COMBOIO')) return false;
-      // Check against the vehicle descriptions
-      return !comboioVehicles.has(vehicleName);
-    });
-  }, [data, vehicleData]);
-
+  // Calculate ranking based on period filter
   const rankingData = useMemo(() => {
-    return filteredData
+    let sourceData: RankingItem[];
+
+    if (periodFilter === 'mes' && rawData.length > 0) {
+      // Filter raw data for current month and recalculate
+      const now = new Date();
+      const monthStart = startOfMonth(now);
+      const monthEnd = endOfMonth(now);
+
+      const vehicleMap = new Map<string, { totalLitros: number; abastecimentos: number }>();
+      
+      rawData.forEach(item => {
+        const veiculo = item.veiculo?.trim();
+        const quantidade = item.quantidade || 0;
+        
+        if (!veiculo || quantidade <= 0) return;
+        
+        // Check date is in current month
+        const itemDate = parseDate(item.data || '');
+        if (!itemDate || !isWithinInterval(itemDate, { start: monthStart, end: monthEnd })) {
+          return;
+        }
+        
+        const existing = vehicleMap.get(veiculo) || { totalLitros: 0, abastecimentos: 0 };
+        vehicleMap.set(veiculo, {
+          totalLitros: existing.totalLitros + quantidade,
+          abastecimentos: existing.abastecimentos + 1
+        });
+      });
+
+      sourceData = Array.from(vehicleMap.entries()).map(([veiculo, d]) => ({
+        veiculo,
+        totalLitros: d.totalLitros,
+        abastecimentos: d.abastecimentos,
+        mediaPorAbastecimento: d.abastecimentos > 0 ? d.totalLitros / d.abastecimentos : 0
+      }));
+    } else {
+      // Use pre-calculated total data
+      sourceData = data;
+    }
+
+    // Filter out comboios and sort
+    return sourceData
+      .filter(item => {
+        const vehicleName = item.veiculo.trim().toUpperCase();
+        if (vehicleName.includes('COMBOIO')) return false;
+        return !comboioVehicles.has(vehicleName);
+      })
       .sort((a, b) => b.totalLitros - a.totalLitros)
       .slice(0, maxItems);
-  }, [filteredData, maxItems]);
+  }, [data, rawData, periodFilter, comboioVehicles, maxItems]);
 
   const maxConsumption = rankingData[0]?.totalLitros || 1;
 
@@ -158,7 +217,9 @@ export function ConsumptionRanking({
       {/* Summary Footer */}
       <div className="p-4 border-t border-border bg-muted/30">
         <div className="flex justify-between text-sm">
-          <span className="text-muted-foreground">Total (Top {rankingData.length}):</span>
+          <span className="text-muted-foreground">
+            Total (Top {rankingData.length}) - {periodFilter === 'mes' ? 'Mês Atual' : 'Acumulado'}:
+          </span>
           <span className="font-semibold">
             {rankingData.reduce((sum, item) => sum + item.totalLitros, 0).toLocaleString('pt-BR', { minimumFractionDigits: 1 })} L
           </span>
