@@ -14,7 +14,10 @@ import {
   ArrowLeft,
   LogOut,
   CheckCircle,
-  X
+  X,
+  Image,
+  Loader2,
+  Trash2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -108,6 +111,16 @@ export function FieldFuelForm({ user, onLogout }: FieldFuelFormProps) {
   const [showSuccess, setShowSuccess] = useState(false);
   const [activeVoiceField, setActiveVoiceField] = useState<string | null>(null);
   
+  // Photo state
+  const [photoPump, setPhotoPump] = useState<File | null>(null);
+  const [photoPumpPreview, setPhotoPumpPreview] = useState<string | null>(null);
+  const [photoHorimeter, setPhotoHorimeter] = useState<File | null>(null);
+  const [photoHorimeterPreview, setPhotoHorimeterPreview] = useState<string | null>(null);
+  const [isUploadingPhotos, setIsUploadingPhotos] = useState(false);
+  
+  const photoPumpInputRef = useRef<HTMLInputElement>(null);
+  const photoHorimeterInputRef = useRef<HTMLInputElement>(null);
+  
   // Form state
   const [vehicleCode, setVehicleCode] = useState('');
   const [vehicleDescription, setVehicleDescription] = useState('');
@@ -125,6 +138,62 @@ export function FieldFuelForm({ user, onLogout }: FieldFuelFormProps) {
 
   // Voice recognition
   const voice = useVoiceRecognition();
+
+  // Handle photo capture
+  const handlePhotoCapture = (type: 'pump' | 'horimeter') => (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Create preview
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const preview = reader.result as string;
+      if (type === 'pump') {
+        setPhotoPump(file);
+        setPhotoPumpPreview(preview);
+      } else {
+        setPhotoHorimeter(file);
+        setPhotoHorimeterPreview(preview);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const removePhoto = (type: 'pump' | 'horimeter') => {
+    if (type === 'pump') {
+      setPhotoPump(null);
+      setPhotoPumpPreview(null);
+      if (photoPumpInputRef.current) photoPumpInputRef.current.value = '';
+    } else {
+      setPhotoHorimeter(null);
+      setPhotoHorimeterPreview(null);
+      if (photoHorimeterInputRef.current) photoHorimeterInputRef.current.value = '';
+    }
+  };
+
+  const uploadPhoto = async (file: File, type: 'pump' | 'horimeter'): Promise<string | null> => {
+    const timestamp = Date.now();
+    const ext = file.name.split('.').pop() || 'jpg';
+    const fileName = `${user.id}/${type}_${timestamp}.${ext}`;
+
+    const { data, error } = await supabase.storage
+      .from('field-photos')
+      .upload(fileName, file, {
+        cacheControl: '3600',
+        upsert: false,
+      });
+
+    if (error) {
+      console.error('Upload error:', error);
+      return null;
+    }
+
+    const { data: urlData } = supabase.storage
+      .from('field-photos')
+      .getPublicUrl(data.path);
+
+    return urlData.publicUrl;
+  };
 
   // Process voice commands
   useEffect(() => {
@@ -212,8 +281,25 @@ export function FieldFuelForm({ user, onLogout }: FieldFuelFormProps) {
     }
 
     setIsSaving(true);
+    setIsUploadingPhotos(true);
 
     try {
+      // Upload photos first
+      let photoPumpUrl: string | null = null;
+      let photoHorimeterUrl: string | null = null;
+
+      if (photoPump) {
+        toast.info('Enviando foto da bomba...');
+        photoPumpUrl = await uploadPhoto(photoPump, 'pump');
+      }
+
+      if (photoHorimeter) {
+        toast.info('Enviando foto do horímetro...');
+        photoHorimeterUrl = await uploadPhoto(photoHorimeter, 'horimeter');
+      }
+
+      setIsUploadingPhotos(false);
+
       const { error } = await supabase
         .from('field_fuel_records')
         .insert({
@@ -230,7 +316,9 @@ export function FieldFuelForm({ user, onLogout }: FieldFuelFormProps) {
           fuel_type: fuelType,
           arla_quantity: parseFloat(arlaQuantity) || 0,
           location,
-          observations
+          observations,
+          photo_pump_url: photoPumpUrl,
+          photo_horimeter_url: photoHorimeterUrl
         });
 
       if (error) throw error;
@@ -247,6 +335,7 @@ export function FieldFuelForm({ user, onLogout }: FieldFuelFormProps) {
       toast.error('Erro ao salvar');
     } finally {
       setIsSaving(false);
+      setIsUploadingPhotos(false);
     }
   };
 
@@ -262,6 +351,12 @@ export function FieldFuelForm({ user, onLogout }: FieldFuelFormProps) {
     setFuelQuantity('');
     setArlaQuantity('');
     setObservations('');
+    setPhotoPump(null);
+    setPhotoPumpPreview(null);
+    setPhotoHorimeter(null);
+    setPhotoHorimeterPreview(null);
+    if (photoPumpInputRef.current) photoPumpInputRef.current.value = '';
+    if (photoHorimeterInputRef.current) photoHorimeterInputRef.current.value = '';
   };
 
   // Get unique vehicles from sheet
@@ -477,6 +572,98 @@ export function FieldFuelForm({ user, onLogout }: FieldFuelFormProps) {
           </Select>
         </div>
 
+        {/* Photos Section */}
+        <div className="bg-card rounded-xl border border-border p-4 space-y-4">
+          <Label className="flex items-center gap-2 text-base">
+            <Camera className="w-4 h-4" />
+            Fotos (Opcional)
+          </Label>
+          
+          <div className="grid grid-cols-2 gap-4">
+            {/* Pump Photo */}
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-muted-foreground">Foto da Bomba</p>
+              <input
+                ref={photoPumpInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={handlePhotoCapture('pump')}
+                className="hidden"
+              />
+              {photoPumpPreview ? (
+                <div className="relative">
+                  <img 
+                    src={photoPumpPreview} 
+                    alt="Bomba" 
+                    className="w-full h-32 object-cover rounded-lg border border-border"
+                  />
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="destructive"
+                    className="absolute -top-2 -right-2 h-6 w-6"
+                    onClick={() => removePhoto('pump')}
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full h-32 flex flex-col gap-2"
+                  onClick={() => photoPumpInputRef.current?.click()}
+                >
+                  <Camera className="w-8 h-8 text-muted-foreground" />
+                  <span className="text-xs text-muted-foreground">Tirar Foto</span>
+                </Button>
+              )}
+            </div>
+
+            {/* Horimeter Photo */}
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-muted-foreground">Foto do Horímetro</p>
+              <input
+                ref={photoHorimeterInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={handlePhotoCapture('horimeter')}
+                className="hidden"
+              />
+              {photoHorimeterPreview ? (
+                <div className="relative">
+                  <img 
+                    src={photoHorimeterPreview} 
+                    alt="Horímetro" 
+                    className="w-full h-32 object-cover rounded-lg border border-border"
+                  />
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="destructive"
+                    className="absolute -top-2 -right-2 h-6 w-6"
+                    onClick={() => removePhoto('horimeter')}
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full h-32 flex flex-col gap-2"
+                  onClick={() => photoHorimeterInputRef.current?.click()}
+                >
+                  <Gauge className="w-8 h-8 text-muted-foreground" />
+                  <span className="text-xs text-muted-foreground">Tirar Foto</span>
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+
         {/* Observations */}
         <div className="bg-card rounded-xl border border-border p-4 space-y-3">
           <div className="flex items-center justify-between">
@@ -506,11 +693,19 @@ export function FieldFuelForm({ user, onLogout }: FieldFuelFormProps) {
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-background border-t border-border">
         <Button 
           onClick={handleSave} 
-          disabled={isSaving || !vehicleCode || !fuelQuantity}
+          disabled={isSaving || isUploadingPhotos || !vehicleCode || !fuelQuantity}
           className="w-full h-14 text-lg gap-2"
         >
-          {isSaving ? (
-            'Salvando...'
+          {isUploadingPhotos ? (
+            <>
+              <Loader2 className="w-5 h-5 animate-spin" />
+              Enviando fotos...
+            </>
+          ) : isSaving ? (
+            <>
+              <Loader2 className="w-5 h-5 animate-spin" />
+              Salvando...
+            </>
           ) : (
             <>
               <Save className="w-5 h-5" />
