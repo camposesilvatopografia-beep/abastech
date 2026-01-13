@@ -13,7 +13,9 @@ import {
   Clock,
   AlertTriangle,
   CheckCircle,
-  Edit
+  Edit,
+  FileText,
+  X
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -36,6 +38,12 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
+import { format, parse, isValid, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 
 const SHEET_NAME = 'Manutencao';
 
@@ -46,11 +54,91 @@ const TABS = [
   { id: 'problemas', label: 'Problemas Recorrentes', icon: TrendingUp },
 ];
 
+function parseDate(dateStr: string): Date | null {
+  if (!dateStr) return null;
+  const formats = ['dd/MM/yyyy', 'yyyy-MM-dd', 'dd-MM-yyyy'];
+  for (const fmt of formats) {
+    const parsed = parse(dateStr, fmt, new Date());
+    if (isValid(parsed)) return parsed;
+  }
+  return null;
+}
+
 export function ManutencaoPage() {
   const { data, loading, refetch } = useSheetData(SHEET_NAME);
   const [activeTab, setActiveTab] = useState('ordens');
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [startDate, setStartDate] = useState<Date | undefined>(undefined);
+  const [endDate, setEndDate] = useState<Date | undefined>(undefined);
+  const [quickFilter, setQuickFilter] = useState<string | null>(null);
+
+  const applyQuickFilter = (filter: string) => {
+    const today = new Date();
+    setQuickFilter(filter);
+    
+    switch (filter) {
+      case 'hoje':
+        setStartDate(today);
+        setEndDate(today);
+        break;
+      case 'semana':
+        const weekStart = new Date(today);
+        weekStart.setDate(today.getDate() - 7);
+        setStartDate(weekStart);
+        setEndDate(today);
+        break;
+      case 'mes':
+        const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+        setStartDate(monthStart);
+        setEndDate(today);
+        break;
+      case 'todos':
+        setStartDate(undefined);
+        setEndDate(undefined);
+        break;
+    }
+  };
+
+  const clearDateFilter = () => {
+    setStartDate(undefined);
+    setEndDate(undefined);
+    setQuickFilter(null);
+  };
+
+  const filteredRows = useMemo(() => {
+    return data.rows.filter(row => {
+      const matchesSearch = !search || 
+        Object.values(row).some(v => 
+          String(v).toLowerCase().includes(search.toLowerCase())
+        );
+      const status = String(row['STATUS'] || '').toLowerCase();
+      const matchesStatus = statusFilter === 'all' || status.includes(statusFilter);
+      
+      let matchesDate = true;
+      if (startDate || endDate) {
+        const rowDateStr = String(row['DATA'] || '');
+        const rowDate = parseDate(rowDateStr);
+        
+        if (rowDate) {
+          if (startDate && endDate) {
+            matchesDate = isWithinInterval(rowDate, {
+              start: startOfDay(startDate),
+              end: endOfDay(endDate)
+            });
+          } else if (startDate) {
+            matchesDate = rowDate >= startOfDay(startDate);
+          } else if (endDate) {
+            matchesDate = rowDate <= endOfDay(endDate);
+          }
+        } else {
+          matchesDate = false;
+        }
+      }
+      
+      return matchesSearch && matchesStatus && matchesDate;
+    });
+  }, [data.rows, search, statusFilter, startDate, endDate]);
 
   const metrics = useMemo(() => {
     let emManutencao = 0;
@@ -58,7 +146,7 @@ export function ManutencaoPage() {
     let urgentes = 0;
     let finalizadas = 0;
 
-    data.rows.forEach(row => {
+    filteredRows.forEach(row => {
       const status = String(row['STATUS'] || '').toLowerCase();
       const prioridade = String(row['PRIORIDADE'] || '').toLowerCase();
 
@@ -77,20 +165,7 @@ export function ManutencaoPage() {
     });
 
     return { emManutencao, aguardandoPecas, urgentes, finalizadas };
-  }, [data.rows]);
-
-  const filteredRows = useMemo(() => {
-    return data.rows.filter(row => {
-      const matchesSearch = !search || 
-        Object.values(row).some(v => 
-          String(v).toLowerCase().includes(search.toLowerCase())
-        );
-      const status = String(row['STATUS'] || '').toLowerCase();
-      const matchesStatus = statusFilter === 'all' || status.includes(statusFilter);
-      
-      return matchesSearch && matchesStatus;
-    });
-  }, [data.rows, search, statusFilter]);
+  }, [filteredRows]);
 
   const getStatusBadge = (status: string) => {
     const s = status.toLowerCase();
@@ -128,6 +203,49 @@ export function ManutencaoPage() {
     return <Badge className="bg-muted text-muted-foreground">Baixa</Badge>;
   };
 
+  const exportToPDF = () => {
+    const doc = new jsPDF('landscape');
+    
+    doc.setFontSize(18);
+    doc.text('Relatório de Ordens de Serviço', 14, 22);
+    
+    doc.setFontSize(10);
+    const dateRange = startDate && endDate 
+      ? `${format(startDate, 'dd/MM/yyyy')} até ${format(endDate, 'dd/MM/yyyy')}`
+      : 'Todo período';
+    doc.text(`Período: ${dateRange}`, 14, 30);
+    doc.text(`Gerado em: ${format(new Date(), 'dd/MM/yyyy HH:mm', { locale: ptBR })}`, 14, 36);
+
+    doc.setFontSize(12);
+    doc.text('Resumo:', 14, 46);
+    doc.setFontSize(10);
+    doc.text(`Em Manutenção: ${metrics.emManutencao}`, 14, 54);
+    doc.text(`Aguardando Peças: ${metrics.aguardandoPecas}`, 14, 60);
+    doc.text(`Urgentes: ${metrics.urgentes}`, 100, 54);
+    doc.text(`Finalizadas: ${metrics.finalizadas}`, 100, 60);
+
+    const tableData = filteredRows.slice(0, 100).map((row, index) => [
+      String(row['N_OS'] || row['OS'] || `OS-${String(index + 1).padStart(5, '0')}`),
+      String(row['DATA'] || ''),
+      String(row['VEICULO'] || ''),
+      String(row['TIPO'] || 'Corretiva'),
+      String(row['PROBLEMA'] || row['DESCRICAO_PROBLEMA'] || '').slice(0, 30),
+      String(row['MECANICO'] || row['RESPONSAVEL'] || ''),
+      String(row['PRIORIDADE'] || 'Média'),
+      String(row['STATUS'] || 'Em Andamento')
+    ]);
+
+    autoTable(doc, {
+      head: [['Nº OS', 'Data', 'Veículo', 'Tipo', 'Problema', 'Mecânico', 'Prioridade', 'Status']],
+      body: tableData,
+      startY: 70,
+      styles: { fontSize: 7 },
+      headStyles: { fillColor: [59, 130, 246] }
+    });
+
+    doc.save(`manutencao_${format(new Date(), 'yyyy-MM-dd')}.pdf`);
+  };
+
   return (
     <div className="flex-1 p-6 overflow-auto">
       <div className="space-y-6">
@@ -147,6 +265,10 @@ export function ManutencaoPage() {
             <Button variant="outline" size="sm" onClick={() => refetch()} disabled={loading}>
               <RefreshCw className={cn("w-4 h-4 mr-2", loading && "animate-spin")} />
               Atualizar
+            </Button>
+            <Button variant="outline" size="sm" onClick={exportToPDF}>
+              <FileText className="w-4 h-4 mr-2" />
+              Exportar PDF
             </Button>
             <Button variant="outline" size="sm">
               <FileSpreadsheet className="w-4 h-4 mr-2" />
@@ -185,7 +307,7 @@ export function ManutencaoPage() {
           <MetricCard
             title="FINALIZADAS"
             value={metrics.finalizadas.toString()}
-            subtitle="Total concluídas"
+            subtitle="Total no período"
             variant="primary"
             icon={CheckCircle}
           />
@@ -211,43 +333,126 @@ export function ManutencaoPage() {
         </div>
 
         {/* Filters */}
-        <div className="flex items-center gap-4 flex-wrap">
-          <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar veículo, nº OS, mecânico..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-          
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-48">
-              <SelectValue placeholder="Todos os Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos os Status</SelectItem>
-              <SelectItem value="andamento">Em Andamento</SelectItem>
-              <SelectItem value="finalizada">Finalizada</SelectItem>
-              <SelectItem value="aguardando">Aguardando Peças</SelectItem>
-            </SelectContent>
-          </Select>
+        <div className="bg-card rounded-lg border border-border p-4 space-y-4">
+          <div className="flex items-center gap-4 flex-wrap">
+            <div className="relative flex-1 max-w-sm">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar veículo, nº OS, mecânico..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="Todos os Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os Status</SelectItem>
+                <SelectItem value="andamento">Em Andamento</SelectItem>
+                <SelectItem value="finalizada">Finalizada</SelectItem>
+                <SelectItem value="aguardando">Aguardando Peças</SelectItem>
+              </SelectContent>
+            </Select>
 
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">Data</span>
-            <span className="text-sm font-medium">Período</span>
-            <Button variant="outline" size="sm">
-              <Calendar className="w-4 h-4 mr-2" />
-              Selecionar data
-            </Button>
-            <Button variant="outline" size="sm">Hoje</Button>
+            <div className="flex items-center gap-2">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-2">
+                    <Calendar className="w-4 h-4" />
+                    {startDate ? format(startDate, 'dd/MM/yyyy') : 'Data início'}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <CalendarComponent
+                    mode="single"
+                    selected={startDate}
+                    onSelect={(date) => {
+                      setStartDate(date);
+                      setQuickFilter(null);
+                    }}
+                    locale={ptBR}
+                  />
+                </PopoverContent>
+              </Popover>
+              
+              <span className="text-sm text-muted-foreground">até</span>
+              
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-2">
+                    <Calendar className="w-4 h-4" />
+                    {endDate ? format(endDate, 'dd/MM/yyyy') : 'Data fim'}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <CalendarComponent
+                    mode="single"
+                    selected={endDate}
+                    onSelect={(date) => {
+                      setEndDate(date);
+                      setQuickFilter(null);
+                    }}
+                    locale={ptBR}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-4 flex-wrap">
+            <div className="flex items-center gap-2">
+              <Button
+                variant={quickFilter === 'hoje' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => applyQuickFilter('hoje')}
+              >
+                Hoje
+              </Button>
+              <Button
+                variant={quickFilter === 'semana' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => applyQuickFilter('semana')}
+              >
+                7 dias
+              </Button>
+              <Button
+                variant={quickFilter === 'mes' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => applyQuickFilter('mes')}
+              >
+                Mês
+              </Button>
+              <Button
+                variant={quickFilter === 'todos' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => applyQuickFilter('todos')}
+              >
+                Todos
+              </Button>
+            </div>
+
+            {(startDate || endDate) && (
+              <Button variant="ghost" size="sm" onClick={clearDateFilter}>
+                <X className="w-4 h-4 mr-1" />
+                Limpar
+              </Button>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2 text-sm">
+            <Calendar className="w-4 h-4 text-muted-foreground" />
+            <span className="text-muted-foreground">Período:</span>
+            <span className="font-medium">
+              {startDate && endDate 
+                ? `${format(startDate, 'dd/MM/yyyy')} até ${format(endDate, 'dd/MM/yyyy')}`
+                : 'Todo período'}
+            </span>
+            <span className="text-muted-foreground">• {filteredRows.length} ordens</span>
           </div>
         </div>
-
-        <p className="text-sm text-muted-foreground">
-          {filteredRows.length} ordens encontradas • Período: <span className="font-medium text-foreground">Todo Período</span>
-        </p>
 
         {/* Table */}
         {activeTab === 'ordens' && (
@@ -277,7 +482,7 @@ export function ManutencaoPage() {
                 ) : filteredRows.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
-                      Nenhuma ordem de serviço encontrada
+                      Nenhuma ordem de serviço encontrada para o período
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -306,6 +511,23 @@ export function ManutencaoPage() {
                 )}
               </TableBody>
             </Table>
+          </div>
+        )}
+
+        {/* Other tabs content */}
+        {activeTab === 'quadro' && (
+          <div className="bg-card rounded-lg border border-border p-8 text-center text-muted-foreground">
+            Quadro Resumo - Em desenvolvimento
+          </div>
+        )}
+        {activeTab === 'ranking' && (
+          <div className="bg-card rounded-lg border border-border p-8 text-center text-muted-foreground">
+            Ranking - Em desenvolvimento
+          </div>
+        )}
+        {activeTab === 'problemas' && (
+          <div className="bg-card rounded-lg border border-border p-8 text-center text-muted-foreground">
+            Problemas Recorrentes - Em desenvolvimento
           </div>
         )}
       </div>

@@ -9,7 +9,9 @@ import {
   Settings,
   Plus,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
+  Calendar,
+  X
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,7 +24,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { cn } from '@/lib/utils';
+import { format, parse, isValid, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 
 const SHEET_NAME = 'Veiculos';
 
@@ -38,6 +54,16 @@ interface VehicleGroup {
   }>;
 }
 
+function parseDate(dateStr: string): Date | null {
+  if (!dateStr) return null;
+  const formats = ['dd/MM/yyyy', 'yyyy-MM-dd', 'dd-MM-yyyy'];
+  for (const fmt of formats) {
+    const parsed = parse(dateStr, fmt, new Date());
+    if (isValid(parsed)) return parsed;
+  }
+  return null;
+}
+
 export function FrotaPage() {
   const { data, loading, refetch } = useSheetData(SHEET_NAME);
   const [search, setSearch] = useState('');
@@ -45,25 +71,42 @@ export function FrotaPage() {
   const [tipoFilter, setTipoFilter] = useState('all');
   const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
   const [viewMode, setViewMode] = useState<'tipo' | 'tabela'>('tipo');
+  const [startDate, setStartDate] = useState<Date | undefined>(undefined);
+  const [endDate, setEndDate] = useState<Date | undefined>(undefined);
+  const [quickFilter, setQuickFilter] = useState<string | null>(null);
 
-  const metrics = useMemo(() => {
-    const empresas = new Set<string>();
-    const categorias = new Set<string>();
+  const applyQuickFilter = (filter: string) => {
+    const today = new Date();
+    setQuickFilter(filter);
     
-    data.rows.forEach(row => {
-      const empresa = String(row['EMPRESA'] || '').trim();
-      const categoria = String(row['CATEGORIA'] || row['TIPO'] || '').trim();
-      if (empresa) empresas.add(empresa);
-      if (categoria) categorias.add(categoria);
-    });
+    switch (filter) {
+      case 'hoje':
+        setStartDate(today);
+        setEndDate(today);
+        break;
+      case 'semana':
+        const weekStart = new Date(today);
+        weekStart.setDate(today.getDate() - 7);
+        setStartDate(weekStart);
+        setEndDate(today);
+        break;
+      case 'mes':
+        const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+        setStartDate(monthStart);
+        setEndDate(today);
+        break;
+      case 'todos':
+        setStartDate(undefined);
+        setEndDate(undefined);
+        break;
+    }
+  };
 
-    return {
-      totalVeiculos: data.rows.length,
-      tiposEquipamento: categorias.size,
-      empresas: empresas.size,
-      veiculosAtivos: data.rows.length
-    };
-  }, [data.rows]);
+  const clearDateFilter = () => {
+    setStartDate(undefined);
+    setEndDate(undefined);
+    setQuickFilter(null);
+  };
 
   const empresas = useMemo(() => {
     const unique = new Set<string>();
@@ -83,10 +126,62 @@ export function FrotaPage() {
     return Array.from(unique);
   }, [data.rows]);
 
+  const filteredRows = useMemo(() => {
+    return data.rows.filter(row => {
+      const matchesSearch = !search || 
+        Object.values(row).some(v => 
+          String(v).toLowerCase().includes(search.toLowerCase())
+        );
+      const matchesEmpresa = empresaFilter === 'all' || row['EMPRESA'] === empresaFilter;
+      const matchesTipo = tipoFilter === 'all' || row['TIPO'] === tipoFilter || row['CATEGORIA'] === tipoFilter;
+      
+      // Date filter
+      let matchesDate = true;
+      if (startDate || endDate) {
+        const rowDateStr = String(row['DATA'] || row['DATA_CADASTRO'] || '');
+        const rowDate = parseDate(rowDateStr);
+        
+        if (rowDate) {
+          if (startDate && endDate) {
+            matchesDate = isWithinInterval(rowDate, {
+              start: startOfDay(startDate),
+              end: endOfDay(endDate)
+            });
+          } else if (startDate) {
+            matchesDate = rowDate >= startOfDay(startDate);
+          } else if (endDate) {
+            matchesDate = rowDate <= endOfDay(endDate);
+          }
+        }
+      }
+      
+      return matchesSearch && matchesEmpresa && matchesTipo && matchesDate;
+    });
+  }, [data.rows, search, empresaFilter, tipoFilter, startDate, endDate]);
+
+  const metrics = useMemo(() => {
+    const empresasSet = new Set<string>();
+    const categorias = new Set<string>();
+    
+    filteredRows.forEach(row => {
+      const empresa = String(row['EMPRESA'] || '').trim();
+      const categoria = String(row['CATEGORIA'] || row['TIPO'] || '').trim();
+      if (empresa) empresasSet.add(empresa);
+      if (categoria) categorias.add(categoria);
+    });
+
+    return {
+      totalVeiculos: filteredRows.length,
+      tiposEquipamento: categorias.size,
+      empresas: empresasSet.size,
+      veiculosAtivos: filteredRows.length
+    };
+  }, [filteredRows]);
+
   const groupedVehicles = useMemo(() => {
     const groups: Record<string, VehicleGroup> = {};
     
-    data.rows.forEach(row => {
+    filteredRows.forEach(row => {
       const tipo = String(row['TIPO'] || row['CATEGORIA'] || 'Outros').trim();
       const empresa = String(row['EMPRESA'] || '').trim();
       const codigo = String(row['CODIGO'] || row['VEICULO'] || '').trim();
@@ -101,32 +196,56 @@ export function FrotaPage() {
       groups[tipo].items.push({ codigo, descricao, empresa, categoria });
     });
 
-    // Count unique empresas per group
     Object.values(groups).forEach(group => {
       const uniqueEmpresas = new Set(group.items.map(i => i.empresa));
       group.empresas = uniqueEmpresas.size;
     });
 
     return Object.values(groups);
-  }, [data.rows]);
-
-  const filteredRows = useMemo(() => {
-    return data.rows.filter(row => {
-      const matchesSearch = !search || 
-        Object.values(row).some(v => 
-          String(v).toLowerCase().includes(search.toLowerCase())
-        );
-      const matchesEmpresa = empresaFilter === 'all' || row['EMPRESA'] === empresaFilter;
-      const matchesTipo = tipoFilter === 'all' || row['TIPO'] === tipoFilter || row['CATEGORIA'] === tipoFilter;
-      
-      return matchesSearch && matchesEmpresa && matchesTipo;
-    });
-  }, [data.rows, search, empresaFilter, tipoFilter]);
+  }, [filteredRows]);
 
   const toggleGroup = (name: string) => {
     setExpandedGroups(prev => 
       prev.includes(name) ? prev.filter(g => g !== name) : [...prev, name]
     );
+  };
+
+  const exportToPDF = () => {
+    const doc = new jsPDF();
+    
+    doc.setFontSize(18);
+    doc.text('Relatório de Frota', 14, 22);
+    
+    doc.setFontSize(10);
+    const dateRange = startDate && endDate 
+      ? `${format(startDate, 'dd/MM/yyyy')} até ${format(endDate, 'dd/MM/yyyy')}`
+      : 'Todo período';
+    doc.text(`Período: ${dateRange}`, 14, 30);
+    doc.text(`Gerado em: ${format(new Date(), 'dd/MM/yyyy HH:mm', { locale: ptBR })}`, 14, 36);
+
+    doc.setFontSize(12);
+    doc.text('Resumo:', 14, 46);
+    doc.setFontSize(10);
+    doc.text(`Total de Veículos: ${metrics.totalVeiculos}`, 14, 54);
+    doc.text(`Tipos de Equipamento: ${metrics.tiposEquipamento}`, 14, 60);
+    doc.text(`Empresas: ${metrics.empresas}`, 14, 66);
+
+    const tableData = filteredRows.slice(0, 100).map(row => [
+      String(row['CODIGO'] || row['VEICULO'] || ''),
+      String(row['DESCRICAO'] || row['DESCRIÇÃO'] || ''),
+      String(row['TIPO'] || row['CATEGORIA'] || ''),
+      String(row['EMPRESA'] || '')
+    ]);
+
+    autoTable(doc, {
+      head: [['Código', 'Descrição', 'Tipo', 'Empresa']],
+      body: tableData,
+      startY: 76,
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: [59, 130, 246] }
+    });
+
+    doc.save(`frota_${format(new Date(), 'yyyy-MM-dd')}.pdf`);
   };
 
   return (
@@ -150,15 +269,12 @@ export function FrotaPage() {
               Atualizar
             </Button>
             <Button variant="outline" size="sm">
-              Testar Sync
-            </Button>
-            <Button variant="outline" size="sm">
               <Printer className="w-4 h-4 mr-2" />
               Imprimir
             </Button>
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" onClick={exportToPDF}>
               <FileText className="w-4 h-4 mr-2" />
-              Gerar PDF
+              Exportar PDF
             </Button>
             <Button className="bg-primary hover:bg-primary/90">
               <Plus className="w-4 h-4 mr-2" />
@@ -171,7 +287,7 @@ export function FrotaPage() {
         <div className="flex items-center gap-2 text-sm">
           <span className="w-2 h-2 rounded-full bg-success" />
           <span className="text-success font-medium">Conectado ao Google Sheets</span>
-          <span className="text-muted-foreground">• {data.rows.length} veículos</span>
+          <span className="text-muted-foreground">• {filteredRows.length} veículos</span>
         </div>
 
         {/* Metric Cards */}
@@ -179,7 +295,7 @@ export function FrotaPage() {
           <MetricCard
             title="TOTAL DE VEÍCULOS"
             value={metrics.totalVeiculos.toString()}
-            subtitle="Cadastrados"
+            subtitle="No período"
             variant="primary"
             icon={Truck}
           />
@@ -207,7 +323,7 @@ export function FrotaPage() {
         </div>
 
         {/* Filters */}
-        <div className="bg-card rounded-lg border border-border p-4">
+        <div className="bg-card rounded-lg border border-border p-4 space-y-4">
           <div className="flex items-center gap-4 flex-wrap">
             <div className="relative flex-1 max-w-md">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -244,12 +360,100 @@ export function FrotaPage() {
                 ))}
               </SelectContent>
             </Select>
-
-            <Button variant="outline" size="sm">Expandir Todos</Button>
-            <Button variant="outline" size="sm">Recolher Todos</Button>
           </div>
 
-          <p className="mt-3 text-sm text-muted-foreground">
+          <div className="flex items-center gap-4 flex-wrap">
+            <div className="flex items-center gap-2">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-2">
+                    <Calendar className="w-4 h-4" />
+                    {startDate ? format(startDate, 'dd/MM/yyyy') : 'Data início'}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <CalendarComponent
+                    mode="single"
+                    selected={startDate}
+                    onSelect={(date) => {
+                      setStartDate(date);
+                      setQuickFilter(null);
+                    }}
+                    locale={ptBR}
+                  />
+                </PopoverContent>
+              </Popover>
+              
+              <span className="text-sm text-muted-foreground">até</span>
+              
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-2">
+                    <Calendar className="w-4 h-4" />
+                    {endDate ? format(endDate, 'dd/MM/yyyy') : 'Data fim'}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <CalendarComponent
+                    mode="single"
+                    selected={endDate}
+                    onSelect={(date) => {
+                      setEndDate(date);
+                      setQuickFilter(null);
+                    }}
+                    locale={ptBR}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Button
+                variant={quickFilter === 'hoje' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => applyQuickFilter('hoje')}
+              >
+                Hoje
+              </Button>
+              <Button
+                variant={quickFilter === 'semana' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => applyQuickFilter('semana')}
+              >
+                7 dias
+              </Button>
+              <Button
+                variant={quickFilter === 'mes' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => applyQuickFilter('mes')}
+              >
+                Mês
+              </Button>
+              <Button
+                variant={quickFilter === 'todos' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => applyQuickFilter('todos')}
+              >
+                Todos
+              </Button>
+            </div>
+
+            {(startDate || endDate) && (
+              <Button variant="ghost" size="sm" onClick={clearDateFilter}>
+                <X className="w-4 h-4 mr-1" />
+                Limpar
+              </Button>
+            )}
+
+            <Button variant="outline" size="sm" onClick={() => setExpandedGroups(groupedVehicles.map(g => g.name))}>
+              Expandir Todos
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setExpandedGroups([])}>
+              Recolher Todos
+            </Button>
+          </div>
+
+          <p className="text-sm text-muted-foreground">
             <span className="font-medium">Exibindo {filteredRows.length}</span> de {data.rows.length} veículos
           </p>
         </div>
@@ -325,10 +529,35 @@ export function FrotaPage() {
             ))}
           </div>
         ) : (
-          <div className="bg-card rounded-lg border border-border p-4">
-            <p className="text-muted-foreground text-center py-8">
-              Tabela geral em desenvolvimento
-            </p>
+          <div className="bg-card rounded-lg border border-border overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/50">
+                  <TableHead>Código</TableHead>
+                  <TableHead>Descrição</TableHead>
+                  <TableHead>Tipo</TableHead>
+                  <TableHead>Empresa</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredRows.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                      Nenhum veículo encontrado
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredRows.slice(0, 50).map((row, idx) => (
+                    <TableRow key={idx}>
+                      <TableCell className="font-medium">{row['CODIGO'] || row['VEICULO']}</TableCell>
+                      <TableCell>{row['DESCRICAO'] || row['DESCRIÇÃO']}</TableCell>
+                      <TableCell>{row['TIPO'] || row['CATEGORIA']}</TableCell>
+                      <TableCell>{row['EMPRESA']}</TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
           </div>
         )}
       </div>
