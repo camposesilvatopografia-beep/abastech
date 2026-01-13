@@ -258,7 +258,7 @@ export function ImportModal({ open, onOpenChange, onSuccess }: ImportModalProps)
           body: {
             action: 'create',
             sheetName: 'Horimetros',
-            rowData,
+            data: rowData,
           },
         });
 
