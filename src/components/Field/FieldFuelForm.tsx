@@ -55,6 +55,7 @@ interface FieldUser {
 interface FieldFuelFormProps {
   user: FieldUser;
   onLogout: () => void;
+  onBack?: () => void;
 }
 
 // Voice recognition hook
@@ -115,7 +116,7 @@ function useVoiceRecognition() {
   return { isListening, transcript, isSupported, startListening, stopListening, setTranscript };
 }
 
-export function FieldFuelForm({ user, onLogout }: FieldFuelFormProps) {
+export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
   const { data: vehiclesData } = useSheetData('Veiculo');
   const { data: abastecimentoData } = useSheetData('AbastecimentoCanteiro01');
   const [isSaving, setIsSaving] = useState(false);
@@ -907,81 +908,22 @@ export function FieldFuelForm({ user, onLogout }: FieldFuelFormProps) {
   }
 
   return (
-    <div className="min-h-screen bg-background pb-24">
-      {/* Header */}
-      <div className="sticky top-0 z-10 bg-primary text-primary-foreground p-4 shadow-lg">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Fuel className="w-8 h-8" />
-            <div>
-              <h1 className="text-lg font-bold">Abastecimento</h1>
-              <p className="text-xs opacity-90">{user.name}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            {/* Sync status */}
-            <div className="flex items-center gap-1">
-              {isOnline ? (
-                <Cloud className="w-4 h-4 text-green-300" />
-              ) : (
-                <CloudOff className="w-4 h-4 text-yellow-300" />
-              )}
-              {pendingCount > 0 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={syncPendingRecords}
-                  disabled={isSyncing || !isOnline}
-                  className="text-primary-foreground hover:bg-primary-foreground/20 h-8 px-2"
-                >
-                  {isSyncing ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <>
-                      <RefreshCw className="w-4 h-4 mr-1" />
-                      <span className="text-xs">{pendingCount}</span>
-                    </>
-                  )}
-                </Button>
-              )}
-            </div>
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              onClick={onLogout}
-              className="text-primary-foreground hover:bg-primary-foreground/20"
-            >
-              <LogOut className="w-5 h-5" />
-            </Button>
-          </div>
-        </div>
-      </div>
-
-      {/* Connection status banner */}
-      {!isOnline && (
-        <div className="bg-yellow-500 text-yellow-900 p-2 flex items-center justify-center gap-2 text-sm">
-          <WifiOff className="w-4 h-4" />
-          <span>Modo offline - registros serão sincronizados quando houver conexão</span>
-        </div>
-      )}
-
-      {/* Pending sync banner */}
-      {isOnline && pendingCount > 0 && !isSyncing && (
-        <div className="bg-blue-500 text-white p-2 flex items-center justify-center gap-2 text-sm">
-          <Cloud className="w-4 h-4" />
-          <span>{pendingCount} registro(s) pendente(s)</span>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={syncPendingRecords}
-            className="text-white hover:bg-white/20 h-6 px-2 text-xs"
+    <div className="bg-background pb-4">
+      {/* Voice status */}
+      {voice.isListening && (
+        <div className="bg-red-500 text-white p-3 flex items-center justify-center gap-2 animate-pulse">
+          <Mic className="w-5 h-5" />
+          <span>Ouvindo... Fale agora</span>
+          <Button 
+            size="sm" 
+            variant="ghost" 
+            onClick={voice.stopListening}
+            className="text-white hover:bg-white/20"
           >
-            Sincronizar agora
+            <X className="w-4 h-4" />
           </Button>
         </div>
       )}
-
-      {/* Voice status */}
       {voice.isListening && (
         <div className="bg-red-500 text-white p-3 flex items-center justify-center gap-2 animate-pulse">
           <Mic className="w-5 h-5" />
@@ -1666,8 +1608,8 @@ export function FieldFuelForm({ user, onLogout }: FieldFuelFormProps) {
         </div>
       </div>
 
-      {/* Fixed Save Button */}
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-background border-t border-border">
+      {/* Save Button */}
+      <div className="p-4 pb-20">
         <Button 
           onClick={handleSave} 
           disabled={isSaving || isUploadingPhotos || !fuelQuantity || (recordType === 'saida' ? !vehicleCode : !supplier)}
