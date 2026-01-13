@@ -143,6 +143,7 @@ export function FieldFuelForm({ user, onLogout }: FieldFuelFormProps) {
   const photoHorimeterInputRef = useRef<HTMLInputElement>(null);
   
   // Form state
+  const [recordType, setRecordType] = useState<'saida' | 'entrada'>('saida');
   const [vehicleCode, setVehicleCode] = useState('');
   const [vehicleDescription, setVehicleDescription] = useState('');
   const [category, setCategory] = useState('');
@@ -157,10 +158,17 @@ export function FieldFuelForm({ user, onLogout }: FieldFuelFormProps) {
   const [location, setLocation] = useState('Tanque Canteiro 01');
   const [observations, setObservations] = useState('');
   
-  // Equipment-specific fields
-  const [equipmentHours, setEquipmentHours] = useState('');
-  const [maintenanceType, setMaintenanceType] = useState('');
-  const [equipmentStatus, setEquipmentStatus] = useState('operando');
+  // Equipment-specific fields (optional)
+  const [oilType, setOilType] = useState('');
+  const [oilQuantity, setOilQuantity] = useState('');
+  const [filterBlow, setFilterBlow] = useState(false);
+  const [lubricant, setLubricant] = useState('');
+  
+  // Entry-specific fields (Entrada)
+  const [supplier, setSupplier] = useState('');
+  const [invoiceNumber, setInvoiceNumber] = useState('');
+  const [unitPrice, setUnitPrice] = useState('');
+  const [entryLocation, setEntryLocation] = useState('');
 
   // Check if category is equipment
   const isEquipment = category.toLowerCase().includes('equipamento') || 
@@ -236,6 +244,7 @@ export function FieldFuelForm({ user, onLogout }: FieldFuelFormProps) {
         const syncSuccess = await syncToGoogleSheets({
           date: new Date(record.record_date).toLocaleDateString('pt-BR'),
           time: record.record_time,
+          recordType: (record as any).record_type || 'saida',
           vehicleCode: record.vehicle_code,
           vehicleDescription: record.vehicle_description || '',
           category: record.category || '',
@@ -251,6 +260,14 @@ export function FieldFuelForm({ user, onLogout }: FieldFuelFormProps) {
           observations: record.observations || '',
           photoPumpUrl: record.photo_pump_url,
           photoHorimeterUrl: record.photo_horimeter_url,
+          oilType: (record as any).oil_type || '',
+          oilQuantity: (record as any).oil_quantity || 0,
+          filterBlow: (record as any).filter_blow || false,
+          lubricant: (record as any).lubricant || '',
+          supplier: (record as any).supplier || '',
+          invoiceNumber: (record as any).invoice_number || '',
+          unitPrice: (record as any).unit_price || 0,
+          entryLocation: (record as any).entry_location || '',
         });
 
         if (syncSuccess) {
@@ -570,6 +587,7 @@ export function FieldFuelForm({ user, onLogout }: FieldFuelFormProps) {
   const syncToGoogleSheets = async (recordData: {
     date: string;
     time: string;
+    recordType: string;
     vehicleCode: string;
     vehicleDescription: string;
     category: string;
@@ -585,12 +603,23 @@ export function FieldFuelForm({ user, onLogout }: FieldFuelFormProps) {
     observations: string;
     photoPumpUrl: string | null;
     photoHorimeterUrl: string | null;
+    // Equipment fields
+    oilType?: string;
+    oilQuantity?: number;
+    filterBlow?: boolean;
+    lubricant?: string;
+    // Entry fields
+    supplier?: string;
+    invoiceNumber?: string;
+    unitPrice?: number;
+    entryLocation?: string;
   }): Promise<boolean> => {
     try {
       // Format data according to sheet columns
-      const sheetData = {
+      const sheetData: Record<string, any> = {
         'DATA': recordData.date,
         'HORA': recordData.time,
+        'TIPO': recordData.recordType === 'entrada' ? 'Entrada' : 'Saída',
         'VEICULO': recordData.vehicleCode,
         'DESCRICAO': recordData.vehicleDescription,
         'CATEGORIA': recordData.category,
@@ -605,10 +634,19 @@ export function FieldFuelForm({ user, onLogout }: FieldFuelFormProps) {
         'QUANTIDADE DE ARLA': recordData.arlaQuantity || '',
         'TIPO DE COMBUSTIVEL': recordData.fuelType,
         'LOCAL': recordData.location,
-        'TIPO': 'Saída',
         'OBSERVAÇÃO': recordData.observations || '',
         'FOTO BOMBA': recordData.photoPumpUrl || '',
         'FOTO HORIMETRO': recordData.photoHorimeterUrl || '',
+        // Equipment fields
+        'TIPO DE ÓLEO': recordData.oilType || '',
+        'QUANTIDADE DE ÓLEO': recordData.oilQuantity || '',
+        'SOPRA FILTRO': recordData.filterBlow ? 'Sim' : '',
+        'LUBRIFICANTE': recordData.lubricant || '',
+        // Entry fields
+        'FORNECEDOR': recordData.supplier || '',
+        'NOTA FISCAL': recordData.invoiceNumber || '',
+        'VALOR UNITÁRIO': recordData.unitPrice || '',
+        'LOCAL DE ENTRADA': recordData.entryLocation || '',
       };
 
       const response = await supabase.functions.invoke('google-sheets', {
@@ -633,9 +671,18 @@ export function FieldFuelForm({ user, onLogout }: FieldFuelFormProps) {
 
   // Save record
   const handleSave = async () => {
-    if (!vehicleCode || !fuelQuantity) {
-      toast.error('Preencha veículo e quantidade');
-      return;
+    // Validate based on record type
+    if (recordType === 'saida') {
+      if (!vehicleCode || !fuelQuantity) {
+        toast.error('Preencha veículo e quantidade');
+        return;
+      }
+    } else {
+      // Entrada validation
+      if (!supplier || !fuelQuantity) {
+        toast.error('Preencha fornecedor e quantidade');
+        return;
+      }
     }
 
     setIsSaving(true);
@@ -668,9 +715,10 @@ export function FieldFuelForm({ user, onLogout }: FieldFuelFormProps) {
         .from('field_fuel_records')
         .insert({
           user_id: user.id,
-          vehicle_code: vehicleCode,
-          vehicle_description: vehicleDescription,
-          category,
+          record_type: recordType,
+          vehicle_code: recordType === 'entrada' ? 'ENTRADA' : vehicleCode,
+          vehicle_description: recordType === 'entrada' ? supplier : vehicleDescription,
+          category: recordType === 'entrada' ? 'ENTRADA' : category,
           operator_name: operatorName || user.name,
           company,
           work_site: workSite,
@@ -679,14 +727,24 @@ export function FieldFuelForm({ user, onLogout }: FieldFuelFormProps) {
           fuel_quantity: parseFloat(fuelQuantity) || 0,
           fuel_type: fuelType,
           arla_quantity: parseFloat(arlaQuantity) || 0,
-          location,
+          location: recordType === 'entrada' ? entryLocation : location,
           observations,
           photo_pump_url: photoPumpUrl,
           photo_horimeter_url: photoHorimeterUrl,
           record_date: now.toISOString().split('T')[0],
           record_time: recordTime,
           synced_to_sheet: false,
-        })
+          // Equipment fields
+          oil_type: oilType || null,
+          oil_quantity: parseFloat(oilQuantity) || null,
+          filter_blow: filterBlow || false,
+          lubricant: lubricant || null,
+          // Entry fields
+          supplier: supplier || null,
+          invoice_number: invoiceNumber || null,
+          unit_price: parseFloat(unitPrice) || null,
+          entry_location: entryLocation || null,
+        } as any)
         .select()
         .single();
 
@@ -697,6 +755,7 @@ export function FieldFuelForm({ user, onLogout }: FieldFuelFormProps) {
       const syncSuccess = await syncToGoogleSheets({
         date: recordDate,
         time: recordTime,
+        recordType,
         vehicleCode,
         vehicleDescription,
         category,
@@ -712,6 +771,14 @@ export function FieldFuelForm({ user, onLogout }: FieldFuelFormProps) {
         observations,
         photoPumpUrl,
         photoHorimeterUrl,
+        oilType,
+        oilQuantity: parseFloat(oilQuantity) || 0,
+        filterBlow,
+        lubricant,
+        supplier,
+        invoiceNumber,
+        unitPrice: parseFloat(unitPrice) || 0,
+        entryLocation,
       });
 
       // Update sync status in database
@@ -761,9 +828,14 @@ export function FieldFuelForm({ user, onLogout }: FieldFuelFormProps) {
     setPhotoHorimeterPreview(null);
     setOcrPhotoPreview(null);
     setQuantityOcrPhotoPreview(null);
-    setEquipmentHours('');
-    setMaintenanceType('');
-    setEquipmentStatus('operando');
+    setOilType('');
+    setOilQuantity('');
+    setFilterBlow(false);
+    setLubricant('');
+    setSupplier('');
+    setInvoiceNumber('');
+    setUnitPrice('');
+    setEntryLocation('');
     if (photoPumpInputRef.current) photoPumpInputRef.current.value = '';
     if (photoHorimeterInputRef.current) photoHorimeterInputRef.current.value = '';
     if (ocrInputRef.current) ocrInputRef.current.value = '';
@@ -881,7 +953,43 @@ export function FieldFuelForm({ user, onLogout }: FieldFuelFormProps) {
 
       {/* Form */}
       <div className="p-4 space-y-4">
-        {/* Vehicle Selection */}
+        {/* Record Type Selection */}
+        <div className="bg-card rounded-xl border border-border p-4 space-y-3">
+          <Label className="flex items-center gap-2 text-base font-medium">
+            Tipo de Registro
+          </Label>
+          <div className="grid grid-cols-2 gap-3">
+            <Button
+              type="button"
+              variant={recordType === 'saida' ? 'default' : 'outline'}
+              className={cn(
+                "h-14 text-lg",
+                recordType === 'saida' && "bg-red-500 hover:bg-red-600"
+              )}
+              onClick={() => setRecordType('saida')}
+            >
+              <Fuel className="w-5 h-5 mr-2" />
+              Saída
+            </Button>
+            <Button
+              type="button"
+              variant={recordType === 'entrada' ? 'default' : 'outline'}
+              className={cn(
+                "h-14 text-lg",
+                recordType === 'entrada' && "bg-green-500 hover:bg-green-600"
+              )}
+              onClick={() => setRecordType('entrada')}
+            >
+              <Building2 className="w-5 h-5 mr-2" />
+              Entrada
+            </Button>
+          </div>
+        </div>
+
+        {/* SAÍDA FORM */}
+        {recordType === 'saida' && (
+          <>
+            {/* Vehicle Selection */}
         <div className="bg-card rounded-xl border border-border p-4 space-y-3">
           <div className="flex items-center justify-between">
             <Label className="flex items-center gap-2 text-base">
@@ -1101,64 +1209,79 @@ export function FieldFuelForm({ user, onLogout }: FieldFuelFormProps) {
           )}
         </div>
 
-        {/* Equipment-specific fields */}
-        {isEquipment && (
+        {/* Equipment-specific fields (optional) */}
+        {isEquipment && recordType === 'saida' && (
           <div className="bg-card rounded-xl border border-orange-200 dark:border-orange-800 p-4 space-y-4">
             <div className="flex items-center gap-2 text-orange-600 dark:text-orange-400">
               <Wrench className="w-5 h-5" />
-              <Label className="text-base font-medium">Dados do Equipamento</Label>
+              <Label className="text-base font-medium">Dados do Equipamento (Opcional)</Label>
             </div>
             
-            {/* Equipment Status */}
+            {/* Oil Type */}
             <div className="space-y-2">
-              <Label className="text-sm">Status do Equipamento</Label>
-              <Select value={equipmentStatus} onValueChange={setEquipmentStatus}>
+              <Label className="text-sm">Tipo de Óleo</Label>
+              <Select value={oilType} onValueChange={setOilType}>
                 <SelectTrigger className="h-10">
-                  <SelectValue />
+                  <SelectValue placeholder="Selecione (opcional)" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="operando">✅ Operando normalmente</SelectItem>
-                  <SelectItem value="manutencao_preventiva">🔧 Manutenção preventiva</SelectItem>
-                  <SelectItem value="manutencao_corretiva">⚠️ Manutenção corretiva</SelectItem>
-                  <SelectItem value="parado">⛔ Parado/Aguardando</SelectItem>
+                  <SelectItem value="">Nenhum</SelectItem>
+                  <SelectItem value="motor">Óleo Motor</SelectItem>
+                  <SelectItem value="hidraulico">Óleo Hidráulico</SelectItem>
+                  <SelectItem value="transmissao">Óleo Transmissão</SelectItem>
+                  <SelectItem value="diferencial">Óleo Diferencial</SelectItem>
+                  <SelectItem value="outro">Outro</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             
-            {/* Maintenance Type if in maintenance */}
-            {(equipmentStatus === 'manutencao_preventiva' || equipmentStatus === 'manutencao_corretiva') && (
-              <div className="space-y-2">
-                <Label className="text-sm">Tipo de Manutenção</Label>
-                <Select value={maintenanceType} onValueChange={setMaintenanceType}>
-                  <SelectTrigger className="h-10">
-                    <SelectValue placeholder="Selecione o tipo" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="troca_oleo">Troca de óleo</SelectItem>
-                    <SelectItem value="troca_filtros">Troca de filtros</SelectItem>
-                    <SelectItem value="reparo_hidraulico">Reparo hidráulico</SelectItem>
-                    <SelectItem value="reparo_eletrico">Reparo elétrico</SelectItem>
-                    <SelectItem value="reparo_mecanico">Reparo mecânico</SelectItem>
-                    <SelectItem value="revisao_geral">Revisão geral</SelectItem>
-                    <SelectItem value="outro">Outro</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-            
-            {/* Equipment Hours Today */}
+            {/* Oil Quantity */}
             <div className="space-y-2">
-              <Label className="text-sm">Horas Trabalhadas Hoje</Label>
+              <Label className="text-sm">Quantidade de Óleo (Litros)</Label>
               <Input
                 type="number"
                 inputMode="decimal"
-                placeholder="Ex: 8"
-                value={equipmentHours}
-                onChange={(e) => setEquipmentHours(e.target.value)}
+                placeholder="Ex: 5"
+                value={oilQuantity}
+                onChange={(e) => setOilQuantity(e.target.value)}
                 className="h-10"
               />
             </div>
+            
+            {/* Filter Blow */}
+            <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
+              <input
+                type="checkbox"
+                id="filterBlow"
+                checked={filterBlow}
+                onChange={(e) => setFilterBlow(e.target.checked)}
+                className="w-5 h-5 rounded"
+              />
+              <Label htmlFor="filterBlow" className="text-sm cursor-pointer">
+                Sopra Filtro
+              </Label>
+            </div>
+            
+            {/* Lubricant */}
+            <div className="space-y-2">
+              <Label className="text-sm">Lubrificante</Label>
+              <Select value={lubricant} onValueChange={setLubricant}>
+                <SelectTrigger className="h-10">
+                  <SelectValue placeholder="Selecione (opcional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Nenhum</SelectItem>
+                  <SelectItem value="graxa">Graxa</SelectItem>
+                  <SelectItem value="wd40">WD-40</SelectItem>
+                  <SelectItem value="lubrificante_corrente">Lubrificante de Corrente</SelectItem>
+                  <SelectItem value="desengripante">Desengripante</SelectItem>
+                  <SelectItem value="outro">Outro</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
+        )}
+          </>
         )}
 
         {/* ARLA */}
@@ -1332,8 +1455,8 @@ export function FieldFuelForm({ user, onLogout }: FieldFuelFormProps) {
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-background border-t border-border">
         <Button 
           onClick={handleSave} 
-          disabled={isSaving || isUploadingPhotos || !vehicleCode || !fuelQuantity}
-          className="w-full h-14 text-lg gap-2"
+          disabled={isSaving || isUploadingPhotos || !fuelQuantity || (recordType === 'saida' ? !vehicleCode : !supplier)}
+          className={cn("w-full h-14 text-lg gap-2", recordType === 'entrada' && "bg-green-500 hover:bg-green-600")}
         >
           {isUploadingPhotos ? (
             <>
@@ -1348,7 +1471,7 @@ export function FieldFuelForm({ user, onLogout }: FieldFuelFormProps) {
           ) : (
             <>
               <Save className="w-5 h-5" />
-              Registrar Abastecimento
+              {recordType === 'entrada' ? 'Registrar Entrada' : 'Registrar Abastecimento'}
             </>
           )}
         </Button>

@@ -20,21 +20,30 @@ export type Database = {
           category: string | null
           company: string | null
           created_at: string | null
+          entry_location: string | null
+          filter_blow: boolean | null
           fuel_quantity: number
           fuel_type: string | null
           horimeter_current: number | null
           horimeter_previous: number | null
           id: string
+          invoice_number: string | null
           km_current: number | null
           km_previous: number | null
           location: string | null
+          lubricant: string | null
           observations: string | null
+          oil_quantity: number | null
+          oil_type: string | null
           operator_name: string | null
           photo_horimeter_url: string | null
           photo_pump_url: string | null
           record_date: string
           record_time: string
+          record_type: string | null
+          supplier: string | null
           synced_to_sheet: boolean | null
+          unit_price: number | null
           updated_at: string | null
           user_id: string | null
           vehicle_code: string
@@ -46,21 +55,30 @@ export type Database = {
           category?: string | null
           company?: string | null
           created_at?: string | null
+          entry_location?: string | null
+          filter_blow?: boolean | null
           fuel_quantity: number
           fuel_type?: string | null
           horimeter_current?: number | null
           horimeter_previous?: number | null
           id?: string
+          invoice_number?: string | null
           km_current?: number | null
           km_previous?: number | null
           location?: string | null
+          lubricant?: string | null
           observations?: string | null
+          oil_quantity?: number | null
+          oil_type?: string | null
           operator_name?: string | null
           photo_horimeter_url?: string | null
           photo_pump_url?: string | null
           record_date?: string
           record_time?: string
+          record_type?: string | null
+          supplier?: string | null
           synced_to_sheet?: boolean | null
+          unit_price?: number | null
           updated_at?: string | null
           user_id?: string | null
           vehicle_code: string
@@ -72,21 +90,30 @@ export type Database = {
           category?: string | null
           company?: string | null
           created_at?: string | null
+          entry_location?: string | null
+          filter_blow?: boolean | null
           fuel_quantity?: number
           fuel_type?: string | null
           horimeter_current?: number | null
           horimeter_previous?: number | null
           id?: string
+          invoice_number?: string | null
           km_current?: number | null
           km_previous?: number | null
           location?: string | null
+          lubricant?: string | null
           observations?: string | null
+          oil_quantity?: number | null
+          oil_type?: string | null
           operator_name?: string | null
           photo_horimeter_url?: string | null
           photo_pump_url?: string | null
           record_date?: string
           record_time?: string
+          record_type?: string | null
+          supplier?: string | null
           synced_to_sheet?: boolean | null
+          unit_price?: number | null
           updated_at?: string | null
           user_id?: string | null
           vehicle_code?: string
