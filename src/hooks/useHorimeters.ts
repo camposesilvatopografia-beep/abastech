@@ -331,11 +331,11 @@ export function useSheetSync() {
       const vehicleMap = new Map<string, string>(); // code -> id
 
       for (const row of vehicleRows) {
-        const code = String(row.CODIGO || row.Codigo || row.VEICULO || row.Veiculo || '').trim();
+        const code = String(row.CODIGO || row.Codigo || row.Codigo?.trim() || '').trim();
         if (!code) continue;
 
-        const name = String(row.DESCRICAO || row.Descricao || row.DESCRIÇÃO || code).trim();
-        const description = String(row.DESCRICAO || row.Descricao || row.DESCRIÇÃO || '').trim() || null;
+        const name = String(row.DESCRICAO || row.Descricao || code).trim();
+        const description = String(row.DESCRICAO || row.Descricao || '').trim() || null;
         const category = String(row.TIPO || row.Tipo || row.CATEGORIA || row.Categoria || '').trim() || null;
         const company = String(row.EMPRESA || row.Empresa || '').trim() || null;
         
@@ -387,8 +387,8 @@ export function useSheetSync() {
           continue;
         }
 
-        // Parse date
-        const dateStr = String(row.DATA || row.Data || '').trim();
+        // Parse date - note: column may have leading space " Data"
+        const dateStr = String(row.DATA || row.Data || row[' Data'] || '').trim();
         let readingDate: string | null = null;
         
         if (dateStr) {
