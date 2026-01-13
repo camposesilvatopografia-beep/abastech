@@ -65,6 +65,25 @@ function getRowValue(row: Record<string, any>, keys: string[]): string {
   return '';
 }
 
+function normalizeKey(key: string): string {
+  return key
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toUpperCase()
+    .replace(/\s+/g, '')
+    .replace(/_/g, '');
+}
+
+function findColumnKey(row: Record<string, any>, candidates: string[]): string | null {
+  const keys = Object.keys(row);
+  const normalized = new Map(keys.map(k => [normalizeKey(k), k] as const));
+  for (const c of candidates) {
+    const found = normalized.get(normalizeKey(c));
+    if (found) return found;
+  }
+  return null;
+}
+
 export function HorimetrosPage() {
   const { data, loading, refetch, update } = useSheetData(SHEET_NAME);
   const { toast } = useToast();
@@ -201,8 +220,12 @@ export function HorimetrosPage() {
 
   // Find zeroed records that need correction
   const zeroedRecords = useMemo(() => {
+    const readingCandidates = ['HORAS', 'HORIMETRO', 'HORÍMETRO', 'KM', 'QUILOMETRAGEM', 'KILOMETRAGEM'];
+
     return data.rows.filter(row => {
-      const horas = parseNumber(getRowValue(row as any, ['HORAS', 'HORIMETRO', 'Horimetro', 'horimetro', 'KM', 'km']));
+      const readingKey = findColumnKey(row as any, readingCandidates);
+      if (!readingKey) return false;
+      const horas = parseNumber((row as any)[readingKey]);
       return horas === 0;
     });
   }, [data.rows]);
@@ -232,81 +255,108 @@ export function HorimetrosPage() {
     };
   }, [filteredRows]);
 
-  // Function to fix zeroed horimeters by finding the previous valid value
+  // Function to fix zeroed horimeters/KM by finding the previous valid value
   const handleFixZeroed = useCallback(async () => {
     if (zeroedRecords.length === 0) {
       toast({
         title: 'Nenhum registro zerado',
-        description: 'Não há registros com horímetro zerado para corrigir.',
+        description: 'Não há registros com horímetro/KM zerado para corrigir.',
       });
       return;
     }
 
+    const readingCandidates = ['HORAS', 'HORIMETRO', 'HORÍMETRO', 'KM', 'QUILOMETRAGEM', 'KILOMETRAGEM'];
+    const vehicleCandidates = ['VEICULO', 'VEÍCULO', 'EQUIPAMENTO'];
+    const dateCandidates = ['DATA', 'Data', 'data'];
+    const obsCandidates = ['OBSERVACAO', 'OBSERVAÇÃO', 'OBS'];
+
     setIsFixingZeroed(true);
     let fixed = 0;
     let errors = 0;
+    let skipped = 0;
 
     try {
       for (const record of zeroedRecords) {
-        const veiculo = getRowValue(record as any, ['VEICULO', 'Veiculo', 'veiculo', 'EQUIPAMENTO', 'Equipamento']);
-        const rowIndex = record._rowIndex;
-
-        if (!veiculo || !rowIndex) {
+        const rowIndex = (record as any)._rowIndex;
+        if (!rowIndex) {
           errors++;
           continue;
         }
 
-        // Find previous valid record for this vehicle
-        const vehicleRecords = data.rows.filter(row => {
-          const v = getRowValue(row as any, ['VEICULO', 'Veiculo', 'veiculo', 'EQUIPAMENTO', 'Equipamento']);
-          const h = parseNumber(getRowValue(row as any, ['HORAS', 'HORIMETRO', 'Horimetro', 'horimetro', 'KM', 'km']));
-          return v === veiculo && h > 0 && row._rowIndex !== rowIndex;
-        });
+        const vehicleKey = findColumnKey(record as any, vehicleCandidates);
+        const readingKey = findColumnKey(record as any, readingCandidates);
+        const dateKey = findColumnKey(record as any, dateCandidates);
+        const obsKey = findColumnKey(record as any, obsCandidates) || 'OBSERVACAO';
 
-        if (vehicleRecords.length === 0) {
-          // No previous record, skip
+        const veiculo = vehicleKey ? String((record as any)[vehicleKey] || '').trim() : '';
+        if (!veiculo || !readingKey) {
+          errors++;
           continue;
         }
 
-        // Sort by date descending to get the most recent valid record
+        // Find previous valid record for this vehicle (same reading column)
+        const vehicleRecords = data.rows.filter(row => {
+          const vKey = findColumnKey(row as any, vehicleCandidates);
+          const rKey = findColumnKey(row as any, readingCandidates);
+          if (!vKey || !rKey) return false;
+
+          const v = String((row as any)[vKey] || '').trim();
+          if (v !== veiculo) return false;
+
+          const h = parseNumber((row as any)[rKey]);
+          return h > 0 && (row as any)._rowIndex !== rowIndex;
+        });
+
+        if (vehicleRecords.length === 0) {
+          skipped++;
+          continue;
+        }
+
+        // Sort by date (desc). If date can't be parsed, fallback to row index (desc).
         const sorted = vehicleRecords.sort((a, b) => {
-          const dateA = getRowValue(a as any, ['DATA', 'Data', 'data']);
-          const dateB = getRowValue(b as any, ['DATA', 'Data', 'data']);
-          return dateB.localeCompare(dateA);
+          const aDateStr = dateKey ? String((a as any)[dateKey] || '') : getRowValue(a as any, dateCandidates);
+          const bDateStr = dateKey ? String((b as any)[dateKey] || '') : getRowValue(b as any, dateCandidates);
+
+          const aDate = parseDate(aDateStr);
+          const bDate = parseDate(bDateStr);
+
+          if (aDate && bDate) return bDate.getTime() - aDate.getTime();
+
+          const aIdx = (a as any)._rowIndex ?? 0;
+          const bIdx = (b as any)._rowIndex ?? 0;
+          return bIdx - aIdx;
         });
 
         const lastValidRecord = sorted[0];
-        const lastValidValue = parseNumber(getRowValue(lastValidRecord as any, ['HORAS', 'HORIMETRO', 'Horimetro', 'horimetro', 'KM', 'km']));
+        const lastReadingKey = findColumnKey(lastValidRecord as any, readingCandidates) || readingKey;
+        const lastValidValue = parseNumber((lastValidRecord as any)[lastReadingKey]);
 
-        if (lastValidValue > 0) {
-          try {
-            // Update the zeroed record with the last valid value
-            const updatedData = { ...record };
-            
-            // Update the hours/km field
-            if (record['HORAS'] !== undefined) updatedData['HORAS'] = lastValidValue.toString().replace('.', ',');
-            if (record['HORIMETRO'] !== undefined) updatedData['HORIMETRO'] = lastValidValue.toString().replace('.', ',');
-            if (record['KM'] !== undefined) updatedData['KM'] = lastValidValue.toString().replace('.', ',');
-            
-            // Add observation about the fix
-            const obs = getRowValue(record as any, ['OBSERVACAO', 'Observacao', 'observacao', 'OBS']);
-            updatedData['OBSERVACAO'] = obs ? `${obs} | CORRIGIDO: ${lastValidValue}` : `CORRIGIDO AUTOMATICAMENTE: ${lastValidValue}`;
+        if (!(lastValidValue > 0)) {
+          skipped++;
+          continue;
+        }
 
-            await update(rowIndex, updatedData);
-            fixed++;
-          } catch (err) {
-            console.error(`Error fixing record ${rowIndex}:`, err);
-            errors++;
-          }
+        try {
+          const updatedData = { ...(record as any) };
+          updatedData[readingKey] = lastValidValue.toString().replace('.', ',');
+
+          const obsExisting = obsKey ? String((record as any)[obsKey] || '').trim() : '';
+          const suffix = `CORRIGIDO AUTOMATICAMENTE: ${lastValidValue}`;
+          updatedData[obsKey] = obsExisting ? `${obsExisting} | ${suffix}` : suffix;
+
+          await update(rowIndex, updatedData);
+          fixed++;
+        } catch (err) {
+          console.error(`Error fixing record ${rowIndex}:`, err);
+          errors++;
         }
       }
 
       toast({
         title: 'Correção Concluída',
-        description: `${fixed} registros corrigidos${errors > 0 ? `, ${errors} erros` : ''}.`,
+        description: `${fixed} corrigidos${skipped ? `, ${skipped} sem histórico` : ''}${errors ? `, ${errors} erros` : ''}.`,
       });
 
-      // Refresh data
       await refetch();
     } catch (error) {
       console.error('Error fixing zeroed records:', error);
