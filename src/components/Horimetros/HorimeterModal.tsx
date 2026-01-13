@@ -313,16 +313,18 @@ export const HorimeterModal = forwardRef<HTMLDivElement, HorimeterModalProps>(
       if (currentValueNum <= 0) {
         toast({
           title: 'Erro',
-          description: 'Informe um valor válido',
+          description: 'Informe um valor válido maior que zero',
           variant: 'destructive',
         });
         return false;
       }
 
-      if (currentValueNum < previousValue && previousValue > 0) {
+      // STRICT validation: current value must be greater than previous
+      if (previousValue > 0 && currentValueNum <= previousValue) {
+        const tipo = vehicleInfo?.usaKm ? 'quilometragem' : 'horímetro';
         toast({
-          title: 'Atenção',
-          description: `O valor atual (${currentValueNum}) é menor que o anterior (${previousValue}). Verifique!`,
+          title: 'Valor inválido',
+          description: `O ${tipo} atual (${currentValueNum.toLocaleString('pt-BR')}) deve ser maior que o anterior (${previousValue.toLocaleString('pt-BR')}).`,
           variant: 'destructive',
         });
         return false;

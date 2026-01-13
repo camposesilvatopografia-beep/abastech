@@ -16,7 +16,8 @@ import {
   Wifi,
   WifiOff,
   Database,
-  Pencil
+  Pencil,
+  FileSpreadsheet
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -40,6 +41,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { HorimeterModal } from '@/components/Horimetros/HorimeterModal';
 import { supabase } from '@/integrations/supabase/client';
+import * as XLSX from 'xlsx';
 
 const SHEET_NAME = 'Horimetros';
 
@@ -693,6 +695,61 @@ export function HorimetrosPage() {
     doc.save(fileName);
   };
 
+  const exportToExcel = () => {
+    // Prepare data for Excel export
+    const excelData = filteredRows.map(row => ({
+      'Veículo': getRowValue(row as any, ['VEICULO', 'EQUIPAMENTO', 'Veiculo', 'Equipamento']),
+      'Descrição': getRowValue(row as any, ['DESCRICAO', 'DESCRIÇÃO', 'Descricao', 'descrição']),
+      'Categoria': getRowValue(row as any, ['CATEGORIA', 'Categoria', 'TIPO', 'Tipo']),
+      'Data': getRowValue(row as any, ['DATA', 'Data']),
+      'Hora': getRowValue(row as any, ['HORA', 'Hora']),
+      'Hor. Anterior': getRowValue(row as any, ['Hor_Anterior', 'HOR_ANTERIOR', 'HORIMETRO_ANTERIOR']) || '',
+      'Hor. Atual': getRowValue(row as any, ['Hor_Atual', 'HOR_ATUAL', 'HORIMETRO', 'HORAS']) || '',
+      'KM Anterior': getRowValue(row as any, ['Km_Anterior', 'KM_ANTERIOR']) || '',
+      'KM Atual': getRowValue(row as any, ['Km_Atual', 'KM_ATUAL', 'KM']) || '',
+      'Operador': getRowValue(row as any, ['OPERADOR', 'Operador', 'MOTORISTA', 'Motorista']) || '',
+      'Observação': getRowValue(row as any, ['OBSERVACAO', 'OBSERVAÇÃO', 'Observacao', 'observacao']) || '',
+      'Empresa': getRowValue(row as any, ['EMPRESA', 'Empresa']) || '',
+    }));
+
+    // Create worksheet
+    const worksheet = XLSX.utils.json_to_sheet(excelData);
+    
+    // Set column widths
+    const colWidths = [
+      { wch: 15 }, // Veículo
+      { wch: 25 }, // Descrição
+      { wch: 15 }, // Categoria
+      { wch: 12 }, // Data
+      { wch: 8 },  // Hora
+      { wch: 12 }, // Hor. Anterior
+      { wch: 12 }, // Hor. Atual
+      { wch: 12 }, // KM Anterior
+      { wch: 12 }, // KM Atual
+      { wch: 20 }, // Operador
+      { wch: 30 }, // Observação
+      { wch: 15 }, // Empresa
+    ];
+    worksheet['!cols'] = colWidths;
+
+    // Create workbook
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Horímetros');
+
+    // Generate filename
+    const fileName = vehicleFilter !== 'all' 
+      ? `horimetros_${vehicleFilter}_${format(new Date(), 'yyyy-MM-dd')}.xlsx`
+      : `horimetros_${format(new Date(), 'yyyy-MM-dd')}.xlsx`;
+
+    // Save file
+    XLSX.writeFile(workbook, fileName);
+
+    toast({
+      title: 'Exportação concluída',
+      description: `Arquivo ${fileName} gerado com ${excelData.length} registros`,
+    });
+  };
+
   return (
     <div className="flex-1 p-6 overflow-auto">
       <div className="space-y-6">
@@ -759,7 +816,11 @@ export function HorimetrosPage() {
             </Button>
             <Button variant="outline" size="sm" onClick={exportToPDF}>
               <FileText className="w-4 h-4 mr-2" />
-              Exportar PDF
+              PDF
+            </Button>
+            <Button variant="outline" size="sm" onClick={exportToExcel}>
+              <FileSpreadsheet className="w-4 h-4 mr-2" />
+              Excel
             </Button>
             <Button className="bg-primary hover:bg-primary/90" onClick={() => setShowNewModal(true)}>
               <Plus className="w-4 h-4 mr-2" />
