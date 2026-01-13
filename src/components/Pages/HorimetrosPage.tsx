@@ -31,7 +31,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
-import { format, parse, isValid, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
+import { format, parse, isValid, startOfDay, endOfDay, isWithinInterval, startOfMonth, endOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -86,12 +86,14 @@ function findColumnKey(row: Record<string, any>, candidates: string[]): string |
 
 export function HorimetrosPage() {
   const { data, loading, refetch, update } = useSheetData(SHEET_NAME);
+  const { data: vehicleData } = useSheetData('Veiculo');
   const { toast } = useToast();
   const [search, setSearch] = useState('');
-  const [activeTab, setActiveTab] = useState<'sistema' | 'sheets'>('sheets');
+  const [activeTab, setActiveTab] = useState<'resumo' | 'detalhes'>('resumo');
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
-  const [quickFilter, setQuickFilter] = useState<string | null>('hoje');
+  const [quickFilter, setQuickFilter] = useState<string | null>('mes');
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [showNewModal, setShowNewModal] = useState(false);
   const [isFixingZeroed, setIsFixingZeroed] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'checking' | 'connected' | 'error'>('checking');
@@ -105,6 +107,21 @@ export function HorimetrosPage() {
     vehiclesAffected: number;
   }>(null);
   const [autoFixEnabled, setAutoFixEnabled] = useState(true);
+
+  // Get unique categories from data
+  const categories = useMemo(() => {
+    const unique = new Set<string>();
+    data.rows.forEach(row => {
+      const cat = getRowValue(row as any, ['Categoria', 'CATEGORIA', 'categoria', 'TIPO', 'Tipo', 'tipo']);
+      if (cat) unique.add(cat);
+    });
+    // Also check vehicle data
+    vehicleData.rows.forEach(row => {
+      const cat = getRowValue(row as any, ['Categoria', 'CATEGORIA', 'categoria', 'TIPO', 'Tipo', 'tipo']);
+      if (cat) unique.add(cat);
+    });
+    return Array.from(unique).sort();
+  }, [data.rows, vehicleData.rows]);
 
   // Test connection on mount
   useEffect(() => {
@@ -198,9 +215,16 @@ export function HorimetrosPage() {
           String(v).toLowerCase().includes(search.toLowerCase())
         );
 
+      // Category filter
+      let matchesCategory = true;
+      if (categoryFilter !== 'all') {
+        const rowCat = getRowValue(row as any, ['Categoria', 'CATEGORIA', 'categoria', 'TIPO', 'Tipo', 'tipo']);
+        matchesCategory = rowCat.toLowerCase() === categoryFilter.toLowerCase();
+      }
+
       let matchesDate = true;
       if (startDate || endDate) {
-        const rowDateStr = String(row['DATA'] || '');
+        const rowDateStr = String(row['DATA'] || row['Data'] || '');
         const rowDate = parseDate(rowDateStr);
         
         if (rowDate) {
@@ -219,9 +243,9 @@ export function HorimetrosPage() {
         }
       }
 
-      return matchesSearch && matchesDate;
+      return matchesSearch && matchesDate && matchesCategory;
     });
-  }, [data.rows, search, startDate, endDate]);
+  }, [data.rows, search, startDate, endDate, categoryFilter]);
 
   // Find zeroed records that need correction
   const zeroedRecords = useMemo(() => {
@@ -258,6 +282,100 @@ export function HorimetrosPage() {
       inconsistentes,
       zerados
     };
+  }, [filteredRows]);
+
+  // Vehicle summary with all required columns
+  const vehicleSummary = useMemo(() => {
+    const summary = new Map<string, {
+      veiculo: string;
+      descricao: string;
+      categoria: string;
+      horAnterior: number;
+      horAtual: number;
+      kmAnterior: number;
+      kmAtual: number;
+      intervaloHor: number;
+      intervaloKm: number;
+      totalMesHor: number;
+      totalMesKm: number;
+      usaKm: boolean;
+      registros: number;
+    }>();
+
+    const now = new Date();
+    const monthStart = startOfMonth(now);
+    const monthEnd = endOfMonth(now);
+
+    filteredRows.forEach(row => {
+      const veiculo = getRowValue(row as any, ['Veiculo', 'VEICULO', 'VEÍCULO', 'EQUIPAMENTO']);
+      if (!veiculo) return;
+
+      const descricao = getRowValue(row as any, ['Descricao', 'DESCRICAO', 'DESCRIÇÃO', 'Descrição']);
+      const categoria = getRowValue(row as any, ['Categoria', 'CATEGORIA', 'TIPO', 'Tipo']);
+      
+      const horAnterior = parseNumber(getRowValue(row as any, ['Hor_Anterior', 'HOR_ANTERIOR', 'HORIMETRO_ANTERIOR']));
+      const horAtual = parseNumber(getRowValue(row as any, ['Hor_Atual', 'HOR_ATUAL', 'HORIMETRO_ATUAL', 'HORIMETRO', 'HORAS']));
+      const kmAnterior = parseNumber(getRowValue(row as any, ['Km_Anterior', 'KM_ANTERIOR', 'QUILOMETRAGEM_ANTERIOR']));
+      const kmAtual = parseNumber(getRowValue(row as any, ['Km_Atual', 'KM_ATUAL', 'QUILOMETRAGEM_ATUAL', 'KM']));
+
+      const usaKm = kmAtual > 0 || kmAnterior > 0;
+
+      const rowDateStr = getRowValue(row as any, ['Data', 'DATA']);
+      const rowDate = parseDate(rowDateStr);
+      const isInMonth = rowDate && isWithinInterval(rowDate, { start: monthStart, end: monthEnd });
+
+      const existing = summary.get(veiculo);
+      if (existing) {
+        // Update with latest values (assuming sorted by date)
+        if (horAtual > existing.horAtual) {
+          existing.intervaloHor = horAtual - existing.horAtual;
+          existing.horAtual = horAtual;
+        }
+        if (horAnterior > 0 && (existing.horAnterior === 0 || horAnterior < existing.horAnterior)) {
+          existing.horAnterior = horAnterior;
+        }
+        if (kmAtual > existing.kmAtual) {
+          existing.intervaloKm = kmAtual - existing.kmAtual;
+          existing.kmAtual = kmAtual;
+        }
+        if (kmAnterior > 0 && (existing.kmAnterior === 0 || kmAnterior < existing.kmAnterior)) {
+          existing.kmAnterior = kmAnterior;
+        }
+        if (isInMonth) {
+          existing.totalMesHor += horAtual - horAnterior;
+          existing.totalMesKm += kmAtual - kmAnterior;
+        }
+        existing.registros++;
+      } else {
+        summary.set(veiculo, {
+          veiculo,
+          descricao,
+          categoria,
+          horAnterior,
+          horAtual,
+          kmAnterior,
+          kmAtual,
+          intervaloHor: horAtual - horAnterior,
+          intervaloKm: kmAtual - kmAnterior,
+          totalMesHor: isInMonth ? horAtual - horAnterior : 0,
+          totalMesKm: isInMonth ? kmAtual - kmAnterior : 0,
+          usaKm,
+          registros: 1,
+        });
+      }
+    });
+
+    // Recalculate intervals as total range
+    summary.forEach((item, key) => {
+      if (item.horAnterior > 0 && item.horAtual > 0) {
+        item.intervaloHor = item.horAtual - item.horAnterior;
+      }
+      if (item.kmAnterior > 0 && item.kmAtual > 0) {
+        item.intervaloKm = item.kmAtual - item.kmAnterior;
+      }
+    });
+
+    return Array.from(summary.values()).sort((a, b) => a.veiculo.localeCompare(b.veiculo));
   }, [filteredRows]);
 
   const COLUMN_CANDIDATES = useMemo(() => {
@@ -674,26 +792,26 @@ export function HorimetrosPage() {
         {/* Tabs */}
         <div className="flex gap-2 border-b border-border">
           <button
-            onClick={() => setActiveTab('sistema')}
+            onClick={() => setActiveTab('resumo')}
             className={cn(
               "flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
-              activeTab === 'sistema'
+              activeTab === 'resumo'
                 ? "border-primary text-primary"
                 : "border-transparent text-muted-foreground"
             )}
           >
-            Sistema (Backend)
+            Resumo por Veículo
           </button>
           <button
-            onClick={() => setActiveTab('sheets')}
+            onClick={() => setActiveTab('detalhes')}
             className={cn(
               "flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
-              activeTab === 'sheets'
+              activeTab === 'detalhes'
                 ? "border-primary text-primary"
                 : "border-transparent text-muted-foreground"
             )}
           >
-            Google Sheets
+            Detalhamento
           </button>
         </div>
 
@@ -709,6 +827,20 @@ export function HorimetrosPage() {
                 className="pl-10"
               />
             </div>
+
+            {/* Category Filter */}
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="h-9 px-3 py-1 rounded-md border border-input bg-background text-sm"
+            >
+              <option value="all">Todas Categorias</option>
+              <option value="Equipamento">Equipamento</option>
+              <option value="Veículo">Veículo</option>
+              {categories.filter(c => c !== 'Equipamento' && c !== 'Veículo').map(cat => (
+                <option key={cat} value={cat}>{cat}</option>
+              ))}
+            </select>
             
             <div className="flex items-center gap-2">
               <Popover>
@@ -785,145 +917,253 @@ export function HorimetrosPage() {
               </Button>
             </div>
 
-            {(startDate || endDate) && (
-              <Button variant="ghost" size="sm" onClick={clearDateFilter}>
+            {(startDate || endDate || categoryFilter !== 'all') && (
+              <Button variant="ghost" size="sm" onClick={() => { clearDateFilter(); setCategoryFilter('all'); }}>
                 <X className="w-4 h-4 mr-1" />
-                Limpar
+                Limpar Filtros
               </Button>
             )}
           </div>
 
-          <div className="flex items-center gap-2 text-sm">
-            <Calendar className="w-4 h-4 text-muted-foreground" />
-            <span className="text-muted-foreground">Período:</span>
-            <span className="font-medium">
-              {startDate && endDate 
-                ? `${format(startDate, 'dd/MM/yyyy')} até ${format(endDate, 'dd/MM/yyyy')}`
-                : 'Todo período'}
-            </span>
-            <span className="text-muted-foreground">• {filteredRows.length} registros</span>
+          <div className="flex items-center gap-4 text-sm">
+            <div className="flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-muted-foreground" />
+              <span className="text-muted-foreground">Período:</span>
+              <span className="font-medium">
+                {startDate && endDate 
+                  ? `${format(startDate, 'dd/MM/yyyy')} até ${format(endDate, 'dd/MM/yyyy')}`
+                  : 'Todo período'}
+              </span>
+            </div>
+            {categoryFilter !== 'all' && (
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground">Categoria:</span>
+                <span className="font-medium text-primary">{categoryFilter}</span>
+              </div>
+            )}
+            <span className="text-muted-foreground">• {filteredRows.length} registros • {vehicleSummary.length} veículos</span>
           </div>
         </div>
 
-        {/* Metric Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-          <MetricCard
-            title="HORAS TOTAIS"
-            value={`${metrics.horasTotais.toLocaleString('pt-BR', { minimumFractionDigits: 1 })} h`}
-            subtitle="No período"
-            variant="primary"
-            icon={Clock}
-          />
-          <MetricCard
-            title="MÉDIA POR REGISTRO"
-            value={`${metrics.mediaRegistro.toLocaleString('pt-BR', { minimumFractionDigits: 1 })} h`}
-            subtitle="No período"
-            icon={Timer}
-          />
-          <MetricCard
-            title="REGISTROS"
-            value={metrics.registros.toString()}
-            subtitle="No período"
-            icon={CheckCircle}
-          />
-          <MetricCard
-            title="FALTAM CADASTRAR"
-            value={Math.max(0, metrics.faltamCadastrar).toString()}
-            subtitle="Pendentes"
-            variant="primary"
-            icon={Clock}
-          />
-          <MetricCard
-            title="INCONSISTÊNCIAS"
-            value={metrics.inconsistentes.toString()}
-            subtitle="Valores negativos"
-            icon={AlertTriangle}
-          />
-        </div>
-
-        {/* Data Table */}
-        <div className="bg-card rounded-lg border border-border overflow-hidden">
-          <div className="p-4 border-b border-border">
-            <h2 className="font-semibold">Registros de Horímetros</h2>
-            <p className="text-sm text-muted-foreground">Dados do período selecionado</p>
-          </div>
-          
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-muted/50">
-                <TableHead>Veículo</TableHead>
-                <TableHead>Data</TableHead>
-                <TableHead className="text-right">Horas/KM</TableHead>
-                <TableHead>Operador</TableHead>
-                <TableHead>Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading ? (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8">
-                    <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-muted-foreground" />
-                    Carregando dados...
-                  </TableCell>
-                </TableRow>
-              ) : filteredRows.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                    Nenhum registro encontrado para o período
-                  </TableCell>
-                </TableRow>
-              ) : (
-                filteredRows.slice(0, 50).map((row, idx) => {
-                  const horas = parseNumber(getRowValue(row as any, ['HORAS', 'HORIMETRO', 'Horimetro', 'KM']));
-                  const isZeroed = horas === 0;
-                  
-                  return (
-                    <TableRow key={idx} className={isZeroed ? 'bg-warning/5' : ''}>
-                      <TableCell className="font-medium">
-                        {getRowValue(row as any, ['VEICULO', 'EQUIPAMENTO', 'Veiculo', 'Equipamento'])}
-                      </TableCell>
-                      <TableCell>{getRowValue(row as any, ['DATA', 'Data'])}</TableCell>
-                      <TableCell className={cn("text-right", isZeroed && "text-warning")}>
-                        {horas.toLocaleString('pt-BR', { minimumFractionDigits: 1 })}
-                      </TableCell>
-                      <TableCell>{getRowValue(row as any, ['OPERADOR', 'Operador', 'MOTORISTA', 'Motorista'])}</TableCell>
-                      <TableCell>
-                        {isZeroed ? (
-                          <span className="inline-flex items-center gap-1 text-xs text-warning">
-                            <AlertTriangle className="w-3 h-3" />
-                            Zerado
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 text-xs text-success">
-                            <CheckCircle className="w-3 h-3" />
-                            OK
-                          </span>
-                        )}
+        {/* Resumo Tab - Vehicle Summary Table */}
+        {activeTab === 'resumo' && (
+          <div className="bg-card rounded-lg border border-border overflow-hidden">
+            <div className="p-4 border-b border-border">
+              <h2 className="font-semibold">Resumo por Veículo</h2>
+              <p className="text-sm text-muted-foreground">Consolidação de horímetros/km por veículo com total do mês</p>
+            </div>
+            
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/50">
+                    <TableHead>Veículo</TableHead>
+                    <TableHead>Descrição</TableHead>
+                    <TableHead className="text-right">Hor/KM Anterior</TableHead>
+                    <TableHead className="text-right">Hor/KM Atual</TableHead>
+                    <TableHead className="text-right">Intervalo (h/km)</TableHead>
+                    <TableHead className="text-right">Total no Mês</TableHead>
+                    <TableHead className="text-center">Registros</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {loading ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-8">
+                        <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-muted-foreground" />
+                        Carregando dados...
                       </TableCell>
                     </TableRow>
-                  );
-                })
-              )}
-            </TableBody>
-          </Table>
-        </div>
+                  ) : vehicleSummary.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                        Nenhum veículo encontrado para o período
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    vehicleSummary.map((item, idx) => {
+                      const anterior = item.usaKm ? item.kmAnterior : item.horAnterior;
+                      const atual = item.usaKm ? item.kmAtual : item.horAtual;
+                      const intervalo = item.usaKm ? item.intervaloKm : item.intervaloHor;
+                      const totalMes = item.usaKm ? item.totalMesKm : item.totalMesHor;
+                      const unidade = item.usaKm ? 'km' : 'h';
+                      
+                      return (
+                        <TableRow key={idx}>
+                          <TableCell className="font-medium">{item.veiculo}</TableCell>
+                          <TableCell className="text-muted-foreground">{item.descricao || item.categoria || '-'}</TableCell>
+                          <TableCell className="text-right">
+                            {anterior > 0 ? anterior.toLocaleString('pt-BR', { minimumFractionDigits: 1 }) : '-'} {anterior > 0 ? unidade : ''}
+                          </TableCell>
+                          <TableCell className="text-right font-medium">
+                            {atual > 0 ? atual.toLocaleString('pt-BR', { minimumFractionDigits: 1 }) : '-'} {atual > 0 ? unidade : ''}
+                          </TableCell>
+                          <TableCell className={cn("text-right", intervalo > 0 ? "text-emerald-500" : "text-muted-foreground")}>
+                            {intervalo > 0 ? `+${intervalo.toLocaleString('pt-BR', { minimumFractionDigits: 1 })} ${unidade}` : '-'}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-primary/10 text-primary font-semibold">
+                              {totalMes > 0 ? totalMes.toLocaleString('pt-BR', { minimumFractionDigits: 1 }) : '0'} {unidade}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-center text-muted-foreground">{item.registros}</TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
+                </TableBody>
+              </Table>
+            </div>
 
-        {/* Pending Equipments */}
-        <div>
-          <h2 className="text-lg font-semibold mb-2">Horímetros Pendentes ({pendingEquipments.length})</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
-            {pendingEquipments.map(equip => (
-              <div 
-                key={equip.codigo} 
-                className="bg-card rounded-lg border border-border p-3 text-center hover:bg-muted/50 cursor-pointer"
-                onClick={() => setShowNewModal(true)}
-              >
-                <div className="font-semibold text-primary">{equip.codigo}</div>
-                <div className="text-xs text-muted-foreground truncate">{equip.descricao}</div>
+            {/* Totals Footer */}
+            {vehicleSummary.length > 0 && (
+              <div className="p-4 border-t border-border bg-muted/30">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">Total de veículos: {vehicleSummary.length}</span>
+                  <div className="flex gap-6 text-sm">
+                    <span>
+                      <span className="text-muted-foreground">Total Horas no Mês: </span>
+                      <span className="font-semibold text-primary">
+                        {vehicleSummary.reduce((sum, v) => sum + v.totalMesHor, 0).toLocaleString('pt-BR', { minimumFractionDigits: 1 })} h
+                      </span>
+                    </span>
+                    <span>
+                      <span className="text-muted-foreground">Total KM no Mês: </span>
+                      <span className="font-semibold text-primary">
+                        {vehicleSummary.reduce((sum, v) => sum + v.totalMesKm, 0).toLocaleString('pt-BR', { minimumFractionDigits: 1 })} km
+                      </span>
+                    </span>
+                  </div>
+                </div>
               </div>
-            ))}
+            )}
           </div>
-        </div>
+        )}
+
+        {/* Detalhes Tab - Individual Records */}
+        {activeTab === 'detalhes' && (
+          <>
+            {/* Metric Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+              <MetricCard
+                title="HORAS TOTAIS"
+                value={`${metrics.horasTotais.toLocaleString('pt-BR', { minimumFractionDigits: 1 })} h`}
+                subtitle="No período"
+                variant="primary"
+                icon={Clock}
+              />
+              <MetricCard
+                title="MÉDIA POR REGISTRO"
+                value={`${metrics.mediaRegistro.toLocaleString('pt-BR', { minimumFractionDigits: 1 })} h`}
+                subtitle="No período"
+                icon={Timer}
+              />
+              <MetricCard
+                title="REGISTROS"
+                value={metrics.registros.toString()}
+                subtitle="No período"
+                icon={CheckCircle}
+              />
+              <MetricCard
+                title="FALTAM CADASTRAR"
+                value={Math.max(0, metrics.faltamCadastrar).toString()}
+                subtitle="Pendentes"
+                variant="primary"
+                icon={Clock}
+              />
+              <MetricCard
+                title="INCONSISTÊNCIAS"
+                value={metrics.inconsistentes.toString()}
+                subtitle="Valores negativos"
+                icon={AlertTriangle}
+              />
+            </div>
+
+            {/* Data Table */}
+            <div className="bg-card rounded-lg border border-border overflow-hidden">
+              <div className="p-4 border-b border-border">
+                <h2 className="font-semibold">Registros de Horímetros</h2>
+                <p className="text-sm text-muted-foreground">Dados do período selecionado</p>
+              </div>
+              
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/50">
+                    <TableHead>Veículo</TableHead>
+                    <TableHead>Data</TableHead>
+                    <TableHead className="text-right">Horas/KM</TableHead>
+                    <TableHead>Operador</TableHead>
+                    <TableHead>Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {loading ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center py-8">
+                        <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-muted-foreground" />
+                        Carregando dados...
+                      </TableCell>
+                    </TableRow>
+                  ) : filteredRows.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                        Nenhum registro encontrado para o período
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredRows.slice(0, 50).map((row, idx) => {
+                      const horas = parseNumber(getRowValue(row as any, ['HORAS', 'HORIMETRO', 'Horimetro', 'Hor_Atual', 'KM', 'Km_Atual']));
+                      const isZeroed = horas === 0;
+                      
+                      return (
+                        <TableRow key={idx} className={isZeroed ? 'bg-warning/5' : ''}>
+                          <TableCell className="font-medium">
+                            {getRowValue(row as any, ['VEICULO', 'EQUIPAMENTO', 'Veiculo', 'Equipamento'])}
+                          </TableCell>
+                          <TableCell>{getRowValue(row as any, ['DATA', 'Data'])}</TableCell>
+                          <TableCell className={cn("text-right", isZeroed && "text-warning")}>
+                            {horas.toLocaleString('pt-BR', { minimumFractionDigits: 1 })}
+                          </TableCell>
+                          <TableCell>{getRowValue(row as any, ['OPERADOR', 'Operador', 'MOTORISTA', 'Motorista'])}</TableCell>
+                          <TableCell>
+                            {isZeroed ? (
+                              <span className="inline-flex items-center gap-1 text-xs text-warning">
+                                <AlertTriangle className="w-3 h-3" />
+                                Zerado
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-xs text-success">
+                                <CheckCircle className="w-3 h-3" />
+                                OK
+                              </span>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+
+            {/* Pending Equipments */}
+            <div>
+              <h2 className="text-lg font-semibold mb-2">Horímetros Pendentes ({pendingEquipments.length})</h2>
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
+                {pendingEquipments.map(equip => (
+                  <div 
+                    key={equip.codigo} 
+                    className="bg-card rounded-lg border border-border p-3 text-center hover:bg-muted/50 cursor-pointer"
+                    onClick={() => setShowNewModal(true)}
+                  >
+                    <div className="font-semibold text-primary">{equip.codigo}</div>
+                    <div className="text-xs text-muted-foreground truncate">{equip.descricao}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       {/* New Horimeter Modal */}
