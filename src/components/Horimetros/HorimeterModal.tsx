@@ -29,11 +29,21 @@ import { format, parse, isValid, startOfMonth, endOfMonth, isWithinInterval, sta
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 
+interface EditRecord {
+  rowIndex: number;
+  data: string;
+  veiculo: string;
+  horas: number;
+  operador: string;
+  observacao: string;
+}
+
 interface HorimeterModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess?: () => void;
   initialVehicle?: string;
+  editRecord?: EditRecord | null;
 }
 
 function parseNumber(value: any): number {
@@ -60,10 +70,12 @@ function getRowValue(row: Record<string, any>, keys: string[]): string {
 }
 
 export const HorimeterModal = forwardRef<HTMLDivElement, HorimeterModalProps>(
-  function HorimeterModal({ open, onOpenChange, onSuccess, initialVehicle }, ref) {
+  function HorimeterModal({ open, onOpenChange, onSuccess, initialVehicle, editRecord }, ref) {
     const { data: vehicleData, loading: vehicleLoading, refetch: refetchVehicles } = useSheetData('Veiculo');
-    const { data: horimeterData, create, refetch: refetchHorimeters, loading: horimeterLoading } = useSheetData('Horimetros');
+    const { data: horimeterData, create, update, refetch: refetchHorimeters, loading: horimeterLoading } = useSheetData('Horimetros');
     const { toast } = useToast();
+    
+    const isEditMode = !!editRecord;
     
     const [selectedVehicle, setSelectedVehicle] = useState(initialVehicle || '');
     const [currentValue, setCurrentValue] = useState('');
@@ -146,7 +158,12 @@ export const HorimeterModal = forwardRef<HTMLDivElement, HorimeterModalProps>(
     const hasDuplicateRecord = useMemo(() => {
       if (!selectedVehicle || !selectedDate) return false;
       
-      return horimeterData.rows.some(row => {
+      return horimeterData.rows.some((row, idx) => {
+        // Skip the current record when editing
+        if (isEditMode && editRecord && (row as any)._rowIndex === editRecord.rowIndex) {
+          return false;
+        }
+        
         const veiculo = getRowValue(row as any, ['VEICULO', 'Veiculo', 'veiculo', 'EQUIPAMENTO', 'Equipamento']);
         if (veiculo !== selectedVehicle) return false;
         
@@ -155,7 +172,7 @@ export const HorimeterModal = forwardRef<HTMLDivElement, HorimeterModalProps>(
         
         return rowDate && isSameDay(rowDate, selectedDate);
       });
-    }, [selectedVehicle, selectedDate, horimeterData.rows]);
+    }, [selectedVehicle, selectedDate, horimeterData.rows, isEditMode, editRecord]);
 
     // Calculate total hours/km for the current month
     const monthlyTotal = useMemo(() => {
@@ -210,24 +227,38 @@ export const HorimeterModal = forwardRef<HTMLDivElement, HorimeterModalProps>(
       return { total: 0, count };
     }, [selectedVehicle, horimeterData.rows]);
 
-    // Reset form when vehicle changes
+    // Reset form when vehicle changes (only in create mode)
     useEffect(() => {
-      setCurrentValue('');
-      setOperador('');
-      setObservacao('');
-      setSelectedDate(new Date());
-    }, [selectedVehicle]);
+      if (!isEditMode) {
+        setCurrentValue('');
+        setOperador('');
+        setObservacao('');
+        setSelectedDate(new Date());
+      }
+    }, [selectedVehicle, isEditMode]);
+
+    // Populate form when editing
+    useEffect(() => {
+      if (open && editRecord) {
+        setSelectedVehicle(editRecord.veiculo);
+        setCurrentValue(editRecord.horas.toString().replace('.', ','));
+        setOperador(editRecord.operador);
+        setObservacao(editRecord.observacao);
+        const parsedDate = parseDate(editRecord.data);
+        setSelectedDate(parsedDate || new Date());
+      }
+    }, [open, editRecord]);
 
     // Refresh data when modal opens and set initial vehicle
     useEffect(() => {
       if (open) {
         refetchVehicles();
         refetchHorimeters();
-        if (initialVehicle) {
+        if (initialVehicle && !editRecord) {
           setSelectedVehicle(initialVehicle);
         }
       }
-    }, [open, refetchVehicles, refetchHorimeters, initialVehicle]);
+    }, [open, refetchVehicles, refetchHorimeters, initialVehicle, editRecord]);
 
     const handleSave = async () => {
       if (!selectedVehicle) {
@@ -286,7 +317,7 @@ export const HorimeterModal = forwardRef<HTMLDivElement, HorimeterModalProps>(
         const hora = format(new Date(), 'HH:mm');
         const tipo = vehicleInfo?.usaKm ? 'KM' : 'HORIMETRO';
         
-        await create({
+        const rowData = {
           DATA: formattedDate,
           HORA: hora,
           VEICULO: selectedVehicle,
@@ -297,12 +328,21 @@ export const HorimeterModal = forwardRef<HTMLDivElement, HorimeterModalProps>(
           OBSERVACAO: observacao,
           EMPRESA: vehicleInfo?.empresa || '',
           DESCRICAO: vehicleInfo?.descricao || '',
-        });
+        };
 
-        toast({
-          title: 'Sucesso!',
-          description: 'Horímetro registrado com sucesso',
-        });
+        if (isEditMode && editRecord) {
+          await update(editRecord.rowIndex, rowData);
+          toast({
+            title: 'Sucesso!',
+            description: 'Registro atualizado com sucesso',
+          });
+        } else {
+          await create(rowData);
+          toast({
+            title: 'Sucesso!',
+            description: 'Horímetro registrado com sucesso',
+          });
+        }
 
         // Reset form
         setSelectedVehicle('');
@@ -317,7 +357,7 @@ export const HorimeterModal = forwardRef<HTMLDivElement, HorimeterModalProps>(
         console.error('Error saving horimeter:', error);
         toast({
           title: 'Erro',
-          description: 'Falha ao salvar o horímetro. Tente novamente.',
+          description: isEditMode ? 'Falha ao atualizar o registro. Tente novamente.' : 'Falha ao salvar o horímetro. Tente novamente.',
           variant: 'destructive',
         });
       } finally {
@@ -333,10 +373,12 @@ export const HorimeterModal = forwardRef<HTMLDivElement, HorimeterModalProps>(
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Clock className="w-5 h-5 text-primary" />
-              Novo Registro de Horímetro/KM
+              {isEditMode ? 'Editar Registro de Horímetro/KM' : 'Novo Registro de Horímetro/KM'}
             </DialogTitle>
             <DialogDescription>
-              Preencha os dados para registrar o horímetro ou quilometragem do veículo
+              {isEditMode 
+                ? 'Altere os dados do registro de horímetro ou quilometragem' 
+                : 'Preencha os dados para registrar o horímetro ou quilometragem do veículo'}
             </DialogDescription>
           </DialogHeader>
 
@@ -562,7 +604,7 @@ export const HorimeterModal = forwardRef<HTMLDivElement, HorimeterModalProps>(
                   ) : (
                     <>
                       <Save className="w-4 h-4 mr-2" />
-                      Salvar
+                      {isEditMode ? 'Atualizar' : 'Salvar'}
                     </>
                   )}
                 </Button>
