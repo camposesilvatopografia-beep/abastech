@@ -14,7 +14,92 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      horimeter_readings: {
+        Row: {
+          created_at: string
+          current_value: number
+          id: string
+          observations: string | null
+          operator: string | null
+          previous_value: number | null
+          reading_date: string
+          source: string | null
+          synced_from_sheet: boolean | null
+          updated_at: string
+          vehicle_id: string
+        }
+        Insert: {
+          created_at?: string
+          current_value: number
+          id?: string
+          observations?: string | null
+          operator?: string | null
+          previous_value?: number | null
+          reading_date: string
+          source?: string | null
+          synced_from_sheet?: boolean | null
+          updated_at?: string
+          vehicle_id: string
+        }
+        Update: {
+          created_at?: string
+          current_value?: number
+          id?: string
+          observations?: string | null
+          operator?: string | null
+          previous_value?: number | null
+          reading_date?: string
+          source?: string | null
+          synced_from_sheet?: boolean | null
+          updated_at?: string
+          vehicle_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "horimeter_readings_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vehicles: {
+        Row: {
+          category: string | null
+          code: string
+          company: string | null
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          unit: string | null
+          updated_at: string
+        }
+        Insert: {
+          category?: string | null
+          code: string
+          company?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          unit?: string | null
+          updated_at?: string
+        }
+        Update: {
+          category?: string | null
+          code?: string
+          company?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          unit?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
