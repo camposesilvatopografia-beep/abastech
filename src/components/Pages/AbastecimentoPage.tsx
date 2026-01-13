@@ -20,7 +20,8 @@ import {
   TrendingDown,
   AlertTriangle,
   CheckCircle,
-  Download
+  Download,
+  Building2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -256,6 +257,7 @@ export function AbastecimentoPage() {
       motorista: string;
       quantidade: number;
       categoria: string;
+      empresa: string;
       horAnterior: number;
       horAtual: number;
       kmAnterior: number;
@@ -286,7 +288,8 @@ export function AbastecimentoPage() {
         descricao: String(row['DESCRIÇÃO'] || row['DESCRICAO'] || row['Descricao'] || row['TIPO'] || ''),
         motorista: String(row['MOTORISTA'] || row['Motorista'] || row['OPERADOR'] || row['Operador'] || ''),
         quantidade,
-        categoria: String(row['CATEGORIA'] || row['Categoria'] || row['TIPO'] || '').toLowerCase(),
+        categoria: String(row['CATEGORIA'] || row['Categoria'] || row['TIPO'] || ''),
+        empresa: String(row['EMPRESA'] || row['Empresa'] || row['COMPANY'] || ''),
         horAnterior: parseNumber(row['HOR_ANTERIOR'] || row['HORIMETRO_ANTERIOR'] || row['HORAS_ANTERIOR'] || row['Hor_Anterior'] || 0),
         horAtual: parseNumber(row['HOR_ATUAL'] || row['HORIMETRO'] || row['Horimetro'] || row['HORAS'] || row['Hor_Atual'] || 0),
         kmAnterior: parseNumber(row['KM_ANTERIOR'] || row['QUILOMETRAGEM_ANTERIOR'] || row['Km_Anterior'] || 0),
@@ -304,6 +307,52 @@ export function AbastecimentoPage() {
 
     return { entries, total, recordsByLocal };
   }, [filteredRows]);
+  
+  // Group data by company for the company report
+  const resumoPorEmpresa = useMemo(() => {
+    const empresaMap: Record<string, {
+      categorias: Record<string, Array<{
+        codigo: string;
+        descricao: string;
+        motorista: string;
+        quantidade: number;
+        horAnterior: number;
+        horAtual: number;
+        kmAnterior: number;
+        kmAtual: number;
+      }>>;
+      totalDiesel: number;
+    }> = {};
+    
+    // Collect all records and group by company then category
+    Object.values(resumoPorLocal.recordsByLocal).flat().forEach(record => {
+      const empresa = record.empresa || 'Não informado';
+      const categoria = record.categoria || 'Outros';
+      
+      if (!empresaMap[empresa]) {
+        empresaMap[empresa] = { categorias: {}, totalDiesel: 0 };
+      }
+      
+      if (!empresaMap[empresa].categorias[categoria]) {
+        empresaMap[empresa].categorias[categoria] = [];
+      }
+      
+      empresaMap[empresa].categorias[categoria].push({
+        codigo: record.codigo,
+        descricao: record.descricao,
+        motorista: record.motorista,
+        quantidade: record.quantidade,
+        horAnterior: record.horAnterior,
+        horAtual: record.horAtual,
+        kmAnterior: record.kmAnterior,
+        kmAtual: record.kmAtual,
+      });
+      
+      empresaMap[empresa].totalDiesel += record.quantidade;
+    });
+    
+    return empresaMap;
+  }, [resumoPorLocal.recordsByLocal]);
 
   // Calculate average consumption per vehicle (based on horimetro or km)
   const consumoMedioVeiculo = useMemo(() => {
@@ -646,6 +695,148 @@ export function AbastecimentoPage() {
       setIsExporting(false);
     }
   }, [resumoPorLocal]);
+
+  // Export PDF by Company (Empresa) - formatted like the reference image
+  const exportPDFPorEmpresa = useCallback(() => {
+    setIsExporting(true);
+    
+    try {
+      const doc = new jsPDF('landscape');
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const empresas = Object.keys(resumoPorEmpresa).sort();
+      
+      empresas.forEach((empresa, empresaIndex) => {
+        const empresaData = resumoPorEmpresa[empresa];
+        if (!empresaData) return;
+        
+        // Add new page for each company after the first
+        if (empresaIndex > 0) {
+          doc.addPage();
+        }
+        
+        let currentY = 20;
+        
+        // Header with company name and date
+        doc.setFontSize(18);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`Relatório Geral - ${empresa.toUpperCase()}`, pageWidth / 2, currentY, { align: 'center' });
+        
+        // Date on the right
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.text(format(new Date(), "dd 'de' MMM. 'de' yyyy", { locale: ptBR }), pageWidth - 20, currentY, { align: 'right' });
+        
+        currentY += 15;
+        
+        // Iterate through each category (Equipamentos, Veículos, etc.)
+        const categorias = Object.keys(empresaData.categorias).sort();
+        
+        categorias.forEach((categoria) => {
+          const records = empresaData.categorias[categoria];
+          if (!records || records.length === 0) return;
+          
+          // Check if we need a new page
+          if (currentY > 180) {
+            doc.addPage();
+            currentY = 20;
+          }
+          
+          // Category title (red underline style)
+          doc.setFontSize(12);
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(180, 0, 0);
+          doc.text(categoria.charAt(0).toUpperCase() + categoria.slice(1), pageWidth / 2, currentY, { align: 'center' });
+          doc.setTextColor(0, 0, 0);
+          currentY += 6;
+          
+          // Prepare table data with consumption calculation
+          const tableData = records.map((record, index) => {
+            // Determine if using km or hours based on data
+            const usaKm = record.kmAtual > 0 || record.kmAnterior > 0;
+            const anterior = usaKm ? record.kmAnterior : record.horAnterior;
+            const atual = usaKm ? record.kmAtual : record.horAtual;
+            const intervalo = atual - anterior;
+            
+            // Calculate consumption (km/l or l/h)
+            let consumo = 0;
+            if (record.quantidade > 0 && intervalo > 0) {
+              if (usaKm) {
+                consumo = intervalo / record.quantidade;
+              } else {
+                consumo = record.quantidade / intervalo;
+              }
+            }
+            
+            return [
+              (index + 1).toString() + '.',
+              record.codigo,
+              record.descricao.length > 20 ? record.descricao.substring(0, 17) + '...' : record.descricao,
+              record.motorista,
+              anterior > 0 ? anterior.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '-',
+              atual > 0 ? atual.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '-',
+              intervalo > 0 ? intervalo.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '-',
+              consumo > 0 ? consumo.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '0,00',
+              record.quantidade.toString()
+            ];
+          });
+          
+          autoTable(doc, {
+            startY: currentY,
+            head: [[
+              '', 
+              'Veículo', 
+              'Descrição', 
+              'Motorista/Operador', 
+              'Hor./Km.\nAnterior', 
+              'Hor./Km.\nAtual', 
+              'Intervalo\n(h/km)', 
+              'Consumo', 
+              'Qtd.\nDiesel'
+            ]],
+            body: tableData,
+            styles: { 
+              fontSize: 8,
+              cellPadding: 2,
+            },
+            headStyles: { 
+              fillColor: [180, 0, 0],
+              textColor: [255, 255, 255],
+              fontStyle: 'bold',
+              halign: 'center',
+              valign: 'middle',
+            },
+            columnStyles: {
+              0: { cellWidth: 10, halign: 'center' },
+              1: { cellWidth: 25 },
+              2: { cellWidth: 40 },
+              3: { cellWidth: 50 },
+              4: { cellWidth: 25, halign: 'right' },
+              5: { cellWidth: 25, halign: 'right' },
+              6: { cellWidth: 22, halign: 'right' },
+              7: { cellWidth: 22, halign: 'right' },
+              8: { cellWidth: 18, halign: 'right' },
+            },
+            alternateRowStyles: {
+              fillColor: [255, 255, 255]
+            },
+            theme: 'grid',
+            didDrawPage: (data) => {
+              currentY = (data.cursor?.y || currentY) + 10;
+            }
+          });
+          
+          // Update currentY after table
+          currentY = (doc as any).lastAutoTable?.finalY + 15 || currentY + 50;
+        });
+      });
+      
+      doc.save(`relatorio_por_empresa_${format(new Date(), 'yyyyMMdd_HHmmss')}.pdf`);
+    } catch (error) {
+      console.error('Error exporting PDF:', error);
+    } finally {
+      setIsExporting(false);
+    }
+  }, [resumoPorEmpresa]);
 
   // Print function
   const handlePrint = useCallback(() => {
@@ -1219,7 +1410,7 @@ export function AbastecimentoPage() {
               <h2 className="text-lg font-semibold">Relatórios Disponíveis</h2>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="bg-card rounded-lg border border-border p-6 space-y-4">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
@@ -1227,11 +1418,27 @@ export function AbastecimentoPage() {
                   </div>
                   <div>
                     <h3 className="font-semibold">Relatório Completo</h3>
-                    <p className="text-sm text-muted-foreground">Todos os abastecimentos do período</p>
+                    <p className="text-sm text-muted-foreground">Por local de abastecimento</p>
                   </div>
                 </div>
                 <Button className="w-full" onClick={exportPDF} disabled={isExporting}>
                   <FileText className="w-4 h-4 mr-2" />
+                  Exportar PDF
+                </Button>
+              </div>
+
+              <div className="bg-card rounded-lg border border-border p-6 space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-red-500/10 flex items-center justify-center">
+                    <Building2 className="w-5 h-5 text-red-500" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold">Relatório por Empresa</h3>
+                    <p className="text-sm text-muted-foreground">Agrupado por empresa e categoria</p>
+                  </div>
+                </div>
+                <Button className="w-full bg-red-600 hover:bg-red-700" onClick={exportPDFPorEmpresa} disabled={isExporting}>
+                  <Building2 className="w-4 h-4 mr-2" />
                   Exportar PDF
                 </Button>
               </div>
