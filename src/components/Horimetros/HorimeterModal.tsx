@@ -6,6 +6,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -83,6 +93,7 @@ export const HorimeterModal = forwardRef<HTMLDivElement, HorimeterModalProps>(
     const [observacao, setObservacao] = useState('');
     const [selectedDate, setSelectedDate] = useState<Date>(new Date());
     const [isSaving, setIsSaving] = useState(false);
+    const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 
     // Get unique vehicles from vehicle sheet
     const vehicles = useMemo(() => {
@@ -260,14 +271,15 @@ export const HorimeterModal = forwardRef<HTMLDivElement, HorimeterModalProps>(
       }
     }, [open, refetchVehicles, refetchHorimeters, initialVehicle, editRecord]);
 
-    const handleSave = async () => {
+    // Validation function
+    const validateForm = (): boolean => {
       if (!selectedVehicle) {
         toast({
           title: 'Erro',
           description: 'Selecione um veículo',
           variant: 'destructive',
         });
-        return;
+        return false;
       }
 
       // Validate future date
@@ -278,7 +290,7 @@ export const HorimeterModal = forwardRef<HTMLDivElement, HorimeterModalProps>(
           description: 'Não é permitido registrar datas futuras',
           variant: 'destructive',
         });
-        return;
+        return false;
       }
 
       // Validate duplicate record
@@ -288,7 +300,7 @@ export const HorimeterModal = forwardRef<HTMLDivElement, HorimeterModalProps>(
           description: 'Já existe um registro para este veículo nesta data',
           variant: 'destructive',
         });
-        return;
+        return false;
       }
 
       const currentValueNum = parseNumber(currentValue);
@@ -298,7 +310,7 @@ export const HorimeterModal = forwardRef<HTMLDivElement, HorimeterModalProps>(
           description: 'Informe um valor válido',
           variant: 'destructive',
         });
-        return;
+        return false;
       }
 
       if (currentValueNum < previousValue && previousValue > 0) {
@@ -307,8 +319,25 @@ export const HorimeterModal = forwardRef<HTMLDivElement, HorimeterModalProps>(
           description: `O valor atual (${currentValueNum}) é menor que o anterior (${previousValue}). Verifique!`,
           variant: 'destructive',
         });
-        return;
+        return false;
       }
+
+      return true;
+    };
+
+    // Handle button click - show confirmation for edit mode
+    const handleButtonClick = () => {
+      if (!validateForm()) return;
+      
+      if (isEditMode) {
+        setShowConfirmDialog(true);
+      } else {
+        handleSave();
+      }
+    };
+
+    const handleSave = async () => {
+      setShowConfirmDialog(false);
 
       setIsSaving(true);
 
@@ -316,12 +345,13 @@ export const HorimeterModal = forwardRef<HTMLDivElement, HorimeterModalProps>(
         const formattedDate = format(selectedDate, 'dd/MM/yyyy');
         const hora = format(new Date(), 'HH:mm');
         const tipo = vehicleInfo?.usaKm ? 'KM' : 'HORIMETRO';
+        const valueNum = parseNumber(currentValue);
         
         const rowData = {
           DATA: formattedDate,
           HORA: hora,
           VEICULO: selectedVehicle,
-          HORAS: currentValueNum.toString().replace('.', ','),
+          HORAS: valueNum.toString().replace('.', ','),
           HORIMETRO_ANTERIOR: previousValue.toString().replace('.', ','),
           OPERADOR: operador,
           TIPO: tipo,
@@ -368,6 +398,7 @@ export const HorimeterModal = forwardRef<HTMLDivElement, HorimeterModalProps>(
     const isLoading = vehicleLoading || horimeterLoading;
 
     return (
+      <>
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-2xl" ref={ref}>
           <DialogHeader>
@@ -595,7 +626,7 @@ export const HorimeterModal = forwardRef<HTMLDivElement, HorimeterModalProps>(
                 <Button variant="outline" onClick={() => onOpenChange(false)}>
                   Cancelar
                 </Button>
-                <Button onClick={handleSave} disabled={isSaving || !selectedVehicle || !currentValue || hasDuplicateRecord}>
+                <Button onClick={handleButtonClick} disabled={isSaving || !selectedVehicle || !currentValue || hasDuplicateRecord}>
                   {isSaving ? (
                     <>
                       <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
@@ -613,6 +644,31 @@ export const HorimeterModal = forwardRef<HTMLDivElement, HorimeterModalProps>(
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Confirmation Dialog for Edit Mode */}
+      <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar Alteração</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja atualizar este registro de horímetro/km?
+              <div className="mt-3 p-3 bg-muted rounded-lg text-sm space-y-1">
+                <div><strong>Veículo:</strong> {selectedVehicle}</div>
+                <div><strong>Data:</strong> {format(selectedDate, 'dd/MM/yyyy')}</div>
+                <div><strong>Valor:</strong> {currentValue} {vehicleInfo?.usaKm ? 'km' : 'h'}</div>
+                {operador && <div><strong>Operador:</strong> {operador}</div>}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleSave}>
+              Confirmar Alteração
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      </>
     );
   }
 );
