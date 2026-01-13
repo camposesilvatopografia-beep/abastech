@@ -247,42 +247,43 @@ export function ManutencaoPage() {
   };
 
   return (
-    <div className="flex-1 p-6 overflow-auto">
-      <div className="space-y-6">
+    <div className="flex-1 p-3 md:p-6 overflow-auto">
+      <div className="space-y-4 md:space-y-6">
         {/* Header */}
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
-              <Wrench className="w-6 h-6 text-primary" />
+        <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
+          <div className="flex items-center gap-3 md:gap-4">
+            <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+              <Wrench className="w-5 h-5 md:w-6 md:h-6 text-primary" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold">Ordens de Serviço</h1>
-              <p className="text-muted-foreground">Gestão de manutenção preventiva e corretiva</p>
+              <h1 className="text-xl md:text-2xl font-bold">Ordens de Serviço</h1>
+              <p className="text-sm text-muted-foreground">Manutenção preventiva e corretiva</p>
             </div>
           </div>
           
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => refetch()} disabled={loading}>
-              <RefreshCw className={cn("w-4 h-4 mr-2", loading && "animate-spin")} />
-              Atualizar
+              <RefreshCw className={cn("w-4 h-4 sm:mr-2", loading && "animate-spin")} />
+              <span className="hidden sm:inline">Atualizar</span>
             </Button>
             <Button variant="outline" size="sm" onClick={exportToPDF}>
-              <FileText className="w-4 h-4 mr-2" />
-              Exportar PDF
+              <FileText className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">PDF</span>
             </Button>
-            <Button variant="outline" size="sm">
-              <FileSpreadsheet className="w-4 h-4 mr-2" />
-              Exportar XLSX
+            <Button variant="outline" size="sm" className="hidden sm:flex">
+              <FileSpreadsheet className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">XLSX</span>
             </Button>
             <Button className="bg-primary hover:bg-primary/90">
-              <Plus className="w-4 h-4 mr-2" />
-              Nova O.S.
+              <Plus className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Nova O.S.</span>
+              <span className="sm:hidden">Nova</span>
             </Button>
           </div>
         </div>
 
-        {/* Metric Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        {/* Metric Cards - Responsive Grid */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
           <MetricCard
             title="EM MANUTENÇÃO"
             value={metrics.emManutencao.toString()}
@@ -293,7 +294,7 @@ export function ManutencaoPage() {
           <MetricCard
             title="AGUARDANDO PEÇAS"
             value={metrics.aguardandoPecas.toString()}
-            subtitle="Paradas por falta de peças"
+            subtitle="Paradas"
             variant="primary"
             icon={Clock}
           />

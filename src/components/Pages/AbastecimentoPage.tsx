@@ -540,61 +540,49 @@ export function AbastecimentoPage() {
   }, []);
 
   return (
-    <div className="flex-1 p-6 overflow-auto">
-      <div className="space-y-6">
+    <div className="flex-1 p-3 md:p-6 overflow-auto">
+      <div className="space-y-4 md:space-y-6">
         {/* Header */}
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
-              <Fuel className="w-6 h-6 text-primary" />
+        <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
+          <div className="flex items-center gap-3 md:gap-4">
+            <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+              <Fuel className="w-5 h-5 md:w-6 md:h-6 text-primary" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold">Abastecimento</h1>
-              <p className="text-muted-foreground">Resumo de abastecimentos em tempo real</p>
+              <h1 className="text-xl md:text-2xl font-bold">Abastecimento</h1>
+              <p className="text-sm text-muted-foreground">Resumo em tempo real</p>
             </div>
           </div>
           
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => refetch()} disabled={loading}>
-              <RefreshCw className={cn("w-4 h-4 mr-2", loading && "animate-spin")} />
-              Atualizar
+              <RefreshCw className={cn("w-4 h-4 sm:mr-2", loading && "animate-spin")} />
+              <span className="hidden sm:inline">Atualizar</span>
             </Button>
             <Button variant="outline" size="sm" onClick={handlePrint}>
-              <Printer className="w-4 h-4 mr-2" />
-              Imprimir
+              <Printer className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Imprimir</span>
             </Button>
             <Button variant="outline" size="sm" onClick={exportPDF} disabled={isExporting}>
-              <FileText className={cn("w-4 h-4 mr-2", isExporting && "animate-spin")} />
-              {isExporting ? 'Exportando...' : 'Salvar PDF'}
+              <FileText className={cn("w-4 h-4 sm:mr-2", isExporting && "animate-spin")} />
+              <span className="hidden sm:inline">{isExporting ? 'Exportando...' : 'PDF'}</span>
             </Button>
           </div>
         </div>
 
         {/* Connection Status */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
           <div className="flex items-center gap-2 text-sm">
-            <span className={cn("w-2 h-2 rounded-full", loading ? "bg-warning animate-pulse" : "bg-success")} />
+            <span className={cn("w-2 h-2 rounded-full shrink-0", loading ? "bg-warning animate-pulse" : "bg-success")} />
             <span className={cn("font-medium", loading ? "text-warning" : "text-success")}>
-              {loading ? 'Sincronizando...' : 'Conectado ao Google Sheets'}
+              {loading ? 'Sincronizando...' : 'Conectado'}
             </span>
-            <span className="text-muted-foreground">• {data.rows.length} registros totais</span>
-            <span className="text-muted-foreground">• {filteredRows.length} filtrados</span>
-          </div>
-          
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => refetch()}>
-              <Wifi className="w-4 h-4 mr-2" />
-              Testar Conexão
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => refetch()}>
-              <Database className="w-4 h-4 mr-2" />
-              Sincronizar BD
-            </Button>
+            <span className="text-muted-foreground">• {filteredRows.length} registros</span>
           </div>
         </div>
 
-        {/* Metric Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        {/* Metric Cards - Responsive Grid */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
           <MetricCard
             title="REGISTROS NO PERÍODO"
             value={metrics.registros.toString()}
@@ -645,60 +633,62 @@ export function AbastecimentoPage() {
         </div>
 
         {/* Filters */}
-        <div className="bg-card rounded-lg border border-border p-4 space-y-4">
-          <div className="flex items-center gap-4 flex-wrap">
-            <div className="relative flex-1 min-w-64 max-w-sm">
+        <div className="bg-card rounded-lg border border-border p-3 md:p-4 space-y-3 md:space-y-4">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4">
+            <div className="relative flex-1 sm:max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
-                placeholder="Buscar veículo, motorista..."
+                placeholder="Buscar..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-10"
               />
             </div>
             
-            <Select value={localFilter} onValueChange={setLocalFilter}>
-              <SelectTrigger className="w-48">
-                <SelectValue placeholder="Todos os Locais" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os Locais</SelectItem>
-                {locais.map(local => (
-                  <SelectItem key={local} value={local}>{local}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex flex-wrap gap-2">
+              <Select value={localFilter} onValueChange={setLocalFilter}>
+                <SelectTrigger className="w-full sm:w-36">
+                  <SelectValue placeholder="Local" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos Locais</SelectItem>
+                  {locais.map(local => (
+                    <SelectItem key={local} value={local}>{local}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
 
-            <Select value={tipoFilter} onValueChange={setTipoFilter}>
-              <SelectTrigger className="w-48">
-                <SelectValue placeholder="Todos os Tipos" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os Tipos</SelectItem>
-                {tipos.map(tipo => (
-                  <SelectItem key={tipo} value={tipo}>{tipo}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              <Select value={tipoFilter} onValueChange={setTipoFilter}>
+                <SelectTrigger className="w-full sm:w-32">
+                  <SelectValue placeholder="Tipo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos Tipos</SelectItem>
+                  {tipos.map(tipo => (
+                    <SelectItem key={tipo} value={tipo}>{tipo}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
 
-            <Select value={combustivelFilter} onValueChange={setCombustivelFilter}>
-              <SelectTrigger className="w-48">
-                <SelectValue placeholder="Todos Combustíveis" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos Combustíveis</SelectItem>
-                {combustiveis.map(comb => (
-                  <SelectItem key={comb} value={comb}>{comb}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              <Select value={combustivelFilter} onValueChange={setCombustivelFilter}>
+                <SelectTrigger className="w-full sm:w-36">
+                  <SelectValue placeholder="Combustível" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos Comb.</SelectItem>
+                  {combustiveis.map(comb => (
+                    <SelectItem key={comb} value={comb}>{comb}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
-          <div className="flex items-center gap-4 flex-wrap">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4">
             <div className="flex items-center gap-2">
               <span className="text-sm text-muted-foreground">Período:</span>
               <Select value={periodFilter} onValueChange={setPeriodFilter}>
-                <SelectTrigger className="w-48">
+                <SelectTrigger className="w-36 sm:w-40">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>

@@ -221,40 +221,40 @@ export function EstoquesPage() {
   };
 
   return (
-    <div className="flex-1 p-6 overflow-auto">
-      <div className="space-y-6">
+    <div className="flex-1 p-3 md:p-6 overflow-auto">
+      <div className="space-y-4 md:space-y-6">
         {/* Header */}
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
-              <Package className="w-6 h-6 text-primary" />
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+          <div className="flex items-center gap-3 md:gap-4">
+            <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+              <Package className="w-5 h-5 md:w-6 md:h-6 text-primary" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold">Estoques</h1>
-              <p className="text-muted-foreground">Controle de combustíveis e lubrificantes</p>
+              <h1 className="text-xl md:text-2xl font-bold">Estoques</h1>
+              <p className="text-sm text-muted-foreground">Controle de combustíveis</p>
             </div>
           </div>
           
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => refetch()} disabled={loading}>
-              <RefreshCw className={cn("w-4 h-4 mr-2", loading && "animate-spin")} />
-              Atualizar
+              <RefreshCw className={cn("w-4 h-4 sm:mr-2", loading && "animate-spin")} />
+              <span className="hidden sm:inline">Atualizar</span>
             </Button>
-            <Button variant="outline" size="sm">
-              <Printer className="w-4 h-4 mr-2" />
-              Imprimir
+            <Button variant="outline" size="sm" className="hidden sm:flex">
+              <Printer className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Imprimir</span>
             </Button>
             <Button variant="outline" size="sm" onClick={exportToPDF}>
-              <FileText className="w-4 h-4 mr-2" />
-              Exportar PDF
+              <FileText className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">PDF</span>
             </Button>
           </div>
         </div>
 
         {/* Connection Status */}
-        <div className="flex items-center gap-2 text-sm">
-          <span className="w-2 h-2 rounded-full bg-success" />
-          <span className="text-success font-medium">Conectado ao Google Sheets</span>
+        <div className="flex items-center gap-2 text-xs md:text-sm">
+          <span className="w-2 h-2 rounded-full bg-success shrink-0" />
+          <span className="text-success font-medium">Conectado</span>
           <span className="text-muted-foreground">• Sincronizado em tempo real</span>
         </div>
 
@@ -366,8 +366,8 @@ export function EstoquesPage() {
           </div>
         </div>
 
-        {/* Main Stock Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Main Stock Cards - Responsive Grid */}
+        <div className="grid grid-cols-2 gap-3 md:gap-4">
           <MetricCard
             title="ESTOQUE DIESEL"
             value={`${metrics.estoqueDiesel.toLocaleString('pt-BR', { minimumFractionDigits: 1 })} L`}
@@ -384,8 +384,8 @@ export function EstoquesPage() {
           />
         </div>
 
-        {/* Movement Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Movement Cards - Responsive Grid */}
+        <div className="grid grid-cols-2 gap-3 md:gap-4">
           <MetricCard
             title="SAÍDAS HOJE"
             value={`${metrics.saidasHoje.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L`}
@@ -396,7 +396,7 @@ export function EstoquesPage() {
           <MetricCard
             title="ENTRADAS HOJE"
             value={`${metrics.entradasHoje.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L`}
-            subtitle="Fornecedor → Tanques 01/02"
+            subtitle="Fornecedor → Tanques"
             variant="green"
             icon={TrendingUp}
           />
