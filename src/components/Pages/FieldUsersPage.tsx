@@ -13,6 +13,14 @@ import {
   Eye,
   EyeOff,
   ArrowLeft,
+  History,
+  Fuel,
+  Calendar,
+  X,
+  ChevronDown,
+  ChevronUp,
+  MapPin,
+  Truck,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -45,6 +53,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Link } from 'react-router-dom';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 interface FieldUser {
   id: string;
@@ -54,6 +65,19 @@ interface FieldUser {
   active: boolean;
   created_at: string;
   updated_at: string;
+}
+
+interface FuelRecord {
+  id: string;
+  record_date: string;
+  record_time: string;
+  vehicle_code: string;
+  vehicle_description: string | null;
+  fuel_quantity: number;
+  arla_quantity: number | null;
+  location: string | null;
+  synced_to_sheet: boolean;
+  created_at: string;
 }
 
 interface UserFormData {
@@ -81,10 +105,24 @@ export function FieldUsersPage() {
   const [formData, setFormData] = useState<UserFormData>(initialFormData);
   const [saving, setSaving] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  
+  // History state
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [historyUser, setHistoryUser] = useState<FieldUser | null>(null);
+  const [historyRecords, setHistoryRecords] = useState<FuelRecord[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
+  const [userRecordCounts, setUserRecordCounts] = useState<Record<string, number>>({});
 
   useEffect(() => {
     fetchUsers();
   }, []);
+
+  useEffect(() => {
+    if (users.length > 0) {
+      fetchAllRecordCounts();
+    }
+  }, [users]);
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -101,6 +139,49 @@ export function FieldUsersPage() {
       toast.error('Erro ao carregar usuários');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchAllRecordCounts = async () => {
+    try {
+      const counts: Record<string, number> = {};
+      
+      for (const user of users) {
+        const { count } = await supabase
+          .from('field_fuel_records')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', user.id);
+        
+        counts[user.id] = count || 0;
+      }
+      
+      setUserRecordCounts(counts);
+    } catch (err) {
+      console.error('Error fetching record counts:', err);
+    }
+  };
+
+  const fetchUserHistory = async (user: FieldUser) => {
+    setHistoryUser(user);
+    setShowHistoryModal(true);
+    setLoadingHistory(true);
+    
+    try {
+      const { data, error } = await supabase
+        .from('field_fuel_records')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('record_date', { ascending: false })
+        .order('record_time', { ascending: false })
+        .limit(50);
+
+      if (error) throw error;
+      setHistoryRecords(data || []);
+    } catch (err) {
+      console.error('Error fetching history:', err);
+      toast.error('Erro ao carregar histórico');
+    } finally {
+      setLoadingHistory(false);
     }
   };
 
@@ -159,13 +240,15 @@ export function FieldUsersPage() {
         if (error) throw error;
         toast.success('Usuário atualizado com sucesso!');
       } else {
-        const { data: existing } = await supabase
+        // Check if username exists using maybeSingle() instead of single()
+        const { data: existingUsers, error: checkError } = await supabase
           .from('field_users')
           .select('id')
-          .eq('username', formData.username.trim().toLowerCase())
-          .single();
+          .eq('username', formData.username.trim().toLowerCase());
 
-        if (existing) {
+        if (checkError) throw checkError;
+
+        if (existingUsers && existingUsers.length > 0) {
           toast.error('Este nome de usuário já está em uso');
           setSaving(false);
           return;
@@ -220,6 +303,7 @@ export function FieldUsersPage() {
 
   const activeCount = users.filter((u) => u.active).length;
   const inactiveCount = users.filter((u) => !u.active).length;
+  const totalRecords = Object.values(userRecordCounts).reduce((a, b) => a + b, 0);
 
   return (
     <div className="min-h-screen bg-background">
@@ -254,11 +338,11 @@ export function FieldUsersPage() {
 
       <main className="p-4 md:p-6 space-y-6 max-w-5xl mx-auto">
         {/* Stats Cards */}
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
-                Total
+                Total Usuários
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -283,6 +367,16 @@ export function FieldUsersPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-red-600">{inactiveCount}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Total Apontamentos
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-blue-600">{totalRecords}</div>
             </CardContent>
           </Card>
         </div>
@@ -318,6 +412,7 @@ export function FieldUsersPage() {
                       <TableHead>Nome</TableHead>
                       <TableHead>Usuário</TableHead>
                       <TableHead>Perfil</TableHead>
+                      <TableHead className="text-center">Apontamentos</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead className="text-right">Ações</TableHead>
                     </TableRow>
@@ -342,6 +437,12 @@ export function FieldUsersPage() {
                             {user.role === 'admin' ? 'Admin' : 'Operador'}
                           </Badge>
                         </TableCell>
+                        <TableCell className="text-center">
+                          <Badge variant="outline" className="gap-1">
+                            <Fuel className="w-3 h-3" />
+                            {userRecordCounts[user.id] || 0}
+                          </Badge>
+                        </TableCell>
                         <TableCell>
                           <Badge
                             variant={user.active ? 'default' : 'destructive'}
@@ -351,7 +452,15 @@ export function FieldUsersPage() {
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-2">
+                          <div className="flex items-center justify-end gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => fetchUserHistory(user)}
+                              title="Histórico"
+                            >
+                              <History className="w-4 h-4" />
+                            </Button>
                             <Button
                               variant="ghost"
                               size="icon"
@@ -525,6 +634,95 @@ export function FieldUsersPage() {
                   Salvar
                 </>
               )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* History Modal */}
+      <Dialog open={showHistoryModal} onOpenChange={setShowHistoryModal}>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <History className="w-5 h-5" />
+              Histórico de Apontamentos
+            </DialogTitle>
+            <DialogDescription>
+              {historyUser?.name} - Últimos 50 registros
+            </DialogDescription>
+          </DialogHeader>
+
+          {loadingHistory ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : historyRecords.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">
+              <Fuel className="w-12 h-12 mx-auto mb-4 opacity-50" />
+              <p>Nenhum apontamento encontrado</p>
+            </div>
+          ) : (
+            <ScrollArea className="h-[400px] pr-4">
+              <div className="space-y-3">
+                {historyRecords.map((record) => (
+                  <Card key={record.id} className="p-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1 space-y-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Badge variant="outline" className="gap-1">
+                            <Calendar className="w-3 h-3" />
+                            {format(new Date(record.record_date), 'dd/MM/yyyy', { locale: ptBR })}
+                          </Badge>
+                          <Badge variant="outline">
+                            {record.record_time}
+                          </Badge>
+                          {record.synced_to_sheet ? (
+                            <Badge className="bg-green-500 gap-1">
+                              Sincronizado
+                            </Badge>
+                          ) : (
+                            <Badge variant="destructive" className="gap-1">
+                              Pendente
+                            </Badge>
+                          )}
+                        </div>
+                        
+                        <div className="flex items-center gap-2 text-sm">
+                          <Truck className="w-4 h-4 text-muted-foreground" />
+                          <span className="font-medium">{record.vehicle_code}</span>
+                          {record.vehicle_description && (
+                            <span className="text-muted-foreground">- {record.vehicle_description}</span>
+                          )}
+                        </div>
+                        
+                        <div className="flex items-center gap-4 text-sm">
+                          <div className="flex items-center gap-1">
+                            <Fuel className="w-4 h-4 text-blue-500" />
+                            <span className="font-medium">{record.fuel_quantity}L</span>
+                          </div>
+                          {record.arla_quantity && record.arla_quantity > 0 && (
+                            <div className="flex items-center gap-1 text-yellow-600">
+                              <span>ARLA: {record.arla_quantity}L</span>
+                            </div>
+                          )}
+                          {record.location && (
+                            <div className="flex items-center gap-1 text-muted-foreground">
+                              <MapPin className="w-3 h-3" />
+                              <span>{record.location}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            </ScrollArea>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowHistoryModal(false)}>
+              Fechar
             </Button>
           </DialogFooter>
         </DialogContent>
