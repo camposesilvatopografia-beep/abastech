@@ -180,31 +180,27 @@ _Sistema Abastech_`;
             subtitle="Diesel - Início do período"
             variant="primary"
             icon={Package}
-            className="border-l-4 border-l-yellow-500"
           />
           <MetricCard
             title="ENTRADAS"
             value={`${stockData.entrada.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} L`}
             subtitle="Recebimentos no período"
-            variant="primary"
+            variant="green"
             icon={ArrowDownCircle}
-            className="border-l-4 border-l-emerald-500"
           />
           <MetricCard
             title="TOTAL SAÍDAS"
             value={`${stockData.totalSaidas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} L`}
             subtitle="Consumo total no período"
-            variant="primary"
+            variant="red"
             icon={TrendingDown}
-            className="border-l-4 border-l-red-500"
           />
           <MetricCard
             title="ESTOQUE ATUAL"
             value={`${stockData.estoqueAtual.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} L`}
             subtitle="Diesel disponível"
-            variant="primary"
+            variant="blue"
             icon={Droplet}
-            className="border-l-4 border-l-blue-500"
           />
         </div>
 
