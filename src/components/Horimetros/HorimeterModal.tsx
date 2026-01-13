@@ -25,7 +25,7 @@ import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { useSheetData } from '@/hooks/useGoogleSheets';
 import { useToast } from '@/hooks/use-toast';
 import { Clock, Save, History, AlertTriangle, RefreshCw, TrendingUp, CalendarIcon } from 'lucide-react';
-import { format, parse, isValid, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
+import { format, parse, isValid, startOfMonth, endOfMonth, isWithinInterval, startOfDay, isSameDay, isAfter } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 
@@ -142,6 +142,21 @@ export const HorimeterModal = forwardRef<HTMLDivElement, HorimeterModalProps>(
       return vehicleHistory[0].horas;
     }, [vehicleHistory]);
 
+    // Check if there's already a record for the selected vehicle on the selected date
+    const hasDuplicateRecord = useMemo(() => {
+      if (!selectedVehicle || !selectedDate) return false;
+      
+      return horimeterData.rows.some(row => {
+        const veiculo = getRowValue(row as any, ['VEICULO', 'Veiculo', 'veiculo', 'EQUIPAMENTO', 'Equipamento']);
+        if (veiculo !== selectedVehicle) return false;
+        
+        const dataStr = getRowValue(row as any, ['DATA', 'Data', 'data']);
+        const rowDate = parseDate(dataStr);
+        
+        return rowDate && isSameDay(rowDate, selectedDate);
+      });
+    }, [selectedVehicle, selectedDate, horimeterData.rows]);
+
     // Calculate total hours/km for the current month
     const monthlyTotal = useMemo(() => {
       if (!selectedVehicle) return { total: 0, count: 0 };
@@ -219,6 +234,27 @@ export const HorimeterModal = forwardRef<HTMLDivElement, HorimeterModalProps>(
         toast({
           title: 'Erro',
           description: 'Selecione um veículo',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      // Validate future date
+      const today = startOfDay(new Date());
+      if (isAfter(startOfDay(selectedDate), today)) {
+        toast({
+          title: 'Erro',
+          description: 'Não é permitido registrar datas futuras',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      // Validate duplicate record
+      if (hasDuplicateRecord) {
+        toast({
+          title: 'Erro',
+          description: 'Já existe um registro para este veículo nesta data',
           variant: 'destructive',
         });
         return;
@@ -436,28 +472,36 @@ export const HorimeterModal = forwardRef<HTMLDivElement, HorimeterModalProps>(
                       variant="outline"
                       className={cn(
                         "w-full justify-start text-left font-normal",
-                        !selectedDate && "text-muted-foreground"
+                        !selectedDate && "text-muted-foreground",
+                        hasDuplicateRecord && "border-destructive"
                       )}
                     >
                       <CalendarIcon className="mr-2 h-4 w-4" />
                       {selectedDate ? format(selectedDate, "dd/MM/yyyy", { locale: ptBR }) : <span>Selecione a data</span>}
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
+                  <PopoverContent className="w-auto p-0 z-50" align="start">
                     <CalendarComponent
                       mode="single"
                       selected={selectedDate}
                       onSelect={(date) => date && setSelectedDate(date)}
                       disabled={(date) => date > new Date()}
                       initialFocus
-                      className={cn("p-3 pointer-events-auto")}
+                      className="pointer-events-auto"
                       locale={ptBR}
                     />
                   </PopoverContent>
                 </Popover>
-                <p className="text-xs text-muted-foreground">
-                  Padrão: data atual. Altere para registros retroativos.
-                </p>
+                {hasDuplicateRecord ? (
+                  <div className="flex items-center gap-1 text-destructive text-xs">
+                    <AlertTriangle className="w-3 h-3" />
+                    Já existe um registro para este veículo nesta data
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    Padrão: data atual. Altere para registros retroativos.
+                  </p>
+                )}
               </div>
 
               {/* Current Value Input */}
@@ -509,7 +553,7 @@ export const HorimeterModal = forwardRef<HTMLDivElement, HorimeterModalProps>(
                 <Button variant="outline" onClick={() => onOpenChange(false)}>
                   Cancelar
                 </Button>
-                <Button onClick={handleSave} disabled={isSaving || !selectedVehicle || !currentValue}>
+                <Button onClick={handleSave} disabled={isSaving || !selectedVehicle || !currentValue || hasDuplicateRecord}>
                   {isSaving ? (
                     <>
                       <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
