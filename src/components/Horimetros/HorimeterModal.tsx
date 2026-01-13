@@ -16,11 +16,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { useSheetData } from '@/hooks/useGoogleSheets';
 import { useToast } from '@/hooks/use-toast';
-import { Clock, Save, History, AlertTriangle, RefreshCw, TrendingUp, Calendar } from 'lucide-react';
+import { Clock, Save, History, AlertTriangle, RefreshCw, TrendingUp, CalendarIcon } from 'lucide-react';
 import { format, parse, isValid, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { cn } from '@/lib/utils';
 
 interface HorimeterModalProps {
   open: boolean;
@@ -62,6 +69,7 @@ export const HorimeterModal = forwardRef<HTMLDivElement, HorimeterModalProps>(
     const [currentValue, setCurrentValue] = useState('');
     const [operador, setOperador] = useState('');
     const [observacao, setObservacao] = useState('');
+    const [selectedDate, setSelectedDate] = useState<Date>(new Date());
     const [isSaving, setIsSaving] = useState(false);
 
     // Get unique vehicles from vehicle sheet
@@ -192,6 +200,7 @@ export const HorimeterModal = forwardRef<HTMLDivElement, HorimeterModalProps>(
       setCurrentValue('');
       setOperador('');
       setObservacao('');
+      setSelectedDate(new Date());
     }, [selectedVehicle]);
 
     // Refresh data when modal opens and set initial vehicle
@@ -237,12 +246,12 @@ export const HorimeterModal = forwardRef<HTMLDivElement, HorimeterModalProps>(
       setIsSaving(true);
 
       try {
-        const today = format(new Date(), 'dd/MM/yyyy');
+        const formattedDate = format(selectedDate, 'dd/MM/yyyy');
         const hora = format(new Date(), 'HH:mm');
         const tipo = vehicleInfo?.usaKm ? 'KM' : 'HORIMETRO';
         
         await create({
-          DATA: today,
+          DATA: formattedDate,
           HORA: hora,
           VEICULO: selectedVehicle,
           HORAS: currentValueNum.toString().replace('.', ','),
@@ -264,6 +273,7 @@ export const HorimeterModal = forwardRef<HTMLDivElement, HorimeterModalProps>(
         setCurrentValue('');
         setOperador('');
         setObservacao('');
+        setSelectedDate(new Date());
         
         onOpenChange(false);
         onSuccess?.();
@@ -416,6 +426,39 @@ export const HorimeterModal = forwardRef<HTMLDivElement, HorimeterModalProps>(
                   </div>
                 </div>
               )}
+
+              {/* Date Selection */}
+              <div className="space-y-2">
+                <Label>Data do Registro *</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full justify-start text-left font-normal",
+                        !selectedDate && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {selectedDate ? format(selectedDate, "dd/MM/yyyy", { locale: ptBR }) : <span>Selecione a data</span>}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <CalendarComponent
+                      mode="single"
+                      selected={selectedDate}
+                      onSelect={(date) => date && setSelectedDate(date)}
+                      disabled={(date) => date > new Date()}
+                      initialFocus
+                      className={cn("p-3 pointer-events-auto")}
+                      locale={ptBR}
+                    />
+                  </PopoverContent>
+                </Popover>
+                <p className="text-xs text-muted-foreground">
+                  Padrão: data atual. Altere para registros retroativos.
+                </p>
+              </div>
 
               {/* Current Value Input */}
               <div className="grid grid-cols-2 gap-4">
