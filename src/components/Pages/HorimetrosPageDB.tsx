@@ -14,7 +14,10 @@ import {
   Trash2,
   FileSpreadsheet,
   Download,
-  Upload
+  Upload,
+  Users,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -46,6 +49,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { format, startOfMonth, endOfMonth, isWithinInterval, subDays, startOfDay, endOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -63,17 +72,17 @@ export function HorimetrosPageDB() {
   const { toast } = useToast();
 
   const [search, setSearch] = useState('');
-  const [activeTab, setActiveTab] = useState<'resumo' | 'detalhes'>('resumo');
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
-  const [periodFilter, setPeriodFilter] = useState('todos');
+  const [periodFilter, setPeriodFilter] = useState('hoje');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [vehicleFilter, setVehicleFilter] = useState<string>('all');
   const [showNewModal, setShowNewModal] = useState(false);
   const [showSyncModal, setShowSyncModal] = useState(false);
   const [editingRecord, setEditingRecord] = useState<HorimeterWithVehicle | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<HorimeterWithVehicle | null>(null);
+  const [showMissingModal, setShowMissingModal] = useState(false);
 
   const loading = vehiclesLoading || readingsLoading;
   const isConnected = !loading && readings.length >= 0;
@@ -156,80 +165,65 @@ export function HorimetrosPageDB() {
       }
 
       return matchesSearch && matchesDate && matchesCategory && matchesVehicle;
+    }).sort((a, b) => {
+      // Sort by date descending, then by vehicle code
+      const dateCompare = new Date(b.reading_date).getTime() - new Date(a.reading_date).getTime();
+      if (dateCompare !== 0) return dateCompare;
+      return (a.vehicle?.code || '').localeCompare(b.vehicle?.code || '');
     });
   }, [readings, search, selectedDate, dateRange, categoryFilter, vehicleFilter]);
 
+  // Calculate interval for each reading
+  const readingsWithInterval = useMemo(() => {
+    return filteredReadings.map(reading => ({
+      ...reading,
+      interval: reading.previous_value 
+        ? reading.current_value - reading.previous_value 
+        : 0
+    }));
+  }, [filteredReadings]);
+
   // Metrics
   const metrics = useMemo(() => {
-    let totalValue = 0;
+    let totalInterval = 0;
     let zerados = 0;
 
-    filteredReadings.forEach(r => {
-      totalValue += r.current_value;
+    readingsWithInterval.forEach(r => {
+      totalInterval += r.interval;
       if (r.current_value === 0) zerados++;
     });
 
     return {
-      total: totalValue,
-      media: filteredReadings.length > 0 ? totalValue / filteredReadings.length : 0,
-      registros: filteredReadings.length,
+      registros: readingsWithInterval.length,
+      totalInterval,
       zerados,
     };
-  }, [filteredReadings]);
+  }, [readingsWithInterval]);
 
-  // Vehicle summary
-  const vehicleSummary = useMemo(() => {
-    const summary = new Map<string, {
-      vehicle: typeof vehicles[0];
-      lastReading: number;
-      firstReading: number;
-      interval: number;
-      monthTotal: number;
-      count: number;
-    }>();
+  // Get the reference date for missing vehicles calculation
+  const referenceDate = useMemo(() => {
+    if (selectedDate) return selectedDate;
+    if (periodFilter === 'hoje') return new Date();
+    if (periodFilter === 'ontem') return subDays(new Date(), 1);
+    return new Date();
+  }, [selectedDate, periodFilter]);
 
-    const now = new Date();
-    const monthStart = startOfMonth(now);
-    const monthEnd = endOfMonth(now);
-
-    filteredReadings.forEach(reading => {
-      if (!reading.vehicle) return;
-      
-      const vehicleId = reading.vehicle_id;
-      const readingDate = new Date(reading.reading_date + 'T00:00:00');
-      const isInMonth = isWithinInterval(readingDate, { start: monthStart, end: monthEnd });
-
-      const existing = summary.get(vehicleId);
-      if (existing) {
-        if (reading.current_value > existing.lastReading) {
-          existing.lastReading = reading.current_value;
-        }
-        if (reading.current_value < existing.firstReading || existing.firstReading === 0) {
-          existing.firstReading = reading.current_value;
-        }
-        existing.interval = existing.lastReading - existing.firstReading;
-        if (isInMonth && reading.previous_value) {
-          existing.monthTotal += reading.current_value - reading.previous_value;
-        }
-        existing.count++;
-      } else {
-        summary.set(vehicleId, {
-          vehicle: reading.vehicle,
-          lastReading: reading.current_value,
-          firstReading: reading.current_value,
-          interval: 0,
-          monthTotal: isInMonth && reading.previous_value 
-            ? reading.current_value - reading.previous_value 
-            : 0,
-          count: 1,
-        });
+  // Vehicles with readings on the reference date
+  const vehiclesWithReadingsOnDate = useMemo(() => {
+    const dateStr = format(referenceDate, 'yyyy-MM-dd');
+    const vehicleIds = new Set<string>();
+    readings.forEach(r => {
+      if (r.reading_date === dateStr) {
+        vehicleIds.add(r.vehicle_id);
       }
     });
+    return vehicleIds;
+  }, [readings, referenceDate]);
 
-    return Array.from(summary.values()).sort((a, b) => 
-      a.vehicle.code.localeCompare(b.vehicle.code)
-    );
-  }, [filteredReadings]);
+  // Missing vehicles (no reading on reference date)
+  const missingVehicles = useMemo(() => {
+    return vehicles.filter(v => !vehiclesWithReadingsOnDate.has(v.id));
+  }, [vehicles, vehiclesWithReadingsOnDate]);
 
   const handleRefresh = useCallback(async () => {
     await Promise.all([refetchVehicles(), refetchReadings()]);
@@ -257,47 +251,63 @@ export function HorimetrosPageDB() {
     doc.text('Relatório de Horímetros', 14, 22);
     
     doc.setFontSize(10);
-    const dateInfo = selectedDate 
-      ? format(selectedDate, 'dd/MM/yyyy')
-      : 'Todas as datas';
-    doc.text(`Data: ${dateInfo}`, 14, 30);
-    doc.text(`Gerado em: ${format(new Date(), 'dd/MM/yyyy HH:mm', { locale: ptBR })}`, 14, 36);
+    let dateInfo = 'Todas as datas';
+    if (selectedDate) {
+      dateInfo = format(selectedDate, 'dd/MM/yyyy');
+    } else if (periodFilter !== 'todos' && dateRange) {
+      dateInfo = `${format(dateRange.start, 'dd/MM/yyyy')} até ${format(dateRange.end, 'dd/MM/yyyy')}`;
+    }
+    doc.text(`Período: ${dateInfo}`, 14, 30);
+    
+    if (vehicleFilter !== 'all') {
+      const vehicle = vehicles.find(v => v.id === vehicleFilter);
+      doc.text(`Veículo: ${vehicle?.code || vehicleFilter}`, 14, 36);
+    }
+    
+    doc.text(`Gerado em: ${format(new Date(), 'dd/MM/yyyy HH:mm', { locale: ptBR })}`, 14, vehicleFilter !== 'all' ? 42 : 36);
 
-    const tableData = filteredReadings.map(r => [
-      r.vehicle?.code || '-',
+    const tableData = readingsWithInterval.map(r => [
       format(new Date(r.reading_date + 'T00:00:00'), 'dd/MM/yyyy'),
+      r.vehicle?.code || '-',
       r.previous_value?.toLocaleString('pt-BR') || '-',
       r.current_value.toLocaleString('pt-BR'),
-      r.operator || '-'
+      r.interval > 0 ? `+${r.interval.toLocaleString('pt-BR')}` : r.interval.toLocaleString('pt-BR'),
     ]);
 
     autoTable(doc, {
-      head: [['Veículo', 'Data', 'Anterior', 'Atual', 'Operador']],
+      head: [['Data', 'Veículo', 'Anterior', 'Atual', 'Intervalo']],
       body: tableData,
-      startY: 46,
-      styles: { fontSize: 8 },
+      startY: vehicleFilter !== 'all' ? 50 : 44,
+      styles: { fontSize: 9 },
       headStyles: { fillColor: [59, 130, 246] }
     });
+
+    // Add totals
+    const finalY = (doc as any).lastAutoTable.finalY || 50;
+    doc.setFontSize(10);
+    doc.text(`Total de registros: ${readingsWithInterval.length}`, 14, finalY + 10);
+    doc.text(`Intervalo total: ${metrics.totalInterval.toLocaleString('pt-BR')}`, 14, finalY + 16);
 
     doc.save(`horimetros_${format(new Date(), 'yyyy-MM-dd')}.pdf`);
   };
 
   const exportToExcel = () => {
-    const excelData = filteredReadings.map(r => ({
+    const excelData = readingsWithInterval.map(r => ({
+      'Data': format(new Date(r.reading_date + 'T00:00:00'), 'dd/MM/yyyy'),
       'Veículo': r.vehicle?.code || '',
+      'Anterior': r.previous_value || '',
+      'Atual': r.current_value,
+      'Intervalo': r.interval,
       'Descrição': r.vehicle?.name || '',
       'Categoria': r.vehicle?.category || '',
-      'Data': format(new Date(r.reading_date + 'T00:00:00'), 'dd/MM/yyyy'),
-      'Valor Anterior': r.previous_value || '',
-      'Valor Atual': r.current_value,
       'Operador': r.operator || '',
       'Observação': r.observations || '',
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(excelData);
     worksheet['!cols'] = [
-      { wch: 15 }, { wch: 25 }, { wch: 15 }, { wch: 12 },
-      { wch: 15 }, { wch: 15 }, { wch: 20 }, { wch: 30 },
+      { wch: 12 }, { wch: 15 }, { wch: 12 }, { wch: 12 }, { wch: 12 },
+      { wch: 25 }, { wch: 15 }, { wch: 20 }, { wch: 30 },
     ];
 
     const workbook = XLSX.utils.book_new();
@@ -328,7 +338,7 @@ export function HorimetrosPageDB() {
               isConnected ? "bg-emerald-500/10 text-emerald-500" : "bg-amber-500/10 text-amber-500"
             )}>
               {isConnected ? <Wifi className="w-3 h-3" /> : <RefreshCw className="w-3 h-3 animate-spin" />}
-              {isConnected ? 'Banco de Dados' : 'Carregando...'}
+              {isConnected ? 'Conectado' : 'Carregando...'}
             </div>
           </div>
           
@@ -371,272 +381,193 @@ export function HorimetrosPageDB() {
             variant="blue"
           />
           <MetricCard
-            title="Média por Registro"
-            value={metrics.media.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}
+            title="Intervalo Total"
+            value={metrics.totalInterval.toLocaleString('pt-BR')}
+            subtitle="horas/km no período"
             icon={Clock}
             variant="green"
           />
           <MetricCard
-            title="Veículos"
+            title="Veículos Cadastrados"
             value={vehicles.length.toString()}
             icon={Clock}
             variant="yellow"
           />
-          <MetricCard
-            title="Zerados"
-            value={metrics.zerados.toString()}
-            icon={AlertTriangle}
-            variant="red"
-          />
+          {/* Missing vehicles card - clickable */}
+          <div 
+            className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg p-4 cursor-pointer hover:bg-red-100 dark:hover:bg-red-950/50 transition-colors"
+            onClick={() => setShowMissingModal(true)}
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs text-red-600 dark:text-red-400 font-medium">SEM REGISTRO HOJE</p>
+                <p className="text-2xl font-bold text-red-700 dark:text-red-300">{missingVehicles.length}</p>
+                <p className="text-xs text-red-500 dark:text-red-400/70">
+                  Clique para ver lista
+                </p>
+              </div>
+              <AlertTriangle className="w-8 h-8 text-red-400" />
+            </div>
+          </div>
         </div>
 
-        {/* Date Filter */}
-        <div className="flex flex-col md:flex-row gap-3 items-start md:items-center flex-wrap">
-          <div className="flex gap-2 items-center flex-wrap">
-            <Select value={periodFilter} onValueChange={(value) => {
-              setPeriodFilter(value);
-              if (value !== 'personalizado') {
-                setSelectedDate(undefined);
-              }
-            }}>
-              <SelectTrigger className="w-[140px]">
-                <SelectValue placeholder="Período" />
-              </SelectTrigger>
-              <SelectContent className="bg-background">
-                <SelectItem value="todos">Todos</SelectItem>
-                <SelectItem value="hoje">Hoje</SelectItem>
-                <SelectItem value="ontem">Ontem</SelectItem>
-                <SelectItem value="7dias">Últimos 7 dias</SelectItem>
-                <SelectItem value="30dias">Últimos 30 dias</SelectItem>
-                <SelectItem value="mes">Este mês</SelectItem>
-                <SelectItem value="personalizado">Personalizado</SelectItem>
-              </SelectContent>
-            </Select>
+        {/* Period Filter */}
+        <div className="bg-card rounded-lg border p-4 space-y-4">
+          <div className="flex flex-col md:flex-row gap-3 items-start md:items-center flex-wrap">
+            <div className="flex gap-2 items-center flex-wrap">
+              <span className="text-sm font-medium text-muted-foreground">Período:</span>
+              <Select value={periodFilter} onValueChange={(value) => {
+                setPeriodFilter(value);
+                if (value !== 'personalizado') {
+                  setSelectedDate(undefined);
+                }
+              }}>
+                <SelectTrigger className="w-[140px]">
+                  <SelectValue placeholder="Período" />
+                </SelectTrigger>
+                <SelectContent className="bg-background">
+                  <SelectItem value="todos">Todos</SelectItem>
+                  <SelectItem value="hoje">Hoje</SelectItem>
+                  <SelectItem value="ontem">Ontem</SelectItem>
+                  <SelectItem value="7dias">Últimos 7 dias</SelectItem>
+                  <SelectItem value="30dias">Últimos 30 dias</SelectItem>
+                  <SelectItem value="mes">Este mês</SelectItem>
+                  <SelectItem value="personalizado">Personalizado</SelectItem>
+                </SelectContent>
+              </Select>
 
-            {periodFilter === 'personalizado' && (
-              <>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" size="sm">
-                      <Calendar className="w-4 h-4 mr-2" />
-                      {startDate ? format(startDate, 'dd/MM/yyyy') : 'Data início'}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0 bg-background" align="start">
-                    <CalendarComponent
-                      mode="single"
-                      selected={startDate}
-                      onSelect={setStartDate}
-                      locale={ptBR}
-                    />
-                  </PopoverContent>
-                </Popover>
-                <span className="text-sm text-muted-foreground">até</span>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" size="sm">
-                      <Calendar className="w-4 h-4 mr-2" />
-                      {endDate ? format(endDate, 'dd/MM/yyyy') : 'Data fim'}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0 bg-background" align="start">
-                    <CalendarComponent
-                      mode="single"
-                      selected={endDate}
-                      onSelect={setEndDate}
-                      locale={ptBR}
-                    />
-                  </PopoverContent>
-                </Popover>
-              </>
-            )}
-
-            <Button 
-              variant={selectedDate && format(selectedDate, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd') ? 'default' : 'outline'} 
-              size="sm" 
-              onClick={() => {
-                setSelectedDate(new Date());
-                setPeriodFilter('hoje');
-              }}
-            >
-              Hoje
-            </Button>
-            
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" size="sm">
-                  <Calendar className="w-4 h-4 mr-2" />
-                  {selectedDate ? format(selectedDate, 'dd/MM/yyyy') : 'Data específica'}
+              {periodFilter === 'personalizado' && (
+                <>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" size="sm">
+                        <Calendar className="w-4 h-4 mr-2" />
+                        {startDate ? format(startDate, 'dd/MM/yyyy') : 'Data início'}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0 bg-background" align="start">
+                      <CalendarComponent
+                        mode="single"
+                        selected={startDate}
+                        onSelect={setStartDate}
+                        locale={ptBR}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  <span className="text-sm text-muted-foreground">até</span>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" size="sm">
+                        <Calendar className="w-4 h-4 mr-2" />
+                        {endDate ? format(endDate, 'dd/MM/yyyy') : 'Data fim'}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0 bg-background" align="start">
+                      <CalendarComponent
+                        mode="single"
+                        selected={endDate}
+                        onSelect={setEndDate}
+                        locale={ptBR}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </>
+              )}
+              
+              {(selectedDate || periodFilter !== 'todos') && (
+                <Button variant="ghost" size="sm" onClick={clearDateFilter} title="Limpar filtros">
+                  <X className="w-4 h-4" />
                 </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0 bg-background" align="start">
-                <CalendarComponent
-                  mode="single"
-                  selected={selectedDate}
-                  onSelect={(date) => {
-                    setSelectedDate(date);
-                    if (date) setPeriodFilter('personalizado');
-                  }}
-                  locale={ptBR}
-                />
-              </PopoverContent>
-            </Popover>
-            
-            {(selectedDate || periodFilter !== 'todos') && (
-              <Button variant="ghost" size="sm" onClick={clearDateFilter} title="Limpar filtros">
-                <X className="w-4 h-4" />
-              </Button>
-            )}
+              )}
+            </div>
+
+            <div className="flex gap-2 items-center flex-wrap">
+              <span className="text-sm font-medium text-muted-foreground">Categoria:</span>
+              <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                <SelectTrigger className="w-[150px]">
+                  <SelectValue placeholder="Categoria" />
+                </SelectTrigger>
+                <SelectContent className="bg-background">
+                  <SelectItem value="all">Todas</SelectItem>
+                  {categories.map(cat => (
+                    <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex gap-2 items-center flex-wrap">
+              <span className="text-sm font-medium text-muted-foreground">Veículo:</span>
+              <Select value={vehicleFilter} onValueChange={setVehicleFilter}>
+                <SelectTrigger className="w-[150px]">
+                  <SelectValue placeholder="Veículo" />
+                </SelectTrigger>
+                <SelectContent className="bg-background">
+                  <SelectItem value="all">Todos</SelectItem>
+                  {vehicles.map(v => (
+                    <SelectItem key={v.id} value={v.id}>{v.code}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
-          <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-            <SelectTrigger className="w-[150px]">
-              <SelectValue placeholder="Categoria" />
-            </SelectTrigger>
-            <SelectContent className="bg-background">
-              <SelectItem value="all">Todas</SelectItem>
-              {categories.map(cat => (
-                <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select value={vehicleFilter} onValueChange={setVehicleFilter}>
-            <SelectTrigger className="w-[150px]">
-              <SelectValue placeholder="Veículo" />
-            </SelectTrigger>
-            <SelectContent className="bg-background">
-              <SelectItem value="all">Todos</SelectItem>
-              {vehicles.map(v => (
-                <SelectItem key={v.id} value={v.id}>{v.code}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {/* Search */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar por veículo, operador..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-10"
+            />
+          </div>
         </div>
 
-        {/* Search */}
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            placeholder="Buscar por veículo, operador..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-10"
-          />
-        </div>
-
-        {/* Tabs */}
-        <div className="flex gap-2 border-b">
-          <button
-            className={cn(
-              "px-4 py-2 text-sm font-medium transition-colors",
-              activeTab === 'resumo' 
-                ? "border-b-2 border-primary text-primary" 
-                : "text-muted-foreground hover:text-foreground"
-            )}
-            onClick={() => setActiveTab('resumo')}
-          >
-            Resumo por Veículo
-          </button>
-          <button
-            className={cn(
-              "px-4 py-2 text-sm font-medium transition-colors",
-              activeTab === 'detalhes' 
-                ? "border-b-2 border-primary text-primary" 
-                : "text-muted-foreground hover:text-foreground"
-            )}
-            onClick={() => setActiveTab('detalhes')}
-          >
-            Detalhes
-          </button>
-        </div>
-
-        {/* Content */}
+        {/* Details Table */}
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <RefreshCw className="w-6 h-6 animate-spin text-primary" />
             <span className="ml-2">Carregando dados...</span>
-          </div>
-        ) : activeTab === 'resumo' ? (
-          <div className="rounded-lg border overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Veículo</TableHead>
-                  <TableHead>Descrição</TableHead>
-                  <TableHead>Categoria</TableHead>
-                  <TableHead className="text-right">Último</TableHead>
-                  <TableHead className="text-right">Intervalo</TableHead>
-                  <TableHead className="text-right">Mês</TableHead>
-                  <TableHead className="text-center">Registros</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {vehicleSummary.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                      Nenhum registro encontrado. Importe dados da planilha ou crie um novo registro.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  vehicleSummary.map(item => (
-                    <TableRow key={item.vehicle.id}>
-                      <TableCell className="font-medium">{item.vehicle.code}</TableCell>
-                      <TableCell>{item.vehicle.name}</TableCell>
-                      <TableCell>{item.vehicle.category}</TableCell>
-                      <TableCell className="text-right">
-                        {item.lastReading.toLocaleString('pt-BR')} {item.vehicle.unit}
-                      </TableCell>
-                      <TableCell className="text-right text-green-600">
-                        +{item.interval.toLocaleString('pt-BR')} {item.vehicle.unit}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {item.monthTotal.toLocaleString('pt-BR')} {item.vehicle.unit}
-                      </TableCell>
-                      <TableCell className="text-center">{item.count}</TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
           </div>
         ) : (
           <div className="rounded-lg border overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Veículo</TableHead>
                   <TableHead>Data</TableHead>
+                  <TableHead>Veículo</TableHead>
                   <TableHead className="text-right">Anterior</TableHead>
                   <TableHead className="text-right">Atual</TableHead>
-                  <TableHead>Operador</TableHead>
-                  <TableHead>Observação</TableHead>
+                  <TableHead className="text-right">Intervalo</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredReadings.length === 0 ? (
+                {readingsWithInterval.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                      Nenhum registro encontrado
+                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                      Nenhum registro encontrado para o período selecionado
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredReadings.map(reading => (
+                  readingsWithInterval.map(reading => (
                     <TableRow key={reading.id}>
-                      <TableCell className="font-medium">{reading.vehicle?.code}</TableCell>
                       <TableCell>
                         {format(new Date(reading.reading_date + 'T00:00:00'), 'dd/MM/yyyy')}
                       </TableCell>
+                      <TableCell className="font-medium">{reading.vehicle?.code}</TableCell>
                       <TableCell className="text-right">
                         {reading.previous_value?.toLocaleString('pt-BR') || '-'}
                       </TableCell>
                       <TableCell className="text-right font-medium">
                         {reading.current_value.toLocaleString('pt-BR')}
                       </TableCell>
-                      <TableCell>{reading.operator || '-'}</TableCell>
-                      <TableCell className="max-w-[200px] truncate">
-                        {reading.observations || '-'}
+                      <TableCell className={cn(
+                        "text-right font-medium",
+                        reading.interval > 0 ? "text-green-600" : reading.interval < 0 ? "text-red-600" : ""
+                      )}>
+                        {reading.interval > 0 ? '+' : ''}{reading.interval.toLocaleString('pt-BR')}
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
@@ -661,6 +592,18 @@ export function HorimetrosPageDB() {
                 )}
               </TableBody>
             </Table>
+            
+            {/* Summary Footer */}
+            {readingsWithInterval.length > 0 && (
+              <div className="border-t bg-muted/30 p-3 flex justify-between items-center text-sm">
+                <span className="text-muted-foreground">
+                  Total: <strong>{readingsWithInterval.length}</strong> registros
+                </span>
+                <span className="text-muted-foreground">
+                  Intervalo Total: <strong className="text-green-600">+{metrics.totalInterval.toLocaleString('pt-BR')}</strong>
+                </span>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -686,6 +629,59 @@ export function HorimetrosPageDB() {
           refetchReadings();
         }}
       />
+
+      {/* Missing Vehicles Modal */}
+      <Dialog open={showMissingModal} onOpenChange={setShowMissingModal}>
+        <DialogContent className="max-w-lg max-h-[80vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <AlertTriangle className="w-5 h-5" />
+              Veículos sem Registro - {format(referenceDate, 'dd/MM/yyyy')}
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="flex-1 overflow-auto">
+            {missingVehicles.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <Users className="w-12 h-12 mx-auto mb-2 text-green-500" />
+                <p>Todos os veículos possuem registro para esta data!</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground mb-4">
+                  {missingVehicles.length} veículo(s) sem apontamento de horímetro:
+                </p>
+                <div className="rounded-lg border overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Código</TableHead>
+                        <TableHead>Descrição</TableHead>
+                        <TableHead>Categoria</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {missingVehicles.map(v => (
+                        <TableRow key={v.id}>
+                          <TableCell className="font-medium">{v.code}</TableCell>
+                          <TableCell>{v.name}</TableCell>
+                          <TableCell>{v.category || '-'}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            )}
+          </div>
+          
+          <div className="flex justify-end pt-4 border-t">
+            <Button variant="outline" onClick={() => setShowMissingModal(false)}>
+              Fechar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Confirmation */}
       <AlertDialog open={!!deleteConfirm} onOpenChange={() => setDeleteConfirm(null)}>
