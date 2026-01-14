@@ -235,14 +235,17 @@ export function useHorimeterReadings(vehicleId?: string) {
     }
   }, [toast]);
 
-  const updateReading = useCallback(async (id: string, updates: Partial<HorimeterReading>) => {
+  const updateReading = useCallback(async (id: string, updates: Partial<HorimeterReading> & { _horimeterValue?: number; _kmValue?: number }) => {
     try {
       // First get the current reading to know its data for sheet sync
       const existingReading = readings.find(r => r.id === id);
       
+      // Remove custom fields before updating to DB
+      const { _horimeterValue, _kmValue, ...dbUpdates } = updates as any;
+      
       const { data, error: updateError } = await supabase
         .from('horimeter_readings')
-        .update(updates)
+        .update(dbUpdates)
         .eq('id', id)
         .select(`*, vehicle:vehicles(*)`)
         .single();
@@ -287,6 +290,10 @@ export function useHorimeterReadings(vehicleId?: string) {
             const previousValue = updates.previous_value ?? data.previous_value;
             const operator = updates.operator ?? data.operator;
             
+            // Use provided horimeter/km values if available, otherwise use category-based logic
+            const horimeterVal = _horimeterValue || 0;
+            const kmVal = _kmValue || 0;
+            
             const rowData = {
               'Data': formattedDate,
               'Veiculo': vehicle.code,
@@ -294,10 +301,10 @@ export function useHorimeterReadings(vehicleId?: string) {
               'Descricao': vehicle.name || '',
               'Empresa': vehicle.company || '',
               'Operador': operator || '',
-              'Hor_Anterior': usesKm ? '' : (previousValue?.toString().replace('.', ',') || ''),
-              'Hor_Atual': usesKm ? '' : currentValue.toString().replace('.', ','),
-              'Km_Anterior': usesKm ? (previousValue?.toString().replace('.', ',') || '') : '',
-              'Km_Atual': usesKm ? currentValue.toString().replace('.', ',') : '',
+              'Hor_Anterior': horimeterVal > 0 ? (previousValue?.toString().replace('.', ',') || '') : (usesKm ? '' : (previousValue?.toString().replace('.', ',') || '')),
+              'Hor_Atual': horimeterVal > 0 ? horimeterVal.toString().replace('.', ',') : (usesKm ? '' : currentValue.toString().replace('.', ',')),
+              'Km_Anterior': kmVal > 0 ? (previousValue?.toString().replace('.', ',') || '') : (usesKm ? (previousValue?.toString().replace('.', ',') || '') : ''),
+              'Km_Atual': kmVal > 0 ? kmVal.toString().replace('.', ',') : (usesKm ? currentValue.toString().replace('.', ',') : ''),
               'Observacao': updates.observations ?? data.observations ?? '',
             };
             
