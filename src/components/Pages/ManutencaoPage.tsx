@@ -493,12 +493,39 @@ export function ManutencaoPage() {
     }
   };
 
-  // Generate order number
-  const generateOrderNumber = () => {
+  // Generate unique order number - sequential format OS-YYYY-NNNNN
+  const generateOrderNumber = useCallback(async () => {
     const year = new Date().getFullYear();
-    const count = orders.filter(o => o.order_number.includes(year.toString())).length + 1;
-    return `OS-${year}-${String(count).padStart(5, '0')}`;
-  };
+    
+    try {
+      // Get the highest order number for this year from database
+      const { data: existingOrders, error } = await supabase
+        .from('service_orders')
+        .select('order_number')
+        .like('order_number', `OS-${year}-%`)
+        .order('order_number', { ascending: false })
+        .limit(1);
+
+      if (error) throw error;
+
+      let nextNumber = 1;
+      
+      if (existingOrders && existingOrders.length > 0) {
+        const lastOrder = existingOrders[0].order_number;
+        const match = lastOrder.match(/OS-\d{4}-(\d+)/);
+        if (match) {
+          nextNumber = parseInt(match[1], 10) + 1;
+        }
+      }
+
+      return `OS-${year}-${String(nextNumber).padStart(5, '0')}`;
+    } catch (err) {
+      console.error('Error generating order number:', err);
+      // Fallback to timestamp-based unique ID
+      const timestamp = Date.now().toString().slice(-6);
+      return `OS-${year}-${timestamp}`;
+    }
+  }, []);
 
   // Apply quick filter
   const applyQuickFilter = (filter: string) => {
@@ -807,7 +834,7 @@ export function ManutencaoPage() {
           order_date: savedOrderDate,
         }, String(vehicleInfo?.['Empresa'] || ''));
       } else {
-        const newOrderNumber = generateOrderNumber();
+        const newOrderNumber = await generateOrderNumber();
         const newOrderDate = new Date().toISOString().split('T')[0];
         
         const { error } = await supabase
