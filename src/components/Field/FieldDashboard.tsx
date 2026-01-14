@@ -36,6 +36,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { EditRequestModal } from './EditRequestModal';
 import logoAbastech from '@/assets/logo-abastech.png';
 
 interface FieldUser {
@@ -67,6 +68,11 @@ interface RecentRecord {
   fuel_quantity: number;
   location: string;
   record_type: string;
+  operator_name?: string;
+  horimeter_current?: number;
+  km_current?: number;
+  arla_quantity?: number;
+  observations?: string;
 }
 
 interface DeleteRequest {
@@ -87,6 +93,7 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
   });
   const [deleteRequest, setDeleteRequest] = useState<DeleteRequest | null>(null);
   const [deleteReason, setDeleteReason] = useState('');
+  const [editRecord, setEditRecord] = useState<RecentRecord | null>(null);
   const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
   const [monthStats, setMonthStats] = useState({
     totalRecords: 0,
@@ -124,6 +131,11 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
           fuel_quantity: r.fuel_quantity,
           location: r.location || '',
           record_type: (r as any).record_type || 'saida',
+          operator_name: r.operator_name || undefined,
+          horimeter_current: r.horimeter_current || undefined,
+          km_current: r.km_current || undefined,
+          arla_quantity: r.arla_quantity || undefined,
+          observations: r.observations || undefined,
         })) || []);
 
         // Calculate today stats
@@ -325,6 +337,14 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* Edit Request Modal */}
+      <EditRequestModal
+        record={editRecord}
+        userId={user.id}
+        onClose={() => setEditRecord(null)}
+        onSuccess={refreshRecords}
+      />
+
       {/* Welcome Section with Logo */}
       <div className="bg-gradient-to-r from-amber-600 to-orange-600 rounded-xl p-4 text-white">
         <div className="flex items-center gap-3 mb-2">
@@ -484,21 +504,33 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
                     <p className="text-sm font-bold text-amber-400">{record.fuel_quantity}L</p>
                     <p className="text-xs text-slate-400">{record.location}</p>
                   </div>
-                  {/* Delete button - requires admin approval */}
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="h-8 w-8 text-slate-400 hover:text-red-400 hover:bg-red-900/30"
-                    onClick={() => setDeleteRequest({
-                      recordId: record.id,
-                      vehicleCode: record.vehicle_code,
-                      quantity: record.fuel_quantity,
-                      reason: '',
-                    })}
-                    title="Solicitar exclusão"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
+                  <div className="flex gap-1">
+                    {/* Edit button - requires admin approval */}
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-8 w-8 text-slate-400 hover:text-blue-400 hover:bg-blue-900/30"
+                      onClick={() => setEditRecord(record)}
+                      title="Solicitar edição"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </Button>
+                    {/* Delete button - requires admin approval */}
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-8 w-8 text-slate-400 hover:text-red-400 hover:bg-red-900/30"
+                      onClick={() => setDeleteRequest({
+                        recordId: record.id,
+                        vehicleCode: record.vehicle_code,
+                        quantity: record.fuel_quantity,
+                        reason: '',
+                      })}
+                      title="Solicitar exclusão"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>
