@@ -521,10 +521,17 @@ export function AbastecimentoPage() {
           currentY = 15;
         }
         
-        // Title for this location
+        // Title for this location with date range
         doc.setFontSize(14);
         doc.setFont('helvetica', 'bold');
         doc.text(local, pageWidth / 2, currentY, { align: 'center' });
+        currentY += 6;
+        
+        // Date range subtitle
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'normal');
+        const dateRangeText = `Período: ${format(dateRange.start, 'dd/MM/yyyy')} a ${format(dateRange.end, 'dd/MM/yyyy')}`;
+        doc.text(dateRangeText, pageWidth / 2, currentY, { align: 'center' });
         currentY += 8;
         
         // Prepare table data with consumption calculation
@@ -638,7 +645,7 @@ export function AbastecimentoPage() {
     } finally {
       setIsExporting(false);
     }
-  }, [resumoPorLocal]);
+  }, [resumoPorLocal, dateRange]);
 
   // Export to PDF (simple) - same format as detailed, grouped by location
   const exportPDF = useCallback(() => {
@@ -807,10 +814,11 @@ export function AbastecimentoPage() {
         doc.setFont('helvetica', 'bold');
         doc.text(`Relatório Geral - ${empresa.toUpperCase()}`, pageWidth / 2, currentY, { align: 'center' });
         
-        // Date on the right
+        // Date range on the right
         doc.setFontSize(10);
         doc.setFont('helvetica', 'normal');
-        doc.text(format(new Date(), "dd 'de' MMM. 'de' yyyy", { locale: ptBR }), pageWidth - 20, currentY, { align: 'right' });
+        const dateRangeText = `${format(dateRange.start, 'dd/MM/yyyy')} a ${format(dateRange.end, 'dd/MM/yyyy')}`;
+        doc.text(dateRangeText, pageWidth - 20, currentY, { align: 'right' });
         
         currentY += 15;
         
@@ -951,7 +959,7 @@ export function AbastecimentoPage() {
     } finally {
       setIsExporting(false);
     }
-  }, [resumoPorEmpresa]);
+  }, [resumoPorEmpresa, dateRange]);
 
   // Print function
   const handlePrint = useCallback(() => {
@@ -1017,7 +1025,7 @@ export function AbastecimentoPage() {
             icon={TrendingDown}
           />
           <MetricCard
-            title="TOTAL ARLA"
+            title="ARLA TOTAL DE SAÍDAS"
             value={`${metrics.totalArla.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L`}
             subtitle="Arla consumido"
             variant="yellow"
