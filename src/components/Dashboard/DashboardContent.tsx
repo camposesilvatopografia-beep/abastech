@@ -1,5 +1,5 @@
-import { useMemo, useState, useCallback } from 'react';
-import { Droplet, TrendingDown, TrendingUp, Package, Truck, ArrowDownCircle, ArrowUpCircle, Clock, Fuel, Calendar, MessageCircle } from 'lucide-react';
+import { useMemo, useState, useCallback, useEffect } from 'react';
+import { Droplet, TrendingDown, TrendingUp, Package, Truck, ArrowDownCircle, ArrowUpCircle, Clock, Fuel, Calendar, MessageCircle, Wifi, WifiOff, RefreshCw } from 'lucide-react';
 import { FilterBar } from './FilterBar';
 import { MetricCard } from './MetricCard';
 import { StockSummary } from './StockSummary';
@@ -30,7 +30,15 @@ export function DashboardContent() {
   const { data: vehicleData } = useSheetData(VEHICLE_SHEET, { pollingInterval: POLLING_INTERVAL });
   const { data: arlaData } = useSheetData(ARLA_SHEET, { pollingInterval: POLLING_INTERVAL });
   const [isSending, setIsSending] = useState(false);
+  const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   const { toast } = useToast();
+
+  // Update last sync time when data changes
+  useEffect(() => {
+    if (abastecimentoData.rows.length > 0 || geralData.rows.length > 0) {
+      setLastUpdate(new Date());
+    }
+  }, [abastecimentoData.rows.length, geralData.rows.length]);
 
   // Get vehicle info for filtering comboios
   const vehicleInfo = useMemo(() => {
@@ -227,9 +235,30 @@ _Sistema Abastech_`;
   return (
     <div className="flex-1 p-3 md:p-6 overflow-auto">
       <div className="space-y-4 md:space-y-6">
-        {/* Filter Bar */}
+        {/* Filter Bar with Sync Indicator */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <FilterBar totalRecords={totalRecords} />
+          <div className="flex items-center gap-4">
+            <FilterBar totalRecords={totalRecords} />
+            {/* Real-time sync indicator */}
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted/50 border border-border">
+              {loading ? (
+                <>
+                  <RefreshCw className="w-3.5 h-3.5 text-primary animate-spin" />
+                  <span className="text-xs text-muted-foreground">Sincronizando...</span>
+                </>
+              ) : (
+                <>
+                  <Wifi className="w-3.5 h-3.5 text-green-500" />
+                  <div className="flex flex-col">
+                    <span className="text-xs text-green-600 dark:text-green-400 font-medium">Sincronizado</span>
+                    <span className="text-[10px] text-muted-foreground">
+                      {format(lastUpdate, 'HH:mm:ss')}
+                    </span>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
           <Button 
             onClick={handleWhatsAppExport} 
             disabled={isSending}
