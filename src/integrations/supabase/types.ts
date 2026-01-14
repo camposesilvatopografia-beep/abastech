@@ -435,6 +435,8 @@ export type Database = {
           created_at: string
           created_by: string | null
           end_date: string | null
+          entry_date: string | null
+          entry_time: string | null
           estimated_hours: number | null
           horimeter_current: number | null
           id: string
@@ -466,6 +468,8 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           end_date?: string | null
+          entry_date?: string | null
+          entry_time?: string | null
           estimated_hours?: number | null
           horimeter_current?: number | null
           id?: string
@@ -497,6 +501,8 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           end_date?: string | null
+          entry_date?: string | null
+          entry_time?: string | null
           estimated_hours?: number | null
           horimeter_current?: number | null
           id?: string
