@@ -45,6 +45,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { VehicleCombobox } from '@/components/ui/vehicle-combobox';
 import {
   Table,
   TableBody,
@@ -1844,21 +1845,13 @@ export function ManutencaoPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Veículo *</Label>
-                <Select 
-                  value={formData.vehicle_code} 
+                <VehicleCombobox
+                  vehicles={vehicles}
+                  value={formData.vehicle_code}
                   onValueChange={handleVehicleSelect}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione o veículo" />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-60">
-                    {vehicles.map(v => (
-                      <SelectItem key={v.code} value={v.code}>
-                        {v.code} - {v.description}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  placeholder="Pesquisar veículo..."
+                  emptyMessage="Nenhum veículo encontrado."
+                />
               </div>
               <div className="space-y-2">
                 <Label>Tipo de Manutenção</Label>
