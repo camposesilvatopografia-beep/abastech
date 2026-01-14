@@ -45,6 +45,7 @@ interface DatabaseHorimeterModalProps {
   onSuccess?: () => void;
   initialVehicleId?: string;
   editRecord?: HorimeterWithVehicle | null;
+  externalReadings?: HorimeterWithVehicle[];
 }
 
 export function DatabaseHorimeterModal({
@@ -53,9 +54,13 @@ export function DatabaseHorimeterModal({
   onSuccess,
   initialVehicleId,
   editRecord,
+  externalReadings,
 }: DatabaseHorimeterModalProps) {
   const { vehicles, loading: vehiclesLoading } = useVehicles();
-  const { readings, loading: readingsLoading, createReading, updateReading } = useHorimeterReadings();
+  const { readings: internalReadings, loading: readingsLoading, createReading, updateReading, refetch } = useHorimeterReadings();
+  
+  // Use external readings if provided (to stay in sync with parent), otherwise use internal
+  const readings = externalReadings || internalReadings;
   const { toast } = useToast();
   
   const isEditMode = !!editRecord;
@@ -90,17 +95,30 @@ export function DatabaseHorimeterModal({
       });
   }, [selectedVehicleId, readings]);
 
-  // Previous value
+  // Previous value - excluding the record being edited
   const previousValue = useMemo(() => {
-    if (vehicleHistory.length === 0) return 0;
-    return vehicleHistory[0].current_value;
-  }, [vehicleHistory]);
+    if (!selectedVehicleId) return 0;
+    
+    // Get readings excluding the one being edited, sorted by date desc
+    const relevantReadings = readings
+      .filter(r => {
+        if (r.vehicle_id !== selectedVehicleId) return false;
+        // Exclude the record being edited
+        if (isEditMode && editRecord && r.id === editRecord.id) return false;
+        return true;
+      })
+      .sort((a, b) => b.reading_date.localeCompare(a.reading_date));
+    
+    if (relevantReadings.length === 0) return 0;
+    return relevantReadings[0].current_value;
+  }, [selectedVehicleId, readings, isEditMode, editRecord]);
 
-  // Check for duplicate
+  // Check for duplicate - improved logic for edit mode
   const hasDuplicateRecord = useMemo(() => {
     if (!selectedVehicleId || !selectedDate) return false;
     
     return readings.some(r => {
+      // In edit mode, skip the record being edited
       if (isEditMode && editRecord && r.id === editRecord.id) return false;
       if (r.vehicle_id !== selectedVehicleId) return false;
       
@@ -272,6 +290,9 @@ export function DatabaseHorimeterModal({
       } else {
         await createReading(data);
       }
+
+      // Refetch to ensure data is in sync
+      await refetch();
 
       setSelectedVehicleId('');
       setCurrentValue('');
