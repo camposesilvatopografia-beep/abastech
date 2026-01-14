@@ -45,7 +45,7 @@ const menuItems: MenuItem[] = [
   { id: 'frota', label: 'Frota', icon: Truck },
   { id: 'horimetros', label: 'Horímetros', icon: Clock },
   { id: 'manutencao', label: 'Manutenção', icon: Wrench },
-  { id: 'calendario', label: 'Calendário Preventivas', icon: Calendar },
+  { id: 'calendario', label: 'Calendário', icon: Calendar },
   { 
     id: 'cadastros', 
     label: 'Cadastros', 
@@ -59,7 +59,6 @@ const menuItems: MenuItem[] = [
     ]
   },
   { id: 'alertas', label: 'Alertas', icon: Bell },
-  { id: 'suporte', label: 'Central de Suporte', icon: HelpCircle },
 ];
 
 interface SidebarProps {
@@ -80,7 +79,6 @@ export function Sidebar({ activeItem, onItemClick, onClose }: SidebarProps) {
       try {
         const user = JSON.parse(stored);
         setCurrentUser(user);
-        // If admin, check for pending requests
         if (user.role === 'admin') {
           checkPendingRequests();
         }
@@ -90,7 +88,6 @@ export function Sidebar({ activeItem, onItemClick, onClose }: SidebarProps) {
     }
   }, []);
 
-  // Check for pending approval requests (for admins)
   const checkPendingRequests = async () => {
     try {
       const { count } = await supabase
@@ -104,7 +101,6 @@ export function Sidebar({ activeItem, onItemClick, onClose }: SidebarProps) {
     }
   };
 
-  // Subscribe to realtime updates for pending requests
   useEffect(() => {
     if (currentUser?.role !== 'admin') return;
 
@@ -148,101 +144,101 @@ export function Sidebar({ activeItem, onItemClick, onClose }: SidebarProps) {
 
   return (
     <aside className="w-60 bg-sidebar flex flex-col h-screen overflow-hidden">
-      {/* Logo - Compacta */}
-      <div className="p-3 flex items-center justify-center border-b border-sidebar-border bg-gradient-to-b from-sidebar-accent/50 to-transparent">
+      {/* Logo */}
+      <div className="p-4 flex items-center justify-center border-b border-sidebar-border bg-gradient-to-b from-sidebar-accent/50 to-transparent">
         <div className="relative group">
-          <div className="absolute inset-0 blur-lg bg-amber-400/20 rounded-full scale-110 group-hover:bg-amber-400/30 transition-all duration-500" />
+          <div className="absolute inset-0 blur-xl bg-amber-400/25 rounded-full scale-110 group-hover:bg-amber-400/35 transition-all duration-500" />
           <img 
             src={logoAbastech} 
             alt="Abastech" 
-            className="relative z-10 h-14 w-auto object-contain drop-shadow-lg transition-transform duration-300 group-hover:scale-105"
+            className="relative z-10 h-20 w-auto object-contain drop-shadow-lg transition-transform duration-300 group-hover:scale-105"
           />
         </div>
       </div>
 
-      {/* Navigation - Flex grow with no overflow */}
-      <nav className="flex-1 px-2 py-2 space-y-0.5 overflow-y-auto scrollbar-thin">
-        {menuItems.map((item) => (
-          <div key={item.id}>
-            <button
-              onClick={() => {
-                if (item.children) {
-                  toggleExpand(item.id);
-                } else {
-                  handleItemClick(item.id);
-                }
-              }}
-              className={cn(
-                "sidebar-item w-full py-2",
-                activeItem === item.id && !item.children && "sidebar-item-active"
+      {/* Navigation - distributed evenly */}
+      <nav className="flex-1 px-2 py-1 flex flex-col justify-between">
+        <div className="space-y-0.5">
+          {menuItems.map((item) => (
+            <div key={item.id}>
+              <button
+                onClick={() => {
+                  if (item.children) {
+                    toggleExpand(item.id);
+                  } else {
+                    handleItemClick(item.id);
+                  }
+                }}
+                className={cn(
+                  "sidebar-item w-full py-1.5",
+                  activeItem === item.id && !item.children && "sidebar-item-active"
+                )}
+              >
+                <item.icon className="w-4 h-4 flex-shrink-0" />
+                <span className="flex-1 text-left text-[13px]">{item.label}</span>
+                {item.children && (
+                  expandedItems.includes(item.id) 
+                    ? <ChevronDown className="w-3.5 h-3.5" />
+                    : <ChevronRight className="w-3.5 h-3.5" />
+                )}
+              </button>
+              
+              {item.children && expandedItems.includes(item.id) && (
+                <div className="ml-6 space-y-0.5">
+                  {item.children.map((child) => (
+                    <button
+                      key={child.id}
+                      onClick={() => handleItemClick(child.id)}
+                      className={cn(
+                        "sidebar-item w-full text-xs py-1",
+                        activeItem === child.id && "sidebar-item-active"
+                      )}
+                    >
+                      {child.label}
+                    </button>
+                  ))}
+                </div>
               )}
-            >
-              <item.icon className="w-4 h-4" />
-              <span className="flex-1 text-left text-sm">{item.label}</span>
-              {item.children && (
-                expandedItems.includes(item.id) 
-                  ? <ChevronDown className="w-4 h-4" />
-                  : <ChevronRight className="w-4 h-4" />
-              )}
-            </button>
-            
-            {item.children && expandedItems.includes(item.id) && (
-              <div className="ml-6 mt-0.5 space-y-0.5">
-                {item.children.map((child) => (
-                  <button
-                    key={child.id}
-                    onClick={() => handleItemClick(child.id)}
-                    className={cn(
-                      "sidebar-item w-full text-xs py-1.5",
-                      activeItem === child.id && "sidebar-item-active"
-                    )}
-                  >
-                    {child.label}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        ))}
-      </nav>
+            </div>
+          ))}
+        </div>
 
-      {/* Admin Notifications */}
-      {currentUser?.role === 'admin' && pendingRequests > 0 && (
-        <div className="px-2 py-2 border-t border-sidebar-border">
+        {/* Admin Notifications - inline */}
+        {currentUser?.role === 'admin' && pendingRequests > 0 && (
           <button
             onClick={() => handleItemClick('aprovacoes')}
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 transition-colors"
+            className="mt-1 w-full flex items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 transition-colors"
           >
-            <AlertCircle className="w-4 h-4" />
-            <span className="text-xs font-medium flex-1 text-left">Aprovações Pendentes</span>
-            <span className="bg-amber-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full">
+            <AlertCircle className="w-4 h-4 flex-shrink-0" />
+            <span className="text-xs font-medium flex-1 text-left">Aprovações</span>
+            <span className="bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
               {pendingRequests}
             </span>
           </button>
-        </div>
-      )}
+        )}
+      </nav>
 
       {/* Field App Links */}
-      <div className="px-2 py-1.5 border-t border-sidebar-border space-y-0.5">
+      <div className="px-2 py-1 border-t border-sidebar-border">
         <Link
           to="/campo"
-          className="sidebar-item w-full flex items-center gap-2 bg-primary/10 hover:bg-primary/20 text-primary py-2"
+          className="sidebar-item w-full flex items-center gap-2 bg-primary/10 hover:bg-primary/20 text-primary py-1.5"
         >
           <Smartphone className="w-4 h-4" />
           <span className="text-xs font-medium">Apontamento Campo</span>
         </Link>
         <Link
           to="/campo/usuarios"
-          className="sidebar-item w-full flex items-center gap-2 hover:bg-sidebar-accent py-2"
+          className="sidebar-item w-full flex items-center gap-2 hover:bg-sidebar-accent py-1.5 mt-0.5"
         >
           <Users className="w-4 h-4" />
           <span className="text-xs">Usuários de Campo</span>
         </Link>
       </div>
 
-      {/* User Profile - Compacto */}
-      <div className="px-2 py-2 border-t border-sidebar-border">
-        <div className="flex items-center gap-2 px-2 py-1.5">
+      {/* User Profile */}
+      <div className="px-2 py-1.5 border-t border-sidebar-border">
+        <div className="flex items-center gap-2 px-2 py-1">
           <div className="w-7 h-7 rounded-full bg-sidebar-accent flex items-center justify-center flex-shrink-0">
             <User className="w-4 h-4 text-sidebar-foreground" />
           </div>
@@ -264,11 +260,11 @@ export function Sidebar({ activeItem, onItemClick, onClose }: SidebarProps) {
         </div>
       </div>
 
-      {/* Developer Credit - Mais compacto */}
-      <div className="px-3 py-2 bg-sidebar-accent/50 border-t border-sidebar-border">
+      {/* Developer Credit */}
+      <div className="px-3 py-1.5 bg-sidebar-accent/50 border-t border-sidebar-border">
         <div className="flex items-center gap-1.5 justify-center text-sidebar-muted">
-          <Code2 className="w-3 h-3" />
-          <span className="text-[9px] font-medium tracking-wide">
+          <Code2 className="w-2.5 h-2.5" />
+          <span className="text-[9px] font-medium">
             Dev: <span className="text-sidebar-foreground font-semibold">Jean Campos</span>
           </span>
         </div>
