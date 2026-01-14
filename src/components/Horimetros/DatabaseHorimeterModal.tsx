@@ -20,18 +20,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
+import { VehicleCombobox } from '@/components/ui/vehicle-combobox';
 import { useVehicles, useHorimeterReadings, HorimeterWithVehicle } from '@/hooks/useHorimeters';
 import { useToast } from '@/hooks/use-toast';
 import { Clock, Save, History, AlertTriangle, RefreshCw, TrendingUp, CalendarIcon } from 'lucide-react';
@@ -337,24 +331,18 @@ export function DatabaseHorimeterModal({
               {/* Vehicle Selection */}
               <div className="space-y-1">
                 <Label htmlFor="vehicle" className="text-sm">Veículo/Equipamento *</Label>
-                <Select value={selectedVehicleId} onValueChange={setSelectedVehicleId}>
-                  <SelectTrigger className="h-9">
-                    <SelectValue placeholder="Selecione o veículo" />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-[250px] bg-background">
-                    {vehicles.length === 0 ? (
-                      <div className="p-3 text-center text-muted-foreground text-sm">
-                        Nenhum veículo encontrado. Importe da planilha primeiro.
-                      </div>
-                    ) : (
-                      vehicles.map(vehicle => (
-                        <SelectItem key={vehicle.id} value={vehicle.id}>
-                          {vehicle.code} - {vehicle.name || vehicle.category}
-                        </SelectItem>
-                      ))
-                    )}
-                  </SelectContent>
-                </Select>
+                <VehicleCombobox
+                  vehicles={vehicles.map(v => ({
+                    id: v.id,
+                    code: v.code,
+                    name: v.name || v.category || '',
+                  }))}
+                  value={selectedVehicleId}
+                  onValueChange={setSelectedVehicleId}
+                  useIdAsValue={true}
+                  placeholder="Pesquisar veículo..."
+                  emptyMessage="Nenhum veículo encontrado. Importe da planilha primeiro."
+                />
               </div>
 
               {/* Vehicle Info */}
