@@ -187,18 +187,17 @@ export function useHorimeterReadings(vehicleId?: string) {
                          vehicle.category?.toLowerCase().includes('caminhao');
           
           const rowData = {
-            DATA: formattedDate,
-            HORA: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-            VEICULO: vehicle.code,
-            CATEGORIA: vehicle.category || '',
-            DESCRICAO: vehicle.name || '',
-            EMPRESA: vehicle.company || '',
-            OPERADOR: reading.operator || '',
-            Hor_Anterior: usesKm ? '' : (reading.previous_value?.toString().replace('.', ',') || ''),
-            Hor_Atual: usesKm ? '' : reading.current_value.toString().replace('.', ','),
-            Km_Anterior: usesKm ? (reading.previous_value?.toString().replace('.', ',') || '') : '',
-            Km_Atual: usesKm ? reading.current_value.toString().replace('.', ',') : '',
-            OBSERVACAO: reading.observations || '',
+            // Headers must match EXACTLY with the spreadsheet (note the space in " Data")
+            ' Data': formattedDate,
+            'Veiculo': vehicle.code,
+            'Categoria': vehicle.category || '',
+            'Descricao': vehicle.name || '',
+            'Empresa': vehicle.company || '',
+            'Operador': reading.operator || '',
+            'Hor_Anterior': usesKm ? '' : (reading.previous_value?.toString().replace('.', ',') || ''),
+            'Hor_Atual': usesKm ? '' : reading.current_value.toString().replace('.', ','),
+            'Km_Anterior': usesKm ? (reading.previous_value?.toString().replace('.', ',') || '') : '',
+            'Km_Atual': usesKm ? reading.current_value.toString().replace('.', ',') : '',
           };
           
           await supabase.functions.invoke('google-sheets', {
