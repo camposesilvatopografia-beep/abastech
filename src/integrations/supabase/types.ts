@@ -252,6 +252,36 @@ export type Database = {
         }
         Relationships: []
       }
+      mechanics: {
+        Row: {
+          active: boolean
+          created_at: string
+          id: string
+          name: string
+          phone: string | null
+          specialty: string | null
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          name: string
+          phone?: string | null
+          specialty?: string | null
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          name?: string
+          phone?: string | null
+          specialty?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       oil_types: {
         Row: {
           active: boolean | null
@@ -278,6 +308,95 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      service_orders: {
+        Row: {
+          actual_hours: number | null
+          created_at: string
+          created_by: string | null
+          end_date: string | null
+          estimated_hours: number | null
+          id: string
+          labor_cost: number | null
+          mechanic_id: string | null
+          mechanic_name: string | null
+          notes: string | null
+          order_date: string
+          order_number: string
+          order_type: string
+          parts_cost: number | null
+          parts_used: string | null
+          priority: string
+          problem_description: string | null
+          solution_description: string | null
+          start_date: string | null
+          status: string
+          total_cost: number | null
+          updated_at: string
+          vehicle_code: string
+          vehicle_description: string | null
+        }
+        Insert: {
+          actual_hours?: number | null
+          created_at?: string
+          created_by?: string | null
+          end_date?: string | null
+          estimated_hours?: number | null
+          id?: string
+          labor_cost?: number | null
+          mechanic_id?: string | null
+          mechanic_name?: string | null
+          notes?: string | null
+          order_date?: string
+          order_number: string
+          order_type?: string
+          parts_cost?: number | null
+          parts_used?: string | null
+          priority?: string
+          problem_description?: string | null
+          solution_description?: string | null
+          start_date?: string | null
+          status?: string
+          total_cost?: number | null
+          updated_at?: string
+          vehicle_code: string
+          vehicle_description?: string | null
+        }
+        Update: {
+          actual_hours?: number | null
+          created_at?: string
+          created_by?: string | null
+          end_date?: string | null
+          estimated_hours?: number | null
+          id?: string
+          labor_cost?: number | null
+          mechanic_id?: string | null
+          mechanic_name?: string | null
+          notes?: string | null
+          order_date?: string
+          order_number?: string
+          order_type?: string
+          parts_cost?: number | null
+          parts_used?: string | null
+          priority?: string
+          problem_description?: string | null
+          solution_description?: string | null
+          start_date?: string | null
+          status?: string
+          total_cost?: number | null
+          updated_at?: string
+          vehicle_code?: string
+          vehicle_description?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_orders_mechanic_id_fkey"
+            columns: ["mechanic_id"]
+            isOneToOne: false
+            referencedRelation: "mechanics"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       suppliers: {
         Row: {

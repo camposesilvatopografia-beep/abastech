@@ -1,8 +1,8 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { 
   Wrench,
   RefreshCw,
-  FileSpreadsheet,
+  FileText,
   Plus,
   Search,
   Calendar,
@@ -14,14 +14,17 @@ import {
   AlertTriangle,
   CheckCircle,
   Edit,
-  FileText,
-  X
+  X,
+  Save,
+  Trash2,
+  Printer,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { MetricCard } from '@/components/Dashboard/MetricCard';
 import { Badge } from '@/components/ui/badge';
-import { useSheetData } from '@/hooks/useGoogleSheets';
 import {
   Select,
   SelectContent,
@@ -37,15 +40,22 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
-import { format, parse, isValid, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
+import { format, startOfDay, endOfDay, isWithinInterval, subDays, startOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
-
-const SHEET_NAME = 'Manutencao';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+import { useSheetData } from '@/hooks/useGoogleSheets';
 
 const TABS = [
   { id: 'ordens', label: 'Ordens de Serviço', icon: ClipboardList },
@@ -54,25 +64,123 @@ const TABS = [
   { id: 'problemas', label: 'Problemas Recorrentes', icon: TrendingUp },
 ];
 
-function parseDate(dateStr: string): Date | null {
-  if (!dateStr) return null;
-  const formats = ['dd/MM/yyyy', 'yyyy-MM-dd', 'dd-MM-yyyy'];
-  for (const fmt of formats) {
-    const parsed = parse(dateStr, fmt, new Date());
-    if (isValid(parsed)) return parsed;
-  }
-  return null;
+interface ServiceOrder {
+  id: string;
+  order_number: string;
+  vehicle_code: string;
+  vehicle_description: string | null;
+  order_date: string;
+  order_type: string;
+  priority: string;
+  status: string;
+  problem_description: string | null;
+  solution_description: string | null;
+  mechanic_id: string | null;
+  mechanic_name: string | null;
+  estimated_hours: number | null;
+  actual_hours: number | null;
+  parts_used: string | null;
+  parts_cost: number | null;
+  labor_cost: number | null;
+  total_cost: number | null;
+  start_date: string | null;
+  end_date: string | null;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+}
+
+interface Mechanic {
+  id: string;
+  name: string;
+  active: boolean;
 }
 
 export function ManutencaoPage() {
-  const { data, loading, refetch } = useSheetData(SHEET_NAME);
+  const { data: vehiclesData } = useSheetData('Veiculo');
+  const [orders, setOrders] = useState<ServiceOrder[]>([]);
+  const [mechanics, setMechanics] = useState<Mechanic[]>([]);
+  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('ordens');
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
   const [quickFilter, setQuickFilter] = useState<string | null>(null);
+  
+  // Modal states
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingOrder, setEditingOrder] = useState<ServiceOrder | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  
+  // Form state
+  const [formData, setFormData] = useState({
+    vehicle_code: '',
+    vehicle_description: '',
+    order_type: 'Corretiva',
+    priority: 'Média',
+    status: 'Aberta',
+    problem_description: '',
+    solution_description: '',
+    mechanic_id: '',
+    mechanic_name: '',
+    estimated_hours: '',
+    actual_hours: '',
+    parts_used: '',
+    parts_cost: '',
+    labor_cost: '',
+    notes: '',
+  });
 
+  // Fetch service orders
+  const fetchOrders = async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('service_orders')
+        .select('*')
+        .order('order_date', { ascending: false })
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setOrders(data || []);
+    } catch (err) {
+      console.error('Error fetching orders:', err);
+      toast.error('Erro ao carregar ordens de serviço');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch mechanics
+  const fetchMechanics = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('mechanics')
+        .select('id, name, active')
+        .eq('active', true)
+        .order('name', { ascending: true });
+
+      if (error) throw error;
+      setMechanics(data || []);
+    } catch (err) {
+      console.error('Error fetching mechanics:', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchOrders();
+    fetchMechanics();
+  }, []);
+
+  // Generate order number
+  const generateOrderNumber = () => {
+    const year = new Date().getFullYear();
+    const count = orders.filter(o => o.order_number.includes(year.toString())).length + 1;
+    return `OS-${year}-${String(count).padStart(5, '0')}`;
+  };
+
+  // Apply quick filter
   const applyQuickFilter = (filter: string) => {
     const today = new Date();
     setQuickFilter(filter);
@@ -83,13 +191,12 @@ export function ManutencaoPage() {
         setEndDate(today);
         break;
       case 'semana':
-        const weekStart = new Date(today);
-        weekStart.setDate(today.getDate() - 7);
+        const weekStart = subDays(today, 7);
         setStartDate(weekStart);
         setEndDate(today);
         break;
       case 'mes':
-        const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+        const monthStart = startOfMonth(today);
         setStartDate(monthStart);
         setEndDate(today);
         break;
@@ -106,40 +213,37 @@ export function ManutencaoPage() {
     setQuickFilter(null);
   };
 
+  // Filter orders
   const filteredRows = useMemo(() => {
-    return data.rows.filter(row => {
+    return orders.filter(row => {
       const matchesSearch = !search || 
         Object.values(row).some(v => 
-          String(v).toLowerCase().includes(search.toLowerCase())
+          String(v || '').toLowerCase().includes(search.toLowerCase())
         );
-      const status = String(row['STATUS'] || '').toLowerCase();
+      const status = String(row.status || '').toLowerCase();
       const matchesStatus = statusFilter === 'all' || status.includes(statusFilter);
       
       let matchesDate = true;
       if (startDate || endDate) {
-        const rowDateStr = String(row['DATA'] || '');
-        const rowDate = parseDate(rowDateStr);
+        const rowDate = new Date(row.order_date);
         
-        if (rowDate) {
-          if (startDate && endDate) {
-            matchesDate = isWithinInterval(rowDate, {
-              start: startOfDay(startDate),
-              end: endOfDay(endDate)
-            });
-          } else if (startDate) {
-            matchesDate = rowDate >= startOfDay(startDate);
-          } else if (endDate) {
-            matchesDate = rowDate <= endOfDay(endDate);
-          }
-        } else {
-          matchesDate = false;
+        if (startDate && endDate) {
+          matchesDate = isWithinInterval(rowDate, {
+            start: startOfDay(startDate),
+            end: endOfDay(endDate)
+          });
+        } else if (startDate) {
+          matchesDate = rowDate >= startOfDay(startDate);
+        } else if (endDate) {
+          matchesDate = rowDate <= endOfDay(endDate);
         }
       }
       
       return matchesSearch && matchesStatus && matchesDate;
     });
-  }, [data.rows, search, statusFilter, startDate, endDate]);
+  }, [orders, search, statusFilter, startDate, endDate]);
 
+  // Calculate metrics
   const metrics = useMemo(() => {
     let emManutencao = 0;
     let aguardandoPecas = 0;
@@ -147,19 +251,19 @@ export function ManutencaoPage() {
     let finalizadas = 0;
 
     filteredRows.forEach(row => {
-      const status = String(row['STATUS'] || '').toLowerCase();
-      const prioridade = String(row['PRIORIDADE'] || '').toLowerCase();
+      const status = String(row.status || '').toLowerCase();
+      const prioridade = String(row.priority || '').toLowerCase();
 
       if (status.includes('andamento') || status.includes('aberta')) {
         emManutencao++;
       }
-      if (status.includes('aguardando') || status.includes('peças') || status.includes('pecas')) {
+      if (status.includes('aguardando')) {
         aguardandoPecas++;
       }
-      if (prioridade.includes('alta') || prioridade.includes('máxima') || prioridade.includes('urgente')) {
+      if (prioridade.includes('alta') || prioridade.includes('urgente')) {
         urgentes++;
       }
-      if (status.includes('finalizada') || status.includes('concluída') || status.includes('concluida')) {
+      if (status.includes('finalizada') || status.includes('concluída')) {
         finalizadas++;
       }
     });
@@ -167,13 +271,17 @@ export function ManutencaoPage() {
     return { emManutencao, aguardandoPecas, urgentes, finalizadas };
   }, [filteredRows]);
 
+  // Status badge
   const getStatusBadge = (status: string) => {
     const s = status.toLowerCase();
     if (s.includes('finalizada') || s.includes('concluída')) {
       return <Badge className="bg-success/20 text-success border-success/30">Finalizada</Badge>;
     }
-    if (s.includes('andamento') || s.includes('aberta')) {
+    if (s.includes('andamento')) {
       return <Badge className="bg-primary/20 text-primary border-primary/30">Em Andamento</Badge>;
+    }
+    if (s.includes('aberta')) {
+      return <Badge className="bg-blue-500/20 text-blue-600 border-blue-500/30">Aberta</Badge>;
     }
     if (s.includes('aguardando')) {
       return <Badge className="bg-warning/20 text-warning border-warning/30">Aguardando</Badge>;
@@ -181,20 +289,10 @@ export function ManutencaoPage() {
     return <Badge variant="outline">{status}</Badge>;
   };
 
-  const getTipoBadge = (tipo: string) => {
-    const t = tipo.toLowerCase();
-    if (t.includes('corretiva')) {
-      return <Badge className="bg-destructive/20 text-destructive border-destructive/30">Corretiva</Badge>;
-    }
-    if (t.includes('preventiva')) {
-      return <Badge className="bg-success/20 text-success border-success/30">Preventiva</Badge>;
-    }
-    return <Badge variant="outline">{tipo}</Badge>;
-  };
-
+  // Priority badge
   const getPrioridadeBadge = (prioridade: string) => {
     const p = prioridade.toLowerCase();
-    if (p.includes('alta') || p.includes('máxima') || p.includes('urgente')) {
+    if (p.includes('alta') || p.includes('urgente')) {
       return <Badge className="bg-destructive/20 text-destructive border-destructive/30">Alta</Badge>;
     }
     if (p.includes('média') || p.includes('media')) {
@@ -203,36 +301,272 @@ export function ManutencaoPage() {
     return <Badge className="bg-muted text-muted-foreground">Baixa</Badge>;
   };
 
-  const exportToPDF = () => {
+  // Open new order modal
+  const handleNewOrder = () => {
+    setEditingOrder(null);
+    setFormData({
+      vehicle_code: '',
+      vehicle_description: '',
+      order_type: 'Corretiva',
+      priority: 'Média',
+      status: 'Aberta',
+      problem_description: '',
+      solution_description: '',
+      mechanic_id: '',
+      mechanic_name: '',
+      estimated_hours: '',
+      actual_hours: '',
+      parts_used: '',
+      parts_cost: '',
+      labor_cost: '',
+      notes: '',
+    });
+    setIsModalOpen(true);
+  };
+
+  // Open edit order modal
+  const handleEditOrder = (order: ServiceOrder) => {
+    setEditingOrder(order);
+    setFormData({
+      vehicle_code: order.vehicle_code,
+      vehicle_description: order.vehicle_description || '',
+      order_type: order.order_type,
+      priority: order.priority,
+      status: order.status,
+      problem_description: order.problem_description || '',
+      solution_description: order.solution_description || '',
+      mechanic_id: order.mechanic_id || '',
+      mechanic_name: order.mechanic_name || '',
+      estimated_hours: order.estimated_hours?.toString() || '',
+      actual_hours: order.actual_hours?.toString() || '',
+      parts_used: order.parts_used || '',
+      parts_cost: order.parts_cost?.toString() || '',
+      labor_cost: order.labor_cost?.toString() || '',
+      notes: order.notes || '',
+    });
+    setIsModalOpen(true);
+  };
+
+  // Save order
+  const handleSaveOrder = async () => {
+    if (!formData.vehicle_code || !formData.problem_description) {
+      toast.error('Preencha veículo e descrição do problema');
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const mechanic = mechanics.find(m => m.id === formData.mechanic_id);
+      const partsCost = parseFloat(formData.parts_cost) || 0;
+      const laborCost = parseFloat(formData.labor_cost) || 0;
+      
+      const orderData = {
+        vehicle_code: formData.vehicle_code,
+        vehicle_description: formData.vehicle_description || null,
+        order_type: formData.order_type,
+        priority: formData.priority,
+        status: formData.status,
+        problem_description: formData.problem_description,
+        solution_description: formData.solution_description || null,
+        mechanic_id: formData.mechanic_id || null,
+        mechanic_name: mechanic?.name || formData.mechanic_name || null,
+        estimated_hours: parseFloat(formData.estimated_hours) || null,
+        actual_hours: parseFloat(formData.actual_hours) || null,
+        parts_used: formData.parts_used || null,
+        parts_cost: partsCost || null,
+        labor_cost: laborCost || null,
+        total_cost: (partsCost + laborCost) || null,
+        notes: formData.notes || null,
+        start_date: formData.status === 'Em Andamento' && !editingOrder?.start_date ? new Date().toISOString() : editingOrder?.start_date,
+        end_date: formData.status.includes('Finalizada') && !editingOrder?.end_date ? new Date().toISOString() : editingOrder?.end_date,
+      };
+
+      if (editingOrder) {
+        const { error } = await supabase
+          .from('service_orders')
+          .update(orderData)
+          .eq('id', editingOrder.id);
+        
+        if (error) throw error;
+        toast.success('Ordem de serviço atualizada!');
+      } else {
+        const { error } = await supabase
+          .from('service_orders')
+          .insert({
+            ...orderData,
+            order_number: generateOrderNumber(),
+            order_date: new Date().toISOString().split('T')[0],
+          });
+        
+        if (error) throw error;
+        toast.success('Ordem de serviço criada!');
+      }
+
+      setIsModalOpen(false);
+      fetchOrders();
+    } catch (err) {
+      console.error('Error saving order:', err);
+      toast.error('Erro ao salvar ordem de serviço');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Delete order
+  const handleDeleteOrder = async (order: ServiceOrder) => {
+    if (!confirm(`Deseja excluir a ${order.order_number}?`)) return;
+
+    try {
+      const { error } = await supabase
+        .from('service_orders')
+        .delete()
+        .eq('id', order.id);
+
+      if (error) throw error;
+      toast.success('Ordem de serviço excluída!');
+      fetchOrders();
+    } catch (err) {
+      console.error('Error deleting order:', err);
+      toast.error('Erro ao excluir ordem de serviço');
+    }
+  };
+
+  // Export single OS to PDF
+  const exportSingleOSToPDF = (order: ServiceOrder) => {
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    
+    let y = 20;
+    
+    // Header
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.text('ORDEM DE SERVIÇO', pageWidth / 2, y, { align: 'center' });
+    y += 10;
+    
+    doc.setFontSize(14);
+    doc.text(order.order_number, pageWidth / 2, y, { align: 'center' });
+    y += 15;
+    
+    // Info box
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    
+    const addField = (label: string, value: string, xPos: number, yPos: number) => {
+      doc.setFont('helvetica', 'bold');
+      doc.text(label + ':', xPos, yPos);
+      doc.setFont('helvetica', 'normal');
+      doc.text(value || '-', xPos + 35, yPos);
+    };
+    
+    // Two columns
+    addField('Data', format(new Date(order.order_date), 'dd/MM/yyyy'), 20, y);
+    addField('Status', order.status, 110, y);
+    y += 8;
+    
+    addField('Veículo', order.vehicle_code, 20, y);
+    addField('Tipo', order.order_type, 110, y);
+    y += 8;
+    
+    addField('Descrição', order.vehicle_description || '-', 20, y);
+    addField('Prioridade', order.priority, 110, y);
+    y += 8;
+    
+    addField('Mecânico', order.mechanic_name || '-', 20, y);
+    addField('Horas Est.', order.estimated_hours?.toString() || '-', 110, y);
+    y += 15;
+    
+    // Problem
+    doc.setFont('helvetica', 'bold');
+    doc.text('PROBLEMA:', 20, y);
+    y += 6;
+    doc.setFont('helvetica', 'normal');
+    const problemLines = doc.splitTextToSize(order.problem_description || '-', pageWidth - 40);
+    doc.text(problemLines, 20, y);
+    y += problemLines.length * 5 + 10;
+    
+    // Solution
+    doc.setFont('helvetica', 'bold');
+    doc.text('SOLUÇÃO:', 20, y);
+    y += 6;
+    doc.setFont('helvetica', 'normal');
+    const solutionLines = doc.splitTextToSize(order.solution_description || '-', pageWidth - 40);
+    doc.text(solutionLines, 20, y);
+    y += solutionLines.length * 5 + 10;
+    
+    // Parts
+    if (order.parts_used) {
+      doc.setFont('helvetica', 'bold');
+      doc.text('PEÇAS UTILIZADAS:', 20, y);
+      y += 6;
+      doc.setFont('helvetica', 'normal');
+      const partsLines = doc.splitTextToSize(order.parts_used, pageWidth - 40);
+      doc.text(partsLines, 20, y);
+      y += partsLines.length * 5 + 10;
+    }
+    
+    // Costs
+    if (order.parts_cost || order.labor_cost) {
+      doc.setFont('helvetica', 'bold');
+      doc.text('CUSTOS:', 20, y);
+      y += 6;
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Peças: R$ ${(order.parts_cost || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 20, y);
+      doc.text(`Mão de Obra: R$ ${(order.labor_cost || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 100, y);
+      y += 6;
+      doc.setFont('helvetica', 'bold');
+      doc.text(`TOTAL: R$ ${(order.total_cost || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 20, y);
+      y += 10;
+    }
+    
+    // Notes
+    if (order.notes) {
+      doc.setFont('helvetica', 'bold');
+      doc.text('OBSERVAÇÕES:', 20, y);
+      y += 6;
+      doc.setFont('helvetica', 'normal');
+      const notesLines = doc.splitTextToSize(order.notes, pageWidth - 40);
+      doc.text(notesLines, 20, y);
+    }
+    
+    // Footer
+    doc.setFontSize(8);
+    doc.text(`Gerado em: ${format(new Date(), 'dd/MM/yyyy HH:mm', { locale: ptBR })}`, 20, 280);
+    
+    doc.save(`${order.order_number}.pdf`);
+  };
+
+  // Export list to PDF
+  const exportListToPDF = () => {
     const doc = new jsPDF('landscape');
     
     doc.setFontSize(18);
     doc.text('Relatório de Ordens de Serviço', 14, 22);
     
     doc.setFontSize(10);
-    const dateRange = startDate && endDate 
+    const dateRangeText = startDate && endDate 
       ? `${format(startDate, 'dd/MM/yyyy')} até ${format(endDate, 'dd/MM/yyyy')}`
       : 'Todo período';
-    doc.text(`Período: ${dateRange}`, 14, 30);
+    doc.text(`Período: ${dateRangeText}`, 14, 30);
     doc.text(`Gerado em: ${format(new Date(), 'dd/MM/yyyy HH:mm', { locale: ptBR })}`, 14, 36);
 
     doc.setFontSize(12);
     doc.text('Resumo:', 14, 46);
     doc.setFontSize(10);
     doc.text(`Em Manutenção: ${metrics.emManutencao}`, 14, 54);
-    doc.text(`Aguardando Peças: ${metrics.aguardandoPecas}`, 14, 60);
+    doc.text(`Aguardando: ${metrics.aguardandoPecas}`, 14, 60);
     doc.text(`Urgentes: ${metrics.urgentes}`, 100, 54);
     doc.text(`Finalizadas: ${metrics.finalizadas}`, 100, 60);
 
-    const tableData = filteredRows.slice(0, 100).map((row, index) => [
-      String(row['N_OS'] || row['OS'] || `OS-${String(index + 1).padStart(5, '0')}`),
-      String(row['DATA'] || ''),
-      String(row['VEICULO'] || ''),
-      String(row['TIPO'] || 'Corretiva'),
-      String(row['PROBLEMA'] || row['DESCRICAO_PROBLEMA'] || '').slice(0, 30),
-      String(row['MECANICO'] || row['RESPONSAVEL'] || ''),
-      String(row['PRIORIDADE'] || 'Média'),
-      String(row['STATUS'] || 'Em Andamento')
+    const tableData = filteredRows.slice(0, 100).map((row) => [
+      row.order_number,
+      format(new Date(row.order_date), 'dd/MM/yyyy'),
+      row.vehicle_code,
+      row.order_type,
+      (row.problem_description || '').slice(0, 30),
+      row.mechanic_name || '-',
+      row.priority,
+      row.status
     ]);
 
     autoTable(doc, {
@@ -243,8 +577,16 @@ export function ManutencaoPage() {
       headStyles: { fillColor: [59, 130, 246] }
     });
 
-    doc.save(`manutencao_${format(new Date(), 'yyyy-MM-dd')}.pdf`);
+    doc.save(`ordens_servico_${format(new Date(), 'yyyyMMdd_HHmmss')}.pdf`);
   };
+
+  // Vehicles from sheet
+  const vehicles = useMemo(() => {
+    return vehiclesData.rows.map(v => ({
+      code: String(v['Codigo'] || ''),
+      description: String(v['Descricao'] || ''),
+    })).filter(v => v.code);
+  }, [vehiclesData.rows]);
 
   return (
     <div className="flex-1 p-3 md:p-6 overflow-auto">
@@ -262,19 +604,15 @@ export function ManutencaoPage() {
           </div>
           
           <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => refetch()} disabled={loading}>
+            <Button variant="outline" size="sm" onClick={fetchOrders} disabled={loading}>
               <RefreshCw className={cn("w-4 h-4 sm:mr-2", loading && "animate-spin")} />
               <span className="hidden sm:inline">Atualizar</span>
             </Button>
-            <Button variant="outline" size="sm" onClick={exportToPDF}>
+            <Button variant="outline" size="sm" onClick={exportListToPDF}>
               <FileText className="w-4 h-4 sm:mr-2" />
               <span className="hidden sm:inline">PDF</span>
             </Button>
-            <Button variant="outline" size="sm" className="hidden sm:flex">
-              <FileSpreadsheet className="w-4 h-4 sm:mr-2" />
-              <span className="hidden sm:inline">XLSX</span>
-            </Button>
-            <Button className="bg-primary hover:bg-primary/90">
+            <Button className="bg-primary hover:bg-primary/90" onClick={handleNewOrder}>
               <Plus className="w-4 h-4 sm:mr-2" />
               <span className="hidden sm:inline">Nova O.S.</span>
               <span className="sm:hidden">Nova</span>
@@ -282,7 +620,7 @@ export function ManutencaoPage() {
           </div>
         </div>
 
-        {/* Metric Cards - Responsive Grid */}
+        {/* Metric Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
           <MetricCard
             title="EM MANUTENÇÃO"
@@ -301,7 +639,7 @@ export function ManutencaoPage() {
           <MetricCard
             title="URGENTES"
             value={metrics.urgentes.toString()}
-            subtitle="Prioridade máxima"
+            subtitle="Prioridade alta"
             variant="primary"
             icon={AlertTriangle}
           />
@@ -315,13 +653,13 @@ export function ManutencaoPage() {
         </div>
 
         {/* Tabs */}
-        <div className="flex items-center gap-2 border-b border-border">
+        <div className="flex items-center gap-2 border-b border-border overflow-x-auto">
           {TABS.map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={cn(
-                "flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors border-b-2 -mb-px",
+                "flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors border-b-2 -mb-px whitespace-nowrap",
                 activeTab === tab.id
                   ? "border-primary text-foreground bg-muted/50"
                   : "border-transparent text-muted-foreground hover:text-foreground"
@@ -352,9 +690,10 @@ export function ManutencaoPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos os Status</SelectItem>
+                <SelectItem value="aberta">Aberta</SelectItem>
                 <SelectItem value="andamento">Em Andamento</SelectItem>
-                <SelectItem value="finalizada">Finalizada</SelectItem>
                 <SelectItem value="aguardando">Aguardando Peças</SelectItem>
+                <SelectItem value="finalizada">Finalizada</SelectItem>
               </SelectContent>
             </Select>
 
@@ -465,8 +804,8 @@ export function ManutencaoPage() {
                   <TableHead>Data</TableHead>
                   <TableHead>Veículo</TableHead>
                   <TableHead>Tipo</TableHead>
-                  <TableHead>Problema</TableHead>
-                  <TableHead>Mecânico</TableHead>
+                  <TableHead className="hidden md:table-cell">Problema</TableHead>
+                  <TableHead className="hidden lg:table-cell">Mecânico</TableHead>
                   <TableHead>Prioridade</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
@@ -476,36 +815,58 @@ export function ManutencaoPage() {
                 {loading ? (
                   <TableRow>
                     <TableCell colSpan={9} className="text-center py-8">
-                      <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-muted-foreground" />
-                      Carregando dados...
+                      <RefreshCw className="w-6 h-6 animate-spin mx-auto text-muted-foreground" />
                     </TableCell>
                   </TableRow>
                 ) : filteredRows.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
-                      Nenhuma ordem de serviço encontrada para o período
+                      Nenhuma ordem de serviço encontrada
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredRows.slice(0, 50).map((row, index) => (
-                    <TableRow key={row._rowIndex || index}>
-                      <TableCell className="font-medium">{row['N_OS'] || row['OS'] || `OS-${String(index + 1).padStart(5, '0')}`}</TableCell>
-                      <TableCell>{row['DATA']}</TableCell>
+                  filteredRows.map((row) => (
+                    <TableRow key={row.id} className="hover:bg-muted/30">
+                      <TableCell className="font-mono font-medium">{row.order_number}</TableCell>
+                      <TableCell>{format(new Date(row.order_date), 'dd/MM/yyyy')}</TableCell>
+                      <TableCell className="font-medium">{row.vehicle_code}</TableCell>
                       <TableCell>
-                        <div>
-                          <p className="font-medium">{row['VEICULO']}</p>
-                          <p className="text-xs text-muted-foreground">{row['DESCRICAO'] || row['TIPO_VEICULO']}</p>
-                        </div>
+                        <Badge variant={row.order_type === 'Preventiva' ? 'default' : 'secondary'}>
+                          {row.order_type}
+                        </Badge>
                       </TableCell>
-                      <TableCell>{getTipoBadge(String(row['TIPO'] || 'Corretiva'))}</TableCell>
-                      <TableCell className="max-w-32 truncate">{row['PROBLEMA'] || row['DESCRICAO_PROBLEMA']}</TableCell>
-                      <TableCell>{row['MECANICO'] || row['RESPONSAVEL']}</TableCell>
-                      <TableCell>{getPrioridadeBadge(String(row['PRIORIDADE'] || 'Média'))}</TableCell>
-                      <TableCell>{getStatusBadge(String(row['STATUS'] || 'Em Andamento'))}</TableCell>
+                      <TableCell className="hidden md:table-cell max-w-[200px] truncate">
+                        {row.problem_description || '-'}
+                      </TableCell>
+                      <TableCell className="hidden lg:table-cell">{row.mechanic_name || '-'}</TableCell>
+                      <TableCell>{getPrioridadeBadge(row.priority)}</TableCell>
+                      <TableCell>{getStatusBadge(row.status)}</TableCell>
                       <TableCell className="text-right">
-                        <Button variant="ghost" size="icon">
-                          <Edit className="w-4 h-4" />
-                        </Button>
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => exportSingleOSToPDF(row)}
+                            title="Exportar PDF"
+                          >
+                            <Printer className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleEditOrder(row)}
+                          >
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteOrder(row)}
+                            className="text-destructive hover:text-destructive"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))
@@ -515,23 +876,222 @@ export function ManutencaoPage() {
           </div>
         )}
 
-        {/* Other tabs content */}
-        {activeTab === 'quadro' && (
+        {/* Other tabs placeholder */}
+        {activeTab !== 'ordens' && (
           <div className="bg-card rounded-lg border border-border p-8 text-center text-muted-foreground">
-            Quadro Resumo - Em desenvolvimento
-          </div>
-        )}
-        {activeTab === 'ranking' && (
-          <div className="bg-card rounded-lg border border-border p-8 text-center text-muted-foreground">
-            Ranking - Em desenvolvimento
-          </div>
-        )}
-        {activeTab === 'problemas' && (
-          <div className="bg-card rounded-lg border border-border p-8 text-center text-muted-foreground">
-            Problemas Recorrentes - Em desenvolvimento
+            <LayoutGrid className="w-12 h-12 mx-auto mb-4 opacity-50" />
+            <p>Funcionalidade em desenvolvimento</p>
           </div>
         )}
       </div>
+
+      {/* Order Modal */}
+      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ClipboardList className="w-5 h-5" />
+              {editingOrder ? `Editar ${editingOrder.order_number}` : 'Nova Ordem de Serviço'}
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-6 py-4">
+            {/* Vehicle and Type */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Veículo *</Label>
+                <Select 
+                  value={formData.vehicle_code} 
+                  onValueChange={(value) => {
+                    const vehicle = vehicles.find(v => v.code === value);
+                    setFormData({ 
+                      ...formData, 
+                      vehicle_code: value,
+                      vehicle_description: vehicle?.description || ''
+                    });
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o veículo" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-60">
+                    {vehicles.map(v => (
+                      <SelectItem key={v.code} value={v.code}>
+                        {v.code} - {v.description}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Tipo de Manutenção</Label>
+                <Select value={formData.order_type} onValueChange={(v) => setFormData({ ...formData, order_type: v })}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Corretiva">Corretiva</SelectItem>
+                    <SelectItem value="Preventiva">Preventiva</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Priority and Status */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Prioridade</Label>
+                <Select value={formData.priority} onValueChange={(v) => setFormData({ ...formData, priority: v })}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Baixa">Baixa</SelectItem>
+                    <SelectItem value="Média">Média</SelectItem>
+                    <SelectItem value="Alta">Alta</SelectItem>
+                    <SelectItem value="Urgente">Urgente</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Status</Label>
+                <Select value={formData.status} onValueChange={(v) => setFormData({ ...formData, status: v })}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Aberta">Aberta</SelectItem>
+                    <SelectItem value="Em Andamento">Em Andamento</SelectItem>
+                    <SelectItem value="Aguardando Peças">Aguardando Peças</SelectItem>
+                    <SelectItem value="Finalizada">Finalizada</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Mechanic */}
+            <div className="space-y-2">
+              <Label>Mecânico Responsável</Label>
+              <Select value={formData.mechanic_id} onValueChange={(v) => setFormData({ ...formData, mechanic_id: v })}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o mecânico" />
+                </SelectTrigger>
+                <SelectContent>
+                  {mechanics.map(m => (
+                    <SelectItem key={m.id} value={m.id}>
+                      {m.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {mechanics.length === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Cadastre mecânicos em Cadastros → Mecânicos
+                </p>
+              )}
+            </div>
+
+            {/* Problem Description */}
+            <div className="space-y-2">
+              <Label>Descrição do Problema *</Label>
+              <Textarea
+                placeholder="Descreva o problema detalhadamente..."
+                value={formData.problem_description}
+                onChange={(e) => setFormData({ ...formData, problem_description: e.target.value })}
+                rows={3}
+              />
+            </div>
+
+            {/* Solution Description */}
+            <div className="space-y-2">
+              <Label>Solução / Serviço Realizado</Label>
+              <Textarea
+                placeholder="Descreva a solução ou serviço realizado..."
+                value={formData.solution_description}
+                onChange={(e) => setFormData({ ...formData, solution_description: e.target.value })}
+                rows={3}
+              />
+            </div>
+
+            {/* Hours */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Horas Estimadas</Label>
+                <Input
+                  type="number"
+                  placeholder="Ex: 4"
+                  value={formData.estimated_hours}
+                  onChange={(e) => setFormData({ ...formData, estimated_hours: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Horas Realizadas</Label>
+                <Input
+                  type="number"
+                  placeholder="Ex: 5"
+                  value={formData.actual_hours}
+                  onChange={(e) => setFormData({ ...formData, actual_hours: e.target.value })}
+                />
+              </div>
+            </div>
+
+            {/* Parts */}
+            <div className="space-y-2">
+              <Label>Peças Utilizadas</Label>
+              <Textarea
+                placeholder="Liste as peças utilizadas..."
+                value={formData.parts_used}
+                onChange={(e) => setFormData({ ...formData, parts_used: e.target.value })}
+                rows={2}
+              />
+            </div>
+
+            {/* Costs */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Custo Peças (R$)</Label>
+                <Input
+                  type="number"
+                  placeholder="0,00"
+                  value={formData.parts_cost}
+                  onChange={(e) => setFormData({ ...formData, parts_cost: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Custo Mão de Obra (R$)</Label>
+                <Input
+                  type="number"
+                  placeholder="0,00"
+                  value={formData.labor_cost}
+                  onChange={(e) => setFormData({ ...formData, labor_cost: e.target.value })}
+                />
+              </div>
+            </div>
+
+            {/* Notes */}
+            <div className="space-y-2">
+              <Label>Observações</Label>
+              <Textarea
+                placeholder="Observações adicionais..."
+                value={formData.notes}
+                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                rows={2}
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setIsModalOpen(false)}>
+              <X className="w-4 h-4 mr-2" />
+              Cancelar
+            </Button>
+            <Button onClick={handleSaveOrder} disabled={isSaving}>
+              <Save className="w-4 h-4 mr-2" />
+              {isSaving ? 'Salvando...' : 'Salvar'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

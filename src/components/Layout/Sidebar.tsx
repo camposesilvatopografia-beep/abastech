@@ -40,6 +40,7 @@ const menuItems: MenuItem[] = [
     children: [
       { id: 'fornecedores', label: 'Fornecedores' },
       { id: 'lubrificantes', label: 'Lubrificantes' },
+      { id: 'mecanicos', label: 'Mecânicos' },
       { id: 'tiposoleos', label: 'Tipos de Óleo' },
       { id: 'usuarios', label: 'Usuários' },
     ]

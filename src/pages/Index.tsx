@@ -12,6 +12,7 @@ import OilTypesPage from '@/components/Pages/OilTypesPage';
 import LubricantsPage from '@/components/Pages/LubricantsPage';
 import SystemUsersPage from '@/components/Pages/SystemUsersPage';
 import SuppliersPage from '@/components/Pages/SuppliersPage';
+import MechanicsPage from '@/components/Pages/MechanicsPage';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 
@@ -40,6 +41,8 @@ const Index = () => {
         return <SuppliersPage />;
       case 'lubrificantes':
         return <LubricantsPage />;
+      case 'mecanicos':
+        return <MechanicsPage />;
       case 'tiposoleos':
         return <OilTypesPage />;
       case 'usuarios':
