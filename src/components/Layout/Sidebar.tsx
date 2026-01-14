@@ -39,6 +39,7 @@ const menuItems: MenuItem[] = [
     icon: FolderOpen,
     children: [
       { id: 'lubrificantes', label: 'Lubrificantes' },
+      { id: 'tiposoleos', label: 'Tipos de Óleo' },
       { id: 'usuarios', label: 'Usuários' },
     ]
   },

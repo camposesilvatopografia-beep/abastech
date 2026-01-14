@@ -164,7 +164,11 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
   const [oilType, setOilType] = useState('');
   const [oilQuantity, setOilQuantity] = useState('');
   const [filterBlow, setFilterBlow] = useState(false);
+  const [filterBlowQuantity, setFilterBlowQuantity] = useState('');
   const [lubricant, setLubricant] = useState('');
+  
+  // Oil types from database
+  const [oilTypes, setOilTypes] = useState<{ id: string; name: string }[]>([]);
   
   // Entry-specific fields (Entrada)
   const [supplier, setSupplier] = useState('');
@@ -204,6 +208,26 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
 
   // Voice recognition
   const voice = useVoiceRecognition();
+
+  // Fetch oil types from database
+  useEffect(() => {
+    const fetchOilTypes = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('oil_types')
+          .select('id, name')
+          .eq('active', true)
+          .order('name', { ascending: true });
+        
+        if (!error && data) {
+          setOilTypes(data);
+        }
+      } catch (err) {
+        console.error('Error fetching oil types:', err);
+      }
+    };
+    fetchOilTypes();
+  }, []);
 
   // Monitor online status
   useEffect(() => {
@@ -634,6 +658,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
     oilType?: string;
     oilQuantity?: number;
     filterBlow?: boolean;
+    filterBlowQuantity?: number;
     lubricant?: string;
     // Entry fields
     supplier?: string;
@@ -667,7 +692,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         // Equipment fields
         'TIPO DE ÓLEO': recordData.oilType || '',
         'QUANTIDADE DE ÓLEO': recordData.oilQuantity || '',
-        'SOPRA FILTRO': recordData.filterBlow ? 'Sim' : '',
+        'SOPRA FILTRO': recordData.filterBlow ? `Sim (${recordData.filterBlowQuantity || 0})` : '',
         'LUBRIFICANTE': recordData.lubricant || '',
         // Entry fields
         'FORNECEDOR': recordData.supplier || '',
@@ -770,6 +795,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
           oil_type: oilType || null,
           oil_quantity: parseFloat(oilQuantity) || null,
           filter_blow: filterBlow || false,
+          filter_blow_quantity: parseFloat(filterBlowQuantity) || null,
           lubricant: lubricant || null,
           // Entry fields
           supplier: supplier || null,
@@ -806,6 +832,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         oilType,
         oilQuantity: parseFloat(oilQuantity) || 0,
         filterBlow,
+        filterBlowQuantity: parseFloat(filterBlowQuantity) || 0,
         lubricant,
         supplier,
         invoiceNumber,
@@ -868,6 +895,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
     setOilType('');
     setOilQuantity('');
     setFilterBlow(false);
+    setFilterBlowQuantity('');
     setLubricant('');
     setSupplier('');
     setInvoiceNumber('');
@@ -1251,11 +1279,11 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="nenhum">Nenhum</SelectItem>
-                  <SelectItem value="motor">Óleo Motor</SelectItem>
-                  <SelectItem value="hidraulico">Óleo Hidráulico</SelectItem>
-                  <SelectItem value="transmissao">Óleo Transmissão</SelectItem>
-                  <SelectItem value="diferencial">Óleo Diferencial</SelectItem>
-                  <SelectItem value="outro">Outro</SelectItem>
+                  {oilTypes.map((oil) => (
+                    <SelectItem key={oil.id} value={oil.name}>
+                      {oil.name}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -1274,17 +1302,29 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
             </div>
             
             {/* Filter Blow */}
-            <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-              <input
-                type="checkbox"
-                id="filterBlow"
-                checked={filterBlow}
-                onChange={(e) => setFilterBlow(e.target.checked)}
-                className="w-5 h-5 rounded"
-              />
-              <Label htmlFor="filterBlow" className="text-sm cursor-pointer">
-                Sopra Filtro
-              </Label>
+            <div className="space-y-2">
+              <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
+                <input
+                  type="checkbox"
+                  id="filterBlow"
+                  checked={filterBlow}
+                  onChange={(e) => setFilterBlow(e.target.checked)}
+                  className="w-5 h-5 rounded"
+                />
+                <Label htmlFor="filterBlow" className="text-sm cursor-pointer">
+                  Sopra Filtro
+                </Label>
+              </div>
+              {filterBlow && (
+                <Input
+                  type="number"
+                  inputMode="decimal"
+                  placeholder="Quantidade"
+                  value={filterBlowQuantity}
+                  onChange={(e) => setFilterBlowQuantity(e.target.value)}
+                  className="h-10"
+                />
+              )}
             </div>
             
             {/* Lubricant */}
