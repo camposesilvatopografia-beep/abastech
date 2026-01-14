@@ -855,6 +855,16 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         return;
       }
       
+      // Validate photos are required for Saida
+      if (!photoPump) {
+        toast.error('Foto da Bomba é obrigatória para registros de Saída');
+        return;
+      }
+      if (!photoHorimeter) {
+        toast.error('Foto do Horímetro é obrigatória para registros de Saída');
+        return;
+      }
+      
       // Validate horimeter current > previous
       if (horimeterCurrent && horimeterPrevious) {
         const currentValue = parseBrazilianNumber(horimeterCurrent);
@@ -1704,17 +1714,23 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
           </div>
         )}
 
-        {/* Photos Section */}
-        <div className="bg-card rounded-xl border border-border p-4 space-y-4">
+        {/* Photos Section - Only for Saida */}
+        {recordType === 'saida' && (
+        <div className="bg-card rounded-xl border border-red-200 dark:border-red-800 p-4 space-y-4">
           <Label className="flex items-center gap-2 text-base">
-            <Camera className="w-4 h-4" />
-            Fotos (Opcional)
+            <Camera className="w-4 h-4 text-red-500" />
+            Fotos 
+            <span className="text-red-500 text-lg">*</span>
+            <span className="text-xs text-muted-foreground ml-auto">(Obrigatórias)</span>
           </Label>
           
           <div className="grid grid-cols-2 gap-4">
             {/* Pump Photo */}
             <div className="space-y-2">
-              <p className="text-sm font-medium text-muted-foreground">Foto da Bomba</p>
+              <p className="text-sm font-medium flex items-center gap-1">
+                Foto da Bomba
+                <span className="text-red-500">*</span>
+              </p>
               <input
                 ref={photoPumpInputRef}
                 type="file"
@@ -1728,7 +1744,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                   <img 
                     src={photoPumpPreview} 
                     alt="Bomba" 
-                    className="w-full h-32 object-cover rounded-lg border border-border"
+                    className="w-full h-32 object-cover rounded-lg border-2 border-green-500"
                   />
                   <Button
                     type="button"
@@ -1744,18 +1760,21 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                 <Button
                   type="button"
                   variant="outline"
-                  className="w-full h-32 flex flex-col gap-2"
+                  className="w-full h-32 flex flex-col gap-2 border-red-200 hover:border-red-400 hover:bg-red-50 dark:hover:bg-red-950"
                   onClick={() => photoPumpInputRef.current?.click()}
                 >
-                  <Camera className="w-8 h-8 text-muted-foreground" />
-                  <span className="text-xs text-muted-foreground">Tirar Foto</span>
+                  <Camera className="w-8 h-8 text-red-400" />
+                  <span className="text-xs text-red-500">Tirar Foto *</span>
                 </Button>
               )}
             </div>
 
             {/* Horimeter Photo */}
             <div className="space-y-2">
-              <p className="text-sm font-medium text-muted-foreground">Foto do Horímetro</p>
+              <p className="text-sm font-medium flex items-center gap-1">
+                Foto do Horímetro
+                <span className="text-red-500">*</span>
+              </p>
               <input
                 ref={photoHorimeterInputRef}
                 type="file"
@@ -1769,7 +1788,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                   <img 
                     src={photoHorimeterPreview} 
                     alt="Horímetro" 
-                    className="w-full h-32 object-cover rounded-lg border border-border"
+                    className="w-full h-32 object-cover rounded-lg border-2 border-green-500"
                   />
                   <Button
                     type="button"
@@ -1785,16 +1804,17 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                 <Button
                   type="button"
                   variant="outline"
-                  className="w-full h-32 flex flex-col gap-2"
+                  className="w-full h-32 flex flex-col gap-2 border-red-200 hover:border-red-400 hover:bg-red-50 dark:hover:bg-red-950"
                   onClick={() => photoHorimeterInputRef.current?.click()}
                 >
-                  <Gauge className="w-8 h-8 text-muted-foreground" />
-                  <span className="text-xs text-muted-foreground">Tirar Foto</span>
+                  <Gauge className="w-8 h-8 text-red-400" />
+                  <span className="text-xs text-red-500">Tirar Foto *</span>
                 </Button>
               )}
             </div>
           </div>
         </div>
+        )}
 
         {/* Observations */}
         <div className="bg-card rounded-xl border border-border p-4 space-y-3">
