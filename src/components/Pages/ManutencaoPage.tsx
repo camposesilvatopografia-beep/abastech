@@ -123,7 +123,7 @@ export function ManutencaoPage() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [activeTab, setActiveTab] = useState('ordens');
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('manutencao'); // Default to show 'Em Manutenção'
+  const [statusFilter, setStatusFilter] = useState('all'); // Default to show all orders
   const [companyFilter, setCompanyFilter] = useState('all'); // Company filter
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
