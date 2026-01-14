@@ -102,13 +102,18 @@ export function Sidebar({ activeItem, onItemClick, onClose }: SidebarProps) {
 
   return (
     <aside className="w-60 bg-sidebar flex flex-col h-screen">
-      {/* Logo - Grande e em destaque */}
-      <div className="p-5 flex flex-col items-center gap-2 border-b border-sidebar-border bg-gradient-to-b from-sidebar-accent/50 to-transparent">
-        <img 
-          src={logoAbastech} 
-          alt="Abastech" 
-          className="h-24 w-auto object-contain drop-shadow-lg"
-        />
+      {/* Logo - Grande e em destaque com efeito de brilho */}
+      <div className="p-6 flex flex-col items-center border-b border-sidebar-border bg-gradient-to-b from-sidebar-accent/50 to-transparent">
+        <div className="relative group">
+          {/* Efeito de brilho/glow */}
+          <div className="absolute inset-0 blur-xl bg-amber-400/30 rounded-full scale-110 group-hover:bg-amber-400/40 transition-all duration-500" />
+          <div className="absolute inset-0 blur-2xl bg-amber-500/20 rounded-full scale-125 animate-pulse" />
+          <img 
+            src={logoAbastech} 
+            alt="Abastech" 
+            className="relative z-10 h-32 w-auto object-contain drop-shadow-2xl transition-transform duration-300 group-hover:scale-105"
+          />
+        </div>
       </div>
 
       {/* Navigation */}
