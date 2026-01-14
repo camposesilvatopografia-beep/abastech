@@ -395,7 +395,35 @@ export function FieldUsersPage() {
           </Card>
         </div>
 
-        {/* Search */}
+        {/* Direct Access Link */}
+        <Card className="bg-gradient-to-r from-blue-500 to-blue-600 text-white border-0">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-semibold flex items-center gap-2">
+                  <Fuel className="w-5 h-5" />
+                  Link de Acesso Direto
+                </h3>
+                <p className="text-sm opacity-90 mt-1">
+                  Compartilhe este link com os apontadores para acesso rápido:
+                </p>
+                <code className="text-xs bg-white/20 px-2 py-1 rounded mt-2 inline-block">
+                  {window.location.origin}/apontamento
+                </code>
+              </div>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  navigator.clipboard.writeText(`${window.location.origin}/apontamento`);
+                  toast.success('Link copiado!');
+                }}
+              >
+                Copiar Link
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
