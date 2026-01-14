@@ -170,6 +170,9 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
   // Oil types from database
   const [oilTypes, setOilTypes] = useState<{ id: string; name: string }[]>([]);
   
+  // Lubricants from database
+  const [lubricants, setLubricants] = useState<{ id: string; name: string }[]>([]);
+  
   // Entry-specific fields (Entrada)
   const [supplier, setSupplier] = useState('');
   const [invoiceNumber, setInvoiceNumber] = useState('');
@@ -209,7 +212,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
   // Voice recognition
   const voice = useVoiceRecognition();
 
-  // Fetch oil types from database
+  // Fetch oil types and lubricants from database
   useEffect(() => {
     const fetchOilTypes = async () => {
       try {
@@ -226,7 +229,25 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         console.error('Error fetching oil types:', err);
       }
     };
+    
+    const fetchLubricants = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('lubricants')
+          .select('id, name')
+          .eq('active', true)
+          .order('name', { ascending: true });
+        
+        if (!error && data) {
+          setLubricants(data);
+        }
+      } catch (err) {
+        console.error('Error fetching lubricants:', err);
+      }
+    };
+    
     fetchOilTypes();
+    fetchLubricants();
   }, []);
 
   // Monitor online status
@@ -1395,11 +1416,11 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="nenhum">Nenhum</SelectItem>
-                  <SelectItem value="graxa">Graxa</SelectItem>
-                  <SelectItem value="wd40">WD-40</SelectItem>
-                  <SelectItem value="lubrificante_corrente">Lubrificante de Corrente</SelectItem>
-                  <SelectItem value="desengripante">Desengripante</SelectItem>
-                  <SelectItem value="outro">Outro</SelectItem>
+                  {lubricants.map((lub) => (
+                    <SelectItem key={lub.id} value={lub.name}>
+                      {lub.name}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
