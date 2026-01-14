@@ -60,7 +60,8 @@ export function DatabaseHorimeterModal({
   const isEditMode = !!editRecord;
   
   const [selectedVehicleId, setSelectedVehicleId] = useState(initialVehicleId || '');
-  const [currentValue, setCurrentValue] = useState('');
+  const [horimeterValue, setHorimeterValue] = useState('');
+  const [kmValue, setKmValue] = useState('');
   const [operador, setOperador] = useState('');
   const [observacao, setObservacao] = useState('');
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
@@ -150,7 +151,8 @@ export function DatabaseHorimeterModal({
   // Reset form when vehicle changes (only in create mode)
   useEffect(() => {
     if (!isEditMode && selectedVehicleId) {
-      setCurrentValue('');
+      setHorimeterValue('');
+      setKmValue('');
       setObservacao('');
       setSelectedDate(new Date());
       
@@ -165,7 +167,8 @@ export function DatabaseHorimeterModal({
         setOperador('');
       }
     } else if (!isEditMode && !selectedVehicleId) {
-      setCurrentValue('');
+      setHorimeterValue('');
+      setKmValue('');
       setOperador('');
       setObservacao('');
       setSelectedDate(new Date());
@@ -177,7 +180,16 @@ export function DatabaseHorimeterModal({
     if (open) {
       if (editRecord) {
         setSelectedVehicleId(editRecord.vehicle_id);
-        setCurrentValue(editRecord.current_value.toString().replace('.', ','));
+        // Determine if it's KM or Horimeter based on vehicle unit
+        const vehicle = vehicles.find(v => v.id === editRecord.vehicle_id);
+        const usesKm = vehicle?.unit === 'km';
+        if (usesKm) {
+          setKmValue(editRecord.current_value.toString().replace('.', ','));
+          setHorimeterValue('');
+        } else {
+          setHorimeterValue(editRecord.current_value.toString().replace('.', ','));
+          setKmValue('');
+        }
         setOperador(editRecord.operator || '');
         setObservacao(editRecord.observations || '');
         setSelectedDate(new Date(editRecord.reading_date + 'T00:00:00'));
@@ -187,13 +199,14 @@ export function DatabaseHorimeterModal({
         } else {
           setSelectedVehicleId(initialVehicleId);
         }
-        setCurrentValue('');
+        setHorimeterValue('');
+        setKmValue('');
         setOperador('');
         setObservacao('');
         setSelectedDate(new Date());
       }
     }
-  }, [open, editRecord, initialVehicleId]);
+  }, [open, editRecord, initialVehicleId, vehicles]);
 
   const parseNumber = (val: string): number => {
     const str = val.replace(/\./g, '').replace(',', '.');
@@ -229,21 +242,29 @@ export function DatabaseHorimeterModal({
       return false;
     }
 
-    const currentValueNum = parseNumber(currentValue);
-    if (currentValueNum <= 0) {
+    const horimeterNum = parseNumber(horimeterValue);
+    const kmNum = parseNumber(kmValue);
+    
+    // At least one value must be provided
+    if (horimeterNum <= 0 && kmNum <= 0) {
       toast({
         title: 'Erro',
-        description: 'Informe um valor válido maior que zero',
+        description: 'Informe pelo menos um valor (Horímetro ou KM)',
         variant: 'destructive',
       });
       return false;
     }
 
-    if (previousValue > 0 && currentValueNum <= previousValue) {
+    // Determine the main value based on vehicle type or whichever is filled
+    const mainValue = selectedVehicle?.unit === 'km' 
+      ? (kmNum > 0 ? kmNum : horimeterNum)
+      : (horimeterNum > 0 ? horimeterNum : kmNum);
+
+    if (previousValue > 0 && mainValue <= previousValue) {
       const tipo = selectedVehicle?.unit === 'km' ? 'quilometragem' : 'horímetro';
       toast({
         title: 'Valor inválido',
-        description: `O ${tipo} atual (${currentValueNum.toLocaleString('pt-BR')}) deve ser maior que o anterior (${previousValue.toLocaleString('pt-BR')}).`,
+        description: `O ${tipo} atual (${mainValue.toLocaleString('pt-BR')}) deve ser maior que o anterior (${previousValue.toLocaleString('pt-BR')}).`,
         variant: 'destructive',
       });
       return false;
@@ -268,15 +289,31 @@ export function DatabaseHorimeterModal({
 
     try {
       const readingDate = format(selectedDate, 'yyyy-MM-dd');
-      const valueNum = parseNumber(currentValue);
+      const horimeterNum = parseNumber(horimeterValue);
+      const kmNum = parseNumber(kmValue);
+      
+      // Determine main value based on vehicle unit or whichever is filled
+      const mainValue = selectedVehicle?.unit === 'km' 
+        ? (kmNum > 0 ? kmNum : horimeterNum)
+        : (horimeterNum > 0 ? horimeterNum : kmNum);
+
+      // Build observations with both values if both are provided
+      let finalObservations = observacao || '';
+      if (horimeterNum > 0 && kmNum > 0) {
+        const extraInfo = `Hor: ${horimeterNum.toLocaleString('pt-BR')}h | KM: ${kmNum.toLocaleString('pt-BR')}`;
+        finalObservations = finalObservations ? `${finalObservations} | ${extraInfo}` : extraInfo;
+      }
 
       const data = {
         vehicle_id: selectedVehicleId,
         reading_date: readingDate,
-        current_value: valueNum,
+        current_value: mainValue,
         previous_value: previousValue || null,
         operator: operador || null,
-        observations: observacao || null,
+        observations: finalObservations || null,
+        // Store both values for sheet sync
+        _horimeterValue: horimeterNum,
+        _kmValue: kmNum,
       };
 
       if (isEditMode && editRecord) {
@@ -289,7 +326,8 @@ export function DatabaseHorimeterModal({
       await refetch();
 
       setSelectedVehicleId('');
-      setCurrentValue('');
+      setHorimeterValue('');
+      setKmValue('');
       setOperador('');
       setObservacao('');
       setSelectedDate(new Date());
@@ -407,28 +445,57 @@ export function DatabaseHorimeterModal({
                 )}
               </div>
 
-              {/* Current Value */}
-              <div className="space-y-1">
-                <Label htmlFor="value" className="text-sm">
-                  {selectedVehicle?.unit === 'km' ? 'Quilometragem' : 'Horímetro'} Atual *
-                </Label>
-                <Input
-                  id="value"
-                  value={currentValue}
-                  onChange={(e) => setCurrentValue(e.target.value)}
-                  placeholder={`Digite o ${selectedVehicle?.unit === 'km' ? 'KM' : 'horímetro'} atual`}
-                  className="h-9"
-                />
-                {previousValue > 0 && parseNumber(currentValue) > 0 && (
-                  <p className={cn(
-                    'text-xs flex items-center gap-1',
-                    parseNumber(currentValue) > previousValue ? 'text-green-600' : 'text-destructive'
-                  )}>
+              {/* Horimeter and KM Values - Side by Side */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label htmlFor="horimeter" className="text-sm flex items-center gap-1">
+                    <Clock className="w-3 h-3" />
+                    Horímetro (h)
+                  </Label>
+                  <Input
+                    id="horimeter"
+                    value={horimeterValue}
+                    onChange={(e) => setHorimeterValue(e.target.value)}
+                    placeholder="Ex: 1.250,5"
+                    className="h-9"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="km" className="text-sm flex items-center gap-1">
                     <TrendingUp className="w-3 h-3" />
-                    Diferença: {(parseNumber(currentValue) - previousValue).toLocaleString('pt-BR')} {selectedVehicle?.unit}
-                  </p>
-                )}
+                    Quilometragem (km)
+                  </Label>
+                  <Input
+                    id="km"
+                    value={kmValue}
+                    onChange={(e) => setKmValue(e.target.value)}
+                    placeholder="Ex: 85.420"
+                    className="h-9"
+                  />
+                </div>
               </div>
+              
+              {/* Difference display */}
+              {previousValue > 0 && (parseNumber(horimeterValue) > 0 || parseNumber(kmValue) > 0) && (
+                <div className="text-xs text-muted-foreground bg-muted/30 rounded p-2">
+                  {parseNumber(horimeterValue) > 0 && (
+                    <p className={cn(
+                      'flex items-center gap-1',
+                      parseNumber(horimeterValue) > previousValue ? 'text-green-600' : 'text-destructive'
+                    )}>
+                      Diferença Horímetro: {(parseNumber(horimeterValue) - previousValue).toLocaleString('pt-BR')}h
+                    </p>
+                  )}
+                  {parseNumber(kmValue) > 0 && (
+                    <p className={cn(
+                      'flex items-center gap-1',
+                      parseNumber(kmValue) > previousValue ? 'text-green-600' : 'text-destructive'
+                    )}>
+                      Diferença KM: {(parseNumber(kmValue) - previousValue).toLocaleString('pt-BR')} km
+                    </p>
+                  )}
+                </div>
+              )}
 
               {/* Operator */}
               <div className="space-y-1">
@@ -497,7 +564,7 @@ export function DatabaseHorimeterModal({
                 <Button
                   onClick={handleButtonClick}
                   className="flex-1"
-                  disabled={isSaving || !selectedVehicleId || !currentValue}
+                  disabled={isSaving || !selectedVehicleId || (!horimeterValue && !kmValue)}
                 >
                   {isSaving ? (
                     <>

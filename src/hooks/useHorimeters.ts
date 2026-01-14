@@ -158,14 +158,19 @@ export function useHorimeterReadings(vehicleId?: string) {
     observations?: string | null;
     source?: string;
     synced_from_sheet?: boolean;
+    _horimeterValue?: number;
+    _kmValue?: number;
   }) => {
     try {
+      // Remove custom fields before inserting to DB
+      const { _horimeterValue, _kmValue, ...dbReading } = reading;
+      
       const { data, error: insertError } = await supabase
         .from('horimeter_readings')
         .insert({
-          ...reading,
-          source: reading.source || 'system',
-          synced_from_sheet: reading.synced_from_sheet || false,
+          ...dbReading,
+          source: dbReading.source || 'system',
+          synced_from_sheet: dbReading.synced_from_sheet || false,
         })
         .select(`*, vehicle:vehicles(*)`)
         .single();
@@ -181,23 +186,22 @@ export function useHorimeterReadings(vehicleId?: string) {
           const [year, month, day] = reading.reading_date.split('-');
           const formattedDate = `${day}/${month}/${year}`;
           
-          const usesKm = vehicle.category?.toLowerCase().includes('veículo') ||
-                         vehicle.category?.toLowerCase().includes('veiculo') ||
-                         vehicle.category?.toLowerCase().includes('caminhão') ||
-                         vehicle.category?.toLowerCase().includes('caminhao');
+          // Use provided values or fallback to current_value based on category
+          const horimeterVal = _horimeterValue || 0;
+          const kmVal = _kmValue || 0;
           
           const rowData = {
-            // Note: edge function trims headers, so send without leading space
             'Data': formattedDate,
             'Veiculo': vehicle.code,
             'Categoria': vehicle.category || '',
             'Descricao': vehicle.name || '',
             'Empresa': vehicle.company || '',
             'Operador': reading.operator || '',
-            'Hor_Anterior': usesKm ? '' : (reading.previous_value?.toString().replace('.', ',') || ''),
-            'Hor_Atual': usesKm ? '' : reading.current_value.toString().replace('.', ','),
-            'Km_Anterior': usesKm ? (reading.previous_value?.toString().replace('.', ',') || '') : '',
-            'Km_Atual': usesKm ? reading.current_value.toString().replace('.', ',') : '',
+            'Hor_Anterior': reading.previous_value && horimeterVal > 0 ? reading.previous_value.toString().replace('.', ',') : '',
+            'Hor_Atual': horimeterVal > 0 ? horimeterVal.toString().replace('.', ',') : '',
+            'Km_Anterior': reading.previous_value && kmVal > 0 ? reading.previous_value.toString().replace('.', ',') : '',
+            'Km_Atual': kmVal > 0 ? kmVal.toString().replace('.', ',') : '',
+            'Observacao': reading.observations || '',
           };
           
           await supabase.functions.invoke('google-sheets', {
