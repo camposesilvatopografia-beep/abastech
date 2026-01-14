@@ -20,6 +20,8 @@ export interface HorimeterReading {
   reading_date: string;
   current_value: number;
   previous_value: number | null;
+  current_km: number | null;
+  previous_km: number | null;
   operator: string | null;
   observations: string | null;
   source: string;
@@ -154,6 +156,8 @@ export function useHorimeterReadings(vehicleId?: string) {
     reading_date: string;
     current_value: number;
     previous_value?: number | null;
+    current_km?: number | null;
+    previous_km?: number | null;
     operator?: string | null;
     observations?: string | null;
     source?: string;
@@ -169,6 +173,8 @@ export function useHorimeterReadings(vehicleId?: string) {
         .from('horimeter_readings')
         .insert({
           ...dbReading,
+          current_km: reading.current_km || null,
+          previous_km: reading.previous_km || null,
           source: dbReading.source || 'system',
           synced_from_sheet: dbReading.synced_from_sheet || false,
         })
@@ -197,9 +203,9 @@ export function useHorimeterReadings(vehicleId?: string) {
             'Descricao': vehicle.name || '',
             'Empresa': vehicle.company || '',
             'Operador': reading.operator || '',
-            'Hor_Anterior': reading.previous_value && horimeterVal > 0 ? reading.previous_value.toString().replace('.', ',') : '',
+            'Hor_Anterior': reading.previous_value ? reading.previous_value.toString().replace('.', ',') : '',
             'Hor_Atual': horimeterVal > 0 ? horimeterVal.toString().replace('.', ',') : '',
-            'Km_Anterior': reading.previous_value && kmVal > 0 ? reading.previous_value.toString().replace('.', ',') : '',
+            'Km_Anterior': reading.previous_km ? reading.previous_km.toString().replace('.', ',') : '',
             'Km_Atual': kmVal > 0 ? kmVal.toString().replace('.', ',') : '',
             'Observacao': reading.observations || '',
           };
@@ -288,11 +294,13 @@ export function useHorimeterReadings(vehicleId?: string) {
             
             const currentValue = updates.current_value ?? data.current_value;
             const previousValue = updates.previous_value ?? data.previous_value;
+            const currentKm = (updates as any).current_km ?? (data as any).current_km;
+            const previousKm = (updates as any).previous_km ?? (data as any).previous_km;
             const operator = updates.operator ?? data.operator;
             
-            // Use provided horimeter/km values if available, otherwise use category-based logic
-            const horimeterVal = _horimeterValue || 0;
-            const kmVal = _kmValue || 0;
+            // Use provided horimeter/km values if available
+            const horimeterVal = _horimeterValue || currentValue || 0;
+            const kmVal = _kmValue || currentKm || 0;
             
             const rowData = {
               'Data': formattedDate,
@@ -301,10 +309,10 @@ export function useHorimeterReadings(vehicleId?: string) {
               'Descricao': vehicle.name || '',
               'Empresa': vehicle.company || '',
               'Operador': operator || '',
-              'Hor_Anterior': horimeterVal > 0 ? (previousValue?.toString().replace('.', ',') || '') : (usesKm ? '' : (previousValue?.toString().replace('.', ',') || '')),
-              'Hor_Atual': horimeterVal > 0 ? horimeterVal.toString().replace('.', ',') : (usesKm ? '' : currentValue.toString().replace('.', ',')),
-              'Km_Anterior': kmVal > 0 ? (previousValue?.toString().replace('.', ',') || '') : (usesKm ? (previousValue?.toString().replace('.', ',') || '') : ''),
-              'Km_Atual': kmVal > 0 ? kmVal.toString().replace('.', ',') : (usesKm ? currentValue.toString().replace('.', ',') : ''),
+              'Hor_Anterior': previousValue ? previousValue.toString().replace('.', ',') : '',
+              'Hor_Atual': horimeterVal > 0 ? horimeterVal.toString().replace('.', ',') : '',
+              'Km_Anterior': previousKm ? previousKm.toString().replace('.', ',') : '',
+              'Km_Atual': kmVal > 0 ? kmVal.toString().replace('.', ',') : '',
               'Observacao': updates.observations ?? data.observations ?? '',
             };
             
