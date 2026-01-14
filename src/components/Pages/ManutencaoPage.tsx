@@ -264,7 +264,14 @@ export function ManutencaoPage() {
 
       for (const row of sheetOrdersData.rows) {
         const idOrdem = String(row['IdOrdem'] || '');
+        const vehicleCode = String(row['Veiculo'] || '').trim();
         const orderNumber = `OS-HIST-${idOrdem}`;
+        
+        // Skip rows without vehicle code
+        if (!vehicleCode) {
+          skipped++;
+          continue;
+        }
         
         // Skip if already imported
         if (existingNumbers.has(orderNumber)) {
@@ -297,7 +304,7 @@ export function ManutencaoPage() {
             .insert({
               order_number: orderNumber,
               order_date: orderDate || new Date().toISOString().split('T')[0],
-              vehicle_code: String(row['Veiculo'] || ''),
+              vehicle_code: vehicleCode,
               vehicle_description: String(row['Potencia'] || ''),
               order_type: orderType,
               priority: 'Média',
