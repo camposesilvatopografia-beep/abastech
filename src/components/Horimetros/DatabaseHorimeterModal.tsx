@@ -107,53 +107,26 @@ export function DatabaseHorimeterModal({
     return relevantReadings[0];
   }, [selectedVehicleId, readings, isEditMode, editRecord]);
 
-  // Previous Horimeter value - considers vehicle unit
+  // Previous Horimeter value - ALWAYS comes from current_value column (hours)
+  // This column stores horimeter readings regardless of vehicle type
   const previousHorimeter = useMemo(() => {
     if (!selectedVehicleId || !lastReading) return 0;
     
-    // For vehicles with unit = 'km', horimeter might be stored in current_km or be 0
-    // For vehicles with unit = 'h' (hours), horimeter is in current_value
-    const vehicle = vehicles.find(v => v.id === selectedVehicleId);
-    const usesKm = vehicle?.unit === 'km';
-    
-    if (usesKm) {
-      // Vehicle uses KM as primary - horimeter might be in current_km column (if exists) or 0
-      // But historically, some vehicles stored everything in current_value
-      // Check if there's a dedicated current_km value, otherwise check if current_value looks like hours (<10000 typically)
-      const reading = lastReading as any;
-      // If current_value is very low (< 10000) for a KM vehicle, it might be horimeter
-      // Otherwise, it's probably KM stored in current_value (legacy data)
-      if (lastReading.current_value < 10000) {
-        return lastReading.current_value || 0;
-      }
-      return 0; // KM vehicle with no horimeter data
-    }
-    
-    // Vehicle uses hours - horimeter is in current_value
+    // Horimeter (hours) is ALWAYS in current_value column
+    // This is the standard horimeter reading for all vehicles
     return lastReading.current_value || 0;
-  }, [selectedVehicleId, lastReading, vehicles]);
+  }, [selectedVehicleId, lastReading]);
 
-  // Previous KM value - considers vehicle unit and checks multiple sources
+  // Previous KM value - ALWAYS comes from current_km column (kilometers)
+  // This is a separate tracking for odometer readings
   const previousKm = useMemo(() => {
     if (!selectedVehicleId || !lastReading) return 0;
     
+    // KM is ALWAYS in the dedicated current_km column
+    // After migration, all KM vehicles have their data in this column
     const reading = lastReading as any;
-    const vehicle = vehicles.find(v => v.id === selectedVehicleId);
-    const usesKm = vehicle?.unit === 'km';
-    
-    // First, check if there's a value in the dedicated current_km column
-    if (reading.current_km && reading.current_km > 0) {
-      return reading.current_km;
-    }
-    
-    // For vehicles with unit = 'km', the KM might be stored in current_value (legacy data)
-    if (usesKm && lastReading.current_value > 1000) {
-      // Likely KM stored in current_value (values > 1000 are typically KM, not hours)
-      return lastReading.current_value;
-    }
-    
-    return 0;
-  }, [selectedVehicleId, lastReading, vehicles]);
+    return reading.current_km || 0;
+  }, [selectedVehicleId, lastReading]);
 
   // Check for duplicate - improved logic for edit mode
   const hasDuplicateRecord = useMemo(() => {
