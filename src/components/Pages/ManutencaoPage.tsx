@@ -121,7 +121,7 @@ export function ManutencaoPage() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [activeTab, setActiveTab] = useState('ordens');
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('manutencao'); // Default to show 'Em Manutenção'
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
   const [quickFilter, setQuickFilter] = useState<string | null>(null);
@@ -332,7 +332,9 @@ export function ManutencaoPage() {
     }
   };
 
-  // Sync a single order to Google Sheets
+  // Sync a single order to Google Sheets - Mapped to correct columns:
+  // B - DATA, C - VEICULO, D - EMPRESA, E - MOTORISTA, F - POTENCIA, G - PROBLEMA,
+  // H - SERVICO, I - MECANICO, J - DATA_ENTRADA, K - DATA_SAIDA, L - HORA_ENTRADA, M - HORA_SAIDA
   const syncOrderToSheet = async (order: {
     order_number: string;
     order_date: string;
@@ -346,7 +348,8 @@ export function ManutencaoPage() {
     entry_date?: string | null;
     entry_time?: string | null;
     end_date?: string | null;
-  }) => {
+    created_by?: string | null;
+  }, company?: string) => {
     try {
       // Format dates for sheet
       const formatDateForSheet = (dateStr: string | null | undefined): string => {
@@ -360,11 +363,11 @@ export function ManutencaoPage() {
       };
 
       const formatTimeForSheet = (timeStr: string | null | undefined, dateStr: string | null | undefined): string => {
-        if (timeStr) return timeStr.length === 5 ? `${timeStr}:00` : timeStr;
+        if (timeStr) return timeStr.length === 5 ? timeStr : timeStr.substring(0, 5);
         if (dateStr) {
           try {
             const date = new Date(dateStr);
-            return format(date, 'HH:mm:ss');
+            return format(date, 'HH:mm');
           } catch {
             return '';
           }
@@ -372,33 +375,20 @@ export function ManutencaoPage() {
         return '';
       };
 
-      // Map status
-      let sheetStatus = 'Em Andamento';
-      if (order.status.includes('Finalizada')) {
-        sheetStatus = 'Finalizado';
-      } else if (order.status.includes('Aguardando')) {
-        sheetStatus = 'Aguardando';
-      } else if (order.status === 'Aberta') {
-        sheetStatus = 'Aberto';
-      }
-
-      const rowData = {
-        'IdOrdem': order.order_number.replace('OS-', '').replace(/-/g, '').substring(0, 8),
-        'Data': formatDateForSheet(order.order_date),
-        'Veiculo': order.vehicle_code,
-        'Empresa': '', // Can be enhanced later
-        'Motorista': '',
-        'Potencia': order.vehicle_description || '',
-        'Problema': order.problem_description || '',
-        'Servico': order.solution_description || '',
-        'Mecanico': order.mechanic_name || '',
-        'Data_Entrada': formatDateForSheet(order.entry_date),
-        'Data_Saida': order.status.includes('Finalizada') ? formatDateForSheet(order.end_date || new Date().toISOString()) : '',
-        'Hora_Entrada': formatTimeForSheet(order.entry_time, order.entry_date),
-        'Hora_Saida': order.status.includes('Finalizada') ? formatTimeForSheet(null, order.end_date) : '',
-        'Horas_Parado': '',
-        'Observacao': order.notes || '',
-        'Status': sheetStatus,
+      // Map to correct column headers as specified
+      const rowData: Record<string, string> = {
+        'DATA': formatDateForSheet(order.order_date),
+        'VEICULO': order.vehicle_code,
+        'EMPRESA': company || '',
+        'MOTORISTA': order.created_by || '',
+        'POTENCIA': order.vehicle_description || '',
+        'PROBLEMA': order.problem_description || '',
+        'SERVICO': order.solution_description || '',
+        'MECANICO': order.mechanic_name || '',
+        'DATA_ENTRADA': formatDateForSheet(order.entry_date),
+        'DATA_SAIDA': order.status.includes('Finalizada') ? formatDateForSheet(order.end_date || new Date().toISOString()) : '',
+        'HORA_ENTRADA': formatTimeForSheet(order.entry_time, null),
+        'HORA_SAIDA': order.status.includes('Finalizada') ? formatTimeForSheet(null, order.end_date) : '',
       };
 
       await createRow(ORDEM_SERVICO_SHEET, rowData);
@@ -549,7 +539,14 @@ export function ManutencaoPage() {
           String(v || '').toLowerCase().includes(search.toLowerCase())
         );
       const status = String(row.status || '').toLowerCase();
-      const matchesStatus = statusFilter === 'all' || status.includes(statusFilter);
+      // Custom status matching logic
+      let matchesStatus = true;
+      if (statusFilter === 'manutencao') {
+        // Show orders in maintenance (not finished)
+        matchesStatus = !status.includes('finalizada');
+      } else if (statusFilter !== 'all') {
+        matchesStatus = status.includes(statusFilter);
+      }
       
       let matchesDate = true;
       if (startDate || endDate) {
@@ -892,26 +889,38 @@ export function ManutencaoPage() {
       fetchOrders();
       
       // If preventive OS is finalized, schedule next maintenance in calendar
+      // Only create if doesn't already exist for this vehicle and date range
       if (status === 'Finalizada' && order.order_type === 'Preventiva') {
         const intervalDays = (order as any).interval_days || 90;
-        const endDate = exitDateTime?.date ? new Date(exitDateTime.date) : new Date();
-        const nextDate = addDays(endDate, intervalDays);
+        const endDateValue = exitDateTime?.date ? new Date(exitDateTime.date) : new Date();
+        const nextDate = addDays(endDateValue, intervalDays);
         
-        await supabase
+        // Check if a scheduled maintenance already exists for this vehicle within the next interval
+        const { data: existingMaint } = await supabase
           .from('scheduled_maintenance')
-          .insert({
-            vehicle_code: order.vehicle_code,
-            vehicle_description: order.vehicle_description,
-            title: order.problem_description?.slice(0, 100) || 'Revisão Preventiva',
-            description: `Próxima revisão após OS ${order.order_number}`,
-            scheduled_date: format(nextDate, 'yyyy-MM-dd'),
-            interval_days: intervalDays,
-            priority: order.priority,
-            status: 'Programada',
-            maintenance_type: 'Preventiva',
-          });
+          .select('id')
+          .eq('vehicle_code', order.vehicle_code)
+          .eq('maintenance_type', 'Preventiva')
+          .gte('scheduled_date', format(new Date(), 'yyyy-MM-dd'))
+          .limit(1);
         
-        toast.success(`Próxima revisão agendada para ${format(nextDate, 'dd/MM/yyyy')}`);
+        if (!existingMaint || existingMaint.length === 0) {
+          await supabase
+            .from('scheduled_maintenance')
+            .insert({
+              vehicle_code: order.vehicle_code,
+              vehicle_description: order.vehicle_description,
+              title: order.problem_description?.slice(0, 100) || 'Revisão Preventiva',
+              description: `Próxima revisão após OS ${order.order_number}`,
+              scheduled_date: format(nextDate, 'yyyy-MM-dd'),
+              interval_days: intervalDays,
+              priority: order.priority,
+              status: 'Programada',
+              maintenance_type: 'Preventiva',
+            });
+          
+          toast.success(`Próxima revisão agendada para ${format(nextDate, 'dd/MM/yyyy')}`);
+        }
       }
       
       // Sync to sheet
@@ -1430,9 +1439,10 @@ export function ManutencaoPage() {
             
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-48">
-                <SelectValue placeholder="Todos os Status" />
+                <SelectValue placeholder="Filtrar Status" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="manutencao">🔧 Em Manutenção</SelectItem>
                 <SelectItem value="all">Todos os Status</SelectItem>
                 <SelectItem value="aberta">Aberta</SelectItem>
                 <SelectItem value="andamento">Em Andamento</SelectItem>

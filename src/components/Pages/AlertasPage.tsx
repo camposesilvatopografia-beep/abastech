@@ -35,9 +35,12 @@ interface ServiceOrder {
   vehicle_code: string;
   vehicle_description: string | null;
   order_date: string;
+  order_type: string;
   priority: string;
   status: string;
   start_date: string | null;
+  end_date: string | null;
+  interval_days: number | null;
 }
 
 export function AlertasPage() {
@@ -51,7 +54,7 @@ export function AlertasPage() {
       try {
         const { data, error } = await supabase
           .from('service_orders')
-          .select('id, order_number, vehicle_code, vehicle_description, order_date, priority, status, start_date')
+          .select('id, order_number, vehicle_code, vehicle_description, order_date, order_type, priority, status, start_date, end_date, interval_days')
           .order('order_date', { ascending: false });
 
         if (error) throw error;
@@ -143,7 +146,38 @@ export function AlertasPage() {
       });
     });
 
-    // 4. Review alerts (vehicles that might need preventive maintenance)
+    // 4. Preventive maintenance next review approaching (< 7 days)
+    const preventiveOrders = serviceOrders.filter(order => {
+      const status = order.status.toLowerCase();
+      return status.includes('finalizada') && 
+             order.order_type === 'Preventiva' && 
+             order.interval_days && 
+             order.end_date;
+    });
+
+    preventiveOrders.forEach(order => {
+      const endDate = new Date(order.end_date!);
+      const nextReviewDate = addDays(endDate, order.interval_days!);
+      const daysUntilReview = differenceInDays(nextReviewDate, today);
+      
+      if (daysUntilReview <= 7 && daysUntilReview >= -30) { // Show if within 7 days or up to 30 days overdue
+        const isOverdue = daysUntilReview < 0;
+        
+        alertList.push({
+          id: `preventive-${order.id}`,
+          title: `🔄 ${isOverdue ? 'Revisão Vencida' : 'Revisão Próxima'}: ${order.vehicle_code}`,
+          description: isOverdue 
+            ? `Vencida há ${Math.abs(daysUntilReview)} dias - ${order.order_number}`
+            : `Vence em ${daysUntilReview} dia(s) - ${format(nextReviewDate, 'dd/MM/yyyy')}`,
+          type: 'revisao',
+          severity: isOverdue || daysUntilReview <= 3 ? 'error' : 'warning',
+          vehicleCode: order.vehicle_code,
+          date: format(nextReviewDate, 'yyyy-MM-dd'),
+        });
+      }
+    });
+
+    // 5. Review alerts (vehicles that might need preventive maintenance)
     // Check for vehicles with completed orders that haven't had maintenance in 30+ days
     const completedVehicles = new Map<string, { lastDate: Date; description: string }>();
     
@@ -169,7 +203,7 @@ export function AlertasPage() {
         
         alertList.push({
           id: `review-${vehicleCode}`,
-          title: `🔧 Revisão Próxima: ${vehicleCode}`,
+          title: `🔧 Revisão Sugerida: ${vehicleCode}`,
           description: `${daysSinceMaintenance} dias sem manutenção. Revisar até ${format(nextReviewDate, 'dd/MM/yyyy')}`,
           type: 'revisao',
           severity: 'info',
