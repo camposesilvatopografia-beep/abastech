@@ -219,6 +219,39 @@ export type Database = {
           },
         ]
       }
+      lubricants: {
+        Row: {
+          active: boolean | null
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          type: string | null
+          unit: string | null
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          type?: string | null
+          unit?: string | null
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          type?: string | null
+          unit?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       oil_types: {
         Row: {
           active: boolean | null

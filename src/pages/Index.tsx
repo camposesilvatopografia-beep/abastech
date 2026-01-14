@@ -8,8 +8,8 @@ import { FrotaPage } from '@/components/Pages/FrotaPage';
 import { HorimetrosPageDB } from '@/components/Pages/HorimetrosPageDB';
 import { ManutencaoPage } from '@/components/Pages/ManutencaoPage';
 import { AlertasPage } from '@/components/Pages/AlertasPage';
-import { CadastroPage } from '@/components/Pages/CadastroPage';
 import OilTypesPage from '@/components/Pages/OilTypesPage';
+import LubricantsPage from '@/components/Pages/LubricantsPage';
 import SystemUsersPage from '@/components/Pages/SystemUsersPage';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
@@ -36,7 +36,7 @@ const Index = () => {
       case 'alertas':
         return <AlertasPage />;
       case 'lubrificantes':
-        return <CadastroPage sheetName="Lubrificantes" title="Lubrificantes" subtitle="Cadastro de lubrificantes e óleos" />;
+        return <LubricantsPage />;
       case 'tiposoleos':
         return <OilTypesPage />;
       case 'usuarios':
