@@ -108,6 +108,60 @@ export function DatabaseHorimeterModal({
     return relevantReadings[0].current_value;
   }, [selectedVehicleId, readings, isEditMode, editRecord]);
 
+  // Previous Horimeter value - parse from observations or use current_value for horimeter vehicles
+  const previousHorimeter = useMemo(() => {
+    if (!selectedVehicleId) return 0;
+    
+    const relevantReadings = readings
+      .filter(r => {
+        if (r.vehicle_id !== selectedVehicleId) return false;
+        if (isEditMode && editRecord && r.id === editRecord.id) return false;
+        return true;
+      })
+      .sort((a, b) => b.reading_date.localeCompare(a.reading_date));
+    
+    if (relevantReadings.length === 0) return 0;
+    
+    const lastReading = relevantReadings[0];
+    // Check if it's a horimeter vehicle or try to parse from observations
+    if (lastReading.vehicle?.unit !== 'km') {
+      return lastReading.current_value;
+    }
+    // Try to extract from observations (format: "Hor: X | KM: Y")
+    const match = lastReading.observations?.match(/Hor:\s*([\d.,]+)/);
+    if (match) {
+      return parseFloat(match[1].replace(/\./g, '').replace(',', '.')) || 0;
+    }
+    return 0;
+  }, [selectedVehicleId, readings, isEditMode, editRecord]);
+
+  // Previous KM value - parse from observations or use current_value for km vehicles
+  const previousKm = useMemo(() => {
+    if (!selectedVehicleId) return 0;
+    
+    const relevantReadings = readings
+      .filter(r => {
+        if (r.vehicle_id !== selectedVehicleId) return false;
+        if (isEditMode && editRecord && r.id === editRecord.id) return false;
+        return true;
+      })
+      .sort((a, b) => b.reading_date.localeCompare(a.reading_date));
+    
+    if (relevantReadings.length === 0) return 0;
+    
+    const lastReading = relevantReadings[0];
+    // Check if it's a km vehicle or try to parse from observations
+    if (lastReading.vehicle?.unit === 'km') {
+      return lastReading.current_value;
+    }
+    // Try to extract from observations (format: "Hor: X | KM: Y")
+    const match = lastReading.observations?.match(/KM:\s*([\d.,]+)/);
+    if (match) {
+      return parseFloat(match[1].replace(/\./g, '').replace(',', '.')) || 0;
+    }
+    return 0;
+  }, [selectedVehicleId, readings, isEditMode, editRecord]);
+
   // Check for duplicate - improved logic for edit mode
   const hasDuplicateRecord = useMemo(() => {
     if (!selectedVehicleId || !selectedDate) return false;
@@ -389,22 +443,36 @@ export function DatabaseHorimeterModal({
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">{selectedVehicle.name || selectedVehicle.category}</span>
                     <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">
-                      {selectedVehicle.unit === 'km' ? 'KM' : 'Horímetro'}
+                      {selectedVehicle.company || 'Sem empresa'}
                     </span>
                   </div>
                   
+                  {/* Previous values - both Horimeter and KM */}
                   <div className="grid grid-cols-2 gap-2">
-                    <div className="p-2 bg-primary/10 rounded-lg text-center">
-                      <div className="text-xs text-muted-foreground">Último</div>
-                      <div className="font-semibold text-primary">
-                        {previousValue.toLocaleString('pt-BR')} {selectedVehicle.unit}
+                    <div className="p-2 bg-amber-500/10 rounded-lg text-center">
+                      <div className="text-xs text-muted-foreground flex items-center justify-center gap-1">
+                        <Clock className="w-3 h-3" />
+                        Horímetro Anterior
+                      </div>
+                      <div className="font-semibold text-amber-600">
+                        {previousHorimeter.toLocaleString('pt-BR')}h
                       </div>
                     </div>
-                    <div className="p-2 bg-green-500/10 rounded-lg text-center">
-                      <div className="text-xs text-muted-foreground">Mês</div>
-                      <div className="font-semibold text-green-600">
-                        {monthlyTotal.total.toLocaleString('pt-BR')} {selectedVehicle.unit}
+                    <div className="p-2 bg-blue-500/10 rounded-lg text-center">
+                      <div className="text-xs text-muted-foreground flex items-center justify-center gap-1">
+                        <TrendingUp className="w-3 h-3" />
+                        KM Anterior
                       </div>
+                      <div className="font-semibold text-blue-600">
+                        {previousKm.toLocaleString('pt-BR')} km
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="p-2 bg-green-500/10 rounded-lg text-center">
+                    <div className="text-xs text-muted-foreground">Total do Mês</div>
+                    <div className="font-semibold text-green-600">
+                      {monthlyTotal.total.toLocaleString('pt-BR')} {selectedVehicle.unit}
                     </div>
                   </div>
                 </div>
