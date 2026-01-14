@@ -144,6 +144,8 @@ export function ManutencaoPage() {
     parts_cost: '',
     labor_cost: '',
     notes: '',
+    horimeter_current: '',
+    km_current: '',
   });
 
   // Fetch service orders
@@ -383,6 +385,8 @@ export function ManutencaoPage() {
       parts_cost: '',
       labor_cost: '',
       notes: '',
+      horimeter_current: '',
+      km_current: '',
     });
     setIsModalOpen(true);
   };
@@ -417,6 +421,8 @@ export function ManutencaoPage() {
       parts_cost: order.parts_cost?.toString() || '',
       labor_cost: order.labor_cost?.toString() || '',
       notes: order.notes || '',
+      horimeter_current: (order as any).horimeter_current?.toString() || '',
+      km_current: (order as any).km_current?.toString() || '',
     });
     fetchVehicleHistory(order.vehicle_code);
     setIsModalOpen(true);
@@ -454,6 +460,8 @@ export function ManutencaoPage() {
         notes: formData.notes || null,
         start_date: formData.status === 'Em Andamento' && !editingOrder?.start_date ? new Date().toISOString() : editingOrder?.start_date,
         end_date: formData.status.includes('Finalizada') && !editingOrder?.end_date ? new Date().toISOString() : editingOrder?.end_date,
+        horimeter_current: parseFloat(formData.horimeter_current) || null,
+        km_current: parseFloat(formData.km_current) || null,
       };
 
       if (editingOrder) {
@@ -1099,6 +1107,34 @@ export function ManutencaoPage() {
                     <SelectItem value="Finalizada">Finalizada</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+            </div>
+
+            {/* Horimeter / KM */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-amber-500" />
+                  Horímetro Atual
+                </Label>
+                <Input
+                  type="number"
+                  placeholder="Ex: 4500"
+                  value={formData.horimeter_current}
+                  onChange={(e) => setFormData({ ...formData, horimeter_current: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <TrendingUp className="w-4 h-4 text-blue-500" />
+                  KM Atual
+                </Label>
+                <Input
+                  type="number"
+                  placeholder="Ex: 120000"
+                  value={formData.km_current}
+                  onChange={(e) => setFormData({ ...formData, km_current: e.target.value })}
+                />
               </div>
             </div>
 
