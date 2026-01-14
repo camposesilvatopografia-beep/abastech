@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { 
   Package,
   RefreshCw,
@@ -10,7 +10,9 @@ import {
   TrendingUp,
   Fuel,
   Calendar,
-  X
+  X,
+  Wifi,
+  WifiOff
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -32,7 +34,10 @@ import autoTable from 'jspdf-autotable';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 
-const SHEET_NAME = 'AbastecimentoCanteiro01';
+const ABASTECIMENTO_SHEET = 'AbastecimentoCanteiro01';
+const GERAL_SHEET = 'GERAL';
+const ARLA_SHEET = 'EstoqueArla';
+const POLLING_INTERVAL = 30000; // 30 seconds
 
 function parseDate(dateStr: string): Date | null {
   if (!dateStr) return null;
@@ -44,12 +49,31 @@ function parseDate(dateStr: string): Date | null {
   return null;
 }
 
+function parseNumber(value: any): number {
+  if (!value) return 0;
+  const str = String(value).replace(/\./g, '').replace(',', '.');
+  return parseFloat(str) || 0;
+}
+
 export function EstoquesPage() {
-  const { data, loading, refetch } = useSheetData(SHEET_NAME);
+  const { data: abastecimentoData, loading, refetch } = useSheetData(ABASTECIMENTO_SHEET, { pollingInterval: POLLING_INTERVAL });
+  const { data: geralData } = useSheetData(GERAL_SHEET, { pollingInterval: POLLING_INTERVAL });
+  const { data: arlaData } = useSheetData(ARLA_SHEET, { pollingInterval: POLLING_INTERVAL });
+  
   const [search, setSearch] = useState('');
-  const [startDate, setStartDate] = useState<Date | undefined>(undefined);
-  const [endDate, setEndDate] = useState<Date | undefined>(undefined);
+  const [startDate, setStartDate] = useState<Date | undefined>(new Date());
+  const [endDate, setEndDate] = useState<Date | undefined>(new Date());
   const [quickFilter, setQuickFilter] = useState<string | null>('hoje');
+  const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
+  const [isConnected, setIsConnected] = useState(true);
+
+  // Update last sync time when data changes
+  useEffect(() => {
+    if (abastecimentoData.rows.length > 0 || geralData.rows.length > 0) {
+      setLastUpdate(new Date());
+      setIsConnected(true);
+    }
+  }, [abastecimentoData.rows.length, geralData.rows.length]);
 
   // Apply quick filters
   const applyQuickFilter = (filter: string) => {
@@ -85,8 +109,9 @@ export function EstoquesPage() {
     setQuickFilter(null);
   };
 
+  // Filter rows by date and search
   const filteredRows = useMemo(() => {
-    return data.rows.filter(row => {
+    return abastecimentoData.rows.filter(row => {
       // Search filter
       const matchesSearch = !search || 
         Object.values(row).some(v => 
@@ -117,51 +142,81 @@ export function EstoquesPage() {
 
       return matchesSearch && matchesDate;
     });
-  }, [data.rows, search, startDate, endDate]);
+  }, [abastecimentoData.rows, search, startDate, endDate]);
 
+  // Calculate metrics from real data
   const metrics = useMemo(() => {
-    let totalDiesel = 0;
-    let totalArla = 0;
-    let saidasHoje = 0;
-    let entradasHoje = 0;
+    // Get stock from GERAL sheet - find today's row or use last row
+    let estoqueDiesel = 0;
+    let estoqueAnterior = 0;
+    
+    if (geralData.rows.length > 0) {
+      const todayStr = format(new Date(), 'dd/MM/yyyy');
+      
+      // Try to find today's row
+      let targetRow = geralData.rows.find(row => {
+        const rowDate = String(row['Data'] || row['DATA'] || '');
+        return rowDate === todayStr;
+      });
+      
+      // If no row for today, use the last row
+      if (!targetRow) {
+        targetRow = geralData.rows[geralData.rows.length - 1];
+      }
+      
+      estoqueDiesel = parseNumber(targetRow?.['EstoqueAtual'] || targetRow?.['ESTOQUE ATUAL'] || targetRow?.['Estoque Atual']);
+      estoqueAnterior = parseNumber(targetRow?.['EstoqueAnterior'] || targetRow?.['ESTOQUE ANTERIOR'] || targetRow?.['Estoque Anterior']);
+    }
 
-    const today = new Date().toLocaleDateString('pt-BR');
+    // Get ARLA stock from EstoqueArla sheet
+    let estoqueArla = 0;
+    if (arlaData.rows.length > 0) {
+      const lastArlaRow = arlaData.rows[arlaData.rows.length - 1];
+      estoqueArla = parseNumber(lastArlaRow?.['EstoqueAtual'] || lastArlaRow?.['ESTOQUE ATUAL'] || lastArlaRow?.['Estoque Atual']);
+    }
+
+    // Calculate saidas (exits) and entradas (entries) from filtered abastecimento data
+    let saidasPeriodo = 0;
+    let entradasPeriodo = 0;
+    let saidasArla = 0;
 
     filteredRows.forEach(row => {
-      const quantidade = parseFloat(String(row['QUANTIDADE'] || '0').replace(',', '.')) || 0;
-      const arla = parseFloat(String(row['QUANTIDADE DE ARLA'] || '0').replace(',', '.')) || 0;
-      const rowDate = String(row['DATA'] || '');
-      const tipo = String(row['TIPO'] || '').toLowerCase();
+      const quantidade = parseNumber(row['QUANTIDADE'] || row['Quantidade']);
+      const arla = parseNumber(row['QUANTIDADE DE ARLA'] || row['Quantidade de Arla'] || row['ARLA']);
+      const tipo = String(row['TIPO DE OPERACAO'] || row['TIPO'] || row['Tipo'] || '').toLowerCase();
       const fornecedor = String(row['FORNECEDOR'] || '').trim();
       const local = String(row['LOCAL'] || '').toLowerCase();
 
-      totalDiesel += quantidade;
-      totalArla += arla;
+      // Count exits (Saída type, no supplier)
+      if (!fornecedor && quantidade > 0) {
+        if (!tipo.includes('entrada')) {
+          saidasPeriodo += quantidade;
+        }
+      }
+      
+      // Count entries (from suppliers at tanks)
+      if (fornecedor && quantidade > 0) {
+        if (local.includes('tanque 01') || local.includes('tanque 02') || 
+            local.includes('tanque canteiro 01') || local.includes('tanque canteiro 02')) {
+          entradasPeriodo += quantidade;
+        }
+      }
 
-      if (rowDate === today) {
-        if (tipo.includes('saida') || tipo.includes('saída')) {
-          saidasHoje += quantidade;
-        }
-        
-        // Entradas de fornecedor apenas nos tanques 01 ou 02
-        if (fornecedor && (local.includes('tanque 01') || local.includes('tanque 02') || 
-            local.includes('tanque canteiro 01') || local.includes('tanque canteiro 02'))) {
-          entradasHoje += quantidade;
-        }
+      // ARLA exits
+      if (arla > 0) {
+        saidasArla += arla;
       }
     });
 
-    // Simulated stock values
-    const estoqueDiesel = 20667.2;
-    const estoqueArla = 1643;
-
     return {
       estoqueDiesel,
+      estoqueAnterior,
       estoqueArla,
-      saidasHoje,
-      entradasHoje
+      saidasPeriodo,
+      entradasPeriodo,
+      saidasArla
     };
-  }, [filteredRows]);
+  }, [geralData.rows, arlaData.rows, filteredRows]);
 
   const stockHistory = useMemo(() => {
     const byDate: Record<string, { diesel: number; arla: number }> = {};
@@ -200,7 +255,8 @@ export function EstoquesPage() {
     doc.setFontSize(10);
     doc.text(`Estoque Diesel: ${metrics.estoqueDiesel.toLocaleString('pt-BR')} L`, 14, 54);
     doc.text(`Estoque Arla: ${metrics.estoqueArla.toLocaleString('pt-BR')} L`, 14, 60);
-    doc.text(`Saídas Hoje: ${metrics.saidasHoje.toLocaleString('pt-BR')} L`, 14, 66);
+    doc.text(`Saídas no Período: ${metrics.saidasPeriodo.toLocaleString('pt-BR')} L`, 14, 66);
+    doc.text(`Entradas no Período: ${metrics.entradasPeriodo.toLocaleString('pt-BR')} L`, 100, 66);
 
     // Table
     const tableData = stockHistory.map(([date, values]) => [
@@ -253,9 +309,23 @@ export function EstoquesPage() {
 
         {/* Connection Status */}
         <div className="flex items-center gap-2 text-xs md:text-sm">
-          <span className="w-2 h-2 rounded-full bg-success shrink-0" />
-          <span className="text-success font-medium">Conectado</span>
-          <span className="text-muted-foreground">• Sincronizado em tempo real</span>
+          {isConnected ? (
+            <>
+              <Wifi className="w-4 h-4 text-success" />
+              <span className="text-success font-medium">Conectado</span>
+            </>
+          ) : (
+            <>
+              <WifiOff className="w-4 h-4 text-destructive" />
+              <span className="text-destructive font-medium">Desconectado</span>
+            </>
+          )}
+          <span className="text-muted-foreground">
+            • Última atualização: {format(lastUpdate, 'HH:mm:ss', { locale: ptBR })}
+          </span>
+          <span className="text-muted-foreground">
+            • Atualiza a cada 30s
+          </span>
         </div>
 
         {/* Filters */}
@@ -387,15 +457,15 @@ export function EstoquesPage() {
         {/* Movement Cards - Responsive Grid */}
         <div className="grid grid-cols-2 gap-3 md:gap-4">
           <MetricCard
-            title="SAÍDAS HOJE"
-            value={`${metrics.saidasHoje.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L`}
-            subtitle="Consumo do dia"
+            title="SAÍDAS NO PERÍODO"
+            value={`${metrics.saidasPeriodo.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L`}
+            subtitle={quickFilter === 'hoje' ? 'Consumo de hoje' : 'Consumo no período'}
             variant="red"
             icon={TrendingDown}
           />
           <MetricCard
-            title="ENTRADAS HOJE"
-            value={`${metrics.entradasHoje.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L`}
+            title="ENTRADAS NO PERÍODO"
+            value={`${metrics.entradasPeriodo.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L`}
             subtitle="Fornecedor → Tanques"
             variant="green"
             icon={TrendingUp}
