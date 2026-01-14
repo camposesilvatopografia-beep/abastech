@@ -133,6 +133,23 @@ export function ApprovalRequestsPage() {
 
           if (deleteError) throw deleteError;
         }
+        
+        // If approving an edit request, apply the proposed changes
+        if (selectedRequest.request_type === 'edit' && selectedRequest.proposed_changes?.proposed) {
+          const proposed = selectedRequest.proposed_changes.proposed;
+          const { error: updateError } = await supabase
+            .from('field_fuel_records')
+            .update({
+              fuel_quantity: proposed.fuel_quantity,
+              horimeter_current: proposed.horimeter_current || null,
+              km_current: proposed.km_current || null,
+              arla_quantity: proposed.arla_quantity || null,
+              observations: proposed.observations || null,
+            })
+            .eq('id', selectedRequest.record_id);
+
+          if (updateError) throw updateError;
+        }
 
         // Update request status - use reviewer_name instead of reviewed_by to avoid FK constraint
         const { error } = await supabase
@@ -151,7 +168,7 @@ export function ApprovalRequestsPage() {
         toast.success(
           selectedRequest.request_type === 'delete'
             ? 'Exclusão aprovada e registro removido'
-            : 'Edição aprovada - o usuário pode agora editar o registro'
+            : 'Edição aprovada e alterações aplicadas'
         );
       } else {
         // Reject the request - use reviewer_name instead of reviewed_by
@@ -280,6 +297,49 @@ export function ApprovalRequestsPage() {
                         </div>
                       )}
                       
+                      {/* Proposed changes for edit requests */}
+                      {request.request_type === 'edit' && request.proposed_changes && (
+                        <div className="mt-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+                          <p className="text-xs font-medium text-blue-700 dark:text-blue-300 mb-2">Alterações propostas:</p>
+                          <div className="grid grid-cols-2 gap-2 text-xs">
+                            {request.proposed_changes.original?.fuel_quantity !== request.proposed_changes.proposed?.fuel_quantity && (
+                              <div>
+                                <span className="text-muted-foreground">Combustível:</span>
+                                <span className="ml-1 line-through text-red-500">{request.proposed_changes.original?.fuel_quantity}L</span>
+                                <span className="ml-1 text-green-600 font-medium">→ {request.proposed_changes.proposed?.fuel_quantity}L</span>
+                              </div>
+                            )}
+                            {request.proposed_changes.original?.horimeter_current !== request.proposed_changes.proposed?.horimeter_current && (
+                              <div>
+                                <span className="text-muted-foreground">Horímetro:</span>
+                                <span className="ml-1 line-through text-red-500">{request.proposed_changes.original?.horimeter_current || '-'}</span>
+                                <span className="ml-1 text-green-600 font-medium">→ {request.proposed_changes.proposed?.horimeter_current || '-'}</span>
+                              </div>
+                            )}
+                            {request.proposed_changes.original?.km_current !== request.proposed_changes.proposed?.km_current && (
+                              <div>
+                                <span className="text-muted-foreground">KM:</span>
+                                <span className="ml-1 line-through text-red-500">{request.proposed_changes.original?.km_current || '-'}</span>
+                                <span className="ml-1 text-green-600 font-medium">→ {request.proposed_changes.proposed?.km_current || '-'}</span>
+                              </div>
+                            )}
+                            {request.proposed_changes.original?.arla_quantity !== request.proposed_changes.proposed?.arla_quantity && (
+                              <div>
+                                <span className="text-muted-foreground">ARLA:</span>
+                                <span className="ml-1 line-through text-red-500">{request.proposed_changes.original?.arla_quantity || 0}L</span>
+                                <span className="ml-1 text-green-600 font-medium">→ {request.proposed_changes.proposed?.arla_quantity || 0}L</span>
+                              </div>
+                            )}
+                          </div>
+                          {request.proposed_changes.original?.observations !== request.proposed_changes.proposed?.observations && (
+                            <div className="mt-2 text-xs">
+                              <span className="text-muted-foreground">Observações:</span>
+                              <p className="text-blue-900 dark:text-blue-100 mt-1">{request.proposed_changes.proposed?.observations || '(vazio)'}</p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
                       {/* Request reason */}
                       {request.request_reason && (
                         <div className="mt-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
