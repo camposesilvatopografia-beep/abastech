@@ -14,6 +14,9 @@ import {
   Key,
   Eye,
   EyeOff,
+  Users,
+  UserCheck,
+  UserX,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -38,6 +41,7 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
+  CardDescription,
 } from '@/components/ui/card';
 import {
   Select,
@@ -50,31 +54,27 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import type { Database } from '@/integrations/supabase/types';
+
+type SystemUserRole = Database['public']['Enums']['system_user_role'];
 
 interface SystemUser {
   id: string;
   name: string;
   username: string;
   password_hash: string;
-  role: string | null;
+  email: string | null;
+  role: SystemUserRole | null;
   active: boolean | null;
-  assigned_locations: string[] | null;
+  last_login: string | null;
   created_at: string | null;
   updated_at: string | null;
 }
 
-const ROLES = [
-  { value: 'admin', label: 'Administrador', color: 'bg-purple-500' },
+const ROLES: { value: SystemUserRole; label: string; color: string }[] = [
+  { value: 'admin', label: 'Administrador', color: 'bg-red-500' },
   { value: 'supervisor', label: 'Supervisor', color: 'bg-blue-500' },
   { value: 'operador', label: 'Operador', color: 'bg-green-500' },
-];
-
-const LOCATIONS = [
-  'Tanque Canteiro 01',
-  'Tanque Canteiro 02',
-  'Comboio 01',
-  'Comboio 02',
-  'Posto Externo',
 ];
 
 export default function SystemUsersPage() {
@@ -88,17 +88,17 @@ export default function SystemUsersPage() {
   const [formData, setFormData] = useState({
     name: '',
     username: '',
+    email: '',
     password: '',
-    role: 'operador',
-    assigned_locations: [] as string[],
+    role: 'operador' as SystemUserRole,
   });
 
-  // Fetch users
+  // Fetch users from system_users table
   const fetchUsers = async () => {
     setLoading(true);
     try {
       const { data, error } = await supabase
-        .from('field_users')
+        .from('system_users')
         .select('*')
         .order('name', { ascending: true });
 
@@ -122,9 +122,9 @@ export default function SystemUsersPage() {
     setFormData({
       name: '',
       username: '',
+      email: '',
       password: '',
       role: 'operador',
-      assigned_locations: [],
     });
     setShowPassword(false);
     setIsModalOpen(true);
@@ -136,22 +136,12 @@ export default function SystemUsersPage() {
     setFormData({
       name: user.name,
       username: user.username,
+      email: user.email || '',
       password: '', // Don't show existing password
       role: user.role || 'operador',
-      assigned_locations: user.assigned_locations || [],
     });
     setShowPassword(false);
     setIsModalOpen(true);
-  };
-
-  // Toggle location selection
-  const toggleLocation = (location: string) => {
-    setFormData(prev => ({
-      ...prev,
-      assigned_locations: prev.assigned_locations.includes(location)
-        ? prev.assigned_locations.filter(l => l !== location)
-        : [...prev.assigned_locations, location],
-    }));
   };
 
   // Save user
@@ -170,11 +160,11 @@ export default function SystemUsersPage() {
     try {
       if (editingUser) {
         // Update
-        const updateData: any = {
+        const updateData: Partial<SystemUser> = {
           name: formData.name.trim(),
           username: formData.username.trim().toLowerCase(),
+          email: formData.email.trim() || null,
           role: formData.role,
-          assigned_locations: formData.assigned_locations,
         };
         
         // Only update password if provided
@@ -183,7 +173,7 @@ export default function SystemUsersPage() {
         }
 
         const { error } = await supabase
-          .from('field_users')
+          .from('system_users')
           .update(updateData)
           .eq('id', editingUser.id);
 
@@ -192,13 +182,13 @@ export default function SystemUsersPage() {
       } else {
         // Create
         const { error } = await supabase
-          .from('field_users')
+          .from('system_users')
           .insert({
             name: formData.name.trim(),
             username: formData.username.trim().toLowerCase(),
+            email: formData.email.trim() || null,
             password_hash: formData.password,
             role: formData.role,
-            assigned_locations: formData.assigned_locations,
             active: true,
           });
 
@@ -224,7 +214,7 @@ export default function SystemUsersPage() {
   const handleToggleActive = async (user: SystemUser) => {
     try {
       const { error } = await supabase
-        .from('field_users')
+        .from('system_users')
         .update({ active: !user.active })
         .eq('id', user.id);
 
@@ -243,7 +233,7 @@ export default function SystemUsersPage() {
 
     try {
       const { error } = await supabase
-        .from('field_users')
+        .from('system_users')
         .delete()
         .eq('id', user.id);
 
@@ -256,13 +246,20 @@ export default function SystemUsersPage() {
     }
   };
 
-  const getRoleBadge = (role: string | null) => {
+  const getRoleBadge = (role: SystemUserRole | null) => {
     const roleConfig = ROLES.find(r => r.value === role) || ROLES[2];
     return (
       <Badge className={`${roleConfig.color} text-white`}>
         {roleConfig.label}
       </Badge>
     );
+  };
+
+  const stats = {
+    total: users.length,
+    active: users.filter(u => u.active).length,
+    admins: users.filter(u => u.role === 'admin').length,
+    inactive: users.filter(u => !u.active).length,
   };
 
   return (
@@ -335,8 +332,18 @@ export default function SystemUsersPage() {
                 </div>
                 
                 <div className="space-y-2">
+                  <Label>E-mail</Label>
+                  <Input
+                    type="email"
+                    placeholder="Ex: joao.silva@email.com"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  />
+                </div>
+                
+                <div className="space-y-2">
                   <Label>Função</Label>
-                  <Select value={formData.role} onValueChange={(v) => setFormData({ ...formData, role: v })}>
+                  <Select value={formData.role} onValueChange={(v) => setFormData({ ...formData, role: v as SystemUserRole })}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -351,39 +358,6 @@ export default function SystemUsersPage() {
                       ))}
                     </SelectContent>
                   </Select>
-                </div>
-                
-                <div className="space-y-2">
-                  <Label>Locais Atribuídos</Label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {LOCATIONS.map(location => (
-                      <label
-                        key={location}
-                        className={`flex items-center gap-2 p-2 rounded border cursor-pointer transition-colors ${
-                          formData.assigned_locations.includes(location)
-                            ? 'bg-primary/10 border-primary'
-                            : 'bg-muted/50 border-border hover:border-primary/50'
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={formData.assigned_locations.includes(location)}
-                          onChange={() => toggleLocation(location)}
-                          className="sr-only"
-                        />
-                        <div className={`w-4 h-4 rounded border flex items-center justify-center ${
-                          formData.assigned_locations.includes(location)
-                            ? 'bg-primary border-primary'
-                            : 'border-muted-foreground'
-                        }`}>
-                          {formData.assigned_locations.includes(location) && (
-                            <Check className="w-3 h-3 text-primary-foreground" />
-                          )}
-                        </div>
-                        <span className="text-xs">{location}</span>
-                      </label>
-                    ))}
-                  </div>
                 </div>
               </div>
               <div className="flex justify-end gap-2">
@@ -469,7 +443,7 @@ export default function SystemUsersPage() {
                     <TableHead>Nome</TableHead>
                     <TableHead className="hidden md:table-cell">Usuário</TableHead>
                     <TableHead>Função</TableHead>
-                    <TableHead className="hidden lg:table-cell">Locais</TableHead>
+                    <TableHead className="hidden lg:table-cell">Último Acesso</TableHead>
                     <TableHead className="text-center">Status</TableHead>
                     <TableHead className="text-right">Ações</TableHead>
                   </TableRow>
@@ -494,19 +468,10 @@ export default function SystemUsersPage() {
                       <TableCell>
                         {getRoleBadge(user.role)}
                       </TableCell>
-                      <TableCell className="hidden lg:table-cell">
-                        <div className="flex flex-wrap gap-1">
-                          {user.assigned_locations?.slice(0, 2).map(loc => (
-                            <Badge key={loc} variant="outline" className="text-xs">
-                              {loc.replace('Tanque ', '').replace('Canteiro ', 'C')}
-                            </Badge>
-                          ))}
-                          {(user.assigned_locations?.length || 0) > 2 && (
-                            <Badge variant="outline" className="text-xs">
-                              +{(user.assigned_locations?.length || 0) - 2}
-                            </Badge>
-                          )}
-                        </div>
+                      <TableCell className="hidden lg:table-cell text-muted-foreground text-sm">
+                        {user.last_login 
+                          ? new Date(user.last_login).toLocaleString('pt-BR')
+                          : 'Nunca acessou'}
                       </TableCell>
                       <TableCell className="text-center">
                         <div className="flex items-center justify-center gap-2">

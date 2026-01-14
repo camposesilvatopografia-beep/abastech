@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Eye, EyeOff, LogIn, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, LogIn, Loader2, CheckCircle2, Sparkles } from 'lucide-react';
 import logoAbastech from '@/assets/logo-abastech.png';
 
 export default function Login() {
@@ -14,6 +14,8 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [showWelcome, setShowWelcome] = useState(false);
+  const [welcomeName, setWelcomeName] = useState('');
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -61,15 +63,58 @@ export default function Login() {
         loginAt: new Date().toISOString()
       }));
 
-      toast.success(`Bem-vindo, ${data.name}!`);
-      navigate('/');
+      // Show welcome animation
+      setWelcomeName(data.name.split(' ')[0]);
+      setShowWelcome(true);
+      
+      // Navigate after animation
+      setTimeout(() => {
+        navigate('/');
+      }, 2500);
     } catch (err) {
       console.error('Login error:', err);
       toast.error('Erro ao fazer login. Tente novamente.');
-    } finally {
       setIsLoading(false);
     }
   };
+
+  // Welcome screen animation
+  if (showWelcome) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
+        <div className="text-center animate-in fade-in zoom-in duration-500">
+          <div className="relative mb-8">
+            <div className="absolute inset-0 blur-3xl bg-amber-500/30 rounded-full animate-pulse" />
+            <div className="relative bg-gradient-to-br from-amber-400 to-amber-600 w-24 h-24 rounded-full flex items-center justify-center mx-auto shadow-2xl shadow-amber-500/50">
+              <CheckCircle2 className="w-12 h-12 text-white animate-in zoom-in duration-300 delay-200" />
+            </div>
+          </div>
+          
+          <div className="space-y-4">
+            <div className="flex items-center justify-center gap-2 text-amber-400 animate-in slide-in-from-bottom-4 duration-500 delay-300">
+              <Sparkles className="w-5 h-5" />
+              <span className="text-lg font-medium">Login realizado com sucesso!</span>
+              <Sparkles className="w-5 h-5" />
+            </div>
+            
+            <h1 className="text-4xl md:text-5xl font-bold text-white animate-in slide-in-from-bottom-4 duration-500 delay-500">
+              Bem-vindo, {welcomeName}!
+            </h1>
+            
+            <p className="text-slate-400 text-lg animate-in slide-in-from-bottom-4 duration-500 delay-700">
+              Preparando seu ambiente de trabalho...
+            </p>
+            
+            <div className="flex items-center justify-center gap-2 mt-8 animate-in fade-in duration-500 delay-1000">
+              <div className="w-2 h-2 bg-amber-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+              <div className="w-2 h-2 bg-amber-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+              <div className="w-2 h-2 bg-amber-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
@@ -105,7 +150,7 @@ export default function Login() {
               <Input
                 id="username"
                 type="text"
-                placeholder="Digite seu usuário"
+                placeholder="Digite seu usuário ou e-mail"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 className="bg-white/10 border-white/20 text-white placeholder:text-slate-500 h-12 focus:border-amber-500 focus:ring-amber-500/20"
@@ -164,13 +209,6 @@ export default function Login() {
               Desenvolvido por <span className="text-slate-400 font-medium">Jean Campos</span>
             </p>
           </div>
-        </div>
-
-        {/* Default Credentials Hint */}
-        <div className="mt-4 text-center">
-          <p className="text-slate-500 text-xs">
-            Credenciais padrão: <span className="text-slate-400">admin / admin123</span>
-          </p>
         </div>
       </div>
     </div>
