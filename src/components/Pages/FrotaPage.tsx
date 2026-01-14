@@ -14,7 +14,11 @@ import {
   Cog,
   Car,
   Activity,
-  History
+  History,
+  Plus,
+  Edit,
+  Trash2,
+  Settings2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -34,6 +38,16 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -42,7 +56,12 @@ import autoTable from 'jspdf-autotable';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import * as XLSX from 'xlsx';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 import { VehicleHistoryModal } from '@/components/Frota/VehicleHistoryModal';
+import { VehicleFormModal } from '@/components/Frota/VehicleFormModal';
+import { ColumnConfigModal } from '@/components/Layout/ColumnConfigModal';
+import { useLayoutPreferences, ColumnConfig } from '@/hooks/useLayoutPreferences';
 
 const SHEET_NAME = 'Veiculo';
 
@@ -51,6 +70,16 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   inativo: { label: 'Inativo', color: 'bg-gray-100 text-gray-700 border-gray-300' },
   manutencao: { label: 'Manutenção', color: 'bg-amber-100 text-amber-700 border-amber-300' },
 };
+
+// Default columns configuration
+const DEFAULT_COLUMNS: ColumnConfig[] = [
+  { key: 'codigo', label: 'Código', visible: true, order: 0 },
+  { key: 'descricao', label: 'Descrição', visible: true, order: 1 },
+  { key: 'categoria', label: 'Categoria', visible: true, order: 2 },
+  { key: 'empresa', label: 'Empresa', visible: true, order: 3 },
+  { key: 'status', label: 'Status', visible: true, order: 4 },
+  { key: 'acoes', label: 'Ações', visible: true, order: 5 },
+];
 
 interface VehicleGroup {
   name: string;
@@ -82,6 +111,27 @@ export function FrotaPage() {
   const [groupBy, setGroupBy] = useState<'categoria' | 'empresa' | 'descricao'>('categoria');
   const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
   
+  // Layout preferences
+  const { columnConfig, visibleColumns, savePreferences, resetToDefaults, saving: savingLayout } = 
+    useLayoutPreferences('frota', DEFAULT_COLUMNS);
+  const [columnConfigModalOpen, setColumnConfigModalOpen] = useState(false);
+  
+  // Vehicle form modal state
+  const [vehicleFormOpen, setVehicleFormOpen] = useState(false);
+  const [vehicleFormMode, setVehicleFormMode] = useState<'create' | 'edit'>('create');
+  const [editingVehicle, setEditingVehicle] = useState<{
+    codigo: string;
+    descricao: string;
+    categoria: string;
+    empresa: string;
+    status: string;
+  } | null>(null);
+  
+  // Delete confirmation
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [vehicleToDelete, setVehicleToDelete] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  
   // Vehicle history modal state
   const [historyModalOpen, setHistoryModalOpen] = useState(false);
   const [selectedVehicle, setSelectedVehicle] = useState<{
@@ -94,6 +144,51 @@ export function FrotaPage() {
   const openVehicleHistory = (vehicle: { codigo: string; descricao: string; categoria: string; empresa: string }) => {
     setSelectedVehicle(vehicle);
     setHistoryModalOpen(true);
+  };
+
+  const openCreateVehicle = () => {
+    setVehicleFormMode('create');
+    setEditingVehicle(null);
+    setVehicleFormOpen(true);
+  };
+
+  const openEditVehicle = (vehicle: { codigo: string; descricao: string; categoria: string; empresa: string; status: string }) => {
+    setVehicleFormMode('edit');
+    setEditingVehicle(vehicle);
+    setVehicleFormOpen(true);
+  };
+
+  const openDeleteConfirm = (codigo: string) => {
+    setVehicleToDelete(codigo);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDeleteVehicle = async () => {
+    if (!vehicleToDelete) return;
+    
+    setDeleting(true);
+    try {
+      const { error } = await supabase.functions.invoke('google-sheets', {
+        body: {
+          action: 'delete',
+          sheetName: 'Veiculo',
+          searchColumn: 'CODIGO',
+          searchValue: vehicleToDelete,
+        },
+      });
+
+      if (error) throw error;
+      
+      toast.success('Veículo excluído com sucesso!');
+      refetch();
+    } catch (error) {
+      console.error('Error deleting vehicle:', error);
+      toast.error('Erro ao excluir veículo');
+    } finally {
+      setDeleting(false);
+      setDeleteDialogOpen(false);
+      setVehicleToDelete(null);
+    }
   };
 
   const empresas = useMemo(() => {
@@ -110,6 +205,15 @@ export function FrotaPage() {
     data.rows.forEach(row => {
       const desc = getRowValue(row as any, ['DESCRICAO', 'DESCRIÇÃO', 'Descricao', 'descrição', 'descricao']).trim();
       if (desc) unique.add(desc);
+    });
+    return Array.from(unique).sort();
+  }, [data.rows]);
+
+  const categorias = useMemo(() => {
+    const unique = new Set<string>();
+    data.rows.forEach(row => {
+      const cat = getRowValue(row as any, ['CATEGORIA', 'Categoria', 'categoria', 'TIPO', 'Tipo', 'tipo']).trim();
+      if (cat) unique.add(cat);
     });
     return Array.from(unique).sort();
   }, [data.rows]);
@@ -352,6 +456,10 @@ export function FrotaPage() {
           </div>
           
           <div className="flex flex-wrap items-center gap-2">
+            <Button onClick={openCreateVehicle} size="sm" className="gap-2 bg-emerald-600 hover:bg-emerald-700">
+              <Plus className="w-4 h-4" />
+              <span className="hidden sm:inline">Novo</span>
+            </Button>
             <Button variant="outline" size="sm" onClick={() => refetch()} disabled={loading}>
               <RefreshCw className={cn("w-4 h-4 sm:mr-2", loading && "animate-spin")} />
               <span className="hidden sm:inline">Atualizar</span>
@@ -368,6 +476,15 @@ export function FrotaPage() {
             <Button variant="outline" size="sm" onClick={exportToExcel}>
               <FileSpreadsheet className="w-4 h-4 sm:mr-2" />
               <span className="hidden sm:inline">Excel</span>
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => setColumnConfigModalOpen(true)}
+              className="gap-2"
+            >
+              <Settings2 className="w-4 h-4" />
+              <span className="hidden sm:inline">Colunas</span>
             </Button>
           </div>
         </div>
@@ -654,16 +771,15 @@ export function FrotaPage() {
                   </button>
                   
                   {expandedGroups.includes(group.name) && (
-                    <div className="border-t border-border">
+                    <div className="border-t border-border overflow-x-auto">
                       <Table>
                         <TableHeader>
                           <TableRow className="bg-muted/30">
-                            <TableHead>Código</TableHead>
-                            <TableHead>Descrição</TableHead>
-                            <TableHead>Categoria</TableHead>
-                            <TableHead>Empresa</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead className="text-center">Ações</TableHead>
+                            {visibleColumns.map((col) => (
+                              <TableHead key={col.key} className={col.key === 'acoes' ? 'text-center' : ''}>
+                                {col.label}
+                              </TableHead>
+                            ))}
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -671,26 +787,66 @@ export function FrotaPage() {
                             const statusInfo = STATUS_LABELS[item.status?.toLowerCase() || 'ativo'] || STATUS_LABELS.ativo;
                             return (
                               <TableRow key={idx} className="hover:bg-muted/30">
-                                <TableCell className="font-medium">{item.codigo}</TableCell>
-                                <TableCell>{item.descricao}</TableCell>
-                                <TableCell>{item.categoria}</TableCell>
-                                <TableCell>{item.empresa}</TableCell>
-                                <TableCell>
-                                  <span className={cn("px-2 py-1 rounded-full text-xs font-medium border", statusInfo.color)}>
-                                    {statusInfo.label}
-                                  </span>
-                                </TableCell>
-                                <TableCell className="text-center">
-                                  <Button 
-                                    variant="ghost" 
-                                    size="sm" 
-                                    className="gap-2 text-primary hover:text-primary hover:bg-primary/10"
-                                    onClick={() => openVehicleHistory(item)}
-                                  >
-                                    <History className="w-4 h-4" />
-                                    <span className="hidden lg:inline">Histórico</span>
-                                  </Button>
-                                </TableCell>
+                                {visibleColumns.map((col) => {
+                                  switch (col.key) {
+                                    case 'codigo':
+                                      return (
+                                        <TableCell key={col.key} className="font-medium">
+                                          {item.codigo}
+                                        </TableCell>
+                                      );
+                                    case 'descricao':
+                                      return <TableCell key={col.key}>{item.descricao}</TableCell>;
+                                    case 'categoria':
+                                      return <TableCell key={col.key}>{item.categoria}</TableCell>;
+                                    case 'empresa':
+                                      return <TableCell key={col.key}>{item.empresa}</TableCell>;
+                                    case 'status':
+                                      return (
+                                        <TableCell key={col.key}>
+                                          <span className={cn("px-2 py-1 rounded-full text-xs font-medium border", statusInfo.color)}>
+                                            {statusInfo.label}
+                                          </span>
+                                        </TableCell>
+                                      );
+                                    case 'acoes':
+                                      return (
+                                        <TableCell key={col.key} className="text-center">
+                                          <div className="flex items-center justify-center gap-1">
+                                            <Button 
+                                              variant="ghost" 
+                                              size="icon"
+                                              className="h-8 w-8 text-primary hover:text-primary hover:bg-primary/10"
+                                              onClick={() => openVehicleHistory(item)}
+                                              title="Histórico"
+                                            >
+                                              <History className="w-4 h-4" />
+                                            </Button>
+                                            <Button 
+                                              variant="ghost" 
+                                              size="icon"
+                                              className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-100"
+                                              onClick={() => openEditVehicle(item)}
+                                              title="Editar"
+                                            >
+                                              <Edit className="w-4 h-4" />
+                                            </Button>
+                                            <Button 
+                                              variant="ghost" 
+                                              size="icon"
+                                              className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-100"
+                                              onClick={() => openDeleteConfirm(item.codigo)}
+                                              title="Excluir"
+                                            >
+                                              <Trash2 className="w-4 h-4" />
+                                            </Button>
+                                          </div>
+                                        </TableCell>
+                                      );
+                                    default:
+                                      return <TableCell key={col.key}>-</TableCell>;
+                                  }
+                                })}
                               </TableRow>
                             );
                           })}
@@ -719,6 +875,51 @@ export function FrotaPage() {
           vehicleEmpresa={selectedVehicle.empresa}
         />
       )}
+
+      {/* Vehicle Form Modal */}
+      <VehicleFormModal
+        open={vehicleFormOpen}
+        onClose={() => setVehicleFormOpen(false)}
+        onSuccess={() => refetch()}
+        mode={vehicleFormMode}
+        vehicle={editingVehicle}
+        empresas={empresas}
+        categorias={categorias}
+      />
+
+      {/* Column Config Modal */}
+      <ColumnConfigModal
+        open={columnConfigModalOpen}
+        onClose={() => setColumnConfigModalOpen(false)}
+        columns={columnConfig}
+        onSave={savePreferences}
+        onReset={resetToDefaults}
+        saving={savingLayout}
+        moduleName="Frota"
+      />
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir o veículo <strong>{vehicleToDelete}</strong>?
+              Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteVehicle}
+              disabled={deleting}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {deleting ? 'Excluindo...' : 'Excluir'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
