@@ -24,6 +24,7 @@ export function SyncModal({ open, onOpenChange, onSuccess }: SyncModalProps) {
     vehiclesImported?: number;
     readingsImported?: number;
     readingsUpdated?: number;
+    readingsDeleted?: number;
     exported?: number;
     errors: number;
   } | null>(null);
@@ -168,6 +169,7 @@ export function SyncModal({ open, onOpenChange, onSuccess }: SyncModalProps) {
                     <p>• Veículos: {result.vehiclesImported}</p>
                     <p>• Novos registros: {result.readingsImported}</p>
                     <p>• Atualizados: {result.readingsUpdated}</p>
+                    <p>• Removidos: {result.readingsDeleted || 0}</p>
                   </>
                 )}
                 {result.type === 'export' && (
