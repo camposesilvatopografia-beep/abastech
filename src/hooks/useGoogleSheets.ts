@@ -42,36 +42,50 @@ export function useSheetNames() {
   return { sheetNames, loading, error, refetch: fetchSheetNames };
 }
 
-export function useSheetData(sheetName: string | null) {
+export function useSheetData(sheetName: string | null, options?: { pollingInterval?: number }) {
   const [data, setData] = useState<SheetData>({ headers: [], rows: [] });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
+  const pollingInterval = options?.pollingInterval || 0; // 0 = no polling
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (silent = false) => {
     if (!sheetName) return;
     
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       setError(null);
       const sheetData = await getSheetData(sheetName);
       setData(sheetData);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to fetch data';
       setError(message);
-      toast({
-        title: 'Erro ao carregar dados',
-        description: message,
-        variant: 'destructive',
-      });
+      if (!silent) {
+        toast({
+          title: 'Erro ao carregar dados',
+          description: message,
+          variant: 'destructive',
+        });
+      }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [sheetName, toast]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // Polling for real-time updates
+  useEffect(() => {
+    if (!pollingInterval || pollingInterval <= 0) return;
+    
+    const intervalId = setInterval(() => {
+      fetchData(true); // silent refresh
+    }, pollingInterval);
+
+    return () => clearInterval(intervalId);
+  }, [pollingInterval, fetchData]);
 
   const create = useCallback(async (rowData: Record<string, any>) => {
     if (!sheetName) return;

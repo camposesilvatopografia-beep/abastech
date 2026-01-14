@@ -574,9 +574,37 @@ export function ManutencaoPage() {
     }
   };
 
+  // Calculate downtime for an order
+  const calculateDowntime = (order: ServiceOrder) => {
+    const entryDate = (order as any).entry_date;
+    const entryTime = (order as any).entry_time;
+    const endDate = order.end_date;
+    
+    if (!entryDate) return null;
+    
+    const entryDateTime = entryTime 
+      ? new Date(`${entryDate}T${entryTime}`)
+      : new Date(`${entryDate}T00:00`);
+    
+    const endDateTime = endDate 
+      ? new Date(endDate) 
+      : new Date();
+    
+    const diffMs = endDateTime.getTime() - entryDateTime.getTime();
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffHours / 24);
+    const remainingHours = diffHours % 24;
+    
+    if (diffDays > 0) {
+      return `${diffDays}d ${remainingHours}h`;
+    }
+    return `${diffHours}h`;
+  };
+
   // Send WhatsApp message for vehicle release
   const handleWhatsAppRelease = (order: ServiceOrder) => {
     const isFinished = order.status.toLowerCase().includes('finalizada') || order.status.toLowerCase().includes('concluída');
+    const downtime = calculateDowntime(order);
     
     const messageLines = [
       `🔧 *MANUTENÇÃO - ${isFinished ? 'VEÍCULO LIBERADO' : 'ATUALIZAÇÃO DE STATUS'}*`,
@@ -594,6 +622,7 @@ export function ManutencaoPage() {
       order.parts_used ? `\n🔩 *Peças utilizadas:*\n${order.parts_used.slice(0, 150)}` : '',
       ``,
       order.actual_hours ? `⏱️ Tempo de serviço: ${order.actual_hours}h` : '',
+      downtime ? `⏳ *Tempo parado: ${downtime}*` : '',
       isFinished ? `\n✅ *VEÍCULO LIBERADO PARA OPERAÇÃO*` : '',
       ``,
       `📅 ${format(new Date(), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}`,
@@ -1180,77 +1209,96 @@ export function ManutencaoPage() {
                   <TableHead className="hidden lg:table-cell">Mecânico</TableHead>
                   <TableHead>Prioridade</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead className="hidden sm:table-cell">Tempo Parado</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center py-8">
+                    <TableCell colSpan={10} className="text-center py-8">
                       <RefreshCw className="w-6 h-6 animate-spin mx-auto text-muted-foreground" />
                     </TableCell>
                   </TableRow>
                 ) : filteredRows.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
                       Nenhuma ordem de serviço encontrada
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredRows.map((row) => (
-                    <TableRow key={row.id} className="hover:bg-muted/30">
-                      <TableCell className="font-mono font-medium">{row.order_number}</TableCell>
-                      <TableCell>{format(new Date(row.order_date), 'dd/MM/yyyy')}</TableCell>
-                      <TableCell className="font-medium">{row.vehicle_code}</TableCell>
-                      <TableCell>
-                        <Badge variant={row.order_type === 'Preventiva' ? 'default' : 'secondary'}>
-                          {row.order_type}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="hidden md:table-cell max-w-[200px] truncate">
-                        {row.problem_description || '-'}
-                      </TableCell>
-                      <TableCell className="hidden lg:table-cell">{row.mechanic_name || '-'}</TableCell>
-                      <TableCell>{getPrioridadeBadge(row.priority)}</TableCell>
-                      <TableCell>{getStatusBadge(row.status)}</TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleWhatsAppRelease(row)}
-                            title={row.status.toLowerCase().includes('finalizada') ? 'WhatsApp: Veículo liberado' : 'WhatsApp: Atualização'}
-                            className="text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-950/50"
-                          >
-                            <MessageCircle className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => exportSingleOSToPDF(row)}
-                            title="Exportar PDF"
-                          >
-                            <Printer className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleEditOrder(row)}
-                          >
-                            <Edit className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDeleteOrder(row)}
-                            className="text-destructive hover:text-destructive"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
+                  filteredRows.map((row) => {
+                    const downtime = calculateDowntime(row);
+                    const isFinished = row.status.toLowerCase().includes('finalizada');
+                    
+                    return (
+                      <TableRow key={row.id} className="hover:bg-muted/30">
+                        <TableCell className="font-mono font-medium">{row.order_number}</TableCell>
+                        <TableCell>{format(new Date(row.order_date), 'dd/MM/yyyy')}</TableCell>
+                        <TableCell className="font-medium">{row.vehicle_code}</TableCell>
+                        <TableCell>
+                          <Badge variant={row.order_type === 'Preventiva' ? 'default' : 'secondary'}>
+                            {row.order_type}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="hidden md:table-cell max-w-[200px] truncate">
+                          {row.problem_description || '-'}
+                        </TableCell>
+                        <TableCell className="hidden lg:table-cell">{row.mechanic_name || '-'}</TableCell>
+                        <TableCell>{getPrioridadeBadge(row.priority)}</TableCell>
+                        <TableCell>{getStatusBadge(row.status)}</TableCell>
+                        <TableCell className="hidden sm:table-cell">
+                          {downtime ? (
+                            <Badge className={cn(
+                              "font-mono",
+                              isFinished 
+                                ? "bg-green-500/20 text-green-600 border-green-500/30" 
+                                : "bg-amber-500/20 text-amber-600 border-amber-500/30"
+                            )}>
+                              <Timer className="w-3 h-3 mr-1" />
+                              {downtime}
+                            </Badge>
+                          ) : '-'}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleWhatsAppRelease(row)}
+                              title={row.status.toLowerCase().includes('finalizada') ? 'WhatsApp: Veículo liberado' : 'WhatsApp: Atualização'}
+                              className="text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-950/50"
+                            >
+                              <MessageCircle className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => exportSingleOSToPDF(row)}
+                              title="Exportar PDF"
+                            >
+                              <Printer className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleEditOrder(row)}
+                            >
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeleteOrder(row)}
+                              className="text-destructive hover:text-destructive"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
                 )}
               </TableBody>
             </Table>
