@@ -139,6 +139,7 @@ export type Database = {
           id: string
           proposed_changes: Json | null
           record_id: string
+          request_reason: string | null
           request_type: string
           requested_at: string
           requested_by: string
@@ -153,6 +154,7 @@ export type Database = {
           id?: string
           proposed_changes?: Json | null
           record_id: string
+          request_reason?: string | null
           request_type: string
           requested_at?: string
           requested_by: string
@@ -167,6 +169,7 @@ export type Database = {
           id?: string
           proposed_changes?: Json | null
           record_id?: string
+          request_reason?: string | null
           request_type?: string
           requested_at?: string
           requested_by?: string

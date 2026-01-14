@@ -73,6 +73,7 @@ interface DeleteRequest {
   recordId: string;
   vehicleCode: string;
   quantity: number;
+  reason: string;
 }
 
 export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) {
@@ -85,6 +86,7 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
     totalArla: 0,
   });
   const [deleteRequest, setDeleteRequest] = useState<DeleteRequest | null>(null);
+  const [deleteReason, setDeleteReason] = useState('');
   const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
   const [monthStats, setMonthStats] = useState({
     totalRecords: 0,
@@ -215,7 +217,10 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
 
   // Handle delete request submission
   const handleDeleteRequest = async () => {
-    if (!deleteRequest) return;
+    if (!deleteRequest || !deleteReason.trim()) {
+      toast.error('Por favor, informe o motivo da solicitação');
+      return;
+    }
     
     setIsSubmittingRequest(true);
     try {
@@ -225,12 +230,14 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
           record_id: deleteRequest.recordId,
           request_type: 'delete',
           requested_by: user.id,
+          request_reason: deleteReason.trim(),
         });
 
       if (error) throw error;
 
       toast.success('Solicitação de exclusão enviada para aprovação do administrador');
       setDeleteRequest(null);
+      setDeleteReason('');
     } catch (err) {
       console.error('Error submitting delete request:', err);
       toast.error('Erro ao enviar solicitação');
@@ -265,7 +272,10 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
   return (
     <div className="space-y-4 p-4 pb-24">
       {/* Delete Request Dialog */}
-      <AlertDialog open={!!deleteRequest} onOpenChange={() => setDeleteRequest(null)}>
+      <AlertDialog open={!!deleteRequest} onOpenChange={() => {
+        setDeleteRequest(null);
+        setDeleteReason('');
+      }}>
         <AlertDialogContent className="bg-slate-900 border-amber-600/30">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-white flex items-center gap-2">
@@ -276,14 +286,28 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
               Esta ação requer aprovação de um administrador. O registro de <strong className="text-white">{deleteRequest?.vehicleCode}</strong> com <strong className="text-amber-400">{deleteRequest?.quantity}L</strong> será enviado para revisão.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          
+          {/* Reason field - required */}
+          <div className="py-2">
+            <label className="text-sm font-medium text-slate-200 mb-2 block">
+              Motivo da solicitação <span className="text-red-400">*</span>
+            </label>
+            <textarea
+              value={deleteReason}
+              onChange={(e) => setDeleteReason(e.target.value)}
+              placeholder="Informe o motivo pelo qual deseja excluir este registro..."
+              className="w-full min-h-[80px] rounded-lg bg-slate-800 border border-slate-600 text-white placeholder:text-slate-500 p-3 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-colors"
+            />
+          </div>
+          
           <AlertDialogFooter>
             <AlertDialogCancel className="bg-slate-700 text-white hover:bg-slate-600 border-0">
               Cancelar
             </AlertDialogCancel>
             <AlertDialogAction 
               onClick={handleDeleteRequest}
-              disabled={isSubmittingRequest}
-              className="bg-red-600 hover:bg-red-700"
+              disabled={isSubmittingRequest || !deleteReason.trim()}
+              className="bg-red-600 hover:bg-red-700 disabled:opacity-50"
             >
               {isSubmittingRequest ? (
                 <>
@@ -469,6 +493,7 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
                       recordId: record.id,
                       vehicleCode: record.vehicle_code,
                       quantity: record.fuel_quantity,
+                      reason: '',
                     })}
                     title="Solicitar exclusão"
                   >
