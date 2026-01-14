@@ -133,6 +133,73 @@ export type Database = {
           },
         ]
       }
+      field_record_requests: {
+        Row: {
+          created_at: string
+          id: string
+          proposed_changes: Json | null
+          record_id: string
+          request_type: string
+          requested_at: string
+          requested_by: string
+          review_notes: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          proposed_changes?: Json | null
+          record_id: string
+          request_type: string
+          requested_at?: string
+          requested_by: string
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          proposed_changes?: Json | null
+          record_id?: string
+          request_type?: string
+          requested_at?: string
+          requested_by?: string
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "field_record_requests_record_id_fkey"
+            columns: ["record_id"]
+            isOneToOne: false
+            referencedRelation: "field_fuel_records"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "field_record_requests_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "field_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "field_record_requests_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "field_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       field_users: {
         Row: {
           active: boolean | null

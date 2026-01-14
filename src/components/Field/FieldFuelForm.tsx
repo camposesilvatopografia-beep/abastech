@@ -45,6 +45,7 @@ import { useSheetData } from '@/hooks/useGoogleSheets';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { formatCurrencyInput, parseCurrencyInput, formatQuantityInput } from '@/lib/numberToWords';
+import logoAbastech from '@/assets/logo-abastech.png';
 
 interface FieldUser {
   id: string;
@@ -1098,24 +1099,21 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-100 via-slate-50 to-orange-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 pb-4">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 pb-4">
+      {/* Header with Logo */}
+      <div className="bg-gradient-to-r from-amber-600 to-orange-600 p-4 mb-4">
+        <div className="flex items-center gap-3 max-w-2xl mx-auto">
+          <img src={logoAbastech} alt="Abastech" className="h-10 w-auto" />
+          <div className="text-white">
+            <h1 className="text-lg font-bold">Apontamento de Campo</h1>
+            <p className="text-xs opacity-90">Registro de Combustível</p>
+          </div>
+        </div>
+      </div>
+      
       {/* Voice status */}
       {voice.isListening && (
-        <div className="bg-red-500 text-white p-3 flex items-center justify-center gap-2 animate-pulse">
-          <Mic className="w-5 h-5" />
-          <span>Ouvindo... Fale agora</span>
-          <Button 
-            size="sm" 
-            variant="ghost" 
-            onClick={voice.stopListening}
-            className="text-white hover:bg-white/20"
-          >
-            <X className="w-4 h-4" />
-          </Button>
-        </div>
-      )}
-      {voice.isListening && (
-        <div className="bg-red-500 text-white p-3 flex items-center justify-center gap-2 animate-pulse">
+        <div className="bg-amber-500 text-white p-3 flex items-center justify-center gap-2 animate-pulse">
           <Mic className="w-5 h-5" />
           <span>Ouvindo... Fale agora</span>
           <Button 
@@ -1132,29 +1130,29 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
       {/* Form */}
       <div className="p-4 space-y-4 max-w-2xl mx-auto">
         {/* Current Date/Time Display (Auto-filled) */}
-        <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm rounded-xl border border-slate-200 dark:border-slate-700 p-4 shadow-sm">
-          <div className="flex items-center gap-2 text-muted-foreground mb-2">
+        <div className="bg-slate-800/80 backdrop-blur-sm rounded-xl border border-amber-600/30 p-4 shadow-lg">
+          <div className="flex items-center gap-2 text-amber-400 mb-2">
             <Clock className="w-4 h-4" />
             <span className="text-sm font-medium">Data e Hora do Registro</span>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <p className="text-xs text-muted-foreground">Data</p>
-              <p className="text-lg font-bold">{new Date().toLocaleDateString('pt-BR')}</p>
+              <p className="text-xs text-slate-400">Data</p>
+              <p className="text-lg font-bold text-white">{new Date().toLocaleDateString('pt-BR')}</p>
             </div>
             <div>
-              <p className="text-xs text-muted-foreground">Hora</p>
-              <p className="text-lg font-bold">{new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>
+              <p className="text-xs text-slate-400">Hora</p>
+              <p className="text-lg font-bold text-white">{new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>
             </div>
           </div>
-          <p className="text-xs text-muted-foreground mt-2 italic">
+          <p className="text-xs text-slate-500 mt-2 italic">
             * Preenchido automaticamente no momento do registro
           </p>
         </div>
 
         {/* Record Type Selection */}
-        <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-xl border border-slate-200 dark:border-slate-700 p-4 space-y-3 shadow-sm">
-          <Label className="flex items-center gap-2 text-base font-medium">
+        <div className="bg-slate-800/80 backdrop-blur-sm rounded-xl border border-amber-600/30 p-4 space-y-3 shadow-lg">
+          <Label className="flex items-center gap-2 text-base font-medium text-white">
             Tipo de Registro
           </Label>
           <div className="grid grid-cols-2 gap-3">
@@ -1163,7 +1161,9 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
               variant={recordType === 'saida' ? 'default' : 'outline'}
               className={cn(
                 "h-14 text-lg",
-                recordType === 'saida' && "bg-red-500 hover:bg-red-600"
+                recordType === 'saida' 
+                  ? "bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white border-0"
+                  : "border-amber-600/30 text-slate-300 hover:bg-amber-500/10 hover:text-amber-400"
               )}
               onClick={() => setRecordType('saida')}
             >
@@ -1175,7 +1175,9 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
               variant={recordType === 'entrada' ? 'default' : 'outline'}
               className={cn(
                 "h-14 text-lg",
-                recordType === 'entrada' && "bg-green-500 hover:bg-green-600"
+                recordType === 'entrada' 
+                  ? "bg-green-500 hover:bg-green-600 text-white border-0"
+                  : "border-amber-600/30 text-slate-300 hover:bg-green-500/10 hover:text-green-400"
               )}
               onClick={() => setRecordType('entrada')}
             >
@@ -1189,10 +1191,10 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         {recordType === 'saida' && (
           <>
             {/* Vehicle Selection */}
-            <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-xl border border-slate-200 dark:border-slate-700 p-4 space-y-3 shadow-sm">
+            <div className="bg-slate-800/80 backdrop-blur-sm rounded-xl border border-amber-600/30 p-4 space-y-3 shadow-lg">
               <div className="flex items-center justify-between">
-                <Label className="flex items-center gap-2 text-base">
-                  <Truck className="w-4 h-4" />
+                <Label className="flex items-center gap-2 text-base text-white">
+                  <Truck className="w-4 h-4 text-amber-400" />
                   Veículo
                 </Label>
                 {voice.isSupported && (
@@ -1817,16 +1819,19 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         )}
 
         {/* Observations */}
-        <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-xl border border-slate-200 dark:border-slate-700 p-4 space-y-3 shadow-sm">
+        <div className="bg-slate-800/80 backdrop-blur-sm rounded-xl border border-amber-600/30 p-4 space-y-3 shadow-lg">
           <div className="flex items-center justify-between">
-            <Label className="text-base">Observações</Label>
+            <Label className="text-base text-white">Observações</Label>
             {voice.isSupported && (
               <Button
                 type="button"
                 size="sm"
                 variant="outline"
                 onClick={() => startVoiceForField('observations')}
-                className={cn(activeVoiceField === 'observations' && voice.isListening && "bg-red-100")}
+                className={cn(
+                  "border-amber-600/30 text-amber-400 hover:bg-amber-500/10",
+                  activeVoiceField === 'observations' && voice.isListening && "bg-amber-500/20"
+                )}
               >
                 <Mic className="w-4 h-4" />
               </Button>
@@ -1837,6 +1842,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
             value={observations}
             onChange={(e) => setObservations(e.target.value)}
             rows={3}
+            className="bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-400"
           />
         </div>
       </div>
@@ -1846,7 +1852,12 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         <Button 
           onClick={handleSave} 
           disabled={isSaving || isUploadingPhotos || !fuelQuantity || (recordType === 'saida' ? !vehicleCode : !supplier)}
-          className={cn("w-full h-14 text-lg gap-2", recordType === 'entrada' && "bg-green-500 hover:bg-green-600")}
+          className={cn(
+            "w-full h-14 text-lg gap-2 shadow-lg",
+            recordType === 'entrada' 
+              ? "bg-green-500 hover:bg-green-600" 
+              : "bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600"
+          )}
         >
           {isUploadingPhotos ? (
             <>
