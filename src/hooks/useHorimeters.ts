@@ -173,9 +173,52 @@ export function useHorimeterReadings(vehicleId?: string) {
       if (insertError) throw insertError;
       
       setReadings(prev => [data as HorimeterWithVehicle, ...prev]);
+      
+      // Sync to Google Sheets
+      const vehicle = (data as HorimeterWithVehicle).vehicle;
+      if (vehicle) {
+        try {
+          const [year, month, day] = reading.reading_date.split('-');
+          const formattedDate = `${day}/${month}/${year}`;
+          
+          const usesKm = vehicle.category?.toLowerCase().includes('veículo') ||
+                         vehicle.category?.toLowerCase().includes('veiculo') ||
+                         vehicle.category?.toLowerCase().includes('caminhão') ||
+                         vehicle.category?.toLowerCase().includes('caminhao');
+          
+          const rowData = {
+            DATA: formattedDate,
+            HORA: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+            VEICULO: vehicle.code,
+            CATEGORIA: vehicle.category || '',
+            DESCRICAO: vehicle.name || '',
+            EMPRESA: vehicle.company || '',
+            OPERADOR: reading.operator || '',
+            Hor_Anterior: usesKm ? '' : (reading.previous_value?.toString().replace('.', ',') || ''),
+            Hor_Atual: usesKm ? '' : reading.current_value.toString().replace('.', ','),
+            Km_Anterior: usesKm ? (reading.previous_value?.toString().replace('.', ',') || '') : '',
+            Km_Atual: usesKm ? reading.current_value.toString().replace('.', ',') : '',
+            OBSERVACAO: reading.observations || '',
+          };
+          
+          await supabase.functions.invoke('google-sheets', {
+            body: {
+              action: 'create',
+              sheetName: 'Horimetros',
+              data: rowData,
+            },
+          });
+          
+          console.log('Registro sincronizado com planilha Horimetros');
+        } catch (syncErr) {
+          console.error('Erro ao sincronizar com planilha (registro salvo no BD):', syncErr);
+          // Don't throw - the DB save was successful
+        }
+      }
+      
       toast({
         title: 'Sucesso!',
-        description: 'Registro criado com sucesso',
+        description: 'Registro criado e sincronizado com planilha',
       });
       return data;
     } catch (err: any) {
