@@ -620,7 +620,10 @@ export function ManutencaoPage() {
       
       let matchesDate = true;
       if (startDate || endDate) {
-        const rowDate = new Date(row.order_date);
+        // Parse date properly to avoid timezone issues
+        // order_date is in format YYYY-MM-DD
+        const [year, month, day] = row.order_date.split('-').map(Number);
+        const rowDate = new Date(year, month - 1, day); // Create date in local timezone
         
         if (startDate && endDate) {
           matchesDate = isWithinInterval(rowDate, {
