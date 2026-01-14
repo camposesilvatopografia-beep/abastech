@@ -41,6 +41,7 @@ interface PendingRequest {
   requested_at: string;
   status: string;
   proposed_changes: any;
+  request_reason?: string;
   requester_name?: string;
   record_details?: {
     vehicle_code: string;
@@ -273,6 +274,19 @@ export function ApprovalRequestsPage() {
                           </div>
                           <div className="text-xs text-muted-foreground">
                             Registro de {request.record_details.record_date} às {request.record_details.record_time}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Request reason */}
+                      {request.request_reason && (
+                        <div className="mt-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
+                          <div className="flex items-start gap-2">
+                            <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+                            <div>
+                              <p className="text-xs font-medium text-amber-700 dark:text-amber-300 mb-1">Motivo da solicitação:</p>
+                              <p className="text-sm text-amber-900 dark:text-amber-100">{request.request_reason}</p>
+                            </div>
                           </div>
                         </div>
                       )}
