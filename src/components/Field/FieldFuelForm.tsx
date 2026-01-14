@@ -1031,7 +1031,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                   ) : (
                     vehicles.map(v => (
                       <SelectItem key={v.code} value={v.code}>
-                        {v.code} - {v.description}
+                        {v.code}
                       </SelectItem>
                     ))
                   )}
