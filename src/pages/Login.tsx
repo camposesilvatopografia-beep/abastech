@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Eye, EyeOff, LogIn, Loader2, CheckCircle2, Sparkles } from 'lucide-react';
-import logoAbastech from '@/assets/logo-abastech.png';
+import logoAbastech from '@/assets/logo-abastech-full.png';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -121,21 +121,24 @@ export default function Login() {
       {/* Background Pattern */}
       <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiMyMDI0MmYiIGZpbGwtb3BhY2l0eT0iMC40Ij48cGF0aCBkPSJNMzYgMzRoLTJ2LTRoMnYtNGgydjRoNHYyaC00djRoLTJ2LTR6bTAtMzBoMnY0aDR2Mmg0djJoLTR2NGgtMnYtNGgtNHYtMmgtNHYtMmg0di00em0wIDE0djJoMnY0aC0ydjJoLTJ2LTJoLTR2LTJoNHYtNGgyeiIvPjwvZz48L2c+PC9zdmc+')] opacity-20" />
       
-      <div className="w-full max-w-md relative z-10">
+      <div className="w-full max-w-lg relative z-10">
         {/* Logo Card */}
-        <div className="bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 shadow-2xl p-8 space-y-8">
-          {/* Logo */}
-          <div className="flex flex-col items-center gap-4">
-            <img 
-              src={logoAbastech} 
-              alt="Abastech" 
-              className="h-20 w-auto drop-shadow-lg"
-            />
+        <div className="bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 shadow-2xl p-8 md:p-10 space-y-8">
+          {/* Logo - Grande e em destaque */}
+          <div className="flex flex-col items-center gap-6">
+            <div className="relative">
+              <div className="absolute inset-0 blur-2xl bg-amber-500/20 rounded-full scale-110" />
+              <img 
+                src={logoAbastech} 
+                alt="Abastech" 
+                className="h-32 md:h-40 w-auto drop-shadow-2xl relative z-10"
+              />
+            </div>
             <div className="text-center">
-              <h1 className="text-2xl font-bold text-white">
+              <h1 className="text-3xl md:text-4xl font-bold text-white tracking-tight">
                 Gestão de Frotas
               </h1>
-              <p className="text-slate-400 text-sm mt-1">
+              <p className="text-slate-400 text-base mt-2">
                 Faça login para acessar o sistema
               </p>
             </div>

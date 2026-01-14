@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Link, useNavigate } from 'react-router-dom';
-import logoAbastech from '@/assets/logo-abastech.png';
+import logoAbastech from '@/assets/logo-abastech-full.png';
 
 interface MenuItem {
   id: string;
@@ -102,16 +102,18 @@ export function Sidebar({ activeItem, onItemClick, onClose }: SidebarProps) {
 
   return (
     <aside className="w-60 bg-sidebar flex flex-col h-screen">
-      {/* Logo */}
-      <div className="p-4 flex flex-col items-center gap-2 border-b border-sidebar-border">
+      {/* Logo - Grande e em destaque */}
+      <div className="p-4 flex flex-col items-center gap-3 border-b border-sidebar-border bg-gradient-to-b from-sidebar-accent/50 to-transparent">
         <img 
           src={logoAbastech} 
           alt="Abastech" 
-          className="h-12 w-auto object-contain"
+          className="h-16 w-auto object-contain drop-shadow-md"
         />
-        <p className="text-xs text-sidebar-muted font-medium tracking-wide">
-          Gestão de Frotas
-        </p>
+        <div className="text-center">
+          <p className="text-sm font-semibold text-sidebar-foreground tracking-wide">
+            Gestão de Frotas
+          </p>
+        </div>
       </div>
 
       {/* Navigation */}
