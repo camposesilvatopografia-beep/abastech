@@ -17,7 +17,8 @@ import {
   Users,
   Calendar,
   Code2,
-  AlertCircle
+  AlertCircle,
+  History,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Link, useNavigate } from 'react-router-dom';
@@ -203,18 +204,32 @@ export function Sidebar({ activeItem, onItemClick, onClose }: SidebarProps) {
           ))}
         </div>
 
-        {/* Admin Notifications - inline */}
-        {currentUser?.role === 'admin' && pendingRequests > 0 && (
-          <button
-            onClick={() => handleItemClick('aprovacoes')}
-            className="mt-1 w-full flex items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 transition-colors"
-          >
-            <AlertCircle className="w-4 h-4 flex-shrink-0" />
-            <span className="text-xs font-medium flex-1 text-left">Aprovações</span>
-            <span className="bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
-              {pendingRequests}
-            </span>
-          </button>
+        {/* Admin Section */}
+        {currentUser?.role === 'admin' && (
+          <div className="space-y-0.5 pt-1 border-t border-sidebar-border mt-1">
+            {pendingRequests > 0 && (
+              <button
+                onClick={() => handleItemClick('aprovacoes')}
+                className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 transition-colors"
+              >
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                <span className="text-xs font-medium flex-1 text-left">Aprovações</span>
+                <span className="bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                  {pendingRequests}
+                </span>
+              </button>
+            )}
+            <button
+              onClick={() => handleItemClick('historico-solicitacoes')}
+              className={cn(
+                "sidebar-item w-full py-1.5",
+                activeItem === 'historico-solicitacoes' && "sidebar-item-active"
+              )}
+            >
+              <History className="w-4 h-4 flex-shrink-0" />
+              <span className="text-xs flex-1 text-left">Histórico</span>
+            </button>
+          </div>
         )}
       </nav>
 
