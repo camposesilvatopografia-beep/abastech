@@ -1250,7 +1250,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                   <SelectValue placeholder="Selecione (opcional)" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Nenhum</SelectItem>
+                  <SelectItem value="nenhum">Nenhum</SelectItem>
                   <SelectItem value="motor">Óleo Motor</SelectItem>
                   <SelectItem value="hidraulico">Óleo Hidráulico</SelectItem>
                   <SelectItem value="transmissao">Óleo Transmissão</SelectItem>
@@ -1295,7 +1295,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                   <SelectValue placeholder="Selecione (opcional)" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Nenhum</SelectItem>
+                  <SelectItem value="nenhum">Nenhum</SelectItem>
                   <SelectItem value="graxa">Graxa</SelectItem>
                   <SelectItem value="wd40">WD-40</SelectItem>
                   <SelectItem value="lubrificante_corrente">Lubrificante de Corrente</SelectItem>
