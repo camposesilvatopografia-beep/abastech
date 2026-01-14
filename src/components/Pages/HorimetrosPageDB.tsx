@@ -17,7 +17,8 @@ import {
   Upload,
   Users,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Settings
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -64,12 +65,37 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { DatabaseHorimeterModal } from '@/components/Horimetros/DatabaseHorimeterModal';
 import { SyncModal } from '@/components/Horimetros/SyncModal';
+import { ColumnConfigModal } from '@/components/Layout/ColumnConfigModal';
+import { useLayoutPreferences, ColumnConfig } from '@/hooks/useLayoutPreferences';
 import * as XLSX from 'xlsx';
+
+const DEFAULT_HORIMETER_COLUMNS: ColumnConfig[] = [
+  { key: 'data', label: 'Data', visible: true, order: 0 },
+  { key: 'veiculo', label: 'Veículo', visible: true, order: 1 },
+  { key: 'empresa', label: 'Empresa', visible: true, order: 2 },
+  { key: 'categoria', label: 'Categoria', visible: true, order: 3 },
+  { key: 'anterior', label: 'Anterior', visible: true, order: 4 },
+  { key: 'atual', label: 'Atual', visible: true, order: 5 },
+  { key: 'intervalo', label: 'Intervalo', visible: true, order: 6 },
+  { key: 'km_anterior', label: 'KM Anterior', visible: false, order: 7 },
+  { key: 'km_atual', label: 'KM Atual', visible: false, order: 8 },
+  { key: 'operador', label: 'Operador', visible: true, order: 9 },
+  { key: 'observacoes', label: 'Observações', visible: false, order: 10 },
+];
 
 export function HorimetrosPageDB() {
   const { vehicles, loading: vehiclesLoading, refetch: refetchVehicles } = useVehicles();
   const { readings, loading: readingsLoading, refetch: refetchReadings, deleteReading } = useHorimeterReadings();
   const { toast } = useToast();
+  
+  // Column configuration
+  const { 
+    columnConfig, 
+    visibleColumns,
+    savePreferences: saveColumnPrefs,
+    resetToDefaults: resetColumnPrefs 
+  } = useLayoutPreferences('horimetros', DEFAULT_HORIMETER_COLUMNS);
+  const [showColumnConfig, setShowColumnConfig] = useState(false);
 
   const [search, setSearch] = useState('');
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
