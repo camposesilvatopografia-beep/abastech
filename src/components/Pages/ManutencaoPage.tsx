@@ -123,6 +123,7 @@ export function ManutencaoPage() {
   const [activeTab, setActiveTab] = useState('ordens');
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('manutencao'); // Default to show 'Em Manutenção'
+  const [companyFilter, setCompanyFilter] = useState('all'); // Company filter
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
   const [quickFilter, setQuickFilter] = useState<string | null>(null);
@@ -532,6 +533,27 @@ export function ManutencaoPage() {
     setQuickFilter(null);
   };
 
+  // Get unique companies from vehicles data
+  const companies = useMemo(() => {
+    const companySet = new Set<string>();
+    vehiclesData.rows.forEach(v => {
+      const company = String(v['Empresa'] || '').trim();
+      if (company) companySet.add(company);
+    });
+    return Array.from(companySet).sort();
+  }, [vehiclesData.rows]);
+
+  // Create a map of vehicle_code to company
+  const vehicleCompanyMap = useMemo(() => {
+    const map = new Map<string, string>();
+    vehiclesData.rows.forEach(v => {
+      const code = String(v['Codigo'] || '').trim();
+      const company = String(v['Empresa'] || '').trim();
+      if (code) map.set(code, company);
+    });
+    return map;
+  }, [vehiclesData.rows]);
+
   // Filter orders
   const filteredRows = useMemo(() => {
     return orders.filter(row => {
@@ -554,6 +576,13 @@ export function ManutencaoPage() {
         matchesStatus = status.includes(statusFilter);
       }
       
+      // Company filter
+      let matchesCompany = true;
+      if (companyFilter !== 'all') {
+        const vehicleCompany = vehicleCompanyMap.get(row.vehicle_code) || '';
+        matchesCompany = vehicleCompany.toLowerCase() === companyFilter.toLowerCase();
+      }
+      
       let matchesDate = true;
       if (startDate || endDate) {
         const rowDate = new Date(row.order_date);
@@ -570,9 +599,9 @@ export function ManutencaoPage() {
         }
       }
       
-      return matchesSearch && matchesStatus && matchesDate;
+      return matchesSearch && matchesStatus && matchesCompany && matchesDate;
     });
-  }, [orders, search, statusFilter, startDate, endDate]);
+  }, [orders, search, statusFilter, companyFilter, vehicleCompanyMap, startDate, endDate]);
 
   // Calculate metrics
   const metrics = useMemo(() => {
@@ -1305,45 +1334,87 @@ export function ManutencaoPage() {
   // Export list to PDF
   const exportListToPDF = () => {
     const doc = new jsPDF('landscape');
+    const pageWidth = doc.internal.pageSize.getWidth();
     
-    doc.setFontSize(18);
-    doc.text('Relatório de Ordens de Serviço', 14, 22);
+    // Red header bar
+    doc.setFillColor(220, 53, 69);
+    doc.rect(0, 0, pageWidth, 25, 'F');
     
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(255, 255, 255);
+    doc.text('RELATÓRIO DE ORDENS DE SERVIÇO', pageWidth / 2, 16, { align: 'center' });
+    
+    let y = 35;
+    
+    // Filters info
     doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(60, 60, 60);
+    
     const dateRangeText = startDate && endDate 
       ? `${format(startDate, 'dd/MM/yyyy')} até ${format(endDate, 'dd/MM/yyyy')}`
       : 'Todo período';
-    doc.text(`Período: ${dateRangeText}`, 14, 30);
-    doc.text(`Gerado em: ${format(new Date(), 'dd/MM/yyyy HH:mm', { locale: ptBR })}`, 14, 36);
+    const companyText = companyFilter !== 'all' ? companyFilter : 'Todas';
+    const statusText = statusFilter === 'all' ? 'Todos' : statusFilter === 'manutencao' ? 'Em Manutenção' : statusFilter;
+    
+    doc.text(`Período: ${dateRangeText}`, 14, y);
+    doc.text(`Empresa: ${companyText}`, 120, y);
+    doc.text(`Status: ${statusText}`, 200, y);
+    y += 6;
+    doc.text(`Gerado em: ${format(new Date(), 'dd/MM/yyyy HH:mm', { locale: ptBR })}`, 14, y);
+    doc.text(`Total: ${filteredRows.length} ordens`, 120, y);
 
-    doc.setFontSize(12);
-    doc.text('Resumo:', 14, 46);
-    doc.setFontSize(10);
-    doc.text(`Em Manutenção: ${metrics.emManutencao}`, 14, 54);
-    doc.text(`Aguardando: ${metrics.aguardandoPecas}`, 14, 60);
-    doc.text(`Urgentes: ${metrics.urgentes}`, 100, 54);
-    doc.text(`Finalizadas: ${metrics.finalizadas}`, 100, 60);
+    y += 10;
+    
+    // Summary badges
+    doc.setFillColor(220, 53, 69);
+    doc.roundedRect(14, y, 45, 15, 2, 2, 'F');
+    doc.setFillColor(245, 158, 11);
+    doc.roundedRect(64, y, 45, 15, 2, 2, 'F');
+    doc.setFillColor(239, 68, 68);
+    doc.roundedRect(114, y, 45, 15, 2, 2, 'F');
+    doc.setFillColor(34, 197, 94);
+    doc.roundedRect(164, y, 45, 15, 2, 2, 'F');
+    
+    doc.setFontSize(8);
+    doc.setTextColor(255, 255, 255);
+    doc.text(`Em Manutenção: ${metrics.emManutencao}`, 36.5, y + 10, { align: 'center' });
+    doc.text(`Aguardando: ${metrics.aguardandoPecas}`, 86.5, y + 10, { align: 'center' });
+    doc.text(`Urgentes: ${metrics.urgentes}`, 136.5, y + 10, { align: 'center' });
+    doc.text(`Finalizadas: ${metrics.finalizadas}`, 186.5, y + 10, { align: 'center' });
+    
+    y += 22;
 
-    const tableData = filteredRows.slice(0, 100).map((row) => [
-      row.order_number,
-      format(new Date(row.order_date), 'dd/MM/yyyy'),
-      row.vehicle_code,
-      row.order_type,
-      (row.problem_description || '').slice(0, 30),
-      row.mechanic_name || '-',
-      row.priority,
-      row.status
-    ]);
-
-    autoTable(doc, {
-      head: [['Nº OS', 'Data', 'Veículo', 'Tipo', 'Problema', 'Mecânico', 'Prioridade', 'Status']],
-      body: tableData,
-      startY: 70,
-      styles: { fontSize: 7 },
-      headStyles: { fillColor: [59, 130, 246] }
+    const tableData = filteredRows.slice(0, 100).map((row) => {
+      const company = vehicleCompanyMap.get(row.vehicle_code) || '-';
+      return [
+        row.order_number,
+        format(new Date(row.order_date), 'dd/MM/yy'),
+        row.vehicle_code,
+        company,
+        row.order_type === 'Preventiva' ? 'Prev.' : 'Corr.',
+        (row.problem_description || '').slice(0, 25),
+        row.mechanic_name || '-',
+        row.priority,
+        row.status
+      ];
     });
 
-    doc.save(`ordens_servico_${format(new Date(), 'yyyyMMdd_HHmmss')}.pdf`);
+    autoTable(doc, {
+      head: [['Nº OS', 'Data', 'Veículo', 'Empresa', 'Tipo', 'Problema', 'Mecânico', 'Prioridade', 'Status']],
+      body: tableData,
+      startY: y,
+      styles: { fontSize: 7, cellPadding: 2 },
+      headStyles: { fillColor: [220, 53, 69], textColor: [255, 255, 255] },
+      alternateRowStyles: { fillColor: [248, 249, 250] },
+    });
+
+    const fileName = companyFilter !== 'all' 
+      ? `ordens_servico_${companyFilter.replace(/\s+/g, '_')}_${format(new Date(), 'yyyyMMdd')}.pdf`
+      : `ordens_servico_${format(new Date(), 'yyyyMMdd_HHmmss')}.pdf`;
+    
+    doc.save(fileName);
   };
 
   // Vehicles from sheet
@@ -1461,7 +1532,7 @@ export function ManutencaoPage() {
             </div>
             
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-48">
+              <SelectTrigger className="w-40">
                 <SelectValue placeholder="Filtrar Status" />
               </SelectTrigger>
               <SelectContent>
@@ -1475,6 +1546,20 @@ export function ManutencaoPage() {
                 <SelectItem value="pausada">⏸️ Pausada</SelectItem>
                 <SelectItem value="cancelada">❌ Cancelada</SelectItem>
                 <SelectItem value="finalizada">✅ Finalizada</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select value={companyFilter} onValueChange={setCompanyFilter}>
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="Filtrar Empresa" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">🏢 Todas Empresas</SelectItem>
+                {companies.map(company => (
+                  <SelectItem key={company} value={company}>
+                    {company}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
 
