@@ -1,0 +1,561 @@
+import { useState, useEffect } from 'react';
+import {
+  Plus,
+  Edit,
+  Trash2,
+  Save,
+  X,
+  User,
+  RefreshCw,
+  Check,
+  Ban,
+  Shield,
+  ShieldCheck,
+  Key,
+  Eye,
+  EyeOff,
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
+import { Badge } from '@/components/ui/badge';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+
+interface SystemUser {
+  id: string;
+  name: string;
+  username: string;
+  password_hash: string;
+  role: string | null;
+  active: boolean | null;
+  assigned_locations: string[] | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+const ROLES = [
+  { value: 'admin', label: 'Administrador', color: 'bg-purple-500' },
+  { value: 'supervisor', label: 'Supervisor', color: 'bg-blue-500' },
+  { value: 'operador', label: 'Operador', color: 'bg-green-500' },
+];
+
+const LOCATIONS = [
+  'Tanque Canteiro 01',
+  'Tanque Canteiro 02',
+  'Comboio 01',
+  'Comboio 02',
+  'Posto Externo',
+];
+
+export default function SystemUsersPage() {
+  const [users, setUsers] = useState<SystemUser[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<SystemUser | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  
+  const [formData, setFormData] = useState({
+    name: '',
+    username: '',
+    password: '',
+    role: 'operador',
+    assigned_locations: [] as string[],
+  });
+
+  // Fetch users
+  const fetchUsers = async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('field_users')
+        .select('*')
+        .order('name', { ascending: true });
+
+      if (error) throw error;
+      setUsers(data || []);
+    } catch (err) {
+      console.error('Error fetching users:', err);
+      toast.error('Erro ao carregar usuários');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchUsers();
+  }, []);
+
+  // Open modal for new user
+  const handleNew = () => {
+    setEditingUser(null);
+    setFormData({
+      name: '',
+      username: '',
+      password: '',
+      role: 'operador',
+      assigned_locations: [],
+    });
+    setShowPassword(false);
+    setIsModalOpen(true);
+  };
+
+  // Open modal for editing
+  const handleEdit = (user: SystemUser) => {
+    setEditingUser(user);
+    setFormData({
+      name: user.name,
+      username: user.username,
+      password: '', // Don't show existing password
+      role: user.role || 'operador',
+      assigned_locations: user.assigned_locations || [],
+    });
+    setShowPassword(false);
+    setIsModalOpen(true);
+  };
+
+  // Toggle location selection
+  const toggleLocation = (location: string) => {
+    setFormData(prev => ({
+      ...prev,
+      assigned_locations: prev.assigned_locations.includes(location)
+        ? prev.assigned_locations.filter(l => l !== location)
+        : [...prev.assigned_locations, location],
+    }));
+  };
+
+  // Save user
+  const handleSave = async () => {
+    if (!formData.name.trim() || !formData.username.trim()) {
+      toast.error('Nome e usuário são obrigatórios');
+      return;
+    }
+
+    if (!editingUser && !formData.password) {
+      toast.error('Senha é obrigatória para novos usuários');
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      if (editingUser) {
+        // Update
+        const updateData: any = {
+          name: formData.name.trim(),
+          username: formData.username.trim().toLowerCase(),
+          role: formData.role,
+          assigned_locations: formData.assigned_locations,
+        };
+        
+        // Only update password if provided
+        if (formData.password) {
+          updateData.password_hash = formData.password;
+        }
+
+        const { error } = await supabase
+          .from('field_users')
+          .update(updateData)
+          .eq('id', editingUser.id);
+
+        if (error) throw error;
+        toast.success('Usuário atualizado!');
+      } else {
+        // Create
+        const { error } = await supabase
+          .from('field_users')
+          .insert({
+            name: formData.name.trim(),
+            username: formData.username.trim().toLowerCase(),
+            password_hash: formData.password,
+            role: formData.role,
+            assigned_locations: formData.assigned_locations,
+            active: true,
+          });
+
+        if (error) throw error;
+        toast.success('Usuário criado!');
+      }
+
+      setIsModalOpen(false);
+      fetchUsers();
+    } catch (err: any) {
+      console.error('Error saving user:', err);
+      if (err.message?.includes('duplicate') || err.code === '23505') {
+        toast.error('Já existe um usuário com este nome de usuário');
+      } else {
+        toast.error('Erro ao salvar usuário');
+      }
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Toggle active status
+  const handleToggleActive = async (user: SystemUser) => {
+    try {
+      const { error } = await supabase
+        .from('field_users')
+        .update({ active: !user.active })
+        .eq('id', user.id);
+
+      if (error) throw error;
+      toast.success(user.active ? 'Usuário desativado' : 'Usuário ativado');
+      fetchUsers();
+    } catch (err) {
+      console.error('Error toggling user:', err);
+      toast.error('Erro ao alterar status');
+    }
+  };
+
+  // Delete user
+  const handleDelete = async (user: SystemUser) => {
+    if (!confirm(`Deseja excluir o usuário "${user.name}"? Esta ação não pode ser desfeita.`)) return;
+
+    try {
+      const { error } = await supabase
+        .from('field_users')
+        .delete()
+        .eq('id', user.id);
+
+      if (error) throw error;
+      toast.success('Usuário excluído!');
+      fetchUsers();
+    } catch (err) {
+      console.error('Error deleting user:', err);
+      toast.error('Erro ao excluir usuário');
+    }
+  };
+
+  const getRoleBadge = (role: string | null) => {
+    const roleConfig = ROLES.find(r => r.value === role) || ROLES[2];
+    return (
+      <Badge className={`${roleConfig.color} text-white`}>
+        {roleConfig.label}
+      </Badge>
+    );
+  };
+
+  return (
+    <div className="flex-1 p-4 md:p-6 space-y-6 overflow-y-auto">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            <User className="w-6 h-6 text-primary" />
+            Usuários do Sistema
+          </h1>
+          <p className="text-muted-foreground text-sm">
+            Gerencie os usuários com acesso ao sistema de apontamento
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={fetchUsers} disabled={loading}>
+            <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            Atualizar
+          </Button>
+          <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={handleNew} className="gap-2">
+                <Plus className="w-4 h-4" />
+                Novo Usuário
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>
+                  {editingUser ? 'Editar Usuário' : 'Novo Usuário'}
+                </DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label>Nome Completo *</Label>
+                  <Input
+                    placeholder="Ex: João Silva"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label>Nome de Usuário *</Label>
+                  <Input
+                    placeholder="Ex: joao.silva"
+                    value={formData.username}
+                    onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label>{editingUser ? 'Nova Senha (deixe em branco para manter)' : 'Senha *'}</Label>
+                  <div className="relative">
+                    <Input
+                      type={showPassword ? 'text' : 'password'}
+                      placeholder={editingUser ? '••••••••' : 'Digite a senha'}
+                      value={formData.password}
+                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label>Função</Label>
+                  <Select value={formData.role} onValueChange={(v) => setFormData({ ...formData, role: v })}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ROLES.map(role => (
+                        <SelectItem key={role.value} value={role.value}>
+                          <div className="flex items-center gap-2">
+                            {role.value === 'admin' ? <ShieldCheck className="w-4 h-4" /> : <Shield className="w-4 h-4" />}
+                            {role.label}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label>Locais Atribuídos</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {LOCATIONS.map(location => (
+                      <label
+                        key={location}
+                        className={`flex items-center gap-2 p-2 rounded border cursor-pointer transition-colors ${
+                          formData.assigned_locations.includes(location)
+                            ? 'bg-primary/10 border-primary'
+                            : 'bg-muted/50 border-border hover:border-primary/50'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={formData.assigned_locations.includes(location)}
+                          onChange={() => toggleLocation(location)}
+                          className="sr-only"
+                        />
+                        <div className={`w-4 h-4 rounded border flex items-center justify-center ${
+                          formData.assigned_locations.includes(location)
+                            ? 'bg-primary border-primary'
+                            : 'border-muted-foreground'
+                        }`}>
+                          {formData.assigned_locations.includes(location) && (
+                            <Check className="w-3 h-3 text-primary-foreground" />
+                          )}
+                        </div>
+                        <span className="text-xs">{location}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setIsModalOpen(false)}>
+                  <X className="w-4 h-4 mr-2" />
+                  Cancelar
+                </Button>
+                <Button onClick={handleSave} disabled={isSaving}>
+                  <Save className="w-4 h-4 mr-2" />
+                  {isSaving ? 'Salvando...' : 'Salvar'}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
+      </div>
+
+      {/* Stats Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="pt-4">
+            <div className="text-center">
+              <p className="text-3xl font-bold text-primary">{users.length}</p>
+              <p className="text-sm text-muted-foreground">Total</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4">
+            <div className="text-center">
+              <p className="text-3xl font-bold text-green-500">
+                {users.filter(u => u.active).length}
+              </p>
+              <p className="text-sm text-muted-foreground">Ativos</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4">
+            <div className="text-center">
+              <p className="text-3xl font-bold text-purple-500">
+                {users.filter(u => u.role === 'admin').length}
+              </p>
+              <p className="text-sm text-muted-foreground">Admins</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4">
+            <div className="text-center">
+              <p className="text-3xl font-bold text-gray-500">
+                {users.filter(u => !u.active).length}
+              </p>
+              <p className="text-sm text-muted-foreground">Inativos</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Table */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Lista de Usuários</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="flex justify-center py-8">
+              <RefreshCw className="w-6 h-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : users.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <User className="w-12 h-12 mx-auto mb-2 opacity-50" />
+              <p>Nenhum usuário cadastrado</p>
+              <Button variant="link" onClick={handleNew}>
+                Cadastrar primeiro usuário
+              </Button>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Nome</TableHead>
+                    <TableHead className="hidden md:table-cell">Usuário</TableHead>
+                    <TableHead>Função</TableHead>
+                    <TableHead className="hidden lg:table-cell">Locais</TableHead>
+                    <TableHead className="text-center">Status</TableHead>
+                    <TableHead className="text-right">Ações</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {users.map((user) => (
+                    <TableRow key={user.id} className={!user.active ? 'opacity-50' : ''}>
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
+                            <User className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <p>{user.name}</p>
+                            <p className="text-xs text-muted-foreground md:hidden">@{user.username}</p>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="hidden md:table-cell text-muted-foreground">
+                        @{user.username}
+                      </TableCell>
+                      <TableCell>
+                        {getRoleBadge(user.role)}
+                      </TableCell>
+                      <TableCell className="hidden lg:table-cell">
+                        <div className="flex flex-wrap gap-1">
+                          {user.assigned_locations?.slice(0, 2).map(loc => (
+                            <Badge key={loc} variant="outline" className="text-xs">
+                              {loc.replace('Tanque ', '').replace('Canteiro ', 'C')}
+                            </Badge>
+                          ))}
+                          {(user.assigned_locations?.length || 0) > 2 && (
+                            <Badge variant="outline" className="text-xs">
+                              +{(user.assigned_locations?.length || 0) - 2}
+                            </Badge>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <div className="flex items-center justify-center gap-2">
+                          <Switch
+                            checked={user.active ?? false}
+                            onCheckedChange={() => handleToggleActive(user)}
+                          />
+                          <span className="text-xs hidden sm:inline">
+                            {user.active ? (
+                              <span className="text-green-500 flex items-center gap-1">
+                                <Check className="w-3 h-3" /> Ativo
+                              </span>
+                            ) : (
+                              <span className="text-gray-500 flex items-center gap-1">
+                                <Ban className="w-3 h-3" /> Inativo
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleEdit(user)}
+                            title="Editar"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDelete(user)}
+                            className="text-destructive hover:text-destructive"
+                            title="Excluir"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
