@@ -1098,7 +1098,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
   }
 
   return (
-    <div className="bg-background pb-4">
+    <div className="min-h-screen bg-gradient-to-br from-slate-100 via-slate-50 to-orange-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 pb-4">
       {/* Voice status */}
       {voice.isListening && (
         <div className="bg-red-500 text-white p-3 flex items-center justify-center gap-2 animate-pulse">
@@ -1130,9 +1130,9 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
       )}
 
       {/* Form */}
-      <div className="p-4 space-y-4">
+      <div className="p-4 space-y-4 max-w-2xl mx-auto">
         {/* Current Date/Time Display (Auto-filled) */}
-        <div className="bg-muted/50 rounded-xl border border-border p-4">
+        <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm rounded-xl border border-slate-200 dark:border-slate-700 p-4 shadow-sm">
           <div className="flex items-center gap-2 text-muted-foreground mb-2">
             <Clock className="w-4 h-4" />
             <span className="text-sm font-medium">Data e Hora do Registro</span>
@@ -1153,7 +1153,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         </div>
 
         {/* Record Type Selection */}
-        <div className="bg-card rounded-xl border border-border p-4 space-y-3">
+        <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-xl border border-slate-200 dark:border-slate-700 p-4 space-y-3 shadow-sm">
           <Label className="flex items-center gap-2 text-base font-medium">
             Tipo de Registro
           </Label>
@@ -1189,7 +1189,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         {recordType === 'saida' && (
           <>
             {/* Vehicle Selection */}
-            <div className="bg-card rounded-xl border border-border p-4 space-y-3">
+            <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-xl border border-slate-200 dark:border-slate-700 p-4 space-y-3 shadow-sm">
               <div className="flex items-center justify-between">
                 <Label className="flex items-center gap-2 text-base">
                   <Truck className="w-4 h-4" />
@@ -1253,7 +1253,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         </div>
 
         {/* Fuel Quantity with OCR */}
-        <div className="bg-card rounded-xl border border-border p-4 space-y-3">
+        <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-xl border border-slate-200 dark:border-slate-700 p-4 space-y-3 shadow-sm">
           <div className="flex items-center justify-between">
             <Label className="flex items-center gap-2 text-base">
               <Fuel className="w-4 h-4" />
@@ -1329,7 +1329,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         </div>
 
         {/* Horimeter with OCR */}
-        <div className="bg-card rounded-xl border border-border p-4 space-y-3">
+        <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-xl border border-slate-200 dark:border-slate-700 p-4 space-y-3 shadow-sm">
           <div className="flex items-center justify-between">
             <Label className="flex items-center gap-2 text-base">
               <Gauge className="w-4 h-4" />
@@ -1424,7 +1424,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
 
         {/* Equipment-specific fields (optional) */}
         {isEquipment && recordType === 'saida' && (
-          <div className="bg-card rounded-xl border border-orange-200 dark:border-orange-800 p-4 space-y-4">
+          <div className="bg-orange-50/80 dark:bg-orange-950/30 backdrop-blur-sm rounded-xl border border-orange-200 dark:border-orange-800 p-4 space-y-4 shadow-sm">
             <div className="flex items-center gap-2 text-orange-600 dark:text-orange-400">
               <Wrench className="w-5 h-5" />
               <Label className="text-base font-medium">Dados do Equipamento (Opcional)</Label>
@@ -1498,7 +1498,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
 
         {/* ARLA - only for Saida */}
         {recordType === 'saida' && (
-          <div className="bg-card rounded-xl border border-border p-4 space-y-3">
+          <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-xl border border-slate-200 dark:border-slate-700 p-4 space-y-3 shadow-sm">
             <div className="flex items-center justify-between">
               <Label className="flex items-center gap-2 text-base">
                 <Droplet className="w-4 h-4" />
@@ -1531,7 +1531,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         {recordType === 'entrada' && (
           <>
             {/* Supplier */}
-            <div className="bg-card rounded-xl border border-border p-4 space-y-3">
+            <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-xl border border-slate-200 dark:border-slate-700 p-4 space-y-3 shadow-sm">
               <Label className="flex items-center gap-2 text-base">
                 <Building2 className="w-4 h-4" />
                 Fornecedor
@@ -1562,7 +1562,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
             </div>
 
             {/* Fuel Quantity with number in words */}
-            <div className="bg-card rounded-xl border border-border p-4 space-y-3">
+            <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-xl border border-slate-200 dark:border-slate-700 p-4 space-y-3 shadow-sm">
               <div className="flex items-center justify-between">
                 <Label className="flex items-center gap-2 text-base">
                   <Fuel className="w-4 h-4" />
@@ -1587,7 +1587,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
             </div>
 
             {/* Invoice Number */}
-            <div className="bg-card rounded-xl border border-border p-4 space-y-3">
+            <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-xl border border-slate-200 dark:border-slate-700 p-4 space-y-3 shadow-sm">
               <Label className="flex items-center gap-2 text-base">
                 <Receipt className="w-4 h-4" />
                 Nota Fiscal
@@ -1602,7 +1602,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
             </div>
 
             {/* Unit Price - currency auto-format */}
-            <div className="bg-card rounded-xl border border-border p-4 space-y-3">
+            <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-xl border border-slate-200 dark:border-slate-700 p-4 space-y-3 shadow-sm">
               <Label className="flex items-center gap-2 text-base">
                 Valor Unitário (R$)
               </Label>
@@ -1622,7 +1622,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
             </div>
 
             {/* Entry Location */}
-            <div className="bg-card rounded-xl border border-border p-4 space-y-3">
+            <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-xl border border-slate-200 dark:border-slate-700 p-4 space-y-3 shadow-sm">
               <Label className="flex items-center gap-2 text-base">
                 <MapPin className="w-4 h-4" />
                 Local de Entrada
@@ -1639,7 +1639,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
             </div>
             
             {/* Invoice Photo */}
-            <div className="bg-card rounded-xl border border-green-200 dark:border-green-800 p-4 space-y-3">
+            <div className="bg-green-50/80 dark:bg-green-950/30 backdrop-blur-sm rounded-xl border border-green-200 dark:border-green-800 p-4 space-y-3 shadow-sm">
               <Label className="flex items-center gap-2 text-base text-green-600 dark:text-green-400">
                 <Camera className="w-4 h-4" />
                 Foto da Nota Fiscal (Opcional)
@@ -1686,7 +1686,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
 
         {/* Location - for Saida only */}
         {recordType === 'saida' && (
-          <div className="bg-card rounded-xl border border-border p-4 space-y-3">
+          <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-xl border border-slate-200 dark:border-slate-700 p-4 space-y-3 shadow-sm">
             <Label className="flex items-center gap-2 text-base">
               <MapPin className="w-4 h-4" />
               Local
@@ -1716,8 +1716,8 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
 
         {/* Photos Section - Only for Saida */}
         {recordType === 'saida' && (
-        <div className="bg-card rounded-xl border border-red-200 dark:border-red-800 p-4 space-y-4">
-          <Label className="flex items-center gap-2 text-base">
+        <div className="bg-red-50/80 dark:bg-red-950/30 backdrop-blur-sm rounded-xl border border-red-200 dark:border-red-800 p-4 space-y-4 shadow-sm">
+          <Label className="flex items-center gap-2 text-base text-red-600 dark:text-red-400">
             <Camera className="w-4 h-4 text-red-500" />
             Fotos 
             <span className="text-red-500 text-lg">*</span>
@@ -1817,7 +1817,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         )}
 
         {/* Observations */}
-        <div className="bg-card rounded-xl border border-border p-4 space-y-3">
+        <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-xl border border-slate-200 dark:border-slate-700 p-4 space-y-3 shadow-sm">
           <div className="flex items-center justify-between">
             <Label className="text-base">Observações</Label>
             {voice.isSupported && (
@@ -1842,7 +1842,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
       </div>
 
       {/* Save Button */}
-      <div className="p-4 pb-20">
+      <div className="p-4 pb-20 max-w-2xl mx-auto">
         <Button 
           onClick={handleSave} 
           disabled={isSaving || isUploadingPhotos || !fuelQuantity || (recordType === 'saida' ? !vehicleCode : !supplier)}
