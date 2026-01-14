@@ -27,6 +27,10 @@ import {
   Upload,
   Cloud,
   CloudOff,
+  Play,
+  Pause,
+  Check,
+  ArrowRight,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -126,6 +130,13 @@ export function ManutencaoPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingOrder, setEditingOrder] = useState<ServiceOrder | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  
+  // Quick status change modal
+  const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
+  const [statusChangeOrder, setStatusChangeOrder] = useState<ServiceOrder | null>(null);
+  const [newStatus, setNewStatus] = useState('');
+  const [exitDate, setExitDate] = useState('');
+  const [exitTime, setExitTime] = useState('');
   
   // Vehicle history state
   const [vehicleHistory, setVehicleHistory] = useState<{
@@ -824,6 +835,78 @@ export function ManutencaoPage() {
     return `${diffHours}h`;
   };
 
+  // Open quick status change modal
+  const handleQuickStatusChange = (order: ServiceOrder, status: string) => {
+    setStatusChangeOrder(order);
+    setNewStatus(status);
+    
+    // If finalizing, pre-fill with current date/time
+    if (status === 'Finalizada') {
+      const now = new Date();
+      setExitDate(format(now, 'yyyy-MM-dd'));
+      setExitTime(format(now, 'HH:mm'));
+    }
+    
+    // If not finalizing, apply immediately without modal
+    if (status !== 'Finalizada') {
+      applyQuickStatusChange(order, status);
+    } else {
+      setIsStatusModalOpen(true);
+    }
+  };
+
+  // Apply quick status change
+  const applyQuickStatusChange = async (order: ServiceOrder, status: string, exitDateTime?: { date: string; time: string }) => {
+    try {
+      const updateData: any = { status };
+      
+      // If starting work, set start_date
+      if (status === 'Em Andamento' && !order.start_date) {
+        updateData.start_date = new Date().toISOString();
+      }
+      
+      // If finalizing, set end_date with specified exit date/time
+      if (status === 'Finalizada') {
+        if (exitDateTime?.date) {
+          const exitDateTimeStr = exitDateTime.time 
+            ? `${exitDateTime.date}T${exitDateTime.time}:00`
+            : `${exitDateTime.date}T${format(new Date(), 'HH:mm')}:00`;
+          updateData.end_date = exitDateTimeStr;
+        } else {
+          updateData.end_date = new Date().toISOString();
+        }
+      }
+      
+      const { error } = await supabase
+        .from('service_orders')
+        .update(updateData)
+        .eq('id', order.id);
+      
+      if (error) throw error;
+      
+      toast.success(`Status alterado para ${status}!`);
+      fetchOrders();
+      
+      // Sync to sheet
+      syncOrderToSheet({
+        ...order,
+        ...updateData,
+      });
+    } catch (err) {
+      console.error('Error updating status:', err);
+      toast.error('Erro ao alterar status');
+    }
+  };
+
+  // Confirm finalization with exit date/time
+  const confirmFinalization = () => {
+    if (!statusChangeOrder) return;
+    
+    applyQuickStatusChange(statusChangeOrder, 'Finalizada', { date: exitDate, time: exitTime });
+    setIsStatusModalOpen(false);
+    setStatusChangeOrder(null);
+  };
+
   // Send WhatsApp message for vehicle release
   const handleWhatsAppRelease = (order: ServiceOrder) => {
     const isFinished = order.status.toLowerCase().includes('finalizada') || order.status.toLowerCase().includes('concluída');
@@ -1479,7 +1562,49 @@ export function ManutencaoPage() {
                         </TableCell>
                         <TableCell className="hidden lg:table-cell">{row.mechanic_name || '-'}</TableCell>
                         <TableCell>{getPrioridadeBadge(row.priority)}</TableCell>
-                        <TableCell>{getStatusBadge(row.status)}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1">
+                            {getStatusBadge(row.status)}
+                            {/* Quick status buttons */}
+                            {!isFinished && (
+                              <div className="flex items-center gap-0.5 ml-1">
+                                {row.status === 'Aberta' && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 w-6 p-0 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/50"
+                                    onClick={() => handleQuickStatusChange(row, 'Em Andamento')}
+                                    title="Iniciar"
+                                  >
+                                    <Play className="w-3 h-3" />
+                                  </Button>
+                                )}
+                                {(row.status === 'Em Andamento' || row.status === 'Aguardando Peças') && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 w-6 p-0 text-green-600 hover:bg-green-50 dark:hover:bg-green-950/50"
+                                    onClick={() => handleQuickStatusChange(row, 'Finalizada')}
+                                    title="Finalizar"
+                                  >
+                                    <Check className="w-3 h-3" />
+                                  </Button>
+                                )}
+                                {row.status === 'Em Andamento' && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 w-6 p-0 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/50"
+                                    onClick={() => handleQuickStatusChange(row, 'Aguardando Peças')}
+                                    title="Aguardando Peças"
+                                  >
+                                    <Pause className="w-3 h-3" />
+                                  </Button>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </TableCell>
                         <TableCell className="hidden sm:table-cell">
                           {downtime ? (
                             <Badge className={cn(
@@ -1973,6 +2098,112 @@ export function ManutencaoPage() {
             <Button onClick={handleSaveOrder} disabled={isSaving}>
               <Save className="w-4 h-4 mr-2" />
               {isSaving ? 'Salvando...' : 'Salvar'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Quick Status Change Modal for Finalization */}
+      <Dialog open={isStatusModalOpen} onOpenChange={setIsStatusModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CheckCircle className="w-5 h-5 text-green-600" />
+              Finalizar Ordem de Serviço
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            {statusChangeOrder && (
+              <div className="bg-muted/50 rounded-lg p-3 border border-border">
+                <p className="font-medium">{statusChangeOrder.order_number}</p>
+                <p className="text-sm text-muted-foreground">
+                  {statusChangeOrder.vehicle_code} - {statusChangeOrder.vehicle_description}
+                </p>
+              </div>
+            )}
+            
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Informe a data e hora de saída para calcular corretamente o tempo de parada:
+              </p>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-green-600" />
+                    Data de Saída *
+                  </Label>
+                  <Input
+                    type="date"
+                    value={exitDate}
+                    onChange={(e) => setExitDate(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-green-600" />
+                    Hora de Saída *
+                  </Label>
+                  <Input
+                    type="time"
+                    value={exitTime}
+                    onChange={(e) => setExitTime(e.target.value)}
+                  />
+                </div>
+              </div>
+              
+              {/* Preview downtime calculation */}
+              {statusChangeOrder && (statusChangeOrder as any).entry_date && exitDate && (
+                <div className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/50 dark:to-emerald-950/50 border border-green-200 dark:border-green-800 rounded-lg p-4">
+                  <div className="flex items-center gap-2 text-green-700 dark:text-green-300 mb-2">
+                    <Timer className="w-4 h-4" />
+                    <span className="font-semibold text-sm">Tempo Total Parado</span>
+                  </div>
+                  {(() => {
+                    const entryDate = (statusChangeOrder as any).entry_date;
+                    const entryTime = (statusChangeOrder as any).entry_time;
+                    const entryDateTime = entryTime 
+                      ? new Date(`${entryDate}T${entryTime}`)
+                      : new Date(`${entryDate}T00:00`);
+                    const exitDateTime = new Date(`${exitDate}T${exitTime || '00:00'}`);
+                    
+                    const diffMs = exitDateTime.getTime() - entryDateTime.getTime();
+                    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+                    const diffDays = Math.floor(diffHours / 24);
+                    const remainingHours = diffHours % 24;
+                    
+                    return (
+                      <div className="flex items-center gap-4">
+                        <div className="text-center">
+                          <p className="text-2xl font-bold text-green-700 dark:text-green-300">
+                            {diffDays > 0 ? `${diffDays}d ${remainingHours}h` : `${diffHours}h`}
+                          </p>
+                        </div>
+                        <div className="text-xs text-green-600 dark:text-green-400">
+                          <p>Entrada: {format(entryDateTime, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</p>
+                          <p>Saída: {format(exitDateTime, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</p>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setIsStatusModalOpen(false)}>
+              <X className="w-4 h-4 mr-2" />
+              Cancelar
+            </Button>
+            <Button 
+              onClick={confirmFinalization} 
+              disabled={!exitDate || !exitTime}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              <Check className="w-4 h-4 mr-2" />
+              Confirmar Finalização
             </Button>
           </div>
         </DialogContent>
