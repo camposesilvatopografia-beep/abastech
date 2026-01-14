@@ -12,8 +12,12 @@ import {
   Calendar,
   X,
   Wifi,
-  WifiOff
+  WifiOff,
+  Bell,
+  BellRing,
+  AlertTriangle
 } from 'lucide-react';
+import { useStockAlerts } from '@/hooks/useStockAlerts';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { MetricCard } from '@/components/Dashboard/MetricCard';
@@ -218,6 +222,12 @@ export function EstoquesPage() {
     };
   }, [geralData.rows, arlaData.rows, filteredRows]);
 
+  // Stock alerts with push notifications
+  const { checkNow, getAlertStatus } = useStockAlerts({
+    estoqueDiesel: metrics.estoqueDiesel,
+    estoqueArla: metrics.estoqueArla,
+  });
+
   const stockHistory = useMemo(() => {
     const byDate: Record<string, { diesel: number; arla: number }> = {};
     
@@ -292,6 +302,23 @@ export function EstoquesPage() {
           </div>
           
           <div className="flex flex-wrap items-center gap-2">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={checkNow}
+              className="relative"
+              title="Verificar alertas de estoque"
+            >
+              {(getAlertStatus().diesel !== 'ok' || getAlertStatus().arla !== 'ok') ? (
+                <BellRing className="w-4 h-4 sm:mr-2 text-amber-500 animate-pulse" />
+              ) : (
+                <Bell className="w-4 h-4 sm:mr-2" />
+              )}
+              <span className="hidden sm:inline">Alertas</span>
+              {(getAlertStatus().diesel === 'critical' || getAlertStatus().arla === 'critical') && (
+                <span className="absolute -top-1 -right-1 w-3 h-3 bg-destructive rounded-full animate-pulse" />
+              )}
+            </Button>
             <Button variant="outline" size="sm" onClick={() => refetch()} disabled={loading}>
               <RefreshCw className={cn("w-4 h-4 sm:mr-2", loading && "animate-spin")} />
               <span className="hidden sm:inline">Atualizar</span>
@@ -436,22 +463,79 @@ export function EstoquesPage() {
           </div>
         </div>
 
+        {/* Stock Alert Banner */}
+        {(getAlertStatus().diesel !== 'ok' || getAlertStatus().arla !== 'ok') && (
+          <div className={cn(
+            "flex items-center gap-3 p-3 rounded-lg border",
+            getAlertStatus().diesel === 'critical' || getAlertStatus().arla === 'critical'
+              ? "bg-destructive/10 border-destructive/30 text-destructive"
+              : "bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400"
+          )}>
+            <AlertTriangle className="w-5 h-5 shrink-0" />
+            <div className="flex-1">
+              <p className="font-medium text-sm">
+                {getAlertStatus().diesel === 'critical' || getAlertStatus().arla === 'critical'
+                  ? '🚨 Alerta Crítico de Estoque!'
+                  : '⚠️ Atenção: Estoque Baixo'}
+              </p>
+              <p className="text-xs opacity-80">
+                {getAlertStatus().diesel !== 'ok' && `Diesel: ${getAlertStatus().diesel === 'critical' ? 'CRÍTICO' : 'Baixo'}`}
+                {getAlertStatus().diesel !== 'ok' && getAlertStatus().arla !== 'ok' && ' • '}
+                {getAlertStatus().arla !== 'ok' && `ARLA: ${getAlertStatus().arla === 'critical' ? 'CRÍTICO' : 'Baixo'}`}
+              </p>
+            </div>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={checkNow}
+              className="shrink-0"
+            >
+              <Bell className="w-4 h-4 mr-1" />
+              Notificar
+            </Button>
+          </div>
+        )}
+
         {/* Main Stock Cards - Responsive Grid */}
         <div className="grid grid-cols-2 gap-3 md:gap-4">
-          <MetricCard
-            title="ESTOQUE DIESEL"
-            value={`${metrics.estoqueDiesel.toLocaleString('pt-BR', { minimumFractionDigits: 1 })} L`}
-            subtitle="Disponível"
-            variant="blue"
-            icon={Fuel}
-          />
-          <MetricCard
-            title="ESTOQUE ARLA"
-            value={`${metrics.estoqueArla.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L`}
-            subtitle="Disponível"
-            variant="yellow"
-            icon={Droplet}
-          />
+          <div className="relative">
+            {getAlertStatus().diesel !== 'ok' && (
+              <div className={cn(
+                "absolute -top-2 -right-2 z-10 px-2 py-0.5 rounded-full text-xs font-bold",
+                getAlertStatus().diesel === 'critical' 
+                  ? "bg-destructive text-destructive-foreground animate-pulse" 
+                  : "bg-amber-500 text-white"
+              )}>
+                {getAlertStatus().diesel === 'critical' ? '⚠️ CRÍTICO' : '⚠️ BAIXO'}
+              </div>
+            )}
+            <MetricCard
+              title="ESTOQUE DIESEL"
+              value={`${metrics.estoqueDiesel.toLocaleString('pt-BR', { minimumFractionDigits: 1 })} L`}
+              subtitle="Disponível"
+              variant={getAlertStatus().diesel === 'critical' ? 'red' : getAlertStatus().diesel === 'warning' ? 'yellow' : 'blue'}
+              icon={Fuel}
+            />
+          </div>
+          <div className="relative">
+            {getAlertStatus().arla !== 'ok' && (
+              <div className={cn(
+                "absolute -top-2 -right-2 z-10 px-2 py-0.5 rounded-full text-xs font-bold",
+                getAlertStatus().arla === 'critical' 
+                  ? "bg-destructive text-destructive-foreground animate-pulse" 
+                  : "bg-amber-500 text-white"
+              )}>
+                {getAlertStatus().arla === 'critical' ? '⚠️ CRÍTICO' : '⚠️ BAIXO'}
+              </div>
+            )}
+            <MetricCard
+              title="ESTOQUE ARLA"
+              value={`${metrics.estoqueArla.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L`}
+              subtitle="Disponível"
+              variant={getAlertStatus().arla === 'critical' ? 'red' : 'yellow'}
+              icon={Droplet}
+            />
+          </div>
         </div>
 
         {/* Movement Cards - Responsive Grid */}
