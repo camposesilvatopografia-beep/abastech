@@ -137,13 +137,28 @@ export function DatabaseHorimeterModal({
 
   // Reset form when vehicle changes (only in create mode)
   useEffect(() => {
-    if (!isEditMode) {
+    if (!isEditMode && selectedVehicleId) {
+      setCurrentValue('');
+      setObservacao('');
+      setSelectedDate(new Date());
+      
+      // Auto-fill operator from last reading
+      const lastReading = readings
+        .filter(r => r.vehicle_id === selectedVehicleId && r.operator)
+        .sort((a, b) => b.reading_date.localeCompare(a.reading_date))[0];
+      
+      if (lastReading?.operator) {
+        setOperador(lastReading.operator);
+      } else {
+        setOperador('');
+      }
+    } else if (!isEditMode && !selectedVehicleId) {
       setCurrentValue('');
       setOperador('');
       setObservacao('');
       setSelectedDate(new Date());
     }
-  }, [selectedVehicleId, isEditMode]);
+  }, [selectedVehicleId, isEditMode, readings]);
 
   // Populate form when editing
   useEffect(() => {
@@ -408,7 +423,14 @@ export function DatabaseHorimeterModal({
 
               {/* Operator */}
               <div className="space-y-1">
-                <Label htmlFor="operador" className="text-sm">Operador</Label>
+                <Label htmlFor="operador" className="text-sm flex items-center gap-2">
+                  Operador
+                  {operador && vehicleHistory.length > 0 && vehicleHistory.some(h => h.operator === operador) && (
+                    <span className="text-xs text-green-600 bg-green-100 px-2 py-0.5 rounded-full">
+                      Preenchido automaticamente
+                    </span>
+                  )}
+                </Label>
                 <Input
                   id="operador"
                   value={operador}
