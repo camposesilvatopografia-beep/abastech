@@ -16,6 +16,7 @@ import SuppliersPage from '@/components/Pages/SuppliersPage';
 import MechanicsPage from '@/components/Pages/MechanicsPage';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
+import logoWatermark from '@/assets/logo-abastech-watermark.png';
 
 const Index = () => {
   const [activeItem, setActiveItem] = useState('dashboard');
@@ -84,12 +85,26 @@ const Index = () => {
         </Sheet>
       )}
       
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 relative">
+        {/* Watermark Background */}
+        <div 
+          className="absolute inset-0 pointer-events-none flex items-center justify-center opacity-[0.03] z-0"
+          aria-hidden="true"
+        >
+          <img 
+            src={logoWatermark} 
+            alt="" 
+            className="w-[600px] max-w-[80%] h-auto"
+          />
+        </div>
+        
         <TopBar 
           onMenuClick={() => setSidebarOpen(true)}
           showMenuButton={isMobile}
         />
-        {renderContent()}
+        <div className="relative z-10 flex-1 flex flex-col">
+          {renderContent()}
+        </div>
       </div>
     </div>
   );

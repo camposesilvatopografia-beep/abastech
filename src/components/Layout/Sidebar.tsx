@@ -15,10 +15,12 @@ import {
   User,
   Smartphone,
   Users,
-  Calendar
+  Calendar,
+  Code2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Link } from 'react-router-dom';
+import logoAbastech from '@/assets/logo-abastech.png';
 
 interface MenuItem {
   id: string;
@@ -76,10 +78,15 @@ export function Sidebar({ activeItem, onItemClick, onClose }: SidebarProps) {
   return (
     <aside className="w-60 bg-sidebar flex flex-col h-screen">
       {/* Logo */}
-      <div className="p-4 flex items-center gap-2">
-        <div className="w-2 h-2 rounded-full bg-red-500" />
-        <div className="w-2 h-2 rounded-full bg-yellow-500" />
-        <div className="w-2 h-2 rounded-full bg-green-500" />
+      <div className="p-4 flex flex-col items-center gap-2 border-b border-sidebar-border">
+        <img 
+          src={logoAbastech} 
+          alt="Abastech" 
+          className="h-12 w-auto object-contain"
+        />
+        <p className="text-xs text-sidebar-muted font-medium tracking-wide">
+          Gestão de Frotas
+        </p>
       </div>
 
       {/* Navigation */}
@@ -159,6 +166,16 @@ export function Sidebar({ activeItem, onItemClick, onClose }: SidebarProps) {
           <button className="p-1 hover:bg-sidebar-accent rounded">
             <LogOut className="w-4 h-4 text-sidebar-muted" />
           </button>
+        </div>
+      </div>
+
+      {/* Developer Credit */}
+      <div className="px-4 py-3 bg-sidebar-accent/50 border-t border-sidebar-border">
+        <div className="flex items-center gap-2 justify-center text-sidebar-muted">
+          <Code2 className="w-3 h-3" />
+          <span className="text-[10px] font-medium tracking-wide">
+            Desenvolvido por <span className="text-sidebar-foreground font-semibold">Jean Campos</span>
+          </span>
         </div>
       </div>
     </aside>
