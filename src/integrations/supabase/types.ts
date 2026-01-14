@@ -22,6 +22,7 @@ export type Database = {
           created_at: string | null
           entry_location: string | null
           filter_blow: boolean | null
+          filter_blow_quantity: number | null
           fuel_quantity: number
           fuel_type: string | null
           horimeter_current: number | null
@@ -57,6 +58,7 @@ export type Database = {
           created_at?: string | null
           entry_location?: string | null
           filter_blow?: boolean | null
+          filter_blow_quantity?: number | null
           fuel_quantity: number
           fuel_type?: string | null
           horimeter_current?: number | null
@@ -92,6 +94,7 @@ export type Database = {
           created_at?: string | null
           entry_location?: string | null
           filter_blow?: boolean | null
+          filter_blow_quantity?: number | null
           fuel_quantity?: number
           fuel_type?: string | null
           horimeter_current?: number | null
@@ -215,6 +218,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      oil_types: {
+        Row: {
+          active: boolean | null
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       vehicles: {
         Row: {
