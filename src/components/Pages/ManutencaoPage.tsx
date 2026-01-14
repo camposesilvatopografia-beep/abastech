@@ -125,7 +125,13 @@ export function ManutencaoPage() {
     lastOrder: ServiceOrder | null;
     category: string;
     company: string;
+    lastHorimeter: number | null;
+    lastKm: number | null;
   } | null>(null);
+  
+  // Horimeter validation state
+  const [horimeterWarning, setHorimeterWarning] = useState<string | null>(null);
+  const [kmWarning, setKmWarning] = useState<string | null>(null);
   
   // Form state
   const [formData, setFormData] = useState({
@@ -193,6 +199,8 @@ export function ManutencaoPage() {
   const fetchVehicleHistory = (vehicleCode: string) => {
     if (!vehicleCode) {
       setVehicleHistory(null);
+      setHorimeterWarning(null);
+      setKmWarning(null);
       return;
     }
     
@@ -227,6 +235,12 @@ export function ManutencaoPage() {
     // Get last order
     const lastOrder = vehicleOrders.length > 0 ? vehicleOrders[0] : null;
     
+    // Get last horimeter and km from orders
+    const ordersWithHorimeter = vehicleOrders.filter(o => (o as any).horimeter_current);
+    const ordersWithKm = vehicleOrders.filter(o => (o as any).km_current);
+    const lastHorimeter = ordersWithHorimeter.length > 0 ? (ordersWithHorimeter[0] as any).horimeter_current : null;
+    const lastKm = ordersWithKm.length > 0 ? (ordersWithKm[0] as any).km_current : null;
+    
     setVehicleHistory({
       totalOrders: vehicleOrders.length,
       totalHours,
@@ -234,7 +248,43 @@ export function ManutencaoPage() {
       lastOrder,
       category: String(vehicleInfo?.['Categoria'] || ''),
       company: String(vehicleInfo?.['Empresa'] || ''),
+      lastHorimeter,
+      lastKm,
     });
+  };
+
+  // Validate horimeter input
+  const validateHorimeter = (value: string) => {
+    const currentValue = parseFloat(value);
+    if (!currentValue || !vehicleHistory?.lastHorimeter) {
+      setHorimeterWarning(null);
+      return;
+    }
+    
+    if (currentValue < vehicleHistory.lastHorimeter) {
+      setHorimeterWarning(`⚠️ Valor menor que o último registro (${vehicleHistory.lastHorimeter.toLocaleString('pt-BR')}h)`);
+    } else if (currentValue - vehicleHistory.lastHorimeter > 500) {
+      setHorimeterWarning(`⚠️ Diferença grande: +${(currentValue - vehicleHistory.lastHorimeter).toLocaleString('pt-BR')}h desde último registro`);
+    } else {
+      setHorimeterWarning(null);
+    }
+  };
+
+  // Validate km input
+  const validateKm = (value: string) => {
+    const currentValue = parseFloat(value);
+    if (!currentValue || !vehicleHistory?.lastKm) {
+      setKmWarning(null);
+      return;
+    }
+    
+    if (currentValue < vehicleHistory.lastKm) {
+      setKmWarning(`⚠️ Valor menor que o último registro (${vehicleHistory.lastKm.toLocaleString('pt-BR')} km)`);
+    } else if (currentValue - vehicleHistory.lastKm > 10000) {
+      setKmWarning(`⚠️ Diferença grande: +${(currentValue - vehicleHistory.lastKm).toLocaleString('pt-BR')} km desde último registro`);
+    } else {
+      setKmWarning(null);
+    }
   };
 
   // Generate order number
@@ -1116,25 +1166,55 @@ export function ManutencaoPage() {
                 <Label className="flex items-center gap-2">
                   <Clock className="w-4 h-4 text-amber-500" />
                   Horímetro Atual
+                  {vehicleHistory?.lastHorimeter && (
+                    <span className="text-xs text-muted-foreground font-normal">
+                      (último: {vehicleHistory.lastHorimeter.toLocaleString('pt-BR')}h)
+                    </span>
+                  )}
                 </Label>
                 <Input
                   type="number"
                   placeholder="Ex: 4500"
                   value={formData.horimeter_current}
-                  onChange={(e) => setFormData({ ...formData, horimeter_current: e.target.value })}
+                  onChange={(e) => {
+                    setFormData({ ...formData, horimeter_current: e.target.value });
+                    validateHorimeter(e.target.value);
+                  }}
+                  className={horimeterWarning ? 'border-amber-500' : ''}
                 />
+                {horimeterWarning && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                    <AlertTriangle className="w-3 h-3" />
+                    {horimeterWarning}
+                  </p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label className="flex items-center gap-2">
                   <TrendingUp className="w-4 h-4 text-blue-500" />
                   KM Atual
+                  {vehicleHistory?.lastKm && (
+                    <span className="text-xs text-muted-foreground font-normal">
+                      (último: {vehicleHistory.lastKm.toLocaleString('pt-BR')} km)
+                    </span>
+                  )}
                 </Label>
                 <Input
                   type="number"
                   placeholder="Ex: 120000"
                   value={formData.km_current}
-                  onChange={(e) => setFormData({ ...formData, km_current: e.target.value })}
+                  onChange={(e) => {
+                    setFormData({ ...formData, km_current: e.target.value });
+                    validateKm(e.target.value);
+                  }}
+                  className={kmWarning ? 'border-amber-500' : ''}
                 />
+                {kmWarning && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                    <AlertTriangle className="w-3 h-3" />
+                    {kmWarning}
+                  </p>
+                )}
               </div>
             </div>
 

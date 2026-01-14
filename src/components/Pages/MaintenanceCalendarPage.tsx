@@ -15,6 +15,7 @@ import {
   Save,
   MessageCircle,
   Share2,
+  Building2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -65,6 +66,7 @@ export function MaintenanceCalendarPage() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [maintenances, setMaintenances] = useState<ScheduledMaintenance[]>([]);
   const [loading, setLoading] = useState(true);
+  const [companyFilter, setCompanyFilter] = useState<string>('all');
   
   // Modal states
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -83,6 +85,27 @@ export function MaintenanceCalendarPage() {
     priority: 'Média',
     notes: '',
   });
+
+  // Extract unique companies from vehicles
+  const companies = useMemo(() => {
+    const companySet = new Set<string>();
+    vehiclesData.rows.forEach(v => {
+      const company = String(v['Empresa'] || '').trim();
+      if (company) companySet.add(company);
+    });
+    return Array.from(companySet).sort();
+  }, [vehiclesData.rows]);
+
+  // Get vehicle company mapping
+  const vehicleCompanyMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    vehiclesData.rows.forEach(v => {
+      const code = String(v['Codigo'] || '');
+      const company = String(v['Empresa'] || '');
+      if (code) map[code] = company;
+    });
+    return map;
+  }, [vehiclesData.rows]);
 
   // Fetch scheduled maintenances
   const fetchMaintenances = async () => {
@@ -128,10 +151,19 @@ export function MaintenanceCalendarPage() {
     return days;
   }, [currentMonth]);
 
+  // Filtered maintenances by company
+  const filteredMaintenances = useMemo(() => {
+    if (companyFilter === 'all') return maintenances;
+    return maintenances.filter(m => {
+      const vehicleCompany = vehicleCompanyMap[m.vehicle_code] || '';
+      return vehicleCompany === companyFilter;
+    });
+  }, [maintenances, companyFilter, vehicleCompanyMap]);
+
   // Get maintenances for a specific day
   const getMaintenancesForDay = (date: Date) => {
     const dateStr = format(date, 'yyyy-MM-dd');
-    return maintenances.filter(m => m.scheduled_date === dateStr);
+    return filteredMaintenances.filter(m => m.scheduled_date === dateStr);
   };
 
   // Status badge
@@ -350,18 +382,18 @@ export function MaintenanceCalendarPage() {
   // Calculate stats
   const stats = useMemo(() => {
     const now = new Date();
-    const thisMonth = maintenances.filter(m => {
+    const thisMonth = filteredMaintenances.filter(m => {
       const date = new Date(m.scheduled_date);
       return date.getMonth() === currentMonth.getMonth() && 
              date.getFullYear() === currentMonth.getFullYear();
     });
 
-    const overdue = maintenances.filter(m => {
+    const overdue = filteredMaintenances.filter(m => {
       const date = new Date(m.scheduled_date);
       return date < now && m.status === 'Programada';
     });
 
-    const upcoming = maintenances.filter(m => {
+    const upcoming = filteredMaintenances.filter(m => {
       const date = new Date(m.scheduled_date);
       const daysUntil = differenceInDays(date, now);
       return daysUntil >= 0 && daysUntil <= 7 && m.status === 'Programada';
@@ -372,7 +404,7 @@ export function MaintenanceCalendarPage() {
       overdue: overdue.length,
       upcoming: upcoming.length,
     };
-  }, [maintenances, currentMonth]);
+  }, [filteredMaintenances, currentMonth]);
 
   return (
     <div className="flex-1 p-3 md:p-6 overflow-auto">
@@ -408,6 +440,33 @@ export function MaintenanceCalendarPage() {
               <span className="hidden sm:inline">Nova Preventiva</span>
               <span className="sm:hidden">Nova</span>
             </Button>
+          </div>
+        </div>
+
+        {/* Company Filter */}
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-2">
+            <Building2 className="w-4 h-4 text-muted-foreground" />
+            <span className="text-sm font-medium">Empresa:</span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant={companyFilter === 'all' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setCompanyFilter('all')}
+            >
+              Todas
+            </Button>
+            {companies.map(company => (
+              <Button
+                key={company}
+                variant={companyFilter === company ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setCompanyFilter(company)}
+              >
+                {company}
+              </Button>
+            ))}
           </div>
         </div>
 
