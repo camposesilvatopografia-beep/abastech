@@ -200,16 +200,16 @@ export function DatabaseHorimeterModal({
     if (open) {
       if (editRecord) {
         setSelectedVehicleId(editRecord.vehicle_id);
-        // Determine if it's KM or Horimeter based on vehicle unit
-        const vehicle = vehicles.find(v => v.id === editRecord.vehicle_id);
-        const usesKm = vehicle?.unit === 'km';
-        if (usesKm) {
-          setKmValue(editRecord.current_value.toString().replace('.', ','));
-          setHorimeterValue('');
-        } else {
-          setHorimeterValue(editRecord.current_value.toString().replace('.', ','));
-          setKmValue('');
-        }
+
+        // In edit mode we MUST respect the correct columns:
+        // - Horímetro (horas) => current_value
+        // - KM => current_km
+        const km = (editRecord as any).current_km as number | null | undefined;
+        const hor = editRecord.current_value;
+
+        setHorimeterValue(hor && hor > 0 ? hor.toString().replace('.', ',') : '');
+        setKmValue(km && km > 0 ? km.toString().replace('.', ',') : '');
+
         setOperador(editRecord.operator || '');
         setObservacao(editRecord.observations || '');
         setSelectedDate(new Date(editRecord.reading_date + 'T00:00:00'));
@@ -392,7 +392,9 @@ export function DatabaseHorimeterModal({
                   vehicles={vehicles.map(v => ({
                     id: v.id,
                     code: v.code,
-                    name: v.name || v.category || '',
+                    name: v.name || '',
+                    description: v.description || '',
+                    category: v.category || '',
                   }))}
                   value={selectedVehicleId}
                   onValueChange={setSelectedVehicleId}
