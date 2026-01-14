@@ -77,6 +77,7 @@ export function HorimetrosPageDB() {
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
   const [periodFilter, setPeriodFilter] = useState('hoje');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [companyFilter, setCompanyFilter] = useState<string>('all');
   const [vehicleFilter, setVehicleFilter] = useState<string>('all');
   const [showNewModal, setShowNewModal] = useState(false);
   const [showSyncModal, setShowSyncModal] = useState(false);
@@ -92,6 +93,15 @@ export function HorimetrosPageDB() {
     const unique = new Set<string>();
     vehicles.forEach(v => {
       if (v.category) unique.add(v.category);
+    });
+    return Array.from(unique).sort();
+  }, [vehicles]);
+
+  // Get unique companies
+  const companies = useMemo(() => {
+    const unique = new Set<string>();
+    vehicles.forEach(v => {
+      if (v.company) unique.add(v.company);
     });
     return Array.from(unique).sort();
   }, [vehicles]);
@@ -146,6 +156,12 @@ export function HorimetrosPageDB() {
         matchesCategory = reading.vehicle?.category?.toLowerCase() === categoryFilter.toLowerCase();
       }
 
+      // Company filter
+      let matchesCompany = true;
+      if (companyFilter !== 'all') {
+        matchesCompany = reading.vehicle?.company?.toLowerCase() === companyFilter.toLowerCase();
+      }
+
       // Vehicle filter
       let matchesVehicle = true;
       if (vehicleFilter !== 'all') {
@@ -164,14 +180,14 @@ export function HorimetrosPageDB() {
         matchesDate = isWithinInterval(readingDate, { start: dateRange.start, end: dateRange.end });
       }
 
-      return matchesSearch && matchesDate && matchesCategory && matchesVehicle;
+      return matchesSearch && matchesDate && matchesCategory && matchesCompany && matchesVehicle;
     }).sort((a, b) => {
       // Sort by date descending, then by vehicle code
       const dateCompare = new Date(b.reading_date).getTime() - new Date(a.reading_date).getTime();
       if (dateCompare !== 0) return dateCompare;
       return (a.vehicle?.code || '').localeCompare(b.vehicle?.code || '');
     });
-  }, [readings, search, selectedDate, dateRange, categoryFilter, vehicleFilter]);
+  }, [readings, search, selectedDate, dateRange, categoryFilter, companyFilter, vehicleFilter]);
 
   // Calculate interval for each reading
   const readingsWithInterval = useMemo(() => {
@@ -247,50 +263,80 @@ export function HorimetrosPageDB() {
   };
 
   const exportToPDF = () => {
-    const doc = new jsPDF();
+    const doc = new jsPDF('landscape');
+    const pageWidth = doc.internal.pageSize.getWidth();
     
-    doc.setFontSize(18);
-    doc.text('Relatório de Horímetros', 14, 22);
+    // Red header bar
+    doc.setFillColor(220, 53, 69);
+    doc.rect(0, 0, pageWidth, 25, 'F');
     
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(255, 255, 255);
+    doc.text('RELATÓRIO DE HORÍMETROS', pageWidth / 2, 16, { align: 'center' });
+    
+    let y = 35;
+    
+    // Filters info
     doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(60, 60, 60);
+    
     let dateInfo = 'Todas as datas';
     if (selectedDate) {
       dateInfo = format(selectedDate, 'dd/MM/yyyy');
     } else if (periodFilter !== 'todos' && dateRange) {
       dateInfo = `${format(dateRange.start, 'dd/MM/yyyy')} até ${format(dateRange.end, 'dd/MM/yyyy')}`;
     }
-    doc.text(`Período: ${dateInfo}`, 14, 30);
+    doc.text(`Período: ${dateInfo}`, 14, y);
+    
+    if (companyFilter !== 'all') {
+      doc.text(`Empresa: ${companyFilter}`, 100, y);
+    }
     
     if (vehicleFilter !== 'all') {
       const vehicle = vehicles.find(v => v.id === vehicleFilter);
-      doc.text(`Veículo: ${vehicle?.code || vehicleFilter}`, 14, 36);
+      doc.text(`Veículo: ${vehicle?.code || vehicleFilter}`, companyFilter !== 'all' ? 200 : 100, y);
     }
     
-    doc.text(`Gerado em: ${format(new Date(), 'dd/MM/yyyy HH:mm', { locale: ptBR })}`, 14, vehicleFilter !== 'all' ? 42 : 36);
+    y += 6;
+    doc.text(`Gerado em: ${format(new Date(), 'dd/MM/yyyy HH:mm', { locale: ptBR })}`, 14, y);
+    doc.text(`Total: ${readingsWithInterval.length} registros`, 100, y);
+    
+    y += 10;
 
     const tableData = readingsWithInterval.map(r => [
       format(new Date(r.reading_date + 'T00:00:00'), 'dd/MM/yyyy'),
       r.vehicle?.code || '-',
+      r.vehicle?.company || '-',
+      r.vehicle?.category || '-',
       r.previous_value?.toLocaleString('pt-BR') || '-',
       r.current_value.toLocaleString('pt-BR'),
       r.interval > 0 ? `+${r.interval.toLocaleString('pt-BR')}` : r.interval.toLocaleString('pt-BR'),
+      r.operator || '-',
     ]);
 
     autoTable(doc, {
-      head: [['Data', 'Veículo', 'Anterior', 'Atual', 'Intervalo']],
+      head: [['Data', 'Veículo', 'Empresa', 'Categoria', 'Anterior', 'Atual', 'Intervalo', 'Operador']],
       body: tableData,
-      startY: vehicleFilter !== 'all' ? 50 : 44,
-      styles: { fontSize: 9 },
-      headStyles: { fillColor: [59, 130, 246] }
+      startY: y,
+      styles: { fontSize: 8, cellPadding: 2 },
+      headStyles: { fillColor: [220, 53, 69], textColor: [255, 255, 255] },
+      alternateRowStyles: { fillColor: [248, 249, 250] },
     });
 
     // Add totals
     const finalY = (doc as any).lastAutoTable.finalY || 50;
     doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
     doc.text(`Total de registros: ${readingsWithInterval.length}`, 14, finalY + 10);
-    doc.text(`Intervalo total: ${metrics.totalInterval.toLocaleString('pt-BR')}`, 14, finalY + 16);
+    doc.text(`Intervalo total: ${metrics.totalInterval.toLocaleString('pt-BR')}`, 100, finalY + 10);
 
-    doc.save(`horimetros_${format(new Date(), 'yyyy-MM-dd')}.pdf`);
+    const fileName = companyFilter !== 'all' 
+      ? `horimetros_${companyFilter.replace(/\s+/g, '_')}_${format(new Date(), 'yyyy-MM-dd')}.pdf`
+      : `horimetros_${format(new Date(), 'yyyy-MM-dd')}.pdf`;
+    
+    doc.save(fileName);
   };
 
   const exportToExcel = () => {
@@ -493,6 +539,21 @@ export function HorimetrosPageDB() {
                   <SelectItem value="all">Todas</SelectItem>
                   {categories.map(cat => (
                     <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex gap-2 items-center flex-wrap">
+              <span className="text-sm font-medium text-muted-foreground">Empresa:</span>
+              <Select value={companyFilter} onValueChange={setCompanyFilter}>
+                <SelectTrigger className="w-[150px]">
+                  <SelectValue placeholder="Empresa" />
+                </SelectTrigger>
+                <SelectContent className="bg-background">
+                  <SelectItem value="all">Todas</SelectItem>
+                  {companies.map(comp => (
+                    <SelectItem key={comp} value={comp}>{comp}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
