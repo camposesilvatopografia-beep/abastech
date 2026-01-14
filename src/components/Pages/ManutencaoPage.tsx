@@ -564,107 +564,304 @@ export function ManutencaoPage() {
     }
   };
 
-  // Export single OS to PDF
-  const exportSingleOSToPDF = (order: ServiceOrder) => {
+  // Export single OS to PDF - Professional SaaS Style
+  const exportSingleOSToPDF = async (order: ServiceOrder) => {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
     
-    let y = 20;
+    // Colors
+    const primaryColor: [number, number, number] = [230, 126, 34]; // Orange from logo
+    const darkColor: [number, number, number] = [44, 62, 80];
+    const grayColor: [number, number, number] = [127, 140, 141];
+    const lightGray: [number, number, number] = [236, 240, 241];
     
-    // Header
-    doc.setFontSize(18);
-    doc.setFont('helvetica', 'bold');
-    doc.text('ORDEM DE SERVIÇO', pageWidth / 2, y, { align: 'center' });
-    y += 10;
+    // Get current user for signature
+    const currentUserStr = localStorage.getItem('currentSystemUser');
+    const currentUser = currentUserStr ? JSON.parse(currentUserStr) : null;
+    const userRole = currentUser?.role || 'operador';
+    const userName = currentUser?.name || 'Sistema';
+    
+    let y = 15;
+    
+    // === HEADER WITH LOGO ===
+    // Try to load the consortium logo
+    try {
+      const logoImg = new Image();
+      logoImg.crossOrigin = 'anonymous';
+      
+      await new Promise<void>((resolve, reject) => {
+        logoImg.onload = () => {
+          // Add logo centered at top
+          const logoWidth = 120;
+          const logoHeight = 25;
+          const logoX = (pageWidth - logoWidth) / 2;
+          doc.addImage(logoImg, 'PNG', logoX, y, logoWidth, logoHeight);
+          resolve();
+        };
+        logoImg.onerror = () => {
+          // Fallback: just text header
+          doc.setFontSize(16);
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(...primaryColor);
+          doc.text('CONSÓRCIO AERO MARAGOGI', pageWidth / 2, y + 10, { align: 'center' });
+          resolve();
+        };
+        // Use base64 or relative path - for PDF we'll use text fallback mostly
+        logoImg.src = '/src/assets/logo-consorcio.png';
+      });
+    } catch {
+      // Fallback header text
+      doc.setFontSize(16);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(...primaryColor);
+      doc.text('CONSÓRCIO AERO MARAGOGI', pageWidth / 2, y + 10, { align: 'center' });
+    }
+    
+    y += 35;
+    
+    // === TITLE BAR ===
+    doc.setFillColor(...primaryColor);
+    doc.roundedRect(15, y, pageWidth - 30, 14, 2, 2, 'F');
     
     doc.setFontSize(14);
-    doc.text(order.order_number, pageWidth / 2, y, { align: 'center' });
-    y += 15;
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(255, 255, 255);
+    doc.text('ORDEM DE SERVIÇO', pageWidth / 2, y + 9, { align: 'center' });
     
-    // Info box
+    y += 20;
+    
+    // === OS NUMBER AND DATE BADGE ===
+    doc.setFillColor(...lightGray);
+    doc.roundedRect(15, y, 80, 12, 2, 2, 'F');
+    doc.roundedRect(pageWidth - 95, y, 80, 12, 2, 2, 'F');
+    
     doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    
-    const addField = (label: string, value: string, xPos: number, yPos: number) => {
-      doc.setFont('helvetica', 'bold');
-      doc.text(label + ':', xPos, yPos);
-      doc.setFont('helvetica', 'normal');
-      doc.text(value || '-', xPos + 35, yPos);
-    };
-    
-    // Two columns
-    addField('Data', format(new Date(order.order_date), 'dd/MM/yyyy'), 20, y);
-    addField('Status', order.status, 110, y);
-    y += 8;
-    
-    addField('Veículo', order.vehicle_code, 20, y);
-    addField('Tipo', order.order_type, 110, y);
-    y += 8;
-    
-    addField('Descrição', order.vehicle_description || '-', 20, y);
-    addField('Prioridade', order.priority, 110, y);
-    y += 8;
-    
-    addField('Mecânico', order.mechanic_name || '-', 20, y);
-    addField('Horas Est.', order.estimated_hours?.toString() || '-', 110, y);
-    y += 15;
-    
-    // Problem
     doc.setFont('helvetica', 'bold');
-    doc.text('PROBLEMA:', 20, y);
-    y += 6;
-    doc.setFont('helvetica', 'normal');
-    const problemLines = doc.splitTextToSize(order.problem_description || '-', pageWidth - 40);
-    doc.text(problemLines, 20, y);
-    y += problemLines.length * 5 + 10;
+    doc.setTextColor(...darkColor);
+    doc.text(order.order_number, 55, y + 8, { align: 'center' });
+    doc.text(format(new Date(order.order_date), 'dd/MM/yyyy'), pageWidth - 55, y + 8, { align: 'center' });
     
-    // Solution
-    doc.setFont('helvetica', 'bold');
-    doc.text('SOLUÇÃO:', 20, y);
-    y += 6;
-    doc.setFont('helvetica', 'normal');
-    const solutionLines = doc.splitTextToSize(order.solution_description || '-', pageWidth - 40);
-    doc.text(solutionLines, 20, y);
-    y += solutionLines.length * 5 + 10;
+    y += 20;
     
-    // Parts
-    if (order.parts_used) {
-      doc.setFont('helvetica', 'bold');
-      doc.text('PEÇAS UTILIZADAS:', 20, y);
-      y += 6;
-      doc.setFont('helvetica', 'normal');
-      const partsLines = doc.splitTextToSize(order.parts_used, pageWidth - 40);
-      doc.text(partsLines, 20, y);
-      y += partsLines.length * 5 + 10;
-    }
+    // === INFO CARDS ===
+    const cardWidth = (pageWidth - 40) / 2;
+    const cardHeight = 45;
     
-    // Costs
-    if (order.parts_cost || order.labor_cost) {
-      doc.setFont('helvetica', 'bold');
-      doc.text('CUSTOS:', 20, y);
-      y += 6;
-      doc.setFont('helvetica', 'normal');
-      doc.text(`Peças: R$ ${(order.parts_cost || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 20, y);
-      doc.text(`Mão de Obra: R$ ${(order.labor_cost || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 100, y);
-      y += 6;
-      doc.setFont('helvetica', 'bold');
-      doc.text(`TOTAL: R$ ${(order.total_cost || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 20, y);
-      y += 10;
-    }
+    // Left card - Vehicle info
+    doc.setFillColor(...lightGray);
+    doc.roundedRect(15, y, cardWidth, cardHeight, 3, 3, 'F');
     
-    // Notes
-    if (order.notes) {
-      doc.setFont('helvetica', 'bold');
-      doc.text('OBSERVAÇÕES:', 20, y);
-      y += 6;
-      doc.setFont('helvetica', 'normal');
-      const notesLines = doc.splitTextToSize(order.notes, pageWidth - 40);
-      doc.text(notesLines, 20, y);
-    }
-    
-    // Footer
     doc.setFontSize(8);
-    doc.text(`Gerado em: ${format(new Date(), 'dd/MM/yyyy HH:mm', { locale: ptBR })}`, 20, 280);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...primaryColor);
+    doc.text('VEÍCULO / EQUIPAMENTO', 20, y + 8);
+    
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...darkColor);
+    doc.text(order.vehicle_code, 20, y + 20);
+    
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...grayColor);
+    const descLines = doc.splitTextToSize(order.vehicle_description || '-', cardWidth - 10);
+    doc.text(descLines.slice(0, 2), 20, y + 28);
+    
+    // Horimeter/KM info
+    const horimeter = (order as any).horimeter_current;
+    const km = (order as any).km_current;
+    if (horimeter || km) {
+      doc.setFontSize(8);
+      doc.setTextColor(...grayColor);
+      const readingText = horimeter ? `Horímetro: ${horimeter.toLocaleString('pt-BR')}h` : `KM: ${km?.toLocaleString('pt-BR')}`;
+      doc.text(readingText, 20, y + 40);
+    }
+    
+    // Right card - Status info
+    doc.setFillColor(...lightGray);
+    doc.roundedRect(25 + cardWidth, y, cardWidth, cardHeight, 3, 3, 'F');
+    
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...primaryColor);
+    doc.text('STATUS E PRIORIDADE', 30 + cardWidth, y + 8);
+    
+    // Status badge
+    const statusColor: [number, number, number] = order.status.toLowerCase().includes('finalizada') 
+      ? [39, 174, 96] 
+      : order.status.toLowerCase().includes('andamento') 
+        ? [52, 152, 219] 
+        : [241, 196, 15];
+    doc.setFillColor(...statusColor);
+    doc.roundedRect(30 + cardWidth, y + 12, 50, 8, 2, 2, 'F');
+    doc.setFontSize(8);
+    doc.setTextColor(255, 255, 255);
+    doc.text(order.status.toUpperCase(), 55 + cardWidth, y + 17, { align: 'center' });
+    
+    // Priority badge
+    const prioColor: [number, number, number] = order.priority.toLowerCase().includes('alta') 
+      ? [231, 76, 60] 
+      : order.priority.toLowerCase().includes('média') 
+        ? [241, 196, 15] 
+        : [149, 165, 166];
+    doc.setFillColor(...prioColor);
+    doc.roundedRect(85 + cardWidth, y + 12, 40, 8, 2, 2, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.text(order.priority.toUpperCase(), 105 + cardWidth, y + 17, { align: 'center' });
+    
+    // Type and mechanic
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...grayColor);
+    doc.text(`Tipo: ${order.order_type}`, 30 + cardWidth, y + 30);
+    doc.text(`Mecânico: ${order.mechanic_name || '-'}`, 30 + cardWidth, y + 38);
+    
+    y += cardHeight + 10;
+    
+    // === PROBLEM SECTION ===
+    doc.setFillColor(...primaryColor);
+    doc.roundedRect(15, y, pageWidth - 30, 8, 2, 2, 'F');
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(255, 255, 255);
+    doc.text('DESCRIÇÃO DO PROBLEMA', 20, y + 5.5);
+    y += 12;
+    
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...darkColor);
+    doc.setFontSize(10);
+    const problemLines = doc.splitTextToSize(order.problem_description || 'Não informado', pageWidth - 40);
+    doc.text(problemLines.slice(0, 6), 20, y);
+    y += Math.min(problemLines.length, 6) * 5 + 8;
+    
+    // === SOLUTION SECTION ===
+    doc.setFillColor(39, 174, 96);
+    doc.roundedRect(15, y, pageWidth - 30, 8, 2, 2, 'F');
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(255, 255, 255);
+    doc.text('SOLUÇÃO / SERVIÇO REALIZADO', 20, y + 5.5);
+    y += 12;
+    
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...darkColor);
+    doc.setFontSize(10);
+    const solutionLines = doc.splitTextToSize(order.solution_description || 'Pendente', pageWidth - 40);
+    doc.text(solutionLines.slice(0, 6), 20, y);
+    y += Math.min(solutionLines.length, 6) * 5 + 8;
+    
+    // === PARTS USED SECTION ===
+    if (order.parts_used) {
+      doc.setFillColor(52, 152, 219);
+      doc.roundedRect(15, y, pageWidth - 30, 8, 2, 2, 'F');
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(255, 255, 255);
+      doc.text('PEÇAS / MATERIAIS UTILIZADOS', 20, y + 5.5);
+      y += 12;
+      
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(...darkColor);
+      doc.setFontSize(10);
+      const partsLines = doc.splitTextToSize(order.parts_used, pageWidth - 40);
+      doc.text(partsLines.slice(0, 4), 20, y);
+      y += Math.min(partsLines.length, 4) * 5 + 8;
+    }
+    
+    // === OBSERVATIONS ===
+    if (order.notes) {
+      doc.setFillColor(...grayColor);
+      doc.roundedRect(15, y, pageWidth - 30, 8, 2, 2, 'F');
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(255, 255, 255);
+      doc.text('OBSERVAÇÕES', 20, y + 5.5);
+      y += 12;
+      
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(...darkColor);
+      doc.setFontSize(9);
+      const notesLines = doc.splitTextToSize(order.notes, pageWidth - 40);
+      doc.text(notesLines.slice(0, 3), 20, y);
+      y += Math.min(notesLines.length, 3) * 5 + 8;
+    }
+    
+    // === HOURS INFO (without costs) ===
+    if (order.estimated_hours || order.actual_hours) {
+      doc.setFillColor(...lightGray);
+      doc.roundedRect(15, y, pageWidth - 30, 15, 2, 2, 'F');
+      
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(...darkColor);
+      
+      if (order.estimated_hours) {
+        doc.text(`Horas Estimadas: ${order.estimated_hours}h`, 25, y + 10);
+      }
+      if (order.actual_hours) {
+        doc.text(`Horas Realizadas: ${order.actual_hours}h`, pageWidth / 2, y + 10);
+      }
+      
+      y += 20;
+    }
+    
+    // === SIGNATURE SECTION ===
+    const sigY = Math.max(y + 15, pageHeight - 60);
+    const sigWidth = (pageWidth - 50) / 3;
+    
+    // Signature boxes with labels
+    doc.setDrawColor(...grayColor);
+    doc.setLineWidth(0.5);
+    
+    // Signature 1: Motorista/Operador
+    doc.line(15, sigY + 15, 15 + sigWidth, sigY + 15);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...darkColor);
+    doc.text('MOTORISTA / OPERADOR', 15 + sigWidth / 2, sigY + 22, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.setTextColor(...grayColor);
+    doc.text('Nome:', 15, sigY + 28);
+    doc.text('Data: ___/___/______', 15, sigY + 33);
+    
+    // Signature 2: Mecânico
+    const sig2X = 20 + sigWidth;
+    doc.line(sig2X, sigY + 15, sig2X + sigWidth, sigY + 15);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...darkColor);
+    doc.text('MECÂNICO RESPONSÁVEL', sig2X + sigWidth / 2, sigY + 22, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.setTextColor(...grayColor);
+    doc.text(`Nome: ${order.mechanic_name || ''}`, sig2X, sigY + 28);
+    doc.text('Data: ___/___/______', sig2X, sigY + 33);
+    
+    // Signature 3: Aprovação (Admin/Supervisor/Operador)
+    const sig3X = 25 + sigWidth * 2;
+    doc.line(sig3X, sigY + 15, sig3X + sigWidth, sigY + 15);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...darkColor);
+    const approvalTitle = userRole === 'admin' ? 'APROVAÇÃO (ADMIN)' : 
+                          userRole === 'supervisor' ? 'APROVAÇÃO (SUPERVISOR)' : 
+                          'RESPONSÁVEL TÉCNICO';
+    doc.text(approvalTitle, sig3X + sigWidth / 2, sigY + 22, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.setTextColor(...grayColor);
+    doc.text(`Nome: ${userName}`, sig3X, sigY + 28);
+    doc.text('Data: ___/___/______', sig3X, sigY + 33);
+    
+    // === FOOTER ===
+    doc.setFillColor(...primaryColor);
+    doc.rect(0, pageHeight - 12, pageWidth, 12, 'F');
+    
+    doc.setFontSize(7);
+    doc.setTextColor(255, 255, 255);
+    doc.text(`Documento gerado em: ${format(new Date(), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}`, pageWidth / 2, pageHeight - 5, { align: 'center' });
     
     doc.save(`${order.order_number}.pdf`);
   };
