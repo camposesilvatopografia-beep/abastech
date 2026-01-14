@@ -71,12 +71,12 @@ import { toast } from 'sonner';
 import { useSheetData, useSheetData as useGoogleSheetData } from '@/hooks/useGoogleSheets';
 import { createRow } from '@/lib/googleSheets';
 import { RecurringProblemsTab } from '@/components/Maintenance/RecurringProblemsTab';
+import { MaintenanceRankingTab } from '@/components/Maintenance/MaintenanceRankingTab';
 
 const ORDEM_SERVICO_SHEET = 'Ordem_Servico';
 
 const TABS = [
   { id: 'ordens', label: 'Ordens de Serviço', icon: ClipboardList },
-  { id: 'quadro', label: 'Quadro Resumo', icon: LayoutGrid },
   { id: 'ranking', label: 'Ranking', icon: BarChart3 },
   { id: 'problemas', label: 'Problemas Recorrentes', icon: TrendingUp },
 ];
@@ -1706,12 +1706,9 @@ export function ManutencaoPage() {
           <RecurringProblemsTab orders={orders} />
         )}
 
-        {/* Other tabs placeholder */}
-        {activeTab !== 'ordens' && activeTab !== 'problemas' && (
-          <div className="bg-card rounded-lg border border-border p-8 text-center text-muted-foreground">
-            <LayoutGrid className="w-12 h-12 mx-auto mb-4 opacity-50" />
-            <p>Funcionalidade em desenvolvimento</p>
-          </div>
+        {/* Ranking Tab */}
+        {activeTab === 'ranking' && (
+          <MaintenanceRankingTab orders={orders} />
         )}
       </div>
 
