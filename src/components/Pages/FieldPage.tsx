@@ -14,6 +14,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
+import logoAbastech from '@/assets/logo-abastech.png';
 
 interface FieldUser {
   id: string;
@@ -95,12 +96,12 @@ export function FieldPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      {/* Header */}
-      <header className="sticky top-0 z-10 bg-primary text-primary-foreground p-4 shadow-lg">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col">
+      {/* Header with brand colors */}
+      <header className="sticky top-0 z-10 bg-gradient-to-r from-amber-600 to-orange-600 text-white p-4 shadow-lg">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Fuel className="w-7 h-7" />
+            <img src={logoAbastech} alt="Abastech" className="h-8 w-auto" />
             <div>
               <h1 className="text-base font-bold">Apontamento Campo</h1>
               <p className="text-xs opacity-90">{user.name}</p>
@@ -115,7 +116,7 @@ export function FieldPage() {
                 <CloudOff className="w-4 h-4 text-yellow-300" />
               )}
               {pendingCount > 0 && (
-                <span className="text-xs bg-yellow-500 text-yellow-900 px-1.5 py-0.5 rounded-full">
+                <span className="text-xs bg-yellow-400 text-yellow-900 px-1.5 py-0.5 rounded-full font-medium">
                   {pendingCount}
                 </span>
               )}
@@ -124,7 +125,7 @@ export function FieldPage() {
               variant="ghost" 
               size="icon" 
               onClick={handleLogout}
-              className="text-primary-foreground hover:bg-primary-foreground/20"
+              className="text-white hover:bg-white/20"
             >
               <LogOut className="w-5 h-5" />
             </Button>
@@ -134,7 +135,7 @@ export function FieldPage() {
 
       {/* Connection Banner */}
       {!isOnline && (
-        <div className="bg-yellow-500 text-yellow-900 p-2 text-center text-sm">
+        <div className="bg-amber-500 text-amber-900 p-2 text-center text-sm font-medium">
           Modo offline - dados serão sincronizados quando houver conexão
         </div>
       )}
@@ -155,13 +156,13 @@ export function FieldPage() {
         )}
       </main>
 
-      {/* Bottom Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-background border-t border-border p-2 flex justify-around z-20">
+      {/* Bottom Navigation with brand colors */}
+      <nav className="fixed bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur-sm border-t border-amber-600/30 p-2 flex justify-around z-20">
         <Button
           variant="ghost"
           className={cn(
-            "flex-1 flex flex-col items-center gap-1 h-14",
-            currentView === 'dashboard' && "text-primary bg-primary/10"
+            "flex-1 flex flex-col items-center gap-1 h-14 text-slate-400 hover:text-amber-400 hover:bg-amber-500/10",
+            currentView === 'dashboard' && "text-amber-400 bg-amber-500/20"
           )}
           onClick={() => setCurrentView('dashboard')}
         >
@@ -171,8 +172,8 @@ export function FieldPage() {
         <Button
           variant="ghost"
           className={cn(
-            "flex-1 flex flex-col items-center gap-1 h-14",
-            currentView === 'form' && "text-primary bg-primary/10"
+            "flex-1 flex flex-col items-center gap-1 h-14 text-slate-400 hover:text-amber-400 hover:bg-amber-500/10",
+            currentView === 'form' && "text-amber-400 bg-amber-500/20"
           )}
           onClick={() => setCurrentView('form')}
         >

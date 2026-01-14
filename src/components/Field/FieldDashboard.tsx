@@ -11,6 +11,12 @@ import {
   BarChart3,
   FileText,
   ArrowRight,
+  Edit2,
+  Trash2,
+  AlertCircle,
+  CheckCircle,
+  X,
+  Loader2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -19,6 +25,18 @@ import { useSheetData } from '@/hooks/useGoogleSheets';
 import { format, startOfMonth, endOfMonth, startOfDay, endOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import logoAbastech from '@/assets/logo-abastech.png';
 
 interface FieldUser {
   id: string;
@@ -51,6 +69,12 @@ interface RecentRecord {
   record_type: string;
 }
 
+interface DeleteRequest {
+  recordId: string;
+  vehicleCode: string;
+  quantity: number;
+}
+
 export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) {
   const { data: abastecimentoData } = useSheetData('AbastecimentoCanteiro01');
   const [userRecords, setUserRecords] = useState<RecentRecord[]>([]);
@@ -60,6 +84,8 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
     totalLiters: 0,
     totalArla: 0,
   });
+  const [deleteRequest, setDeleteRequest] = useState<DeleteRequest | null>(null);
+  const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
   const [monthStats, setMonthStats] = useState({
     totalRecords: 0,
     totalLiters: 0,
@@ -187,10 +213,99 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
     }
   };
 
+  // Handle delete request submission
+  const handleDeleteRequest = async () => {
+    if (!deleteRequest) return;
+    
+    setIsSubmittingRequest(true);
+    try {
+      const { error } = await supabase
+        .from('field_record_requests')
+        .insert({
+          record_id: deleteRequest.recordId,
+          request_type: 'delete',
+          requested_by: user.id,
+        });
+
+      if (error) throw error;
+
+      toast.success('Solicitação de exclusão enviada para aprovação do administrador');
+      setDeleteRequest(null);
+    } catch (err) {
+      console.error('Error submitting delete request:', err);
+      toast.error('Erro ao enviar solicitação');
+    } finally {
+      setIsSubmittingRequest(false);
+    }
+  };
+
+  // Refresh records after request
+  const refreshRecords = async () => {
+    const { data: records } = await supabase
+      .from('field_fuel_records')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('record_date', { ascending: false })
+      .order('record_time', { ascending: false })
+      .limit(10);
+
+    if (records) {
+      setUserRecords(records.map(r => ({
+        id: r.id,
+        record_date: r.record_date,
+        record_time: r.record_time,
+        vehicle_code: r.vehicle_code,
+        fuel_quantity: r.fuel_quantity,
+        location: r.location || '',
+        record_type: (r as any).record_type || 'saida',
+      })));
+    }
+  };
+
   return (
     <div className="space-y-4 p-4 pb-24">
-      {/* Welcome Section */}
-      <div className="bg-gradient-to-r from-primary to-primary/80 rounded-xl p-4 text-primary-foreground">
+      {/* Delete Request Dialog */}
+      <AlertDialog open={!!deleteRequest} onOpenChange={() => setDeleteRequest(null)}>
+        <AlertDialogContent className="bg-slate-900 border-amber-600/30">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-white flex items-center gap-2">
+              <AlertCircle className="w-5 h-5 text-amber-500" />
+              Solicitar Exclusão
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-slate-400">
+              Esta ação requer aprovação de um administrador. O registro de <strong className="text-white">{deleteRequest?.vehicleCode}</strong> com <strong className="text-amber-400">{deleteRequest?.quantity}L</strong> será enviado para revisão.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="bg-slate-700 text-white hover:bg-slate-600 border-0">
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleDeleteRequest}
+              disabled={isSubmittingRequest}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {isSubmittingRequest ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Enviando...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Solicitar Exclusão
+                </>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Welcome Section with Logo */}
+      <div className="bg-gradient-to-r from-amber-600 to-orange-600 rounded-xl p-4 text-white">
+        <div className="flex items-center gap-3 mb-2">
+          <img src={logoAbastech} alt="Abastech" className="h-10 w-auto" />
+        </div>
         <h2 className="text-lg font-bold">Olá, {user.name}!</h2>
         <p className="text-sm opacity-90">
           {user.assigned_locations?.length === 1 
@@ -203,7 +318,7 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
       {/* Quick Action Button */}
       <Button 
         onClick={onNavigateToForm}
-        className="w-full h-16 text-lg gap-3 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700"
+        className="w-full h-16 text-lg gap-3 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-lg"
       >
         <Fuel className="w-6 h-6" />
         Novo Apontamento
@@ -212,21 +327,21 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
 
       {/* Today Stats */}
       <div className="grid grid-cols-3 gap-3">
-        <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white border-0">
+        <Card className="bg-gradient-to-br from-amber-500 to-orange-500 text-white border-0 shadow-lg">
           <CardContent className="p-3 text-center">
             <FileText className="w-5 h-5 mx-auto mb-1 opacity-80" />
             <p className="text-2xl font-bold">{todayStats.totalRecords}</p>
             <p className="text-xs opacity-80">Hoje</p>
           </CardContent>
         </Card>
-        <Card className="bg-gradient-to-br from-green-500 to-green-600 text-white border-0">
+        <Card className="bg-gradient-to-br from-green-500 to-green-600 text-white border-0 shadow-lg">
           <CardContent className="p-3 text-center">
             <Fuel className="w-5 h-5 mx-auto mb-1 opacity-80" />
             <p className="text-2xl font-bold">{todayStats.totalLiters.toLocaleString('pt-BR')}</p>
             <p className="text-xs opacity-80">Litros</p>
           </CardContent>
         </Card>
-        <Card className="bg-gradient-to-br from-yellow-500 to-yellow-600 text-white border-0">
+        <Card className="bg-gradient-to-br from-slate-600 to-slate-700 text-white border-0 shadow-lg">
           <CardContent className="p-3 text-center">
             <Package className="w-5 h-5 mx-auto mb-1 opacity-80" />
             <p className="text-2xl font-bold">{todayStats.totalArla.toLocaleString('pt-BR')}</p>
@@ -236,22 +351,22 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
       </div>
 
       {/* Month Summary */}
-      <Card>
+      <Card className="bg-slate-800/50 border-slate-700">
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm flex items-center gap-2">
-            <Calendar className="w-4 h-4" />
+          <CardTitle className="text-sm flex items-center gap-2 text-slate-200">
+            <Calendar className="w-4 h-4 text-amber-400" />
             Resumo do Mês
           </CardTitle>
         </CardHeader>
         <CardContent className="pt-0">
           <div className="flex justify-between items-center">
             <div>
-              <p className="text-2xl font-bold text-primary">{monthStats.totalRecords}</p>
-              <p className="text-xs text-muted-foreground">Apontamentos</p>
+              <p className="text-2xl font-bold text-amber-400">{monthStats.totalRecords}</p>
+              <p className="text-xs text-slate-400">Apontamentos</p>
             </div>
             <div className="text-right">
-              <p className="text-2xl font-bold text-primary">{monthStats.totalLiters.toLocaleString('pt-BR')}</p>
-              <p className="text-xs text-muted-foreground">Litros totais</p>
+              <p className="text-2xl font-bold text-amber-400">{monthStats.totalLiters.toLocaleString('pt-BR')}</p>
+              <p className="text-xs text-slate-400">Litros totais</p>
             </div>
           </div>
         </CardContent>
@@ -259,36 +374,36 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
 
       {/* Stock by Location */}
       {stockByLocation.length > 0 && (
-        <Card>
+        <Card className="bg-slate-800/50 border-slate-700">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2">
-              <BarChart3 className="w-4 h-4" />
+            <CardTitle className="text-sm flex items-center gap-2 text-slate-200">
+              <BarChart3 className="w-4 h-4 text-amber-400" />
               Movimentação por Local
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-0 space-y-3">
             {stockByLocation.map((stock) => (
-              <div key={stock.location} className="bg-muted/50 rounded-lg p-3">
+              <div key={stock.location} className="bg-slate-700/50 rounded-lg p-3">
                 <div className="flex items-center gap-2 mb-2">
-                  <MapPin className="w-4 h-4 text-primary" />
-                  <span className="font-medium text-sm">{stock.location}</span>
+                  <MapPin className="w-4 h-4 text-amber-400" />
+                  <span className="font-medium text-sm text-slate-200">{stock.location}</span>
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-sm">
-                  <div className="flex items-center justify-between bg-green-100 dark:bg-green-900/30 rounded p-2">
-                    <span className="text-green-700 dark:text-green-400 flex items-center gap-1">
+                  <div className="flex items-center justify-between bg-green-900/30 rounded p-2">
+                    <span className="text-green-400 flex items-center gap-1">
                       <TrendingUp className="w-3 h-3" />
                       Entradas
                     </span>
-                    <span className="font-bold text-green-700 dark:text-green-400">
+                    <span className="font-bold text-green-400">
                       {stock.entradas.toLocaleString('pt-BR')}L
                     </span>
                   </div>
-                  <div className="flex items-center justify-between bg-red-100 dark:bg-red-900/30 rounded p-2">
-                    <span className="text-red-700 dark:text-red-400 flex items-center gap-1">
+                  <div className="flex items-center justify-between bg-red-900/30 rounded p-2">
+                    <span className="text-red-400 flex items-center gap-1">
                       <TrendingDown className="w-3 h-3" />
                       Saídas
                     </span>
-                    <span className="font-bold text-red-700 dark:text-red-400">
+                    <span className="font-bold text-red-400">
                       {stock.saidas.toLocaleString('pt-BR')}L
                     </span>
                   </div>
@@ -299,21 +414,21 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
         </Card>
       )}
 
-      {/* Recent Records */}
-      <Card>
+      {/* Recent Records with Edit/Delete options */}
+      <Card className="bg-slate-800/50 border-slate-700">
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm flex items-center gap-2">
-            <Clock className="w-4 h-4" />
+          <CardTitle className="text-sm flex items-center gap-2 text-slate-200">
+            <Clock className="w-4 h-4 text-amber-400" />
             Últimos Registros
           </CardTitle>
         </CardHeader>
         <CardContent className="pt-0">
           {isLoading ? (
-            <div className="text-center py-4 text-muted-foreground">
+            <div className="text-center py-4 text-slate-400">
               Carregando...
             </div>
           ) : userRecords.length === 0 ? (
-            <div className="text-center py-4 text-muted-foreground">
+            <div className="text-center py-4 text-slate-400">
               Nenhum registro encontrado
             </div>
           ) : (
@@ -322,29 +437,43 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
                 <div 
                   key={record.id} 
                   className={cn(
-                    "flex items-center justify-between p-2 rounded-lg border",
+                    "flex items-center justify-between p-3 rounded-lg border",
                     record.record_type === 'entrada' 
-                      ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800"
-                      : "bg-muted/50 border-border"
+                      ? "bg-green-900/20 border-green-800"
+                      : "bg-slate-700/50 border-slate-600"
                   )}
                 >
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-1">
                     {record.record_type === 'entrada' ? (
-                      <TrendingUp className="w-4 h-4 text-green-600" />
+                      <TrendingUp className="w-4 h-4 text-green-400" />
                     ) : (
-                      <Truck className="w-4 h-4 text-muted-foreground" />
+                      <Truck className="w-4 h-4 text-amber-400" />
                     )}
                     <div>
-                      <p className="text-sm font-medium">{record.vehicle_code}</p>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-sm font-medium text-slate-200">{record.vehicle_code}</p>
+                      <p className="text-xs text-slate-400">
                         {formatDate(record.record_date)} {record.record_time}
                       </p>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-sm font-bold">{record.fuel_quantity}L</p>
-                    <p className="text-xs text-muted-foreground">{record.location}</p>
+                  <div className="text-right mr-3">
+                    <p className="text-sm font-bold text-amber-400">{record.fuel_quantity}L</p>
+                    <p className="text-xs text-slate-400">{record.location}</p>
                   </div>
+                  {/* Delete button - requires admin approval */}
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8 text-slate-400 hover:text-red-400 hover:bg-red-900/30"
+                    onClick={() => setDeleteRequest({
+                      recordId: record.id,
+                      vehicleCode: record.vehicle_code,
+                      quantity: record.fuel_quantity,
+                    })}
+                    title="Solicitar exclusão"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
                 </div>
               ))}
             </div>
