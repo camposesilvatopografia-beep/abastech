@@ -440,6 +440,7 @@ export type Database = {
           estimated_hours: number | null
           horimeter_current: number | null
           id: string
+          interval_days: number | null
           km_current: number | null
           labor_cost: number | null
           mechanic_id: string | null
@@ -473,6 +474,7 @@ export type Database = {
           estimated_hours?: number | null
           horimeter_current?: number | null
           id?: string
+          interval_days?: number | null
           km_current?: number | null
           labor_cost?: number | null
           mechanic_id?: string | null
@@ -506,6 +508,7 @@ export type Database = {
           estimated_hours?: number | null
           horimeter_current?: number | null
           id?: string
+          interval_days?: number | null
           km_current?: number | null
           labor_cost?: number | null
           mechanic_id?: string | null

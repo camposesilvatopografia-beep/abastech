@@ -60,7 +60,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
-import { format, startOfDay, endOfDay, isWithinInterval, subDays, startOfMonth, parse } from 'date-fns';
+import { format, startOfDay, endOfDay, isWithinInterval, subDays, startOfMonth, parse, addDays, differenceInDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -175,6 +175,7 @@ export function ManutencaoPage() {
     km_current: '',
     entry_date: '',
     entry_time: '',
+    interval_days: '90', // Default 90 days for preventive maintenance
   });
 
   // Fetch service orders
@@ -653,6 +654,7 @@ export function ManutencaoPage() {
       km_current: '',
       entry_date: format(now, 'yyyy-MM-dd'),
       entry_time: format(now, 'HH:mm'),
+      interval_days: '90',
     });
     setIsModalOpen(true);
   };
@@ -691,6 +693,7 @@ export function ManutencaoPage() {
       km_current: (order as any).km_current?.toString() || '',
       entry_date: (order as any).entry_date || '',
       entry_time: (order as any).entry_time || '',
+      interval_days: (order as any).interval_days?.toString() || '90',
     });
     fetchVehicleHistory(order.vehicle_code);
     setIsModalOpen(true);
@@ -732,6 +735,7 @@ export function ManutencaoPage() {
         km_current: parseFloat(formData.km_current) || null,
         entry_date: formData.entry_date || null,
         entry_time: formData.entry_time || null,
+        interval_days: formData.order_type === 'Preventiva' ? (parseInt(formData.interval_days) || 90) : null,
       };
 
       let savedOrderNumber = '';
@@ -886,6 +890,29 @@ export function ManutencaoPage() {
       
       toast.success(`Status alterado para ${status}!`);
       fetchOrders();
+      
+      // If preventive OS is finalized, schedule next maintenance in calendar
+      if (status === 'Finalizada' && order.order_type === 'Preventiva') {
+        const intervalDays = (order as any).interval_days || 90;
+        const endDate = exitDateTime?.date ? new Date(exitDateTime.date) : new Date();
+        const nextDate = addDays(endDate, intervalDays);
+        
+        await supabase
+          .from('scheduled_maintenance')
+          .insert({
+            vehicle_code: order.vehicle_code,
+            vehicle_description: order.vehicle_description,
+            title: order.problem_description?.slice(0, 100) || 'Revisão Preventiva',
+            description: `Próxima revisão após OS ${order.order_number}`,
+            scheduled_date: format(nextDate, 'yyyy-MM-dd'),
+            interval_days: intervalDays,
+            priority: order.priority,
+            status: 'Programada',
+            maintenance_type: 'Preventiva',
+          });
+        
+        toast.success(`Próxima revisão agendada para ${format(nextDate, 'dd/MM/yyyy')}`);
+      }
       
       // Sync to sheet
       syncOrderToSheet({
@@ -1553,9 +1580,28 @@ export function ManutencaoPage() {
                         <TableCell>{format(new Date(row.order_date), 'dd/MM/yyyy')}</TableCell>
                         <TableCell className="font-medium">{row.vehicle_code}</TableCell>
                         <TableCell>
-                          <Badge variant={row.order_type === 'Preventiva' ? 'default' : 'secondary'}>
-                            {row.order_type}
-                          </Badge>
+                          <div className="flex flex-col gap-0.5">
+                            <Badge variant={row.order_type === 'Preventiva' ? 'default' : 'secondary'}>
+                              {row.order_type}
+                            </Badge>
+                            {/* Next revision date for preventive */}
+                            {row.order_type === 'Preventiva' && isFinished && (row as any).interval_days && (
+                              (() => {
+                                const endDate = row.end_date ? new Date(row.end_date) : new Date(row.order_date);
+                                const nextDate = addDays(endDate, (row as any).interval_days);
+                                const daysUntil = differenceInDays(nextDate, new Date());
+                                return (
+                                  <span className={cn(
+                                    "text-[10px] font-medium",
+                                    daysUntil <= 7 ? "text-red-600" : daysUntil <= 30 ? "text-amber-600" : "text-green-600"
+                                  )}>
+                                    🔄 {format(nextDate, 'dd/MM')}
+                                    {daysUntil <= 0 ? ' (vencida)' : ` (${daysUntil}d)`}
+                                  </span>
+                                );
+                              })()
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell className="hidden md:table-cell max-w-[200px] truncate">
                           {row.problem_description || '-'}
@@ -1716,6 +1762,51 @@ export function ManutencaoPage() {
                 </Select>
               </div>
             </div>
+
+            {/* Interval Days for Preventive Maintenance */}
+            {formData.order_type === 'Preventiva' && (
+              <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <CalendarDays className="w-4 h-4 text-blue-600" />
+                  <span className="font-medium text-blue-700 dark:text-blue-300">Programação de Revisão</span>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Intervalo (dias)</Label>
+                    <Select 
+                      value={formData.interval_days} 
+                      onValueChange={(v) => setFormData({ ...formData, interval_days: v })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="30">30 dias</SelectItem>
+                        <SelectItem value="60">60 dias</SelectItem>
+                        <SelectItem value="90">90 dias</SelectItem>
+                        <SelectItem value="120">120 dias</SelectItem>
+                        <SelectItem value="180">180 dias (6 meses)</SelectItem>
+                        <SelectItem value="365">365 dias (1 ano)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Próxima Revisão</Label>
+                    <div className="h-10 px-3 py-2 bg-white dark:bg-slate-800 border border-input rounded-md flex items-center">
+                      <span className="text-sm font-medium">
+                        {formData.entry_date 
+                          ? format(addDays(new Date(formData.entry_date), parseInt(formData.interval_days) || 90), 'dd/MM/yyyy')
+                          : format(addDays(new Date(), parseInt(formData.interval_days) || 90), 'dd/MM/yyyy')
+                        }
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <p className="text-xs text-blue-600 dark:text-blue-400 mt-2">
+                  A próxima revisão será agendada automaticamente no Calendário de Manutenções ao finalizar esta OS.
+                </p>
+              </div>
+            )}
 
             {/* Vehicle History - shown when vehicle is selected */}
             {vehicleHistory && formData.vehicle_code && (
