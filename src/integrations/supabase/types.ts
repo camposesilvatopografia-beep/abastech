@@ -503,6 +503,7 @@ export type Database = {
           description: string | null
           id: string
           name: string
+          status: string | null
           unit: string | null
           updated_at: string
         }
@@ -514,6 +515,7 @@ export type Database = {
           description?: string | null
           id?: string
           name: string
+          status?: string | null
           unit?: string | null
           updated_at?: string
         }
@@ -525,6 +527,7 @@ export type Database = {
           description?: string | null
           id?: string
           name?: string
+          status?: string | null
           unit?: string | null
           updated_at?: string
         }

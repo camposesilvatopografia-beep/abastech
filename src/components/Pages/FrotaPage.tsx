@@ -44,6 +44,12 @@ import * as XLSX from 'xlsx';
 
 const SHEET_NAME = 'Veiculo';
 
+const STATUS_LABELS: Record<string, { label: string; color: string }> = {
+  ativo: { label: 'Ativo', color: 'bg-emerald-100 text-emerald-700 border-emerald-300' },
+  inativo: { label: 'Inativo', color: 'bg-gray-100 text-gray-700 border-gray-300' },
+  manutencao: { label: 'Manutenção', color: 'bg-amber-100 text-amber-700 border-amber-300' },
+};
+
 interface VehicleGroup {
   name: string;
   empresas: number;
@@ -53,6 +59,7 @@ interface VehicleGroup {
     descricao: string;
     empresa: string;
     categoria: string;
+    status: string;
   }>;
 }
 
@@ -68,6 +75,7 @@ export function FrotaPage() {
   const [search, setSearch] = useState('');
   const [empresaFilter, setEmpresaFilter] = useState('all');
   const [descricaoFilter, setDescricaoFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [groupBy, setGroupBy] = useState<'categoria' | 'empresa' | 'descricao'>('categoria');
   const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
@@ -99,23 +107,30 @@ export function FrotaPage() {
 
       const empresaValue = getRowValue(row as any, ['EMPRESA', 'Empresa', 'empresa']);
       const descricaoValue = getRowValue(row as any, ['DESCRICAO', 'DESCRIÇÃO', 'Descricao', 'descrição', 'descricao']);
+      const statusValue = getRowValue(row as any, ['STATUS', 'Status', 'status']) || 'ativo';
 
       const matchesEmpresa = empresaFilter === 'all' || empresaValue === empresaFilter;
       const matchesDescricao = descricaoFilter === 'all' || descricaoValue === descricaoFilter;
+      const matchesStatus = statusFilter === 'all' || statusValue.toLowerCase() === statusFilter;
 
-      return matchesSearch && matchesEmpresa && matchesDescricao;
+      return matchesSearch && matchesEmpresa && matchesDescricao && matchesStatus;
     });
-  }, [data.rows, search, empresaFilter, descricaoFilter]);
+  }, [data.rows, search, empresaFilter, descricaoFilter, statusFilter]);
 
   const metrics = useMemo(() => {
     const empresasSet = new Set<string>();
     const categorias = new Set<string>();
     let equipamentos = 0;
     let veiculos = 0;
+    let ativos = 0;
+    let inativos = 0;
+    let emManutencao = 0;
     
     filteredRows.forEach(row => {
       const empresa = getRowValue(row as any, ['EMPRESA', 'Empresa', 'empresa']).trim();
       const categoria = getRowValue(row as any, ['CATEGORIA', 'Categoria', 'categoria', 'TIPO', 'Tipo', 'tipo']).trim().toLowerCase();
+      const status = (getRowValue(row as any, ['STATUS', 'Status', 'status']) || 'ativo').toLowerCase();
+      
       if (empresa) empresasSet.add(empresa);
       if (categoria) categorias.add(categoria);
       
@@ -124,6 +139,10 @@ export function FrotaPage() {
       } else {
         veiculos++;
       }
+      
+      if (status === 'ativo') ativos++;
+      else if (status === 'inativo') inativos++;
+      else if (status === 'manutencao') emManutencao++;
     });
 
     return {
@@ -131,7 +150,10 @@ export function FrotaPage() {
       equipamentos,
       veiculos,
       empresas: empresasSet.size,
-      categorias: categorias.size
+      categorias: categorias.size,
+      ativos,
+      inativos,
+      emManutencao
     };
   }, [filteredRows]);
 
@@ -143,6 +165,7 @@ export function FrotaPage() {
       const empresa = getRowValue(row as any, ['EMPRESA', 'Empresa', 'empresa']) || 'Não informada';
       const codigo = getRowValue(row as any, ['CODIGO', 'Codigo', 'codigo', 'VEICULO', 'Veiculo', 'veiculo']);
       const descricao = getRowValue(row as any, ['DESCRICAO', 'DESCRIÇÃO', 'Descricao', 'descrição', 'descricao']) || 'Sem descrição';
+      const status = getRowValue(row as any, ['STATUS', 'Status', 'status']) || 'ativo';
 
       let groupKey: string;
       switch (groupBy) {
@@ -163,7 +186,7 @@ export function FrotaPage() {
       }
 
       groups[groupKey].veiculos++;
-      groups[groupKey].items.push({ codigo, descricao, empresa, categoria });
+      groups[groupKey].items.push({ codigo, descricao, empresa, categoria, status });
     });
 
     Object.values(groups).forEach(group => {
@@ -245,11 +268,12 @@ export function FrotaPage() {
         item.codigo,
         item.descricao,
         item.categoria,
-        item.empresa
+        item.empresa,
+        STATUS_LABELS[item.status?.toLowerCase() || 'ativo']?.label || 'Ativo'
       ]);
 
       autoTable(doc, {
-        head: [['Código', 'Descrição', 'Categoria', 'Empresa']],
+        head: [['Código', 'Descrição', 'Categoria', 'Empresa', 'Status']],
         body: tableData,
         startY: startY,
         styles: { fontSize: 8, cellPadding: 2 },
@@ -283,11 +307,12 @@ export function FrotaPage() {
       'Descrição': getRowValue(row as any, ['DESCRICAO', 'DESCRIÇÃO', 'Descricao', 'descrição', 'descricao']),
       'Categoria': getRowValue(row as any, ['CATEGORIA', 'Categoria', 'categoria', 'TIPO', 'Tipo', 'tipo']),
       'Empresa': getRowValue(row as any, ['EMPRESA', 'Empresa', 'empresa']),
+      'Status': STATUS_LABELS[(getRowValue(row as any, ['STATUS', 'Status', 'status']) || 'ativo').toLowerCase()]?.label || 'Ativo',
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(excelData);
     worksheet['!cols'] = [
-      { wch: 15 }, { wch: 30 }, { wch: 20 }, { wch: 25 }
+      { wch: 15 }, { wch: 30 }, { wch: 20 }, { wch: 25 }, { wch: 15 }
     ];
 
     const workbook = XLSX.utils.book_new();
@@ -332,52 +357,94 @@ export function FrotaPage() {
         </div>
 
         {/* KPI Cards - Improved Visual */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-          {/* Total Ativos - Blue */}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-4">
+          {/* Total - Blue */}
           <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-4 text-white shadow-lg">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs font-medium text-blue-100 uppercase tracking-wide">TOTAL ATIVOS</p>
+                <p className="text-xs font-medium text-blue-100 uppercase tracking-wide">TOTAL</p>
                 <p className="text-3xl font-bold mt-1">{metrics.totalAtivos}</p>
-                <p className="text-xs text-blue-200 mt-1">Em operação</p>
+                <p className="text-xs text-blue-200 mt-1">Cadastrados</p>
               </div>
-              <Activity className="w-10 h-10 text-blue-200" />
+              <Truck className="w-8 h-8 text-blue-200" />
             </div>
           </div>
 
-          {/* Equipamentos - Amber */}
-          <div className="bg-gradient-to-br from-amber-500 to-amber-600 rounded-xl p-4 text-white shadow-lg">
+          {/* Ativos - Green */}
+          <div 
+            className={cn(
+              "bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-xl p-4 text-white shadow-lg cursor-pointer transition-transform hover:scale-105",
+              statusFilter === 'ativo' && "ring-2 ring-white ring-offset-2 ring-offset-emerald-500"
+            )}
+            onClick={() => setStatusFilter(statusFilter === 'ativo' ? 'all' : 'ativo')}
+          >
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs font-medium text-amber-100 uppercase tracking-wide">EQUIPAMENTOS</p>
+                <p className="text-xs font-medium text-emerald-100 uppercase tracking-wide">ATIVOS</p>
+                <p className="text-3xl font-bold mt-1">{metrics.ativos}</p>
+                <p className="text-xs text-emerald-200 mt-1">Em operação</p>
+              </div>
+              <Activity className="w-8 h-8 text-emerald-200" />
+            </div>
+          </div>
+
+          {/* Inativos - Gray */}
+          <div 
+            className={cn(
+              "bg-gradient-to-br from-gray-400 to-gray-500 rounded-xl p-4 text-white shadow-lg cursor-pointer transition-transform hover:scale-105",
+              statusFilter === 'inativo' && "ring-2 ring-white ring-offset-2 ring-offset-gray-400"
+            )}
+            onClick={() => setStatusFilter(statusFilter === 'inativo' ? 'all' : 'inativo')}
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-gray-100 uppercase tracking-wide">INATIVOS</p>
+                <p className="text-3xl font-bold mt-1">{metrics.inativos}</p>
+                <p className="text-xs text-gray-200 mt-1">Parados</p>
+              </div>
+              <X className="w-8 h-8 text-gray-200" />
+            </div>
+          </div>
+
+          {/* Em Manutenção - Amber */}
+          <div 
+            className={cn(
+              "bg-gradient-to-br from-amber-500 to-amber-600 rounded-xl p-4 text-white shadow-lg cursor-pointer transition-transform hover:scale-105",
+              statusFilter === 'manutencao' && "ring-2 ring-white ring-offset-2 ring-offset-amber-500"
+            )}
+            onClick={() => setStatusFilter(statusFilter === 'manutencao' ? 'all' : 'manutencao')}
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-amber-100 uppercase tracking-wide">MANUTENÇÃO</p>
+                <p className="text-3xl font-bold mt-1">{metrics.emManutencao}</p>
+                <p className="text-xs text-amber-200 mt-1">Em reparo</p>
+              </div>
+              <Cog className="w-8 h-8 text-amber-200" />
+            </div>
+          </div>
+
+          {/* Equipamentos - Teal */}
+          <div className="bg-gradient-to-br from-teal-500 to-teal-600 rounded-xl p-4 text-white shadow-lg">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-teal-100 uppercase tracking-wide">EQUIPAMENTOS</p>
                 <p className="text-3xl font-bold mt-1">{metrics.equipamentos}</p>
-                <p className="text-xs text-amber-200 mt-1">Máquinas</p>
+                <p className="text-xs text-teal-200 mt-1">Máquinas</p>
               </div>
-              <Cog className="w-10 h-10 text-amber-200" />
+              <Settings className="w-8 h-8 text-teal-200" />
             </div>
           </div>
 
-          {/* Veículos - Green */}
-          <div className="bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-xl p-4 text-white shadow-lg">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-medium text-emerald-100 uppercase tracking-wide">VEÍCULOS</p>
-                <p className="text-3xl font-bold mt-1">{metrics.veiculos}</p>
-                <p className="text-xs text-emerald-200 mt-1">Carros/Caminhões</p>
-              </div>
-              <Car className="w-10 h-10 text-emerald-200" />
-            </div>
-          </div>
-
-          {/* Empresas - Purple */}
+          {/* Veículos - Purple */}
           <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl p-4 text-white shadow-lg">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs font-medium text-purple-100 uppercase tracking-wide">EMPRESAS</p>
-                <p className="text-3xl font-bold mt-1">{metrics.empresas}</p>
-                <p className="text-xs text-purple-200 mt-1">Proprietárias</p>
+                <p className="text-xs font-medium text-purple-100 uppercase tracking-wide">VEÍCULOS</p>
+                <p className="text-3xl font-bold mt-1">{metrics.veiculos}</p>
+                <p className="text-xs text-purple-200 mt-1">Carros/Caminhões</p>
               </div>
-              <Building2 className="w-10 h-10 text-purple-200" />
+              <Car className="w-8 h-8 text-purple-200" />
             </div>
           </div>
         </div>
@@ -445,13 +512,30 @@ export function FrotaPage() {
               </Select>
             </div>
 
-            {(empresaFilter !== 'all' || descricaoFilter !== 'all') && (
+            {/* Status Filter */}
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-muted-foreground">Status:</span>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-[150px]">
+                  <SelectValue placeholder="Todos Status" />
+                </SelectTrigger>
+                <SelectContent className="bg-background">
+                  <SelectItem value="all">Todos Status</SelectItem>
+                  <SelectItem value="ativo">Ativo</SelectItem>
+                  <SelectItem value="inativo">Inativo</SelectItem>
+                  <SelectItem value="manutencao">Manutenção</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {(empresaFilter !== 'all' || descricaoFilter !== 'all' || statusFilter !== 'all') && (
               <Button 
                 variant="ghost" 
                 size="sm" 
                 onClick={() => {
                   setEmpresaFilter('all');
                   setDescricaoFilter('all');
+                  setStatusFilter('all');
                 }}
               >
                 <X className="w-4 h-4 mr-1" />
@@ -562,17 +646,26 @@ export function FrotaPage() {
                             <TableHead>Descrição</TableHead>
                             <TableHead>Categoria</TableHead>
                             <TableHead>Empresa</TableHead>
+                            <TableHead>Status</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {group.items.map((item, idx) => (
-                            <TableRow key={idx}>
-                              <TableCell className="font-medium">{item.codigo}</TableCell>
-                              <TableCell>{item.descricao}</TableCell>
-                              <TableCell>{item.categoria}</TableCell>
-                              <TableCell>{item.empresa}</TableCell>
-                            </TableRow>
-                          ))}
+                          {group.items.map((item, idx) => {
+                            const statusInfo = STATUS_LABELS[item.status?.toLowerCase() || 'ativo'] || STATUS_LABELS.ativo;
+                            return (
+                              <TableRow key={idx}>
+                                <TableCell className="font-medium">{item.codigo}</TableCell>
+                                <TableCell>{item.descricao}</TableCell>
+                                <TableCell>{item.categoria}</TableCell>
+                                <TableCell>{item.empresa}</TableCell>
+                                <TableCell>
+                                  <span className={cn("px-2 py-1 rounded-full text-xs font-medium border", statusInfo.color)}>
+                                    {statusInfo.label}
+                                  </span>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
                         </TableBody>
                       </Table>
                     </div>
