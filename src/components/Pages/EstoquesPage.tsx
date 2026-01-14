@@ -15,7 +15,8 @@ import {
   WifiOff,
   Bell,
   BellRing,
-  AlertTriangle
+  AlertTriangle,
+  MessageCircle
 } from 'lucide-react';
 import { useStockAlerts } from '@/hooks/useStockAlerts';
 import { Button } from '@/components/ui/button';
@@ -223,7 +224,7 @@ export function EstoquesPage() {
   }, [geralData.rows, arlaData.rows, filteredRows]);
 
   // Stock alerts with push notifications
-  const { checkNow, getAlertStatus } = useStockAlerts({
+  const { checkNow, alertStatus, shareWhatsApp } = useStockAlerts({
     estoqueDiesel: metrics.estoqueDiesel,
     estoqueArla: metrics.estoqueArla,
   });
@@ -309,16 +310,28 @@ export function EstoquesPage() {
               className="relative"
               title="Verificar alertas de estoque"
             >
-              {(getAlertStatus().diesel !== 'ok' || getAlertStatus().arla !== 'ok') ? (
+              {(alertStatus.diesel !== 'ok' || alertStatus.arla !== 'ok') ? (
                 <BellRing className="w-4 h-4 sm:mr-2 text-amber-500 animate-pulse" />
               ) : (
                 <Bell className="w-4 h-4 sm:mr-2" />
               )}
               <span className="hidden sm:inline">Alertas</span>
-              {(getAlertStatus().diesel === 'critical' || getAlertStatus().arla === 'critical') && (
+              {(alertStatus.diesel === 'critical' || alertStatus.arla === 'critical') && (
                 <span className="absolute -top-1 -right-1 w-3 h-3 bg-destructive rounded-full animate-pulse" />
               )}
             </Button>
+            {(alertStatus.diesel !== 'ok' || alertStatus.arla !== 'ok') && (
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => shareWhatsApp()}
+                title="Enviar alerta via WhatsApp"
+                className="text-green-600 hover:text-green-700 hover:bg-green-50"
+              >
+                <MessageCircle className="w-4 h-4 sm:mr-2" />
+                <span className="hidden sm:inline">WhatsApp</span>
+              </Button>
+            )}
             <Button variant="outline" size="sm" onClick={() => refetch()} disabled={loading}>
               <RefreshCw className={cn("w-4 h-4 sm:mr-2", loading && "animate-spin")} />
               <span className="hidden sm:inline">Atualizar</span>
@@ -464,34 +477,34 @@ export function EstoquesPage() {
         </div>
 
         {/* Stock Alert Banner */}
-        {(getAlertStatus().diesel !== 'ok' || getAlertStatus().arla !== 'ok') && (
+        {(alertStatus.diesel !== 'ok' || alertStatus.arla !== 'ok') && (
           <div className={cn(
             "flex items-center gap-3 p-3 rounded-lg border",
-            getAlertStatus().diesel === 'critical' || getAlertStatus().arla === 'critical'
+            alertStatus.diesel === 'critical' || alertStatus.arla === 'critical'
               ? "bg-destructive/10 border-destructive/30 text-destructive"
               : "bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400"
           )}>
             <AlertTriangle className="w-5 h-5 shrink-0" />
             <div className="flex-1">
               <p className="font-medium text-sm">
-                {getAlertStatus().diesel === 'critical' || getAlertStatus().arla === 'critical'
+                {alertStatus.diesel === 'critical' || alertStatus.arla === 'critical'
                   ? '🚨 Alerta Crítico de Estoque!'
                   : '⚠️ Atenção: Estoque Baixo'}
               </p>
               <p className="text-xs opacity-80">
-                {getAlertStatus().diesel !== 'ok' && `Diesel: ${getAlertStatus().diesel === 'critical' ? 'CRÍTICO' : 'Baixo'}`}
-                {getAlertStatus().diesel !== 'ok' && getAlertStatus().arla !== 'ok' && ' • '}
-                {getAlertStatus().arla !== 'ok' && `ARLA: ${getAlertStatus().arla === 'critical' ? 'CRÍTICO' : 'Baixo'}`}
+                {alertStatus.diesel !== 'ok' && `Diesel: ${alertStatus.diesel === 'critical' ? 'CRÍTICO' : 'Baixo'}`}
+                {alertStatus.diesel !== 'ok' && alertStatus.arla !== 'ok' && ' • '}
+                {alertStatus.arla !== 'ok' && `ARLA: ${alertStatus.arla === 'critical' ? 'CRÍTICO' : 'Baixo'}`}
               </p>
             </div>
             <Button 
               variant="outline" 
               size="sm" 
-              onClick={checkNow}
-              className="shrink-0"
+              onClick={() => shareWhatsApp()}
+              className="shrink-0 text-green-600 hover:text-green-700"
             >
-              <Bell className="w-4 h-4 mr-1" />
-              Notificar
+              <MessageCircle className="w-4 h-4 mr-1" />
+              WhatsApp
             </Button>
           </div>
         )}
@@ -499,40 +512,40 @@ export function EstoquesPage() {
         {/* Main Stock Cards - Responsive Grid */}
         <div className="grid grid-cols-2 gap-3 md:gap-4">
           <div className="relative">
-            {getAlertStatus().diesel !== 'ok' && (
+            {alertStatus.diesel !== 'ok' && (
               <div className={cn(
                 "absolute -top-2 -right-2 z-10 px-2 py-0.5 rounded-full text-xs font-bold",
-                getAlertStatus().diesel === 'critical' 
+                alertStatus.diesel === 'critical' 
                   ? "bg-destructive text-destructive-foreground animate-pulse" 
                   : "bg-amber-500 text-white"
               )}>
-                {getAlertStatus().diesel === 'critical' ? '⚠️ CRÍTICO' : '⚠️ BAIXO'}
+                {alertStatus.diesel === 'critical' ? '⚠️ CRÍTICO' : '⚠️ BAIXO'}
               </div>
             )}
             <MetricCard
               title="ESTOQUE DIESEL"
               value={`${metrics.estoqueDiesel.toLocaleString('pt-BR', { minimumFractionDigits: 1 })} L`}
               subtitle="Disponível"
-              variant={getAlertStatus().diesel === 'critical' ? 'red' : getAlertStatus().diesel === 'warning' ? 'yellow' : 'blue'}
+              variant={alertStatus.diesel === 'critical' ? 'red' : alertStatus.diesel === 'warning' ? 'yellow' : 'blue'}
               icon={Fuel}
             />
           </div>
           <div className="relative">
-            {getAlertStatus().arla !== 'ok' && (
+            {alertStatus.arla !== 'ok' && (
               <div className={cn(
                 "absolute -top-2 -right-2 z-10 px-2 py-0.5 rounded-full text-xs font-bold",
-                getAlertStatus().arla === 'critical' 
+                alertStatus.arla === 'critical' 
                   ? "bg-destructive text-destructive-foreground animate-pulse" 
                   : "bg-amber-500 text-white"
               )}>
-                {getAlertStatus().arla === 'critical' ? '⚠️ CRÍTICO' : '⚠️ BAIXO'}
+                {alertStatus.arla === 'critical' ? '⚠️ CRÍTICO' : '⚠️ BAIXO'}
               </div>
             )}
             <MetricCard
               title="ESTOQUE ARLA"
               value={`${metrics.estoqueArla.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L`}
               subtitle="Disponível"
-              variant={getAlertStatus().arla === 'critical' ? 'red' : 'yellow'}
+              variant={alertStatus.arla === 'critical' ? 'red' : 'yellow'}
               icon={Droplet}
             />
           </div>

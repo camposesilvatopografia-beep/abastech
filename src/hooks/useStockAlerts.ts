@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState, useMemo } from 'react';
 import { toast } from 'sonner';
 
 interface StockLevels {
@@ -11,6 +11,13 @@ interface StockAlertConfig {
   dieselWarning: number;
   arlaCritical: number;
   arlaWarning: number;
+}
+
+export type AlertLevel = 'critical' | 'warning' | 'ok';
+
+interface AlertStatus {
+  diesel: AlertLevel;
+  arla: AlertLevel;
 }
 
 const DEFAULT_CONFIG: StockAlertConfig = {
@@ -65,26 +72,101 @@ function sendPushNotification(title: string, body: string, icon?: string) {
   }
 }
 
+// Generate WhatsApp message for stock alert
+export function generateWhatsAppStockAlert(
+  estoqueDiesel: number,
+  estoqueArla: number,
+  alertStatus: AlertStatus
+): string {
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('pt-BR');
+  const timeStr = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  
+  let message = `🚨 *ALERTA DE ESTOQUE CRÍTICO*\n`;
+  message += `📅 ${dateStr} às ${timeStr}\n\n`;
+  
+  if (alertStatus.diesel === 'critical') {
+    message += `⛽ *DIESEL: ${estoqueDiesel.toLocaleString('pt-BR')}L*\n`;
+    message += `❗ NÍVEL CRÍTICO - Abastecer URGENTE!\n\n`;
+  } else if (alertStatus.diesel === 'warning') {
+    message += `⛽ Diesel: ${estoqueDiesel.toLocaleString('pt-BR')}L\n`;
+    message += `⚠️ Nível baixo - Planejar reposição\n\n`;
+  } else {
+    message += `⛽ Diesel: ${estoqueDiesel.toLocaleString('pt-BR')}L ✅\n\n`;
+  }
+  
+  if (alertStatus.arla === 'critical') {
+    message += `💧 *ARLA: ${estoqueArla.toLocaleString('pt-BR')}L*\n`;
+    message += `❗ NÍVEL CRÍTICO - Abastecer URGENTE!\n\n`;
+  } else if (alertStatus.arla === 'warning') {
+    message += `💧 Arla: ${estoqueArla.toLocaleString('pt-BR')}L\n`;
+    message += `⚠️ Nível baixo - Planejar reposição\n\n`;
+  } else {
+    message += `💧 Arla: ${estoqueArla.toLocaleString('pt-BR')}L ✅\n\n`;
+  }
+  
+  message += `_Enviado via Abastech_`;
+  
+  return message;
+}
+
+// Open WhatsApp with stock alert message
+export function shareStockAlertWhatsApp(
+  estoqueDiesel: number,
+  estoqueArla: number,
+  alertStatus: AlertStatus,
+  phoneNumber?: string
+) {
+  const message = generateWhatsAppStockAlert(estoqueDiesel, estoqueArla, alertStatus);
+  const encodedMessage = encodeURIComponent(message);
+  
+  const url = phoneNumber 
+    ? `https://wa.me/${phoneNumber.replace(/\D/g, '')}?text=${encodedMessage}`
+    : `https://wa.me/?text=${encodedMessage}`;
+  
+  window.open(url, '_blank');
+}
+
 export function useStockAlerts(
   stockLevels: StockLevels,
   config: StockAlertConfig = DEFAULT_CONFIG
 ) {
   const lastAlertRef = useRef<{ diesel?: string; arla?: string }>({});
-  const hasPermissionRef = useRef<boolean>(false);
+  const [hasPermission, setHasPermission] = useState(false);
   const initRef = useRef<boolean>(false);
+
+  // Calculate alert status based on current stock levels
+  const alertStatus = useMemo((): AlertStatus => {
+    const { estoqueDiesel, estoqueArla } = stockLevels;
+    
+    return {
+      diesel: estoqueDiesel > 0 && estoqueDiesel <= config.dieselCritical 
+        ? 'critical' 
+        : estoqueDiesel > 0 && estoqueDiesel <= config.dieselWarning 
+          ? 'warning' 
+          : 'ok',
+      arla: estoqueArla > 0 && estoqueArla <= config.arlaCritical 
+        ? 'critical' 
+        : estoqueArla > 0 && estoqueArla <= config.arlaWarning 
+          ? 'warning' 
+          : 'ok',
+    };
+  }, [stockLevels.estoqueDiesel, stockLevels.estoqueArla, config]);
 
   // Initialize notification permission
   useEffect(() => {
     if (!initRef.current) {
       initRef.current = true;
       requestNotificationPermission().then((granted) => {
-        hasPermissionRef.current = granted;
+        setHasPermission(granted);
         if (!granted && 'Notification' in window) {
           toast.info('Ative as notificações para receber alertas de estoque', {
             duration: 5000,
             action: {
               label: 'Ativar',
-              onClick: () => requestNotificationPermission(),
+              onClick: () => {
+                requestNotificationPermission().then(setHasPermission);
+              },
             },
           });
         }
@@ -93,7 +175,7 @@ export function useStockAlerts(
   }, []);
 
   // Check stock levels and trigger alerts
-  const checkStockLevels = useCallback(() => {
+  const triggerAlerts = useCallback(() => {
     const { estoqueDiesel, estoqueArla } = stockLevels;
 
     // Check Diesel stock
@@ -127,7 +209,6 @@ export function useStockAlerts(
         );
         
       } else if (estoqueDiesel > config.dieselWarning && lastAlertRef.current.diesel) {
-        // Stock recovered, reset alert state
         lastAlertRef.current.diesel = undefined;
       }
     }
@@ -163,7 +244,6 @@ export function useStockAlerts(
         );
         
       } else if (estoqueArla > config.arlaWarning && lastAlertRef.current.arla) {
-        // Stock recovered, reset alert state
         lastAlertRef.current.arla = undefined;
       }
     }
@@ -172,40 +252,32 @@ export function useStockAlerts(
   // Check levels whenever they change
   useEffect(() => {
     if (stockLevels.estoqueDiesel > 0 || stockLevels.estoqueArla > 0) {
-      checkStockLevels();
+      triggerAlerts();
     }
-  }, [stockLevels.estoqueDiesel, stockLevels.estoqueArla, checkStockLevels]);
+  }, [stockLevels.estoqueDiesel, stockLevels.estoqueArla, triggerAlerts]);
 
-  // Manual check function
+  // Manual check function - re-triggers alerts
   const checkNow = useCallback(() => {
-    // Reset alert states to allow re-triggering
     lastAlertRef.current = {};
-    checkStockLevels();
+    triggerAlerts();
     toast.success('Verificação de estoque realizada');
-  }, [checkStockLevels]);
+  }, [triggerAlerts]);
 
-  // Get current alert status
-  const getAlertStatus = useCallback(() => {
-    const { estoqueDiesel, estoqueArla } = stockLevels;
-    
-    return {
-      diesel: estoqueDiesel <= config.dieselCritical 
-        ? 'critical' 
-        : estoqueDiesel <= config.dieselWarning 
-          ? 'warning' 
-          : 'ok',
-      arla: estoqueArla <= config.arlaCritical 
-        ? 'critical' 
-        : estoqueArla <= config.arlaWarning 
-          ? 'warning' 
-          : 'ok',
-    };
-  }, [stockLevels, config]);
+  // Share via WhatsApp
+  const shareWhatsApp = useCallback((phoneNumber?: string) => {
+    shareStockAlertWhatsApp(
+      stockLevels.estoqueDiesel,
+      stockLevels.estoqueArla,
+      alertStatus,
+      phoneNumber
+    );
+  }, [stockLevels, alertStatus]);
 
   return {
     checkNow,
-    getAlertStatus,
-    hasPermission: hasPermissionRef.current,
+    alertStatus,
+    hasPermission,
     requestPermission: requestNotificationPermission,
+    shareWhatsApp,
   };
 }
