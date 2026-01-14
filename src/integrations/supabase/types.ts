@@ -494,6 +494,45 @@ export type Database = {
         }
         Relationships: []
       }
+      system_users: {
+        Row: {
+          active: boolean | null
+          created_at: string | null
+          email: string | null
+          id: string
+          last_login: string | null
+          name: string
+          password_hash: string
+          role: Database["public"]["Enums"]["system_user_role"] | null
+          updated_at: string | null
+          username: string
+        }
+        Insert: {
+          active?: boolean | null
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          last_login?: string | null
+          name: string
+          password_hash: string
+          role?: Database["public"]["Enums"]["system_user_role"] | null
+          updated_at?: string | null
+          username: string
+        }
+        Update: {
+          active?: boolean | null
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          last_login?: string | null
+          name?: string
+          password_hash?: string
+          role?: Database["public"]["Enums"]["system_user_role"] | null
+          updated_at?: string | null
+          username?: string
+        }
+        Relationships: []
+      }
       vehicles: {
         Row: {
           category: string | null
@@ -541,7 +580,7 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      system_user_role: "admin" | "supervisor" | "operador"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -668,6 +707,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      system_user_role: ["admin", "supervisor", "operador"],
+    },
   },
 } as const

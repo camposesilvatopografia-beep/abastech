@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, 
   Fuel, 
@@ -19,7 +19,7 @@ import {
   Code2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import logoAbastech from '@/assets/logo-abastech.png';
 
 interface MenuItem {
@@ -27,6 +27,13 @@ interface MenuItem {
   label: string;
   icon: React.ElementType;
   children?: { id: string; label: string }[];
+}
+
+interface AuthUser {
+  id: string;
+  username: string;
+  name: string;
+  role: string;
 }
 
 const menuItems: MenuItem[] = [
@@ -61,6 +68,24 @@ interface SidebarProps {
 
 export function Sidebar({ activeItem, onItemClick, onClose }: SidebarProps) {
   const [expandedItems, setExpandedItems] = useState<string[]>(['cadastros']);
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const stored = localStorage.getItem('abastech_user');
+    if (stored) {
+      try {
+        setCurrentUser(JSON.parse(stored));
+      } catch {
+        setCurrentUser(null);
+      }
+    }
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem('abastech_user');
+    navigate('/login');
+  };
 
   const toggleExpand = (id: string) => {
     setExpandedItems(prev => 
@@ -160,10 +185,18 @@ export function Sidebar({ activeItem, onItemClick, onClose }: SidebarProps) {
             <User className="w-5 h-5 text-sidebar-foreground" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-sidebar-foreground truncate">Jean</p>
-            <p className="text-xs text-sidebar-muted truncate">Administrador Pri...</p>
+            <p className="text-sm font-medium text-sidebar-foreground truncate">
+              {currentUser?.name || 'Usuário'}
+            </p>
+            <p className="text-xs text-sidebar-muted truncate capitalize">
+              {currentUser?.role || 'Operador'}
+            </p>
           </div>
-          <button className="p-1 hover:bg-sidebar-accent rounded">
+          <button 
+            onClick={handleLogout}
+            className="p-1 hover:bg-sidebar-accent rounded"
+            title="Sair"
+          >
             <LogOut className="w-4 h-4 text-sidebar-muted" />
           </button>
         </div>

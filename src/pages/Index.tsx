@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Sidebar } from '@/components/Layout/Sidebar';
 import { TopBar } from '@/components/Layout/TopBar';
 import { DashboardContent } from '@/components/Dashboard/DashboardContent';
@@ -22,6 +23,31 @@ const Index = () => {
   const [activeItem, setActiveItem] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const isMobile = useIsMobile();
+  const navigate = useNavigate();
+
+  // Check authentication on mount
+  useEffect(() => {
+    const stored = localStorage.getItem('abastech_user');
+    if (!stored) {
+      navigate('/login');
+      return;
+    }
+    
+    try {
+      const userData = JSON.parse(stored);
+      const loginTime = new Date(userData.loginAt).getTime();
+      const now = Date.now();
+      const hoursElapsed = (now - loginTime) / (1000 * 60 * 60);
+      
+      if (hoursElapsed > 24) {
+        localStorage.removeItem('abastech_user');
+        navigate('/login');
+      }
+    } catch {
+      localStorage.removeItem('abastech_user');
+      navigate('/login');
+    }
+  }, [navigate]);
 
   const renderContent = () => {
     switch (activeItem) {
