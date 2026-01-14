@@ -13,6 +13,8 @@ import {
   Trash2,
   X,
   Save,
+  MessageCircle,
+  Share2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -307,6 +309,44 @@ export function MaintenanceCalendarPage() {
     }
   };
 
+  // Share upcoming maintenances via WhatsApp
+  const handleShareWhatsApp = () => {
+    const now = new Date();
+    const upcoming = maintenances.filter(m => {
+      const date = new Date(m.scheduled_date);
+      const daysUntil = differenceInDays(date, now);
+      return daysUntil >= 0 && daysUntil <= 7 && m.status === 'Programada';
+    });
+
+    if (upcoming.length === 0) {
+      toast.info('Nenhuma manutenção preventiva nos próximos 7 dias');
+      return;
+    }
+
+    let message = `🔧 *MANUTENÇÕES PREVENTIVAS - Próximos 7 dias*\n`;
+    message += `📅 Gerado em: ${format(now, 'dd/MM/yyyy HH:mm', { locale: ptBR })}\n\n`;
+
+    upcoming.forEach((m, index) => {
+      const date = new Date(m.scheduled_date);
+      const daysUntil = differenceInDays(date, now);
+      const urgencyEmoji = daysUntil <= 2 ? '🔴' : daysUntil <= 5 ? '🟡' : '🟢';
+      
+      message += `${urgencyEmoji} *${m.vehicle_code}* - ${m.title}\n`;
+      message += `   📆 ${format(date, 'dd/MM/yyyy', { locale: ptBR })}`;
+      message += daysUntil === 0 ? ' (HOJE!)' : daysUntil === 1 ? ' (AMANHÃ)' : ` (${daysUntil} dias)`;
+      message += `\n`;
+      if (m.description) {
+        message += `   📝 ${m.description}\n`;
+      }
+      if (index < upcoming.length - 1) message += '\n';
+    });
+
+    message += `\n📊 Total: ${upcoming.length} manutenção(ões) programada(s)`;
+
+    const encodedMessage = encodeURIComponent(message);
+    window.open(`https://wa.me/?text=${encodedMessage}`, '_blank');
+  };
+
   // Calculate stats
   const stats = useMemo(() => {
     const now = new Date();
@@ -350,6 +390,15 @@ export function MaintenanceCalendarPage() {
           </div>
           
           <div className="flex flex-wrap items-center gap-2">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handleShareWhatsApp}
+              className="bg-green-50 hover:bg-green-100 text-green-700 border-green-200"
+            >
+              <MessageCircle className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">WhatsApp</span>
+            </Button>
             <Button variant="outline" size="sm" onClick={fetchMaintenances} disabled={loading}>
               <RefreshCw className={cn("w-4 h-4 sm:mr-2", loading && "animate-spin")} />
               <span className="hidden sm:inline">Atualizar</span>
