@@ -16,6 +16,7 @@ import SystemUsersPage from '@/components/Pages/SystemUsersPage';
 import SuppliersPage from '@/components/Pages/SuppliersPage';
 import MechanicsPage from '@/components/Pages/MechanicsPage';
 import { ApprovalRequestsPage } from '@/components/Pages/ApprovalRequestsPage';
+import { RequestHistoryPage } from '@/components/Pages/RequestHistoryPage';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import logoWatermark from '@/assets/logo-abastech-full.png';
@@ -80,6 +81,8 @@ const Index = () => {
         return <SystemUsersPage />;
       case 'aprovacoes':
         return <ApprovalRequestsPage />;
+      case 'historico-solicitacoes':
+        return <RequestHistoryPage />;
       case 'suporte':
         return (
           <div className="flex-1 flex items-center justify-center">
