@@ -2052,8 +2052,9 @@ export function ManutencaoPage() {
               <Input
                 type="date"
                 value={formData.order_date}
-                onChange={(e) => setFormData({ ...formData, order_date: e.target.value })}
-                className="bg-primary/5 border-primary/30"
+                disabled
+                readOnly
+                className="bg-muted/40 border-border text-muted-foreground cursor-not-allowed"
               />
             </div>
 
