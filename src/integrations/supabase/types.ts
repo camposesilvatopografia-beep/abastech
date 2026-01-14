@@ -285,6 +285,33 @@ export type Database = {
           },
         ]
       }
+      layout_preferences: {
+        Row: {
+          column_config: Json
+          created_at: string
+          id: string
+          module_name: string
+          updated_at: string
+          user_identifier: string
+        }
+        Insert: {
+          column_config?: Json
+          created_at?: string
+          id?: string
+          module_name: string
+          updated_at?: string
+          user_identifier: string
+        }
+        Update: {
+          column_config?: Json
+          created_at?: string
+          id?: string
+          module_name?: string
+          updated_at?: string
+          user_identifier?: string
+        }
+        Relationships: []
+      }
       lubricants: {
         Row: {
           active: boolean | null
