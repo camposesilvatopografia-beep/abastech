@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import { Droplet, TrendingDown, TrendingUp, Package, Truck, ArrowDownCircle, ArrowUpCircle, Clock, Fuel, Calendar, MessageCircle } from 'lucide-react';
 import { FilterBar } from './FilterBar';
 import { MetricCard } from './MetricCard';
@@ -22,20 +22,58 @@ function parseNumber(value: any): number {
 }
 
 export function DashboardContent() {
-  const { data: geralData, loading } = useSheetData(GERAL_SHEET);
-  const { data: abastecimentoData } = useSheetData(ABASTECIMENTO_SHEET);
-  const { data: vehicleData } = useSheetData(VEHICLE_SHEET);
-  const { data: arlaData } = useSheetData(ARLA_SHEET);
+  // Enable polling every 30 seconds for real-time updates
+  const POLLING_INTERVAL = 30000;
+  
+  const { data: geralData, loading } = useSheetData(GERAL_SHEET, { pollingInterval: POLLING_INTERVAL });
+  const { data: abastecimentoData } = useSheetData(ABASTECIMENTO_SHEET, { pollingInterval: POLLING_INTERVAL });
+  const { data: vehicleData } = useSheetData(VEHICLE_SHEET, { pollingInterval: POLLING_INTERVAL });
+  const { data: arlaData } = useSheetData(ARLA_SHEET, { pollingInterval: POLLING_INTERVAL });
   const [isSending, setIsSending] = useState(false);
   const { toast } = useToast();
 
   // Get vehicle info for filtering comboios
   const vehicleInfo = useMemo(() => {
     return vehicleData.rows.map(row => ({
-      veiculo: String(row['FROTA'] || row['Frota'] || row['VEICULO'] || '').trim(),
-      descricao: String(row['DESCRIÇÃO'] || row['Descricao'] || row['DESCRICAO'] || '').trim()
+      veiculo: String(row['FROTA'] || row['Frota'] || row['VEICULO'] || row['Codigo'] || '').trim(),
+      descricao: String(row['DESCRIÇÃO'] || row['Descricao'] || row['DESCRICAO'] || row['Nome'] || '').trim(),
+      categoria: String(row['Categoria'] || row['CATEGORIA'] || '').trim(),
     }));
   }, [vehicleData.rows]);
+
+  // Check if a vehicle is a comboio
+  const isComboio = useCallback((vehicleCode: string) => {
+    const info = vehicleInfo.find(v => v.veiculo === vehicleCode);
+    if (!info) return false;
+    const descLower = info.descricao.toLowerCase();
+    const catLower = info.categoria.toLowerCase();
+    return descLower.includes('comboio') || catLower.includes('comboio');
+  }, [vehicleInfo]);
+
+  // Calculate exits from abastecimento data (Saída records only)
+  const calculatedExits = useMemo(() => {
+    let saidaComboios = 0;
+    let saidaEquipamentos = 0;
+
+    abastecimentoData.rows.forEach(row => {
+      const tipo = String(row['TIPO DE OPERACAO'] || row['TIPO_OPERACAO'] || row['Tipo'] || '').toLowerCase();
+      const local = String(row['LOCAL'] || row['Local'] || '').toLowerCase();
+      const quantidade = parseNumber(row['QUANTIDADE'] || row['Quantidade']);
+      
+      // Only count outgoing/exit records (Saída)
+      if (tipo.includes('entrada') || tipo.includes('fornecedor')) return;
+      if (quantidade <= 0) return;
+      
+      // Check if it's a comboio destination
+      if (local.includes('comboio')) {
+        saidaComboios += quantidade;
+      } else {
+        saidaEquipamentos += quantidade;
+      }
+    });
+
+    return { saidaComboios, saidaEquipamentos };
+  }, [abastecimentoData.rows]);
 
   // Extract stock values from GERAL sheet - get LAST row (most recent)
   const stockData = useMemo(() => {
@@ -43,10 +81,10 @@ export function DashboardContent() {
       return {
         estoqueAnterior: 0,
         entrada: 0,
-        saidaComboios: 0,
-        saidaEquipamentos: 0,
+        saidaComboios: calculatedExits.saidaComboios,
+        saidaEquipamentos: calculatedExits.saidaEquipamentos,
         estoqueAtual: 0,
-        totalSaidas: 0
+        totalSaidas: calculatedExits.saidaComboios + calculatedExits.saidaEquipamentos
       };
     }
 
@@ -55,9 +93,14 @@ export function DashboardContent() {
     
     const estoqueAnterior = parseNumber(lastRow?.['EstoqueAnterior']);
     const entrada = parseNumber(lastRow?.['Entrada']);
-    const saidaComboios = parseNumber(lastRow?.['Saidas_Para_Comboios']);
-    const saidaEquipamentos = parseNumber(lastRow?.['Saida']);
+    // Use calculated values for exits if GERAL doesn't have them
+    const saidaComboiosGeral = parseNumber(lastRow?.['Saidas_Para_Comboios']);
+    const saidaEquipamentosGeral = parseNumber(lastRow?.['Saida']);
     const estoqueAtual = parseNumber(lastRow?.['EstoqueAtual']);
+    
+    // Prefer calculated values from abastecimento if GERAL values are 0
+    const saidaComboios = saidaComboiosGeral > 0 ? saidaComboiosGeral : calculatedExits.saidaComboios;
+    const saidaEquipamentos = saidaEquipamentosGeral > 0 ? saidaEquipamentosGeral : calculatedExits.saidaEquipamentos;
     const totalSaidas = saidaComboios + saidaEquipamentos;
 
     return {
@@ -68,7 +111,7 @@ export function DashboardContent() {
       estoqueAtual,
       totalSaidas
     };
-  }, [geralData.rows]);
+  }, [geralData.rows, calculatedExits]);
 
   // Get ARLA stock from EstoqueArla sheet - last row
   const estoqueArla = useMemo(() => {
