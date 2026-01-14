@@ -1573,19 +1573,19 @@ export function ManutencaoPage() {
         {/* Table */}
         {activeTab === 'ordens' && (
           <div className="bg-card rounded-lg border border-border overflow-hidden">
-            <Table>
+            <Table className="text-xs">
               <TableHeader>
                 <TableRow className="bg-muted/50">
-                  <TableHead>Nº OS</TableHead>
-                  <TableHead>Data</TableHead>
-                  <TableHead>Veículo</TableHead>
-                  <TableHead>Tipo</TableHead>
-                  <TableHead className="hidden md:table-cell">Problema</TableHead>
-                  <TableHead className="hidden lg:table-cell">Mecânico</TableHead>
-                  <TableHead>Prioridade</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="hidden sm:table-cell">Tempo Parado</TableHead>
-                  <TableHead className="text-right">Ações</TableHead>
+                  <TableHead className="py-2 px-2 whitespace-nowrap">Nº OS</TableHead>
+                  <TableHead className="py-2 px-2 whitespace-nowrap">Data</TableHead>
+                  <TableHead className="py-2 px-2 whitespace-nowrap">Veículo</TableHead>
+                  <TableHead className="py-2 px-2 whitespace-nowrap">Tipo</TableHead>
+                  <TableHead className="py-2 px-2 hidden md:table-cell">Problema</TableHead>
+                  <TableHead className="py-2 px-2 hidden lg:table-cell whitespace-nowrap">Mecânico</TableHead>
+                  <TableHead className="py-2 px-2 whitespace-nowrap">Prioridade</TableHead>
+                  <TableHead className="py-2 px-2 whitespace-nowrap">Status</TableHead>
+                  <TableHead className="py-2 px-2 hidden sm:table-cell whitespace-nowrap">T. Parado</TableHead>
+                  <TableHead className="py-2 px-2 text-right whitespace-nowrap">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1608,15 +1608,14 @@ export function ManutencaoPage() {
                     
                     return (
                       <TableRow key={row.id} className="hover:bg-muted/30">
-                        <TableCell className="font-mono font-medium">{row.order_number}</TableCell>
-                        <TableCell>{format(new Date(row.order_date), 'dd/MM/yyyy')}</TableCell>
-                        <TableCell className="font-medium">{row.vehicle_code}</TableCell>
-                        <TableCell>
+                        <TableCell className="py-2 px-2 font-mono font-medium text-xs">{row.order_number}</TableCell>
+                        <TableCell className="py-2 px-2 text-xs whitespace-nowrap">{format(new Date(row.order_date), 'dd/MM/yy')}</TableCell>
+                        <TableCell className="py-2 px-2 font-medium text-xs">{row.vehicle_code}</TableCell>
+                        <TableCell className="py-2 px-2">
                           <div className="flex flex-col gap-0.5">
-                            <Badge variant={row.order_type === 'Preventiva' ? 'default' : 'secondary'}>
-                              {row.order_type}
+                            <Badge variant={row.order_type === 'Preventiva' ? 'default' : 'secondary'} className="text-[10px] px-1.5 py-0">
+                              {row.order_type === 'Preventiva' ? 'Prev.' : 'Corr.'}
                             </Badge>
-                            {/* Next revision date for preventive */}
                             {row.order_type === 'Preventiva' && isFinished && (row as any).interval_days && (
                               (() => {
                                 const endDate = row.end_date ? new Date(row.end_date) : new Date(row.order_date);
@@ -1624,71 +1623,72 @@ export function ManutencaoPage() {
                                 const daysUntil = differenceInDays(nextDate, new Date());
                                 return (
                                   <span className={cn(
-                                    "text-[10px] font-medium",
+                                    "text-[9px] font-medium",
                                     daysUntil <= 7 ? "text-red-600" : daysUntil <= 30 ? "text-amber-600" : "text-green-600"
                                   )}>
                                     🔄 {format(nextDate, 'dd/MM')}
-                                    {daysUntil <= 0 ? ' (vencida)' : ` (${daysUntil}d)`}
                                   </span>
                                 );
                               })()
                             )}
                           </div>
                         </TableCell>
-                        <TableCell className="hidden md:table-cell max-w-[200px] truncate">
+                        <TableCell className="py-2 px-2 hidden md:table-cell max-w-[150px] truncate text-xs">
                           {row.problem_description || '-'}
                         </TableCell>
-                        <TableCell className="hidden lg:table-cell">{row.mechanic_name || '-'}</TableCell>
-                        <TableCell>{getPrioridadeBadge(row.priority)}</TableCell>
-                        <TableCell>
+                        <TableCell className="py-2 px-2 hidden lg:table-cell text-xs">{row.mechanic_name || '-'}</TableCell>
+                        <TableCell className="py-2 px-2">{getPrioridadeBadge(row.priority)}</TableCell>
+                        <TableCell className="py-2 px-2">
                           {getStatusBadge(row.status)}
                         </TableCell>
-                        <TableCell className="hidden sm:table-cell">
+                        <TableCell className="py-2 px-2 hidden sm:table-cell">
                           {downtime ? (
                             <Badge className={cn(
-                              "font-mono",
+                              "font-mono text-[10px] px-1.5 py-0",
                               isFinished 
                                 ? "bg-green-500/20 text-green-600 border-green-500/30" 
                                 : "bg-amber-500/20 text-amber-600 border-amber-500/30"
                             )}>
-                              <Timer className="w-3 h-3 mr-1" />
+                              <Timer className="w-2.5 h-2.5 mr-0.5" />
                               {downtime}
                             </Badge>
                           ) : '-'}
                         </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-1">
+                        <TableCell className="py-2 px-2 text-right">
+                          <div className="flex items-center justify-end gap-0.5">
                             <Button
                               variant="ghost"
-                              size="sm"
+                              size="icon"
                               onClick={() => handleWhatsAppRelease(row)}
                               title={row.status.toLowerCase().includes('finalizada') ? 'WhatsApp: Veículo liberado' : 'WhatsApp: Atualização'}
-                              className="text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-950/50"
+                              className="h-7 w-7 text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-950/50"
                             >
-                              <MessageCircle className="w-4 h-4" />
+                              <MessageCircle className="w-3.5 h-3.5" />
                             </Button>
                             <Button
                               variant="ghost"
-                              size="sm"
+                              size="icon"
                               onClick={() => exportSingleOSToPDF(row)}
                               title="Exportar PDF"
+                              className="h-7 w-7"
                             >
-                              <Printer className="w-4 h-4" />
+                              <Printer className="w-3.5 h-3.5" />
                             </Button>
                             <Button
                               variant="ghost"
-                              size="sm"
+                              size="icon"
                               onClick={() => handleEditOrder(row)}
+                              className="h-7 w-7"
                             >
-                              <Edit className="w-4 h-4" />
+                              <Edit className="w-3.5 h-3.5" />
                             </Button>
                             <Button
                               variant="ghost"
-                              size="sm"
+                              size="icon"
                               onClick={() => handleDeleteOrder(row)}
-                              className="text-destructive hover:text-destructive"
+                              className="h-7 w-7 text-destructive hover:text-destructive"
                             >
-                              <Trash2 className="w-4 h-4" />
+                              <Trash2 className="w-3.5 h-3.5" />
                             </Button>
                           </div>
                         </TableCell>
