@@ -465,50 +465,89 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
   // Fetch previous horimeter/km from records
   const fetchPreviousHorimeter = async (vehicleCode: string) => {
     try {
-      // First try from database (field_fuel_records)
-      const { data: dbRecords } = await supabase
+      let bestValue = 0;
+      let bestSource = '';
+      
+      // 1. Try from field_fuel_records (most recent refueling record)
+      const { data: fuelRecords } = await supabase
         .from('field_fuel_records')
-        .select('horimeter_current, km_current')
+        .select('horimeter_current, km_current, record_date, record_time')
         .eq('vehicle_code', vehicleCode)
+        .eq('record_type', 'saida')
+        .gt('horimeter_current', 0)
         .order('record_date', { ascending: false })
         .order('record_time', { ascending: false })
         .limit(1);
 
-      if (dbRecords && dbRecords.length > 0) {
-        const lastRecord = dbRecords[0];
-        const value = lastRecord.horimeter_current || lastRecord.km_current || 0;
-        if (value > 0) {
-          setHorimeterPrevious(formatBrazilianNumber(value));
-          toast.info(`Último registro: ${formatBrazilianNumber(value)}`);
-          return;
+      if (fuelRecords && fuelRecords.length > 0) {
+        const value = Number(fuelRecords[0].horimeter_current) || Number(fuelRecords[0].km_current) || 0;
+        if (value > bestValue) {
+          bestValue = value;
+          bestSource = 'abastecimento';
         }
       }
 
-      // If not found in DB, try from sheet data
-      const vehicleRecords = abastecimentoData.rows
-        .filter(row => {
-          const rowVehicle = String(row['VEICULO'] || row['Veiculo'] || '');
-          return rowVehicle === vehicleCode;
-        })
-        .sort((a, b) => {
-          const dateA = String(a['DATA'] || '');
-          const dateB = String(b['DATA'] || '');
-          return dateB.localeCompare(dateA);
-        });
+      // 2. Try from horimeter_readings table (dedicated horimeter tracking)
+      // First need to find the vehicle_id from the code
+      const { data: vehicleData } = await supabase
+        .from('vehicles')
+        .select('id')
+        .eq('code', vehicleCode)
+        .maybeSingle();
 
-      if (vehicleRecords.length > 0) {
-        const lastRecord = vehicleRecords[0];
-        const horAtual = parseFloat(String(lastRecord['HORIMETRO ATUAL'] || lastRecord['HOR_ATUAL'] || lastRecord['HORIMETRO'] || 0));
-        const kmAtual = parseFloat(String(lastRecord['KM ATUAL'] || lastRecord['KM_ATUAL'] || lastRecord['KM'] || 0));
-        const value = horAtual || kmAtual;
-        
-        if (value > 0) {
-          setHorimeterPrevious(formatBrazilianNumber(value));
-          toast.info(`Último registro: ${formatBrazilianNumber(value)}`);
+      if (vehicleData?.id) {
+        const { data: horimeterRecords } = await supabase
+          .from('horimeter_readings')
+          .select('current_value, reading_date')
+          .eq('vehicle_id', vehicleData.id)
+          .order('reading_date', { ascending: false })
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        if (horimeterRecords && horimeterRecords.length > 0) {
+          const value = Number(horimeterRecords[0].current_value) || 0;
+          if (value > bestValue) {
+            bestValue = value;
+            bestSource = 'horímetro';
+          }
         }
+      }
+
+      // 3. Try from Google Sheets data (backup)
+      if (bestValue === 0 && abastecimentoData.rows.length > 0) {
+        const vehicleRecords = abastecimentoData.rows
+          .filter(row => {
+            const rowVehicle = String(row['VEICULO'] || row['Veiculo'] || '').trim();
+            return rowVehicle === vehicleCode;
+          })
+          .map(row => {
+            // Parse date in DD/MM/YYYY format
+            const dateStr = String(row['DATA'] || '');
+            const [day, month, year] = dateStr.split('/').map(Number);
+            const date = new Date(year, month - 1, day);
+            const horAtual = parseFloat(String(row['HORIMETRO ATUAL'] || row['HOR_ATUAL'] || row['HORIMETRO'] || 0).replace(',', '.')) || 0;
+            const kmAtual = parseFloat(String(row['KM ATUAL'] || row['KM_ATUAL'] || row['KM'] || 0).replace(',', '.')) || 0;
+            return { date, value: Math.max(horAtual, kmAtual) };
+          })
+          .filter(r => r.value > 0)
+          .sort((a, b) => b.date.getTime() - a.date.getTime());
+
+        if (vehicleRecords.length > 0 && vehicleRecords[0].value > bestValue) {
+          bestValue = vehicleRecords[0].value;
+          bestSource = 'planilha';
+        }
+      }
+
+      // Set the best value found
+      if (bestValue > 0) {
+        setHorimeterPrevious(formatBrazilianNumber(bestValue));
+        toast.info(`Último registro (${bestSource}): ${formatBrazilianNumber(bestValue)}`);
+      } else {
+        setHorimeterPrevious('');
       }
     } catch (err) {
       console.error('Error fetching previous horimeter:', err);
+      toast.error('Erro ao buscar horímetro anterior');
     }
   };
 
@@ -733,6 +772,26 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
       if (isEquipment && !horimeterCurrent) {
         toast.error('Horímetro Atual é obrigatório para equipamentos');
         return;
+      }
+      
+      // Validate horimeter current > previous
+      if (horimeterCurrent && horimeterPrevious) {
+        const currentValue = parseBrazilianNumber(horimeterCurrent);
+        const previousValue = parseBrazilianNumber(horimeterPrevious);
+        
+        if (currentValue <= previousValue) {
+          toast.error(`Horímetro Atual (${formatBrazilianNumber(currentValue)}) deve ser maior que o Anterior (${formatBrazilianNumber(previousValue)})`);
+          return;
+        }
+        
+        // Warn if difference is too large (possible error)
+        const difference = currentValue - previousValue;
+        if (difference > 500) {
+          const confirmed = window.confirm(
+            `A diferença de horímetro é muito alta (${formatBrazilianNumber(difference)}). Deseja continuar mesmo assim?`
+          );
+          if (!confirmed) return;
+        }
       }
     } else {
       // Entrada validation
