@@ -70,6 +70,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useSheetData, useSheetData as useGoogleSheetData } from '@/hooks/useGoogleSheets';
 import { createRow } from '@/lib/googleSheets';
+import { RecurringProblemsTab } from '@/components/Maintenance/RecurringProblemsTab';
 
 const ORDEM_SERVICO_SHEET = 'Ordem_Servico';
 
@@ -1619,47 +1620,7 @@ export function ManutencaoPage() {
                         <TableCell className="hidden lg:table-cell">{row.mechanic_name || '-'}</TableCell>
                         <TableCell>{getPrioridadeBadge(row.priority)}</TableCell>
                         <TableCell>
-                          <div className="flex items-center gap-1">
-                            {getStatusBadge(row.status)}
-                            {/* Quick status buttons */}
-                            {!isFinished && (
-                              <div className="flex items-center gap-0.5 ml-1">
-                                {row.status === 'Aberta' && (
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-6 w-6 p-0 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/50"
-                                    onClick={() => handleQuickStatusChange(row, 'Em Andamento')}
-                                    title="Iniciar"
-                                  >
-                                    <Play className="w-3 h-3" />
-                                  </Button>
-                                )}
-                                {(row.status === 'Em Andamento' || row.status === 'Aguardando Peças') && (
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-6 w-6 p-0 text-green-600 hover:bg-green-50 dark:hover:bg-green-950/50"
-                                    onClick={() => handleQuickStatusChange(row, 'Finalizada')}
-                                    title="Finalizar"
-                                  >
-                                    <Check className="w-3 h-3" />
-                                  </Button>
-                                )}
-                                {row.status === 'Em Andamento' && (
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-6 w-6 p-0 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/50"
-                                    onClick={() => handleQuickStatusChange(row, 'Aguardando Peças')}
-                                    title="Aguardando Peças"
-                                  >
-                                    <Pause className="w-3 h-3" />
-                                  </Button>
-                                )}
-                              </div>
-                            )}
-                          </div>
+                          {getStatusBadge(row.status)}
                         </TableCell>
                         <TableCell className="hidden sm:table-cell">
                           {downtime ? (
@@ -1719,8 +1680,13 @@ export function ManutencaoPage() {
           </div>
         )}
 
+        {/* Problemas Recorrentes Tab */}
+        {activeTab === 'problemas' && (
+          <RecurringProblemsTab orders={orders} />
+        )}
+
         {/* Other tabs placeholder */}
-        {activeTab !== 'ordens' && (
+        {activeTab !== 'ordens' && activeTab !== 'problemas' && (
           <div className="bg-card rounded-lg border border-border p-8 text-center text-muted-foreground">
             <LayoutGrid className="w-12 h-12 mx-auto mb-4 opacity-50" />
             <p>Funcionalidade em desenvolvimento</p>
