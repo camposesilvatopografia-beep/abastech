@@ -21,6 +21,7 @@ import {
   ChevronUp,
   MapPin,
   Truck,
+  MessageCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -398,7 +399,7 @@ export function FieldUsersPage() {
         {/* Direct Access Link */}
         <Card className="bg-gradient-to-r from-blue-500 to-blue-600 text-white border-0">
           <CardContent className="p-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <h3 className="font-semibold flex items-center gap-2">
                   <Fuel className="w-5 h-5" />
@@ -411,16 +412,30 @@ export function FieldUsersPage() {
                   {window.location.origin}/apontamento
                 </code>
               </div>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => {
-                  navigator.clipboard.writeText(`${window.location.origin}/apontamento`);
-                  toast.success('Link copiado!');
-                }}
-              >
-                Copiar Link
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    navigator.clipboard.writeText(`${window.location.origin}/apontamento`);
+                    toast.success('Link copiado!');
+                  }}
+                >
+                  Copiar Link
+                </Button>
+                <Button
+                  size="sm"
+                  className="bg-green-500 hover:bg-green-600 text-white gap-2"
+                  onClick={() => {
+                    const message = `📱 *Acesso ao Sistema de Apontamento*\n\nUse o link abaixo para acessar o sistema de apontamento de abastecimento:\n\n${window.location.origin}/apontamento`;
+                    const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
+                    window.open(whatsappUrl, '_blank');
+                  }}
+                >
+                  <MessageCircle className="w-4 h-4" />
+                  WhatsApp
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
