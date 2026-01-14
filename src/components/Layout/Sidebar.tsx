@@ -14,7 +14,8 @@ import {
   LogOut,
   User,
   Smartphone,
-  Users
+  Users,
+  Calendar
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Link } from 'react-router-dom';
@@ -33,6 +34,7 @@ const menuItems: MenuItem[] = [
   { id: 'frota', label: 'Frota', icon: Truck },
   { id: 'horimetros', label: 'Horímetros', icon: Clock },
   { id: 'manutencao', label: 'Manutenção', icon: Wrench },
+  { id: 'calendario', label: 'Calendário Preventivas', icon: Calendar },
   { 
     id: 'cadastros', 
     label: 'Cadastros', 

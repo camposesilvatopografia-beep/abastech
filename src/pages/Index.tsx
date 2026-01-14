@@ -7,6 +7,7 @@ import { EstoquesPage } from '@/components/Pages/EstoquesPage';
 import { FrotaPage } from '@/components/Pages/FrotaPage';
 import { HorimetrosPageDB } from '@/components/Pages/HorimetrosPageDB';
 import { ManutencaoPage } from '@/components/Pages/ManutencaoPage';
+import { MaintenanceCalendarPage } from '@/components/Pages/MaintenanceCalendarPage';
 import { AlertasPage } from '@/components/Pages/AlertasPage';
 import OilTypesPage from '@/components/Pages/OilTypesPage';
 import LubricantsPage from '@/components/Pages/LubricantsPage';
@@ -35,6 +36,8 @@ const Index = () => {
         return <HorimetrosPageDB />;
       case 'manutencao':
         return <ManutencaoPage />;
+      case 'calendario':
+        return <MaintenanceCalendarPage />;
       case 'alertas':
         return <AlertasPage />;
       case 'fornecedores':
