@@ -103,17 +103,12 @@ export function Sidebar({ activeItem, onItemClick, onClose }: SidebarProps) {
   return (
     <aside className="w-60 bg-sidebar flex flex-col h-screen">
       {/* Logo - Grande e em destaque */}
-      <div className="p-4 flex flex-col items-center gap-3 border-b border-sidebar-border bg-gradient-to-b from-sidebar-accent/50 to-transparent">
+      <div className="p-5 flex flex-col items-center gap-2 border-b border-sidebar-border bg-gradient-to-b from-sidebar-accent/50 to-transparent">
         <img 
           src={logoAbastech} 
           alt="Abastech" 
-          className="h-16 w-auto object-contain drop-shadow-md"
+          className="h-24 w-auto object-contain drop-shadow-lg"
         />
-        <div className="text-center">
-          <p className="text-sm font-semibold text-sidebar-foreground tracking-wide">
-            Gestão de Frotas
-          </p>
-        </div>
       </div>
 
       {/* Navigation */}
