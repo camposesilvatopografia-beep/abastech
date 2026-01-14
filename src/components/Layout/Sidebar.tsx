@@ -38,6 +38,7 @@ const menuItems: MenuItem[] = [
     label: 'Cadastros', 
     icon: FolderOpen,
     children: [
+      { id: 'fornecedores', label: 'Fornecedores' },
       { id: 'lubrificantes', label: 'Lubrificantes' },
       { id: 'tiposoleos', label: 'Tipos de Óleo' },
       { id: 'usuarios', label: 'Usuários' },

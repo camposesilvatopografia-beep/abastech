@@ -27,6 +27,7 @@ import {
   Wrench,
   Clock,
   AlertCircle,
+  Receipt,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -43,6 +44,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useSheetData } from '@/hooks/useGoogleSheets';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { formatCurrencyInput, parseCurrencyInput, formatQuantityInput } from '@/lib/numberToWords';
 
 interface FieldUser {
   id: string;
@@ -173,11 +175,22 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
   // Lubricants from database
   const [lubricants, setLubricants] = useState<{ id: string; name: string }[]>([]);
   
+  // Suppliers from database
+  const [suppliers, setSuppliers] = useState<{ id: string; name: string }[]>([]);
+  
   // Entry-specific fields (Entrada)
   const [supplier, setSupplier] = useState('');
   const [invoiceNumber, setInvoiceNumber] = useState('');
   const [unitPrice, setUnitPrice] = useState('');
   const [entryLocation, setEntryLocation] = useState('');
+  
+  // Invoice photo state (for Entrada)
+  const [photoInvoice, setPhotoInvoice] = useState<File | null>(null);
+  const [photoInvoicePreview, setPhotoInvoicePreview] = useState<string | null>(null);
+  const photoInvoiceInputRef = useRef<HTMLInputElement>(null);
+  
+  // Quantity in words (for Entrada)
+  const [quantityInWords, setQuantityInWords] = useState('');
 
   // Format number to Brazilian format (1.234,56)
   const formatBrazilianNumber = (value: string | number): string => {
@@ -246,8 +259,25 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
       }
     };
     
+    const fetchSuppliers = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('suppliers')
+          .select('id, name')
+          .eq('active', true)
+          .order('name', { ascending: true });
+        
+        if (!error && data) {
+          setSuppliers(data);
+        }
+      } catch (err) {
+        console.error('Error fetching suppliers:', err);
+      }
+    };
+    
     fetchOilTypes();
     fetchLubricants();
+    fetchSuppliers();
   }, []);
 
   // Monitor online status
@@ -384,19 +414,36 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
     reader.readAsDataURL(file);
   };
 
-  const removePhoto = (type: 'pump' | 'horimeter') => {
+  const removePhoto = (type: 'pump' | 'horimeter' | 'invoice') => {
     if (type === 'pump') {
       setPhotoPump(null);
       setPhotoPumpPreview(null);
       if (photoPumpInputRef.current) photoPumpInputRef.current.value = '';
-    } else {
+    } else if (type === 'horimeter') {
       setPhotoHorimeter(null);
       setPhotoHorimeterPreview(null);
       if (photoHorimeterInputRef.current) photoHorimeterInputRef.current.value = '';
+    } else {
+      setPhotoInvoice(null);
+      setPhotoInvoicePreview(null);
+      if (photoInvoiceInputRef.current) photoInvoiceInputRef.current.value = '';
     }
   };
 
-  const uploadPhoto = async (file: File, type: 'pump' | 'horimeter'): Promise<string | null> => {
+  // Handle invoice photo capture
+  const handleInvoicePhotoCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setPhotoInvoice(file);
+      setPhotoInvoicePreview(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const uploadPhoto = async (file: File, type: 'pump' | 'horimeter' | 'invoice'): Promise<string | null> => {
     const timestamp = Date.now();
     const ext = file.name.split('.').pop() || 'jpg';
     const fileName = `${user.id}/${type}_${timestamp}.${ext}`;
@@ -418,6 +465,19 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
       .getPublicUrl(data.path);
 
     return urlData.publicUrl;
+  };
+  
+  // Handle entry quantity change with auto-formatting and words
+  const handleEntryQuantityChange = (value: string) => {
+    const result = formatQuantityInput(value);
+    setFuelQuantity(result.raw.toString());
+    setQuantityInWords(result.inWords);
+  };
+  
+  // Handle unit price change with currency formatting
+  const handleUnitPriceChange = (value: string) => {
+    const formatted = formatCurrencyInput(value);
+    setUnitPrice(formatted);
   };
 
   // Process voice commands
@@ -829,6 +889,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
       // Upload photos first
       let photoPumpUrl: string | null = null;
       let photoHorimeterUrl: string | null = null;
+      let photoInvoiceUrl: string | null = null;
 
       if (photoPump) {
         toast.info('Enviando foto da bomba...');
@@ -838,6 +899,11 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
       if (photoHorimeter) {
         toast.info('Enviando foto do horímetro...');
         photoHorimeterUrl = await uploadPhoto(photoHorimeter, 'horimeter');
+      }
+      
+      if (photoInvoice) {
+        toast.info('Enviando foto da nota fiscal...');
+        photoInvoiceUrl = await uploadPhoto(photoInvoice, 'invoice');
       }
 
       setIsUploadingPhotos(false);
@@ -856,7 +922,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
           vehicle_code: recordType === 'entrada' ? 'ENTRADA' : vehicleCode,
           vehicle_description: recordType === 'entrada' ? supplier : vehicleDescription,
           category: recordType === 'entrada' ? 'ENTRADA' : category,
-          operator_name: operatorName || user.name,
+          operator_name: recordType === 'entrada' ? '' : (operatorName || user.name),
           company,
           work_site: workSite,
           horimeter_previous: parseBrazilianNumber(horimeterPrevious),
@@ -865,7 +931,9 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
           fuel_type: fuelType,
           arla_quantity: parseFloat(arlaQuantity) || 0,
           location: recordType === 'entrada' ? entryLocation : location,
-          observations,
+          observations: recordType === 'entrada' && photoInvoiceUrl 
+            ? `${observations} | FOTO NF: ${photoInvoiceUrl}`.trim() 
+            : observations,
           photo_pump_url: photoPumpUrl,
           photo_horimeter_url: photoHorimeterUrl,
           record_date: now.toISOString().split('T')[0],
@@ -880,7 +948,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
           // Entry fields
           supplier: supplier || null,
           invoice_number: invoiceNumber || null,
-          unit_price: parseFloat(unitPrice) || null,
+          unit_price: parseCurrencyInput(unitPrice) || null,
           entry_location: entryLocation || null,
         } as any)
         .select()
@@ -894,10 +962,10 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         date: recordDate,
         time: recordTime,
         recordType,
-        vehicleCode,
-        vehicleDescription,
-        category,
-        operatorName: operatorName || user.name,
+        vehicleCode: recordType === 'entrada' ? 'ENTRADA' : vehicleCode,
+        vehicleDescription: recordType === 'entrada' ? supplier : vehicleDescription,
+        category: recordType === 'entrada' ? 'ENTRADA' : category,
+        operatorName: recordType === 'entrada' ? '' : (operatorName || user.name),
         company,
         workSite,
         horimeterPrevious: parseBrazilianNumber(horimeterPrevious),
@@ -905,8 +973,10 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         fuelQuantity: parseFloat(fuelQuantity) || 0,
         fuelType,
         arlaQuantity: parseFloat(arlaQuantity) || 0,
-        location,
-        observations,
+        location: recordType === 'entrada' ? entryLocation : location,
+        observations: recordType === 'entrada' && photoInvoiceUrl 
+          ? `${observations} | FOTO NF: ${photoInvoiceUrl}`.trim() 
+          : observations,
         photoPumpUrl,
         photoHorimeterUrl,
         oilType,
@@ -916,7 +986,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         lubricant,
         supplier,
         invoiceNumber,
-        unitPrice: parseFloat(unitPrice) || 0,
+        unitPrice: parseCurrencyInput(unitPrice) || 0,
         entryLocation,
       });
 
@@ -1456,75 +1526,60 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                 <Building2 className="w-4 h-4" />
                 Fornecedor
               </Label>
-              <Input
-                type="text"
-                placeholder="Nome do fornecedor"
-                value={supplier}
-                onChange={(e) => setSupplier(e.target.value)}
-                className="h-12 text-lg"
-              />
+              <Select value={supplier} onValueChange={setSupplier}>
+                <SelectTrigger className="h-12 text-lg">
+                  <SelectValue placeholder="Selecione o fornecedor" />
+                </SelectTrigger>
+                <SelectContent className="max-h-60 z-50 bg-popover">
+                  {suppliers.length === 0 ? (
+                    <div className="p-3 text-center text-muted-foreground text-sm">
+                      Nenhum fornecedor cadastrado
+                    </div>
+                  ) : (
+                    suppliers.map(s => (
+                      <SelectItem key={s.id} value={s.name}>
+                        {s.name}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+              {suppliers.length === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Cadastre fornecedores em Cadastros → Fornecedores
+                </p>
+              )}
             </div>
 
-            {/* Fuel Quantity */}
+            {/* Fuel Quantity with number in words */}
             <div className="bg-card rounded-xl border border-border p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <Label className="flex items-center gap-2 text-base">
                   <Fuel className="w-4 h-4" />
                   Quantidade (Litros)
                 </Label>
-                <div className="flex items-center gap-1">
-                  <input
-                    ref={quantityOcrInputRef}
-                    type="file"
-                    accept="image/*"
-                    capture="environment"
-                    onChange={handleQuantityOCRCapture}
-                    className="hidden"
-                  />
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => quantityOcrInputRef.current?.click()}
-                    disabled={isProcessingQuantityOCR}
-                    className="gap-1"
-                    title="Tirar foto para reconhecer valor"
-                  >
-                    {isProcessingQuantityOCR ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <>
-                        <ScanLine className="w-4 h-4" />
-                        <span className="text-xs hidden sm:inline">OCR</span>
-                      </>
-                    )}
-                  </Button>
-                  {voice.isSupported && (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      onClick={() => startVoiceForField('quantity')}
-                      className={cn(activeVoiceField === 'quantity' && voice.isListening && "bg-red-100")}
-                    >
-                      <Mic className="w-4 h-4" />
-                    </Button>
-                  )}
-                </div>
               </div>
               <Input
-                type="number"
-                inputMode="decimal"
+                type="text"
+                inputMode="numeric"
                 placeholder="Ex: 1000"
-                value={fuelQuantity}
-                onChange={(e) => setFuelQuantity(e.target.value)}
+                value={fuelQuantity ? parseInt(fuelQuantity).toLocaleString('pt-BR') : ''}
+                onChange={(e) => handleEntryQuantityChange(e.target.value)}
                 className="h-14 text-2xl text-center font-bold"
               />
+              {quantityInWords && (
+                <div className="bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 p-3 rounded-lg">
+                  <p className="text-green-700 dark:text-green-300 text-sm font-medium text-center">
+                    {quantityInWords}
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Invoice Number */}
             <div className="bg-card rounded-xl border border-border p-4 space-y-3">
               <Label className="flex items-center gap-2 text-base">
+                <Receipt className="w-4 h-4" />
                 Nota Fiscal
               </Label>
               <Input
@@ -1536,19 +1591,24 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
               />
             </div>
 
-            {/* Unit Price */}
+            {/* Unit Price - currency auto-format */}
             <div className="bg-card rounded-xl border border-border p-4 space-y-3">
               <Label className="flex items-center gap-2 text-base">
                 Valor Unitário (R$)
               </Label>
-              <Input
-                type="number"
-                inputMode="decimal"
-                placeholder="Ex: 5.89"
-                value={unitPrice}
-                onChange={(e) => setUnitPrice(e.target.value)}
-                className="h-12 text-lg"
-              />
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-medium">
+                  R$
+                </span>
+                <Input
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="0,00"
+                  value={unitPrice}
+                  onChange={(e) => handleUnitPriceChange(e.target.value)}
+                  className="h-12 text-lg pl-10"
+                />
+              </div>
             </div>
 
             {/* Entry Location */}
@@ -1566,6 +1626,50 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                   <SelectItem value="Tanque Canteiro 02">Tanque Canteiro 02</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+            
+            {/* Invoice Photo */}
+            <div className="bg-card rounded-xl border border-green-200 dark:border-green-800 p-4 space-y-3">
+              <Label className="flex items-center gap-2 text-base text-green-600 dark:text-green-400">
+                <Camera className="w-4 h-4" />
+                Foto da Nota Fiscal (Opcional)
+              </Label>
+              <input
+                ref={photoInvoiceInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={handleInvoicePhotoCapture}
+                className="hidden"
+              />
+              {photoInvoicePreview ? (
+                <div className="relative">
+                  <img 
+                    src={photoInvoicePreview} 
+                    alt="Nota Fiscal" 
+                    className="w-full h-40 object-cover rounded-lg border border-green-200"
+                  />
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="destructive"
+                    className="absolute -top-2 -right-2 h-6 w-6"
+                    onClick={() => removePhoto('invoice')}
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full h-32 flex flex-col gap-2 border-green-200 hover:bg-green-50 dark:hover:bg-green-950"
+                  onClick={() => photoInvoiceInputRef.current?.click()}
+                >
+                  <Receipt className="w-8 h-8 text-green-500" />
+                  <span className="text-xs text-muted-foreground">Tirar Foto da NF</span>
+                </Button>
+              )}
             </div>
           </>
         )}
