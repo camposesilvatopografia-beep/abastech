@@ -233,6 +233,9 @@ export function useHorimeterReadings(vehicleId?: string) {
 
   const updateReading = useCallback(async (id: string, updates: Partial<HorimeterReading>) => {
     try {
+      // First get the current reading to know its data for sheet sync
+      const existingReading = readings.find(r => r.id === id);
+      
       const { data, error: updateError } = await supabase
         .from('horimeter_readings')
         .update(updates)
@@ -243,9 +246,77 @@ export function useHorimeterReadings(vehicleId?: string) {
       if (updateError) throw updateError;
       
       setReadings(prev => prev.map(r => r.id === id ? data as HorimeterWithVehicle : r));
+      
+      // Sync update to Google Sheets
+      const vehicle = (data as HorimeterWithVehicle).vehicle;
+      if (vehicle && existingReading) {
+        try {
+          // Find the row in the sheet by matching vehicle code and old date
+          const { data: sheetData } = await supabase.functions.invoke('google-sheets', {
+            body: { action: 'getData', sheetName: 'Horimetros' },
+          });
+          
+          const rows = sheetData?.rows || [];
+          const oldDate = existingReading.reading_date;
+          const [oldYear, oldMonth, oldDay] = oldDate.split('-');
+          const oldFormattedDate = `${oldDay}/${oldMonth}/${oldYear}`;
+          
+          const rowIndex = rows.findIndex((row: any) => {
+            const rowVehicle = String(row.Veiculo || row.VEICULO || '').trim();
+            const rowDate = String(row.Data || row.DATA || row[' Data'] || '').trim();
+            return rowVehicle === vehicle.code && rowDate === oldFormattedDate;
+          });
+          
+          if (rowIndex >= 0) {
+            const sheetRowIndex = rowIndex + 2; // +1 for header, +1 for 1-based index
+            
+            const newReadingDate = updates.reading_date || existingReading.reading_date;
+            const [year, month, day] = newReadingDate.split('-');
+            const formattedDate = `${day}/${month}/${year}`;
+            
+            const usesKm = vehicle.category?.toLowerCase().includes('veículo') ||
+                           vehicle.category?.toLowerCase().includes('veiculo') ||
+                           vehicle.category?.toLowerCase().includes('caminhão') ||
+                           vehicle.category?.toLowerCase().includes('caminhao');
+            
+            const currentValue = updates.current_value ?? data.current_value;
+            const previousValue = updates.previous_value ?? data.previous_value;
+            const operator = updates.operator ?? data.operator;
+            
+            const rowData = {
+              'Data': formattedDate,
+              'Veiculo': vehicle.code,
+              'Categoria': vehicle.category || '',
+              'Descricao': vehicle.name || '',
+              'Empresa': vehicle.company || '',
+              'Operador': operator || '',
+              'Hor_Anterior': usesKm ? '' : (previousValue?.toString().replace('.', ',') || ''),
+              'Hor_Atual': usesKm ? '' : currentValue.toString().replace('.', ','),
+              'Km_Anterior': usesKm ? (previousValue?.toString().replace('.', ',') || '') : '',
+              'Km_Atual': usesKm ? currentValue.toString().replace('.', ',') : '',
+              'Observacao': updates.observations ?? data.observations ?? '',
+            };
+            
+            await supabase.functions.invoke('google-sheets', {
+              body: {
+                action: 'update',
+                sheetName: 'Horimetros',
+                data: rowData,
+                rowIndex: sheetRowIndex,
+              },
+            });
+            
+            console.log('Registro atualizado na planilha Horimetros');
+          }
+        } catch (syncErr) {
+          console.error('Erro ao sincronizar atualização com planilha:', syncErr);
+          // Don't throw - the DB update was successful
+        }
+      }
+      
       toast({
         title: 'Sucesso!',
-        description: 'Registro atualizado com sucesso',
+        description: 'Registro atualizado e sincronizado com planilha',
       });
       return data;
     } catch (err: any) {
@@ -257,10 +328,13 @@ export function useHorimeterReadings(vehicleId?: string) {
       });
       throw err;
     }
-  }, [toast]);
+  }, [toast, readings]);
 
   const deleteReading = useCallback(async (id: string) => {
     try {
+      // Get the reading data before deleting for sheet sync
+      const readingToDelete = readings.find(r => r.id === id);
+      
       const { error: deleteError } = await supabase
         .from('horimeter_readings')
         .delete()
@@ -269,9 +343,46 @@ export function useHorimeterReadings(vehicleId?: string) {
       if (deleteError) throw deleteError;
       
       setReadings(prev => prev.filter(r => r.id !== id));
+      
+      // Sync deletion to Google Sheets
+      if (readingToDelete?.vehicle) {
+        try {
+          const { data: sheetData } = await supabase.functions.invoke('google-sheets', {
+            body: { action: 'getData', sheetName: 'Horimetros' },
+          });
+          
+          const rows = sheetData?.rows || [];
+          const [year, month, day] = readingToDelete.reading_date.split('-');
+          const formattedDate = `${day}/${month}/${year}`;
+          
+          const rowIndex = rows.findIndex((row: any) => {
+            const rowVehicle = String(row.Veiculo || row.VEICULO || '').trim();
+            const rowDate = String(row.Data || row.DATA || row[' Data'] || '').trim();
+            return rowVehicle === readingToDelete.vehicle.code && rowDate === formattedDate;
+          });
+          
+          if (rowIndex >= 0) {
+            const sheetRowIndex = rowIndex + 2; // +1 for header, +1 for 1-based index
+            
+            await supabase.functions.invoke('google-sheets', {
+              body: {
+                action: 'delete',
+                sheetName: 'Horimetros',
+                rowIndex: sheetRowIndex,
+              },
+            });
+            
+            console.log('Registro excluído da planilha Horimetros');
+          }
+        } catch (syncErr) {
+          console.error('Erro ao sincronizar exclusão com planilha:', syncErr);
+          // Don't throw - the DB deletion was successful
+        }
+      }
+      
       toast({
         title: 'Sucesso!',
-        description: 'Registro excluído com sucesso',
+        description: 'Registro excluído e removido da planilha',
       });
     } catch (err: any) {
       console.error('Error deleting reading:', err);
@@ -282,7 +393,7 @@ export function useHorimeterReadings(vehicleId?: string) {
       });
       throw err;
     }
-  }, [toast]);
+  }, [toast, readings]);
 
   const upsertReading = useCallback(async (reading: {
     vehicle_id: string;
@@ -348,6 +459,7 @@ export function useSheetSync() {
     vehiclesImported: number;
     readingsImported: number;
     readingsUpdated: number;
+    readingsDeleted: number;
     errors: number;
   }> => {
     setSyncing(true);
@@ -357,6 +469,7 @@ export function useSheetSync() {
       vehiclesImported: 0,
       readingsImported: 0,
       readingsUpdated: 0,
+      readingsDeleted: 0,
       errors: 0,
     };
 
@@ -519,9 +632,62 @@ export function useSheetSync() {
         onProgress?.(i + 1, total);
       }
 
+      // Step 3: Detect and delete readings that exist in DB but not in sheet
+      // Build a set of all (vehicleCode, date) pairs from the sheet
+      const sheetRecordKeys = new Set<string>();
+      const reverseVehicleMap = new Map<string, string>(); // id -> code
+      allVehicles?.forEach(v => reverseVehicleMap.set(v.id, v.code));
+      
+      for (const row of horimeterRows) {
+        const vehicleCode = String(row.VEICULO || row.Veiculo || row.EQUIPAMENTO || '').trim();
+        const dateStr = String(row.DATA || row.Data || row[' Data'] || '').trim();
+        
+        let readingDate: string | null = null;
+        if (dateStr) {
+          const match = dateStr.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+          if (match) {
+            readingDate = `${match[3]}-${match[2]}-${match[1]}`;
+          } else if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+            readingDate = dateStr;
+          }
+        }
+        
+        if (vehicleCode && readingDate) {
+          sheetRecordKeys.add(`${vehicleCode}|${readingDate}`);
+        }
+      }
+
+      // Get all readings from database
+      const { data: allDbReadings } = await supabase
+        .from('horimeter_readings')
+        .select('id, vehicle_id, reading_date');
+
+      // Find readings in DB that are not in sheet
+      for (const dbReading of allDbReadings || []) {
+        const vehicleCode = reverseVehicleMap.get(dbReading.vehicle_id);
+        if (!vehicleCode) continue;
+        
+        const key = `${vehicleCode}|${dbReading.reading_date}`;
+        
+        if (!sheetRecordKeys.has(key)) {
+          // This reading exists in DB but not in sheet - delete it
+          try {
+            await supabase
+              .from('horimeter_readings')
+              .delete()
+              .eq('id', dbReading.id);
+            stats.readingsDeleted++;
+            console.log(`Registro removido do BD (não existe na planilha): ${key}`);
+          } catch (err) {
+            console.error('Error deleting orphan reading:', err);
+            stats.errors++;
+          }
+        }
+      }
+
       toast({
         title: 'Sincronização concluída!',
-        description: `${stats.vehiclesImported} veículos, ${stats.readingsImported} novos registros, ${stats.readingsUpdated} atualizados`,
+        description: `${stats.vehiclesImported} veículos, ${stats.readingsImported} novos, ${stats.readingsUpdated} atualizados, ${stats.readingsDeleted} removidos`,
       });
 
       return stats;
