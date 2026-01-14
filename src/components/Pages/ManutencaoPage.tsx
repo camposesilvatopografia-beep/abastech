@@ -153,6 +153,8 @@ export function ManutencaoPage() {
     notes: '',
     horimeter_current: '',
     km_current: '',
+    entry_date: '',
+    entry_time: '',
   });
 
   // Fetch service orders
@@ -420,6 +422,7 @@ export function ManutencaoPage() {
   const handleNewOrder = () => {
     setEditingOrder(null);
     setVehicleHistory(null);
+    const now = new Date();
     setFormData({
       vehicle_code: '',
       vehicle_description: '',
@@ -438,6 +441,8 @@ export function ManutencaoPage() {
       notes: '',
       horimeter_current: '',
       km_current: '',
+      entry_date: format(now, 'yyyy-MM-dd'),
+      entry_time: format(now, 'HH:mm'),
     });
     setIsModalOpen(true);
   };
@@ -474,6 +479,8 @@ export function ManutencaoPage() {
       notes: order.notes || '',
       horimeter_current: (order as any).horimeter_current?.toString() || '',
       km_current: (order as any).km_current?.toString() || '',
+      entry_date: (order as any).entry_date || '',
+      entry_time: (order as any).entry_time || '',
     });
     fetchVehicleHistory(order.vehicle_code);
     setIsModalOpen(true);
@@ -513,6 +520,8 @@ export function ManutencaoPage() {
         end_date: formData.status.includes('Finalizada') && !editingOrder?.end_date ? new Date().toISOString() : editingOrder?.end_date,
         horimeter_current: parseFloat(formData.horimeter_current) || null,
         km_current: parseFloat(formData.km_current) || null,
+        entry_date: formData.entry_date || null,
+        entry_time: formData.entry_time || null,
       };
 
       if (editingOrder) {
@@ -1391,6 +1400,86 @@ export function ManutencaoPage() {
                     )}
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Entry Date and Time */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-primary" />
+                  Data de Entrada
+                </Label>
+                <Input
+                  type="date"
+                  value={formData.entry_date}
+                  onChange={(e) => setFormData({ ...formData, entry_date: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-primary" />
+                  Hora de Entrada
+                </Label>
+                <Input
+                  type="time"
+                  value={formData.entry_time}
+                  onChange={(e) => setFormData({ ...formData, entry_time: e.target.value })}
+                />
+              </div>
+            </div>
+
+            {/* Downtime display - show when finalized */}
+            {formData.status === 'Finalizada' && formData.entry_date && (
+              <div className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/50 dark:to-emerald-950/50 border border-green-200 dark:border-green-800 rounded-lg p-4">
+                <div className="flex items-center gap-2 text-green-700 dark:text-green-300 mb-2">
+                  <Timer className="w-5 h-5" />
+                  <span className="font-semibold">Tempo Total Parado</span>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  {(() => {
+                    const entryDateTime = formData.entry_time 
+                      ? new Date(`${formData.entry_date}T${formData.entry_time}`)
+                      : new Date(`${formData.entry_date}T00:00`);
+                    const endDateTime = editingOrder?.end_date 
+                      ? new Date(editingOrder.end_date) 
+                      : new Date();
+                    
+                    const diffMs = endDateTime.getTime() - entryDateTime.getTime();
+                    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+                    const diffDays = Math.floor(diffHours / 24);
+                    const remainingHours = diffHours % 24;
+                    
+                    return (
+                      <>
+                        <div className="bg-white/50 dark:bg-slate-800/50 rounded-lg p-3 text-center">
+                          <p className="text-3xl font-bold text-green-700 dark:text-green-300">
+                            {diffDays > 0 ? diffDays : diffHours}
+                          </p>
+                          <p className="text-sm text-green-600 dark:text-green-400">
+                            {diffDays > 0 ? 'dias' : 'horas'}
+                          </p>
+                        </div>
+                        <div className="bg-white/50 dark:bg-slate-800/50 rounded-lg p-3 text-center">
+                          <p className="text-3xl font-bold text-amber-700 dark:text-amber-300">
+                            {diffDays > 0 ? remainingHours : Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60))}
+                          </p>
+                          <p className="text-sm text-amber-600 dark:text-amber-400">
+                            {diffDays > 0 ? 'horas' : 'minutos'}
+                          </p>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+                <p className="text-xs text-green-600 dark:text-green-400 mt-2 text-center">
+                  De {formData.entry_date ? format(new Date(`${formData.entry_date}T00:00`), 'dd/MM/yyyy', { locale: ptBR }) : '-'}
+                  {formData.entry_time && ` às ${formData.entry_time}`}
+                  {' até '}
+                  {editingOrder?.end_date 
+                    ? format(new Date(editingOrder.end_date), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })
+                    : format(new Date(), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                </p>
               </div>
             )}
 
