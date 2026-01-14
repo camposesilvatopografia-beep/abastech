@@ -17,7 +17,7 @@ import SuppliersPage from '@/components/Pages/SuppliersPage';
 import MechanicsPage from '@/components/Pages/MechanicsPage';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
-import logoWatermark from '@/assets/logo-abastech-watermark.png';
+import logoWatermark from '@/assets/logo-abastech-full.png';
 
 const Index = () => {
   const [activeItem, setActiveItem] = useState('dashboard');
