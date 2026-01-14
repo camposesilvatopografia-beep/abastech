@@ -535,6 +535,11 @@ export function ManutencaoPage() {
   // Filter orders
   const filteredRows = useMemo(() => {
     return orders.filter(row => {
+      // Exclude rows without vehicle_code
+      if (!row.vehicle_code || row.vehicle_code.trim() === '') {
+        return false;
+      }
+      
       const matchesSearch = !search || 
         Object.values(row).some(v => 
           String(v || '').toLowerCase().includes(search.toLowerCase())
