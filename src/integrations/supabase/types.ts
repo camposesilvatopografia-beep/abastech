@@ -309,6 +309,60 @@ export type Database = {
         }
         Relationships: []
       }
+      scheduled_maintenance: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          interval_days: number | null
+          interval_hours: number | null
+          last_completed_date: string | null
+          maintenance_type: string
+          notes: string | null
+          priority: string | null
+          scheduled_date: string
+          status: string
+          title: string
+          updated_at: string
+          vehicle_code: string
+          vehicle_description: string | null
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          interval_days?: number | null
+          interval_hours?: number | null
+          last_completed_date?: string | null
+          maintenance_type?: string
+          notes?: string | null
+          priority?: string | null
+          scheduled_date: string
+          status?: string
+          title: string
+          updated_at?: string
+          vehicle_code: string
+          vehicle_description?: string | null
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          interval_days?: number | null
+          interval_hours?: number | null
+          last_completed_date?: string | null
+          maintenance_type?: string
+          notes?: string | null
+          priority?: string | null
+          scheduled_date?: string
+          status?: string
+          title?: string
+          updated_at?: string
+          vehicle_code?: string
+          vehicle_description?: string | null
+        }
+        Relationships: []
+      }
       service_orders: {
         Row: {
           actual_hours: number | null
