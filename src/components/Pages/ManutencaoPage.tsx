@@ -22,6 +22,7 @@ import {
   Timer,
   CalendarDays,
   Bell,
+  MessageCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -562,6 +563,38 @@ export function ManutencaoPage() {
       console.error('Error deleting order:', err);
       toast.error('Erro ao excluir ordem de serviço');
     }
+  };
+
+  // Send WhatsApp message for vehicle release
+  const handleWhatsAppRelease = (order: ServiceOrder) => {
+    const isFinished = order.status.toLowerCase().includes('finalizada') || order.status.toLowerCase().includes('concluída');
+    
+    const messageLines = [
+      `🔧 *MANUTENÇÃO - ${isFinished ? 'VEÍCULO LIBERADO' : 'ATUALIZAÇÃO DE STATUS'}*`,
+      ``,
+      `📋 *${order.order_number}*`,
+      `🚗 Veículo: *${order.vehicle_code}*`,
+      order.vehicle_description ? `📝 ${order.vehicle_description}` : '',
+      ``,
+      `📌 Status: *${order.status}*`,
+      `⚙️ Tipo: ${order.order_type}`,
+      order.mechanic_name ? `👨‍🔧 Mecânico: ${order.mechanic_name}` : '',
+      ``,
+      order.problem_description ? `❌ *Problema:*\n${order.problem_description.slice(0, 200)}` : '',
+      order.solution_description ? `\n✅ *Solução:*\n${order.solution_description.slice(0, 200)}` : '',
+      order.parts_used ? `\n🔩 *Peças utilizadas:*\n${order.parts_used.slice(0, 150)}` : '',
+      ``,
+      order.actual_hours ? `⏱️ Tempo de serviço: ${order.actual_hours}h` : '',
+      isFinished ? `\n✅ *VEÍCULO LIBERADO PARA OPERAÇÃO*` : '',
+      ``,
+      `📅 ${format(new Date(), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}`,
+    ].filter(line => line !== '').join('\n');
+
+    const encodedMessage = encodeURIComponent(messageLines);
+    const whatsappUrl = `https://wa.me/?text=${encodedMessage}`;
+    window.open(whatsappUrl, '_blank');
+    
+    toast.success(isFinished ? 'Compartilhando liberação via WhatsApp...' : 'Compartilhando atualização via WhatsApp...');
   };
 
   // Export single OS to PDF - Professional SaaS Style
@@ -1173,6 +1206,15 @@ export function ManutencaoPage() {
                       <TableCell>{getStatusBadge(row.status)}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleWhatsAppRelease(row)}
+                            title={row.status.toLowerCase().includes('finalizada') ? 'WhatsApp: Veículo liberado' : 'WhatsApp: Atualização'}
+                            className="text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-950/50"
+                          >
+                            <MessageCircle className="w-4 h-4" />
+                          </Button>
                           <Button
                             variant="ghost"
                             size="sm"
