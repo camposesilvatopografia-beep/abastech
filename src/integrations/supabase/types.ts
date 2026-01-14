@@ -146,6 +146,7 @@ export type Database = {
           review_notes: string | null
           reviewed_at: string | null
           reviewed_by: string | null
+          reviewer_name: string | null
           status: string
           updated_at: string
         }
@@ -161,6 +162,7 @@ export type Database = {
           review_notes?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
+          reviewer_name?: string | null
           status?: string
           updated_at?: string
         }
@@ -176,6 +178,7 @@ export type Database = {
           review_notes?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
+          reviewer_name?: string | null
           status?: string
           updated_at?: string
         }
@@ -190,13 +193,6 @@ export type Database = {
           {
             foreignKeyName: "field_record_requests_requested_by_fkey"
             columns: ["requested_by"]
-            isOneToOne: false
-            referencedRelation: "field_users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "field_record_requests_reviewed_by_fkey"
-            columns: ["reviewed_by"]
             isOneToOne: false
             referencedRelation: "field_users"
             referencedColumns: ["id"]

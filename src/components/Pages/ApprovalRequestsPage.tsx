@@ -134,12 +134,13 @@ export function ApprovalRequestsPage() {
           if (deleteError) throw deleteError;
         }
 
-        // Update request status
+        // Update request status - use reviewer_name instead of reviewed_by to avoid FK constraint
         const { error } = await supabase
           .from('field_record_requests')
           .update({
             status: 'approved',
-            reviewed_by: currentUser.id,
+            reviewed_by: null, // Don't use FK - admin may be from system_users
+            reviewer_name: currentUser.name || 'Admin',
             reviewed_at: new Date().toISOString(),
             review_notes: reviewNotes || null,
           })
@@ -153,12 +154,13 @@ export function ApprovalRequestsPage() {
             : 'Edição aprovada - o usuário pode agora editar o registro'
         );
       } else {
-        // Reject the request
+        // Reject the request - use reviewer_name instead of reviewed_by
         const { error } = await supabase
           .from('field_record_requests')
           .update({
             status: 'rejected',
-            reviewed_by: currentUser.id,
+            reviewed_by: null,
+            reviewer_name: currentUser.name || 'Admin',
             reviewed_at: new Date().toISOString(),
             review_notes: reviewNotes || null,
           })
