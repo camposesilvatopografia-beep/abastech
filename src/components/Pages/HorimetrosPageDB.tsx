@@ -239,6 +239,8 @@ export function HorimetrosPageDB() {
     try {
       await deleteReading(deleteConfirm.id);
       setDeleteConfirm(null);
+      // Force immediate refetch to ensure UI is in sync
+      await refetchReadings();
     } catch (err) {
       // Error handled in hook
     }
@@ -619,6 +621,7 @@ export function HorimetrosPageDB() {
         }}
         onSuccess={() => refetchReadings()}
         editRecord={editingRecord}
+        externalReadings={readings}
       />
 
       <SyncModal
