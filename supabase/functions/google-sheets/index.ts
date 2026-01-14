@@ -352,7 +352,7 @@ serve(async (req) => {
         if (!sheetName || !data) {
           throw new Error("sheetName and data are required for create action");
         }
-        // Read headers from row 1, starting from column B (since column A might be empty/ID)
+        // Read headers from row 1, starting from column B (DATA is in column B)
         const createHeaders = await getSheetData(accessToken, sheetId, formatRange(sheetName, "B1:ZZ1"));
         if (createHeaders.length === 0) {
           throw new Error("No headers found in sheet");
@@ -360,11 +360,12 @@ serve(async (req) => {
         const headerRow = createHeaders[0];
         console.log("Headers found:", headerRow);
         
-        // Map data to headers (starting from column B, so first column is empty for ID/sequence)
-        const newRowValues = ['', ...headerRow.map((header: string) => data[header.trim()] ?? "")];
+        // Map data to headers - values start from column B (no empty column needed)
+        const newRowValues = headerRow.map((header: string) => data[header.trim()] ?? "");
         console.log("Values to append:", newRowValues);
         
-        await appendRow(accessToken, sheetId, formatRange(sheetName), newRowValues);
+        // Append starting from column B
+        await appendRow(accessToken, sheetId, formatRange(sheetName, "B:ZZ"), newRowValues);
         result = { success: true, message: "Row created successfully" };
         break;
       }

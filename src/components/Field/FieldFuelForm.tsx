@@ -752,7 +752,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         // Equipment fields
         'TIPO DE ÓLEO': recordData.oilType || '',
         'QUANTIDADE DE ÓLEO': recordData.oilQuantity || '',
-        'SOPRA FILTRO': recordData.filterBlow ? `Sim (${recordData.filterBlowQuantity || 0})` : '',
+        'SOPRA FILTRO': recordData.filterBlowQuantity || '',
         'LUBRIFICANTE': recordData.lubricant || '',
         // Entry fields
         'FORNECEDOR': recordData.supplier || '',
@@ -1381,30 +1381,17 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
               />
             </div>
             
-            {/* Filter Blow */}
+            {/* Filter Blow - just quantity input */}
             <div className="space-y-2">
-              <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-                <input
-                  type="checkbox"
-                  id="filterBlow"
-                  checked={filterBlow}
-                  onChange={(e) => setFilterBlow(e.target.checked)}
-                  className="w-5 h-5 rounded"
-                />
-                <Label htmlFor="filterBlow" className="text-sm cursor-pointer">
-                  Sopra Filtro
-                </Label>
-              </div>
-              {filterBlow && (
-                <Input
-                  type="number"
-                  inputMode="decimal"
-                  placeholder="Quantidade"
-                  value={filterBlowQuantity}
-                  onChange={(e) => setFilterBlowQuantity(e.target.value)}
-                  className="h-10"
-                />
-              )}
+              <Label className="text-sm">Sopra Filtro (Quantidade)</Label>
+              <Input
+                type="number"
+                inputMode="decimal"
+                placeholder="Quantidade (opcional)"
+                value={filterBlowQuantity}
+                onChange={(e) => setFilterBlowQuantity(e.target.value)}
+                className="h-10"
+              />
             </div>
             
             {/* Lubricant */}
