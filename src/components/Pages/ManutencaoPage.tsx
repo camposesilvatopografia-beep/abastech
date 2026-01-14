@@ -1110,17 +1110,44 @@ export function ManutencaoPage() {
                 
                 {vehicleHistory.lastOrder && (
                   <div className="bg-white/50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg p-3">
-                    <p className="text-xs text-muted-foreground mb-1">Última OS:</p>
-                    <div className="flex items-center justify-between">
+                    <p className="text-xs text-muted-foreground mb-2">Última Manutenção:</p>
+                    <div className="flex items-center justify-between mb-2">
                       <span className="font-medium text-sm">{vehicleHistory.lastOrder.order_number}</span>
                       <span className="text-xs text-muted-foreground">
                         {format(new Date(vehicleHistory.lastOrder.order_date), 'dd/MM/yyyy')}
                       </span>
                       {getStatusBadge(vehicleHistory.lastOrder.status)}
                     </div>
+                    
+                    {/* Horimeter/KM from last maintenance */}
+                    <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-slate-200 dark:border-slate-600">
+                      <div className="flex items-center gap-2 bg-amber-50 dark:bg-amber-950/30 rounded p-2">
+                        <Clock className="w-4 h-4 text-amber-600" />
+                        <div>
+                          <p className="text-xs text-muted-foreground">Horímetro na OS</p>
+                          <p className="font-bold text-amber-700 dark:text-amber-400">
+                            {vehicleHistory.lastHorimeter 
+                              ? `${vehicleHistory.lastHorimeter.toLocaleString('pt-BR')}h`
+                              : '-'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 bg-blue-50 dark:bg-blue-950/30 rounded p-2">
+                        <TrendingUp className="w-4 h-4 text-blue-600" />
+                        <div>
+                          <p className="text-xs text-muted-foreground">KM na OS</p>
+                          <p className="font-bold text-blue-700 dark:text-blue-400">
+                            {vehicleHistory.lastKm 
+                              ? `${vehicleHistory.lastKm.toLocaleString('pt-BR')} km`
+                              : '-'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    
                     {vehicleHistory.lastOrder.problem_description && (
-                      <p className="text-xs text-muted-foreground mt-1 truncate">
-                        {vehicleHistory.lastOrder.problem_description}
+                      <p className="text-xs text-muted-foreground mt-2 truncate">
+                        <span className="font-medium">Problema:</span> {vehicleHistory.lastOrder.problem_description}
                       </p>
                     )}
                   </div>
