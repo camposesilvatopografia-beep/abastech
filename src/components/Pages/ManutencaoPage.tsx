@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { 
   Wrench,
   RefreshCw,
@@ -23,6 +23,10 @@ import {
   CalendarDays,
   Bell,
   MessageCircle,
+  Download,
+  Upload,
+  Cloud,
+  CloudOff,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -52,7 +56,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
-import { format, startOfDay, endOfDay, isWithinInterval, subDays, startOfMonth } from 'date-fns';
+import { format, startOfDay, endOfDay, isWithinInterval, subDays, startOfMonth, parse } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -60,7 +64,10 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { useSheetData } from '@/hooks/useGoogleSheets';
+import { useSheetData, useSheetData as useGoogleSheetData } from '@/hooks/useGoogleSheets';
+import { createRow } from '@/lib/googleSheets';
+
+const ORDEM_SERVICO_SHEET = 'Ordem_Servico';
 
 const TABS = [
   { id: 'ordens', label: 'Ordens de Serviço', icon: ClipboardList },
@@ -103,9 +110,11 @@ interface Mechanic {
 
 export function ManutencaoPage() {
   const { data: vehiclesData } = useSheetData('Veiculo');
+  const { data: sheetOrdersData, refetch: refetchSheetOrders } = useGoogleSheetData(ORDEM_SERVICO_SHEET);
   const [orders, setOrders] = useState<ServiceOrder[]>([]);
   const [mechanics, setMechanics] = useState<Mechanic[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [activeTab, setActiveTab] = useState('ordens');
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -197,6 +206,196 @@ export function ManutencaoPage() {
     fetchOrders();
     fetchMechanics();
   }, []);
+
+  // Parse date from Brazilian format (dd/MM/yyyy)
+  const parseBrazilianDate = (dateStr: string): string | null => {
+    if (!dateStr) return null;
+    try {
+      // Check if it's already in ISO format
+      if (dateStr.includes('-') && dateStr.length >= 10) {
+        return dateStr.split('T')[0];
+      }
+      // Parse dd/MM/yyyy format
+      const parts = dateStr.split('/');
+      if (parts.length === 3) {
+        const [day, month, year] = parts;
+        return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  };
+
+  // Import historical data from Google Sheets
+  const importFromSheet = async () => {
+    if (!sheetOrdersData.rows.length) {
+      toast.error('Nenhum dado encontrado na planilha');
+      return;
+    }
+
+    setIsSyncing(true);
+    let imported = 0;
+    let skipped = 0;
+    let errors = 0;
+
+    try {
+      // Get existing order IDs to avoid duplicates
+      const { data: existingOrders } = await supabase
+        .from('service_orders')
+        .select('order_number');
+      
+      const existingNumbers = new Set((existingOrders || []).map(o => o.order_number));
+
+      for (const row of sheetOrdersData.rows) {
+        const idOrdem = String(row['IdOrdem'] || '');
+        const orderNumber = `OS-HIST-${idOrdem}`;
+        
+        // Skip if already imported
+        if (existingNumbers.has(orderNumber)) {
+          skipped++;
+          continue;
+        }
+
+        const orderDate = parseBrazilianDate(String(row['Data'] || ''));
+        const entryDate = parseBrazilianDate(String(row['Data_Entrada'] || ''));
+        const exitDate = parseBrazilianDate(String(row['Data_Saida'] || ''));
+
+        // Map status
+        const sheetStatus = String(row['Status'] || '').toLowerCase();
+        let status = 'Aberta';
+        if (sheetStatus.includes('finalizado') || sheetStatus.includes('conclu')) {
+          status = 'Finalizada';
+        } else if (sheetStatus.includes('andamento')) {
+          status = 'Em Andamento';
+        } else if (sheetStatus.includes('aguardando')) {
+          status = 'Aguardando Peças';
+        }
+
+        // Determine order type
+        const problema = String(row['Problema'] || '').toLowerCase();
+        const orderType = problema.includes('preventiva') ? 'Preventiva' : 'Corretiva';
+
+        try {
+          const { error } = await supabase
+            .from('service_orders')
+            .insert({
+              order_number: orderNumber,
+              order_date: orderDate || new Date().toISOString().split('T')[0],
+              vehicle_code: String(row['Veiculo'] || ''),
+              vehicle_description: String(row['Potencia'] || ''),
+              order_type: orderType,
+              priority: 'Média',
+              status: status,
+              problem_description: String(row['Problema'] || ''),
+              solution_description: String(row['Servico'] || '') || null,
+              mechanic_name: String(row['Mecanico'] || '') || null,
+              notes: String(row['Observacao'] || '') || null,
+              entry_date: entryDate,
+              entry_time: String(row['Hora_Entrada'] || '').substring(0, 5) || null,
+              start_date: entryDate ? `${entryDate}T${String(row['Hora_Entrada'] || '00:00').substring(0, 5)}:00` : null,
+              end_date: exitDate && status === 'Finalizada' ? `${exitDate}T${String(row['Hora_Saida'] || '00:00').substring(0, 5)}:00` : null,
+              created_by: String(row['Motorista'] || '') || null,
+            });
+
+          if (error) {
+            console.error('Error importing row:', error);
+            errors++;
+          } else {
+            imported++;
+          }
+        } catch (err) {
+          console.error('Error importing row:', err);
+          errors++;
+        }
+      }
+
+      toast.success(`Importação concluída: ${imported} novos, ${skipped} já existentes, ${errors} erros`);
+      fetchOrders();
+    } catch (err) {
+      console.error('Error during import:', err);
+      toast.error('Erro durante importação');
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  // Sync a single order to Google Sheets
+  const syncOrderToSheet = async (order: {
+    order_number: string;
+    order_date: string;
+    vehicle_code: string;
+    vehicle_description?: string | null;
+    problem_description?: string | null;
+    solution_description?: string | null;
+    mechanic_name?: string | null;
+    notes?: string | null;
+    status: string;
+    entry_date?: string | null;
+    entry_time?: string | null;
+    end_date?: string | null;
+  }) => {
+    try {
+      // Format dates for sheet
+      const formatDateForSheet = (dateStr: string | null | undefined): string => {
+        if (!dateStr) return '';
+        try {
+          const date = new Date(dateStr);
+          return format(date, 'dd/MM/yyyy');
+        } catch {
+          return '';
+        }
+      };
+
+      const formatTimeForSheet = (timeStr: string | null | undefined, dateStr: string | null | undefined): string => {
+        if (timeStr) return timeStr.length === 5 ? `${timeStr}:00` : timeStr;
+        if (dateStr) {
+          try {
+            const date = new Date(dateStr);
+            return format(date, 'HH:mm:ss');
+          } catch {
+            return '';
+          }
+        }
+        return '';
+      };
+
+      // Map status
+      let sheetStatus = 'Em Andamento';
+      if (order.status.includes('Finalizada')) {
+        sheetStatus = 'Finalizado';
+      } else if (order.status.includes('Aguardando')) {
+        sheetStatus = 'Aguardando';
+      } else if (order.status === 'Aberta') {
+        sheetStatus = 'Aberto';
+      }
+
+      const rowData = {
+        'IdOrdem': order.order_number.replace('OS-', '').replace(/-/g, '').substring(0, 8),
+        'Data': formatDateForSheet(order.order_date),
+        'Veiculo': order.vehicle_code,
+        'Empresa': '', // Can be enhanced later
+        'Motorista': '',
+        'Potencia': order.vehicle_description || '',
+        'Problema': order.problem_description || '',
+        'Servico': order.solution_description || '',
+        'Mecanico': order.mechanic_name || '',
+        'Data_Entrada': formatDateForSheet(order.entry_date),
+        'Data_Saida': order.status.includes('Finalizada') ? formatDateForSheet(order.end_date || new Date().toISOString()) : '',
+        'Hora_Entrada': formatTimeForSheet(order.entry_time, order.entry_date),
+        'Hora_Saida': order.status.includes('Finalizada') ? formatTimeForSheet(null, order.end_date) : '',
+        'Horas_Parado': '',
+        'Observacao': order.notes || '',
+        'Status': sheetStatus,
+      };
+
+      await createRow(ORDEM_SERVICO_SHEET, rowData);
+      console.log('Order synced to sheet:', order.order_number);
+    } catch (err) {
+      console.error('Error syncing order to sheet:', err);
+      // Don't throw - sync is secondary
+    }
+  };
 
   // Fetch vehicle maintenance history
   const fetchVehicleHistory = (vehicleCode: string) => {
@@ -524,6 +723,9 @@ export function ManutencaoPage() {
         entry_time: formData.entry_time || null,
       };
 
+      let savedOrderNumber = '';
+      let savedOrderDate = '';
+
       if (editingOrder) {
         const { error } = await supabase
           .from('service_orders')
@@ -531,18 +733,39 @@ export function ManutencaoPage() {
           .eq('id', editingOrder.id);
         
         if (error) throw error;
+        savedOrderNumber = editingOrder.order_number;
+        savedOrderDate = editingOrder.order_date;
         toast.success('Ordem de serviço atualizada!');
+        
+        // Sync to Google Sheets
+        syncOrderToSheet({
+          ...orderData,
+          order_number: savedOrderNumber,
+          order_date: savedOrderDate,
+        });
       } else {
+        const newOrderNumber = generateOrderNumber();
+        const newOrderDate = new Date().toISOString().split('T')[0];
+        
         const { error } = await supabase
           .from('service_orders')
           .insert({
             ...orderData,
-            order_number: generateOrderNumber(),
-            order_date: new Date().toISOString().split('T')[0],
+            order_number: newOrderNumber,
+            order_date: newOrderDate,
           });
         
         if (error) throw error;
+        savedOrderNumber = newOrderNumber;
+        savedOrderDate = newOrderDate;
         toast.success('Ordem de serviço criada!');
+        
+        // Sync new order to Google Sheets
+        syncOrderToSheet({
+          ...orderData,
+          order_number: savedOrderNumber,
+          order_date: savedOrderDate,
+        });
       }
 
       setIsModalOpen(false);
@@ -1005,6 +1228,16 @@ export function ManutencaoPage() {
           </div>
           
           <div className="flex flex-wrap items-center gap-2">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={importFromSheet} 
+              disabled={isSyncing}
+              title="Importar histórico da planilha"
+            >
+              <Download className={cn("w-4 h-4 sm:mr-2", isSyncing && "animate-spin")} />
+              <span className="hidden sm:inline">{isSyncing ? 'Importando...' : 'Importar Histórico'}</span>
+            </Button>
             <Button variant="outline" size="sm" onClick={fetchOrders} disabled={loading}>
               <RefreshCw className={cn("w-4 h-4 sm:mr-2", loading && "animate-spin")} />
               <span className="hidden sm:inline">Atualizar</span>
