@@ -179,6 +179,7 @@ export function ManutencaoPage() {
     entry_date: '',
     entry_time: '',
     interval_days: '90', // Default 90 days for preventive maintenance
+    order_date: '', // Date of the order
   });
 
   // Fetch service orders
@@ -220,6 +221,29 @@ export function ManutencaoPage() {
   useEffect(() => {
     fetchOrders();
     fetchMechanics();
+  }, []);
+
+  // Real-time subscription for service orders
+  useEffect(() => {
+    const channel = supabase
+      .channel('service-orders-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'service_orders'
+        },
+        (payload) => {
+          console.log('Real-time update:', payload);
+          fetchOrders(); // Refetch on any change
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   // Parse date from Brazilian format (dd/MM/yyyy)
@@ -740,6 +764,7 @@ export function ManutencaoPage() {
       entry_date: format(now, 'yyyy-MM-dd'),
       entry_time: format(now, 'HH:mm'),
       interval_days: '90',
+      order_date: format(now, 'yyyy-MM-dd'),
     });
     setIsModalOpen(true);
   };
@@ -779,6 +804,7 @@ export function ManutencaoPage() {
       entry_date: (order as any).entry_date || '',
       entry_time: (order as any).entry_time || '',
       interval_days: (order as any).interval_days?.toString() || '90',
+      order_date: order.order_date || '',
     });
     fetchVehicleHistory(order.vehicle_code);
     setIsModalOpen(true);
@@ -829,12 +855,15 @@ export function ManutencaoPage() {
       if (editingOrder) {
         const { error } = await supabase
           .from('service_orders')
-          .update(orderData)
+          .update({
+            ...orderData,
+            order_date: formData.order_date || editingOrder.order_date, // Allow date editing
+          })
           .eq('id', editingOrder.id);
         
         if (error) throw error;
         savedOrderNumber = editingOrder.order_number;
-        savedOrderDate = editingOrder.order_date;
+        savedOrderDate = formData.order_date || editingOrder.order_date;
         toast.success('Ordem de serviço atualizada!');
         
         // Sync to Google Sheets - get company from vehicle data
@@ -846,7 +875,7 @@ export function ManutencaoPage() {
         }, String(vehicleInfo?.['Empresa'] || ''));
       } else {
         const newOrderNumber = await generateOrderNumber();
-        const newOrderDate = new Date().toISOString().split('T')[0];
+        const newOrderDate = formData.order_date || new Date().toISOString().split('T')[0];
         
         const { error } = await supabase
           .from('service_orders')
@@ -2013,6 +2042,20 @@ export function ManutencaoPage() {
                 )}
               </div>
             )}
+
+            {/* Order Date */}
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <CalendarDays className="w-4 h-4 text-primary" />
+                Data da OS <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                type="date"
+                value={formData.order_date}
+                onChange={(e) => setFormData({ ...formData, order_date: e.target.value })}
+                className="bg-primary/5 border-primary/30"
+              />
+            </div>
 
             {/* Entry Date and Time */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
