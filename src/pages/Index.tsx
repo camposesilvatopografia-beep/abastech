@@ -10,6 +10,7 @@ import { ManutencaoPage } from '@/components/Pages/ManutencaoPage';
 import { AlertasPage } from '@/components/Pages/AlertasPage';
 import { CadastroPage } from '@/components/Pages/CadastroPage';
 import OilTypesPage from '@/components/Pages/OilTypesPage';
+import SystemUsersPage from '@/components/Pages/SystemUsersPage';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 
@@ -39,7 +40,7 @@ const Index = () => {
       case 'tiposoleos':
         return <OilTypesPage />;
       case 'usuarios':
-        return <CadastroPage sheetName="Usuarios" title="Usuários" subtitle="Cadastro de usuários do sistema" />;
+        return <SystemUsersPage />;
       case 'suporte':
         return (
           <div className="flex-1 flex items-center justify-center">
