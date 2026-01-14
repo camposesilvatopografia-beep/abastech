@@ -601,16 +601,31 @@ export function ManutencaoPage() {
   const getStatusBadge = (status: string) => {
     const s = status.toLowerCase();
     if (s.includes('finalizada') || s.includes('concluída')) {
-      return <Badge className="bg-success/20 text-success border-success/30">Finalizada</Badge>;
+      return <Badge className="bg-success/20 text-success border-success/30">✅ Finalizada</Badge>;
     }
     if (s.includes('andamento')) {
-      return <Badge className="bg-primary/20 text-primary border-primary/30">Em Andamento</Badge>;
+      return <Badge className="bg-primary/20 text-primary border-primary/30">🔧 Em Andamento</Badge>;
     }
     if (s.includes('aberta')) {
-      return <Badge className="bg-blue-500/20 text-blue-600 border-blue-500/30">Aberta</Badge>;
+      return <Badge className="bg-blue-500/20 text-blue-600 border-blue-500/30">📋 Aberta</Badge>;
+    }
+    if (s.includes('aguardando') && s.includes('peças')) {
+      return <Badge className="bg-warning/20 text-warning border-warning/30">📦 Aguardando Peças</Badge>;
+    }
+    if (s.includes('aguardando') && s.includes('aprovação')) {
+      return <Badge className="bg-purple-500/20 text-purple-600 border-purple-500/30">⏳ Aguardando Aprovação</Badge>;
+    }
+    if (s.includes('orçamento')) {
+      return <Badge className="bg-cyan-500/20 text-cyan-600 border-cyan-500/30">💰 Em Orçamento</Badge>;
+    }
+    if (s.includes('pausada')) {
+      return <Badge className="bg-slate-500/20 text-slate-600 border-slate-500/30">⏸️ Pausada</Badge>;
+    }
+    if (s.includes('cancelada')) {
+      return <Badge className="bg-red-500/20 text-red-600 border-red-500/30">❌ Cancelada</Badge>;
     }
     if (s.includes('aguardando')) {
-      return <Badge className="bg-warning/20 text-warning border-warning/30">Aguardando</Badge>;
+      return <Badge className="bg-warning/20 text-warning border-warning/30">📦 Aguardando</Badge>;
     }
     return <Badge variant="outline">{status}</Badge>;
   };
@@ -750,12 +765,13 @@ export function ManutencaoPage() {
         savedOrderDate = editingOrder.order_date;
         toast.success('Ordem de serviço atualizada!');
         
-        // Sync to Google Sheets
+        // Sync to Google Sheets - get company from vehicle data
+        const vehicleInfo = vehiclesData.rows.find(v => String(v['Codigo'] || '') === formData.vehicle_code);
         syncOrderToSheet({
           ...orderData,
           order_number: savedOrderNumber,
           order_date: savedOrderDate,
-        });
+        }, String(vehicleInfo?.['Empresa'] || ''));
       } else {
         const newOrderNumber = generateOrderNumber();
         const newOrderDate = new Date().toISOString().split('T')[0];
@@ -773,12 +789,13 @@ export function ManutencaoPage() {
         savedOrderDate = newOrderDate;
         toast.success('Ordem de serviço criada!');
         
-        // Sync new order to Google Sheets
+        // Sync new order to Google Sheets - get company from vehicle data
+        const vehicleInfo = vehiclesData.rows.find(v => String(v['Codigo'] || '') === formData.vehicle_code);
         syncOrderToSheet({
           ...orderData,
           order_number: savedOrderNumber,
           order_date: savedOrderDate,
-        });
+        }, String(vehicleInfo?.['Empresa'] || ''));
       }
 
       setIsModalOpen(false);
@@ -1445,10 +1462,14 @@ export function ManutencaoPage() {
               <SelectContent>
                 <SelectItem value="manutencao">🔧 Em Manutenção</SelectItem>
                 <SelectItem value="all">Todos os Status</SelectItem>
-                <SelectItem value="aberta">Aberta</SelectItem>
-                <SelectItem value="andamento">Em Andamento</SelectItem>
-                <SelectItem value="aguardando">Aguardando Peças</SelectItem>
-                <SelectItem value="finalizada">Finalizada</SelectItem>
+                <SelectItem value="aberta">📋 Aberta</SelectItem>
+                <SelectItem value="andamento">🔧 Em Andamento</SelectItem>
+                <SelectItem value="aguardando">📦 Aguardando Peças</SelectItem>
+                <SelectItem value="aprovação">⏳ Aguardando Aprovação</SelectItem>
+                <SelectItem value="orçamento">💰 Em Orçamento</SelectItem>
+                <SelectItem value="pausada">⏸️ Pausada</SelectItem>
+                <SelectItem value="cancelada">❌ Cancelada</SelectItem>
+                <SelectItem value="finalizada">✅ Finalizada</SelectItem>
               </SelectContent>
             </Select>
 
@@ -1979,10 +2000,14 @@ export function ManutencaoPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Aberta">Aberta</SelectItem>
-                    <SelectItem value="Em Andamento">Em Andamento</SelectItem>
-                    <SelectItem value="Aguardando Peças">Aguardando Peças</SelectItem>
-                    <SelectItem value="Finalizada">Finalizada</SelectItem>
+                    <SelectItem value="Aberta">📋 Aberta</SelectItem>
+                    <SelectItem value="Em Andamento">🔧 Em Andamento</SelectItem>
+                    <SelectItem value="Aguardando Peças">📦 Aguardando Peças</SelectItem>
+                    <SelectItem value="Aguardando Aprovação">⏳ Aguardando Aprovação</SelectItem>
+                    <SelectItem value="Em Orçamento">💰 Em Orçamento</SelectItem>
+                    <SelectItem value="Pausada">⏸️ Pausada</SelectItem>
+                    <SelectItem value="Cancelada">❌ Cancelada</SelectItem>
+                    <SelectItem value="Finalizada">✅ Finalizada</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
