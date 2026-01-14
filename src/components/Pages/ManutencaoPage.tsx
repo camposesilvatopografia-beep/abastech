@@ -18,6 +18,10 @@ import {
   Save,
   Trash2,
   Printer,
+  History,
+  Timer,
+  CalendarDays,
+  Bell,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -113,6 +117,16 @@ export function ManutencaoPage() {
   const [editingOrder, setEditingOrder] = useState<ServiceOrder | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   
+  // Vehicle history state
+  const [vehicleHistory, setVehicleHistory] = useState<{
+    totalOrders: number;
+    totalHours: number;
+    totalDays: number;
+    lastOrder: ServiceOrder | null;
+    category: string;
+    company: string;
+  } | null>(null);
+  
   // Form state
   const [formData, setFormData] = useState({
     vehicle_code: '',
@@ -172,6 +186,54 @@ export function ManutencaoPage() {
     fetchOrders();
     fetchMechanics();
   }, []);
+
+  // Fetch vehicle maintenance history
+  const fetchVehicleHistory = (vehicleCode: string) => {
+    if (!vehicleCode) {
+      setVehicleHistory(null);
+      return;
+    }
+    
+    // Get vehicle info from vehicles sheet
+    const vehicleInfo = vehiclesData.rows.find(v => String(v['Codigo'] || '') === vehicleCode);
+    
+    // Get all orders for this vehicle
+    const vehicleOrders = orders.filter(o => o.vehicle_code === vehicleCode);
+    
+    // Calculate total hours
+    const totalHours = vehicleOrders.reduce((sum, o) => sum + (o.actual_hours || 0), 0);
+    
+    // Calculate total days in maintenance
+    let totalDays = 0;
+    vehicleOrders.forEach(order => {
+      if (order.start_date && order.end_date) {
+        const start = new Date(order.start_date);
+        const end = new Date(order.end_date);
+        const diffTime = Math.abs(end.getTime() - start.getTime());
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        totalDays += diffDays;
+      } else if (order.start_date && order.status !== 'Finalizada') {
+        // Still in maintenance
+        const start = new Date(order.start_date);
+        const now = new Date();
+        const diffTime = Math.abs(now.getTime() - start.getTime());
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        totalDays += diffDays;
+      }
+    });
+    
+    // Get last order
+    const lastOrder = vehicleOrders.length > 0 ? vehicleOrders[0] : null;
+    
+    setVehicleHistory({
+      totalOrders: vehicleOrders.length,
+      totalHours,
+      totalDays,
+      lastOrder,
+      category: String(vehicleInfo?.['Categoria'] || ''),
+      company: String(vehicleInfo?.['Empresa'] || ''),
+    });
+  };
 
   // Generate order number
   const generateOrderNumber = () => {
@@ -304,6 +366,7 @@ export function ManutencaoPage() {
   // Open new order modal
   const handleNewOrder = () => {
     setEditingOrder(null);
+    setVehicleHistory(null);
     setFormData({
       vehicle_code: '',
       vehicle_description: '',
@@ -322,6 +385,17 @@ export function ManutencaoPage() {
       notes: '',
     });
     setIsModalOpen(true);
+  };
+
+  // Handle vehicle selection in modal
+  const handleVehicleSelect = (vehicleCode: string) => {
+    const vehicle = vehicles.find(v => v.code === vehicleCode);
+    setFormData({ 
+      ...formData, 
+      vehicle_code: vehicleCode,
+      vehicle_description: vehicle?.description || ''
+    });
+    fetchVehicleHistory(vehicleCode);
   };
 
   // Open edit order modal
@@ -344,6 +418,7 @@ export function ManutencaoPage() {
       labor_cost: order.labor_cost?.toString() || '',
       notes: order.notes || '',
     });
+    fetchVehicleHistory(order.vehicle_code);
     setIsModalOpen(true);
   };
 
@@ -626,28 +701,28 @@ export function ManutencaoPage() {
             title="EM MANUTENÇÃO"
             value={metrics.emManutencao.toString()}
             subtitle="Abertas + Em andamento"
-            variant="primary"
+            variant="blue"
             icon={Wrench}
           />
           <MetricCard
             title="AGUARDANDO PEÇAS"
             value={metrics.aguardandoPecas.toString()}
             subtitle="Paradas"
-            variant="primary"
+            variant="yellow"
             icon={Clock}
           />
           <MetricCard
             title="URGENTES"
             value={metrics.urgentes.toString()}
             subtitle="Prioridade alta"
-            variant="primary"
+            variant="red"
             icon={AlertTriangle}
           />
           <MetricCard
             title="FINALIZADAS"
             value={metrics.finalizadas.toString()}
             subtitle="Total no período"
-            variant="primary"
+            variant="green"
             icon={CheckCircle}
           />
         </div>
@@ -902,14 +977,7 @@ export function ManutencaoPage() {
                 <Label>Veículo *</Label>
                 <Select 
                   value={formData.vehicle_code} 
-                  onValueChange={(value) => {
-                    const vehicle = vehicles.find(v => v.code === value);
-                    setFormData({ 
-                      ...formData, 
-                      vehicle_code: value,
-                      vehicle_description: vehicle?.description || ''
-                    });
-                  }}
+                  onValueChange={handleVehicleSelect}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione o veículo" />
@@ -936,6 +1004,71 @@ export function ManutencaoPage() {
                 </Select>
               </div>
             </div>
+
+            {/* Vehicle History - shown when vehicle is selected */}
+            {vehicleHistory && formData.vehicle_code && (
+              <div className="bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 p-4 space-y-3">
+                <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300">
+                  <History className="w-5 h-5" />
+                  <span className="font-semibold">Histórico do Veículo: {formData.vehicle_code}</span>
+                </div>
+                
+                {vehicleHistory.category && (
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div className="bg-white/50 dark:bg-slate-800/50 p-2 rounded">
+                      <span className="text-muted-foreground">Categoria:</span>
+                      <p className="font-medium">{vehicleHistory.category}</p>
+                    </div>
+                    <div className="bg-white/50 dark:bg-slate-800/50 p-2 rounded">
+                      <span className="text-muted-foreground">Empresa:</span>
+                      <p className="font-medium">{vehicleHistory.company || '-'}</p>
+                    </div>
+                  </div>
+                )}
+                
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 rounded-lg p-3 text-center">
+                    <div className="flex items-center justify-center gap-1 text-blue-600 dark:text-blue-400 mb-1">
+                      <ClipboardList className="w-4 h-4" />
+                    </div>
+                    <p className="text-2xl font-bold text-blue-700 dark:text-blue-300">{vehicleHistory.totalOrders}</p>
+                    <p className="text-xs text-blue-600 dark:text-blue-400">Ordens Total</p>
+                  </div>
+                  <div className="bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800 rounded-lg p-3 text-center">
+                    <div className="flex items-center justify-center gap-1 text-amber-600 dark:text-amber-400 mb-1">
+                      <Timer className="w-4 h-4" />
+                    </div>
+                    <p className="text-2xl font-bold text-amber-700 dark:text-amber-300">{vehicleHistory.totalHours}h</p>
+                    <p className="text-xs text-amber-600 dark:text-amber-400">Horas Total</p>
+                  </div>
+                  <div className="bg-purple-50 dark:bg-purple-950/50 border border-purple-200 dark:border-purple-800 rounded-lg p-3 text-center">
+                    <div className="flex items-center justify-center gap-1 text-purple-600 dark:text-purple-400 mb-1">
+                      <CalendarDays className="w-4 h-4" />
+                    </div>
+                    <p className="text-2xl font-bold text-purple-700 dark:text-purple-300">{vehicleHistory.totalDays}</p>
+                    <p className="text-xs text-purple-600 dark:text-purple-400">Dias Parado</p>
+                  </div>
+                </div>
+                
+                {vehicleHistory.lastOrder && (
+                  <div className="bg-white/50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg p-3">
+                    <p className="text-xs text-muted-foreground mb-1">Última OS:</p>
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium text-sm">{vehicleHistory.lastOrder.order_number}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {format(new Date(vehicleHistory.lastOrder.order_date), 'dd/MM/yyyy')}
+                      </span>
+                      {getStatusBadge(vehicleHistory.lastOrder.status)}
+                    </div>
+                    {vehicleHistory.lastOrder.problem_description && (
+                      <p className="text-xs text-muted-foreground mt-1 truncate">
+                        {vehicleHistory.lastOrder.problem_description}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Priority and Status */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
