@@ -187,8 +187,8 @@ export function useHorimeterReadings(vehicleId?: string) {
                          vehicle.category?.toLowerCase().includes('caminhao');
           
           const rowData = {
-            // Headers must match EXACTLY with the spreadsheet (note the space in " Data")
-            ' Data': formattedDate,
+            // Note: edge function trims headers, so send without leading space
+            'Data': formattedDate,
             'Veiculo': vehicle.code,
             'Categoria': vehicle.category || '',
             'Descricao': vehicle.name || '',
