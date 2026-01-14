@@ -90,25 +90,7 @@ export function DatabaseHorimeterModal({
       });
   }, [selectedVehicleId, readings]);
 
-  // Previous value - excluding the record being edited
-  const previousValue = useMemo(() => {
-    if (!selectedVehicleId) return 0;
-    
-    // Get readings excluding the one being edited, sorted by date desc
-    const relevantReadings = readings
-      .filter(r => {
-        if (r.vehicle_id !== selectedVehicleId) return false;
-        // Exclude the record being edited
-        if (isEditMode && editRecord && r.id === editRecord.id) return false;
-        return true;
-      })
-      .sort((a, b) => b.reading_date.localeCompare(a.reading_date));
-    
-    if (relevantReadings.length === 0) return 0;
-    return relevantReadings[0].current_value;
-  }, [selectedVehicleId, readings, isEditMode, editRecord]);
-
-  // Previous Horimeter value - parse from observations or use current_value for horimeter vehicles
+  // Previous Horimeter value - from dedicated column in DB
   const previousHorimeter = useMemo(() => {
     if (!selectedVehicleId) return 0;
     
@@ -123,19 +105,11 @@ export function DatabaseHorimeterModal({
     if (relevantReadings.length === 0) return 0;
     
     const lastReading = relevantReadings[0];
-    // Check if it's a horimeter vehicle or try to parse from observations
-    if (lastReading.vehicle?.unit !== 'km') {
-      return lastReading.current_value;
-    }
-    // Try to extract from observations (format: "Hor: X | KM: Y")
-    const match = lastReading.observations?.match(/Hor:\s*([\d.,]+)/);
-    if (match) {
-      return parseFloat(match[1].replace(/\./g, '').replace(',', '.')) || 0;
-    }
-    return 0;
+    // Use the current_value as horimeter (it's the primary field for horimeter readings)
+    return lastReading.current_value || 0;
   }, [selectedVehicleId, readings, isEditMode, editRecord]);
 
-  // Previous KM value - parse from observations or use current_value for km vehicles
+  // Previous KM value - from dedicated current_km column in DB
   const previousKm = useMemo(() => {
     if (!selectedVehicleId) return 0;
     
@@ -150,16 +124,8 @@ export function DatabaseHorimeterModal({
     if (relevantReadings.length === 0) return 0;
     
     const lastReading = relevantReadings[0];
-    // Check if it's a km vehicle or try to parse from observations
-    if (lastReading.vehicle?.unit === 'km') {
-      return lastReading.current_value;
-    }
-    // Try to extract from observations (format: "Hor: X | KM: Y")
-    const match = lastReading.observations?.match(/KM:\s*([\d.,]+)/);
-    if (match) {
-      return parseFloat(match[1].replace(/\./g, '').replace(',', '.')) || 0;
-    }
-    return 0;
+    // Use the current_km column for KM value
+    return (lastReading as any).current_km || 0;
   }, [selectedVehicleId, readings, isEditMode, editRecord]);
 
   // Check for duplicate - improved logic for edit mode
@@ -309,16 +275,21 @@ export function DatabaseHorimeterModal({
       return false;
     }
 
-    // Determine the main value based on vehicle type or whichever is filled
-    const mainValue = selectedVehicle?.unit === 'km' 
-      ? (kmNum > 0 ? kmNum : horimeterNum)
-      : (horimeterNum > 0 ? horimeterNum : kmNum);
-
-    if (previousValue > 0 && mainValue <= previousValue) {
-      const tipo = selectedVehicle?.unit === 'km' ? 'quilometragem' : 'horímetro';
+    // Validate horimeter against previous horimeter value
+    if (horimeterNum > 0 && previousHorimeter > 0 && horimeterNum <= previousHorimeter) {
       toast({
         title: 'Valor inválido',
-        description: `O ${tipo} atual (${mainValue.toLocaleString('pt-BR')}) deve ser maior que o anterior (${previousValue.toLocaleString('pt-BR')}).`,
+        description: `O horímetro atual (${horimeterNum.toLocaleString('pt-BR')}h) deve ser maior que o anterior (${previousHorimeter.toLocaleString('pt-BR')}h).`,
+        variant: 'destructive',
+      });
+      return false;
+    }
+
+    // Validate KM against previous KM value
+    if (kmNum > 0 && previousKm > 0 && kmNum <= previousKm) {
+      toast({
+        title: 'Valor inválido',
+        description: `A quilometragem atual (${kmNum.toLocaleString('pt-BR')} km) deve ser maior que a anterior (${previousKm.toLocaleString('pt-BR')} km).`,
         variant: 'destructive',
       });
       return false;
@@ -346,25 +317,19 @@ export function DatabaseHorimeterModal({
       const horimeterNum = parseNumber(horimeterValue);
       const kmNum = parseNumber(kmValue);
       
-      // Determine main value based on vehicle unit or whichever is filled
-      const mainValue = selectedVehicle?.unit === 'km' 
-        ? (kmNum > 0 ? kmNum : horimeterNum)
-        : (horimeterNum > 0 ? horimeterNum : kmNum);
-
-      // Build observations with both values if both are provided
-      let finalObservations = observacao || '';
-      if (horimeterNum > 0 && kmNum > 0) {
-        const extraInfo = `Hor: ${horimeterNum.toLocaleString('pt-BR')}h | KM: ${kmNum.toLocaleString('pt-BR')}`;
-        finalObservations = finalObservations ? `${finalObservations} | ${extraInfo}` : extraInfo;
-      }
+      // Horimeter is stored in current_value/previous_value
+      // KM is stored in current_km/previous_km
+      const mainValue = horimeterNum > 0 ? horimeterNum : 0;
 
       const data = {
         vehicle_id: selectedVehicleId,
         reading_date: readingDate,
         current_value: mainValue,
-        previous_value: previousValue || null,
+        previous_value: previousHorimeter || null,
+        current_km: kmNum > 0 ? kmNum : null,
+        previous_km: previousKm > 0 ? previousKm : null,
         operator: operador || null,
-        observations: finalObservations || null,
+        observations: observacao || null,
         // Store both values for sheet sync
         _horimeterValue: horimeterNum,
         _kmValue: kmNum,
@@ -544,22 +509,24 @@ export function DatabaseHorimeterModal({
               </div>
               
               {/* Difference display */}
-              {previousValue > 0 && (parseNumber(horimeterValue) > 0 || parseNumber(kmValue) > 0) && (
-                <div className="text-xs text-muted-foreground bg-muted/30 rounded p-2">
+              {selectedVehicleId && (parseNumber(horimeterValue) > 0 || parseNumber(kmValue) > 0) && (
+                <div className="text-xs text-muted-foreground bg-muted/30 rounded p-2 space-y-1">
                   {parseNumber(horimeterValue) > 0 && (
                     <p className={cn(
                       'flex items-center gap-1',
-                      parseNumber(horimeterValue) > previousValue ? 'text-green-600' : 'text-destructive'
+                      previousHorimeter === 0 || parseNumber(horimeterValue) > previousHorimeter ? 'text-green-600' : 'text-destructive'
                     )}>
-                      Diferença Horímetro: {(parseNumber(horimeterValue) - previousValue).toLocaleString('pt-BR')}h
+                      Diferença Horímetro: {(parseNumber(horimeterValue) - previousHorimeter).toLocaleString('pt-BR')}h
+                      {previousHorimeter > 0 && ` (anterior: ${previousHorimeter.toLocaleString('pt-BR')}h)`}
                     </p>
                   )}
                   {parseNumber(kmValue) > 0 && (
                     <p className={cn(
                       'flex items-center gap-1',
-                      parseNumber(kmValue) > previousValue ? 'text-green-600' : 'text-destructive'
+                      previousKm === 0 || parseNumber(kmValue) > previousKm ? 'text-green-600' : 'text-destructive'
                     )}>
-                      Diferença KM: {(parseNumber(kmValue) - previousValue).toLocaleString('pt-BR')} km
+                      Diferença KM: {(parseNumber(kmValue) - previousKm).toLocaleString('pt-BR')} km
+                      {previousKm > 0 && ` (anterior: ${previousKm.toLocaleString('pt-BR')} km)`}
                     </p>
                   )}
                 </div>

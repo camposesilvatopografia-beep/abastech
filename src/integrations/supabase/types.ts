@@ -238,10 +238,12 @@ export type Database = {
       horimeter_readings: {
         Row: {
           created_at: string
+          current_km: number | null
           current_value: number
           id: string
           observations: string | null
           operator: string | null
+          previous_km: number | null
           previous_value: number | null
           reading_date: string
           source: string | null
@@ -251,10 +253,12 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          current_km?: number | null
           current_value: number
           id?: string
           observations?: string | null
           operator?: string | null
+          previous_km?: number | null
           previous_value?: number | null
           reading_date: string
           source?: string | null
@@ -264,10 +268,12 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          current_km?: number | null
           current_value?: number
           id?: string
           observations?: string | null
           operator?: string | null
+          previous_km?: number | null
           previous_value?: number | null
           reading_date?: string
           source?: string | null
