@@ -1,14 +1,16 @@
 import { useMemo, useState, useCallback, useEffect } from 'react';
-import { Droplet, TrendingDown, TrendingUp, Package, Truck, ArrowDownCircle, ArrowUpCircle, Clock, Fuel, Calendar, MessageCircle, Wifi, WifiOff, RefreshCw } from 'lucide-react';
-import { FilterBar } from './FilterBar';
+import { Droplet, TrendingDown, TrendingUp, Package, Truck, ArrowDownCircle, ArrowUpCircle, Clock, Fuel, Calendar, MessageCircle, Wifi, RefreshCw, X, Search } from 'lucide-react';
 import { MetricCard } from './MetricCard';
 import { StockSummary } from './StockSummary';
 import { ConsumptionRanking } from './ConsumptionRanking';
 import { useSheetData } from '@/hooks/useGoogleSheets';
-import { format } from 'date-fns';
+import { format, parse, isWithinInterval, startOfDay, endOfDay, isValid } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 
 const GERAL_SHEET = 'GERAL';
 const ABASTECIMENTO_SHEET = 'AbastecimentoCanteiro01';
@@ -21,6 +23,28 @@ function parseNumber(value: any): number {
   return parseFloat(str) || 0;
 }
 
+// Parse Brazilian date format (dd/MM/yyyy) to Date object
+function parseBrazilianDate(dateStr: string): Date | null {
+  if (!dateStr) return null;
+  try {
+    // Try dd/MM/yyyy format
+    const parts = dateStr.split('/');
+    if (parts.length === 3) {
+      const day = parseInt(parts[0]);
+      const month = parseInt(parts[1]) - 1;
+      const year = parseInt(parts[2]);
+      const date = new Date(year, month, day);
+      if (isValid(date)) return date;
+    }
+    // Try ISO format
+    const isoDate = new Date(dateStr);
+    if (isValid(isoDate)) return isoDate;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 export function DashboardContent() {
   // Enable polling every 30 seconds for real-time updates
   const POLLING_INTERVAL = 30000;
@@ -31,6 +55,8 @@ export function DashboardContent() {
   const { data: arlaData } = useSheetData(ARLA_SHEET, { pollingInterval: POLLING_INTERVAL });
   const [isSending, setIsSending] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
+  const [search, setSearch] = useState('');
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const { toast } = useToast();
 
   // Update last sync time when data changes
@@ -49,7 +75,7 @@ export function DashboardContent() {
     }));
   }, [vehicleData.rows]);
 
-  // Check if a vehicle is a comboio
+  // Check if a vehicle is a comboio by its code
   const isComboio = useCallback((vehicleCode: string) => {
     const info = vehicleInfo.find(v => v.veiculo === vehicleCode);
     if (!info) return false;
@@ -58,22 +84,45 @@ export function DashboardContent() {
     return descLower.includes('comboio') || catLower.includes('comboio');
   }, [vehicleInfo]);
 
+  // Filter abastecimento data by selected date
+  const filteredAbastecimentoData = useMemo(() => {
+    if (!selectedDate) return abastecimentoData.rows;
+    
+    return abastecimentoData.rows.filter(row => {
+      const rowDateStr = String(row['DATA'] || row['Data'] || '');
+      const rowDate = parseBrazilianDate(rowDateStr);
+      if (!rowDate) return false;
+      
+      return isWithinInterval(rowDate, {
+        start: startOfDay(selectedDate),
+        end: endOfDay(selectedDate)
+      });
+    });
+  }, [abastecimentoData.rows, selectedDate]);
+
   // Calculate exits from abastecimento data (Saída records only)
+  // FIXED: Check if the destination LOCAL contains 'comboio' for comboio transfers
+  // OR if the refueled VEHICLE is a comboio
   const calculatedExits = useMemo(() => {
     let saidaComboios = 0;
     let saidaEquipamentos = 0;
 
-    abastecimentoData.rows.forEach(row => {
+    filteredAbastecimentoData.forEach(row => {
       const tipo = String(row['TIPO DE OPERACAO'] || row['TIPO_OPERACAO'] || row['Tipo'] || '').toLowerCase();
       const local = String(row['LOCAL'] || row['Local'] || '').toLowerCase();
+      const veiculo = String(row['VEICULO'] || row['Veiculo'] || '').trim();
       const quantidade = parseNumber(row['QUANTIDADE'] || row['Quantidade']);
       
-      // Only count outgoing/exit records (Saída)
+      // Only count outgoing/exit records (Saída) - exclude entries from suppliers
       if (tipo.includes('entrada') || tipo.includes('fornecedor')) return;
       if (quantidade <= 0) return;
       
-      // Check if it's a comboio destination
-      if (local.includes('comboio')) {
+      // Check if it's a transfer TO a comboio (local contains comboio)
+      // OR if the vehicle being refueled IS a comboio
+      const isComboioDestination = local.includes('comboio');
+      const isComboioVehicle = isComboio(veiculo);
+      
+      if (isComboioDestination || isComboioVehicle) {
         saidaComboios += quantidade;
       } else {
         saidaEquipamentos += quantidade;
@@ -81,45 +130,67 @@ export function DashboardContent() {
     });
 
     return { saidaComboios, saidaEquipamentos };
-  }, [abastecimentoData.rows]);
+  }, [filteredAbastecimentoData, isComboio]);
 
-  // Extract stock values from GERAL sheet - get LAST row (most recent)
+  // Calculate entries from filtered data
+  const calculatedEntries = useMemo(() => {
+    let entradas = 0;
+    
+    filteredAbastecimentoData.forEach(row => {
+      const tipo = String(row['TIPO DE OPERACAO'] || row['TIPO_OPERACAO'] || row['Tipo'] || '').toLowerCase();
+      const local = String(row['LOCAL'] || row['Local'] || '').toLowerCase();
+      const quantidade = parseNumber(row['QUANTIDADE'] || row['Quantidade']);
+      
+      // Count entries from suppliers (FORNECEDOR type or entries at tanks)
+      if ((tipo.includes('entrada') || tipo.includes('fornecedor')) && quantidade > 0) {
+        entradas += quantidade;
+      }
+    });
+    
+    return entradas;
+  }, [filteredAbastecimentoData]);
+
+  // Extract stock values from GERAL sheet - get row for selected date or last row
   const stockData = useMemo(() => {
+    const totalSaidas = calculatedExits.saidaComboios + calculatedExits.saidaEquipamentos;
+    
     if (!geralData.rows.length) {
       return {
         estoqueAnterior: 0,
-        entrada: 0,
+        entrada: calculatedEntries,
         saidaComboios: calculatedExits.saidaComboios,
         saidaEquipamentos: calculatedExits.saidaEquipamentos,
         estoqueAtual: 0,
-        totalSaidas: calculatedExits.saidaComboios + calculatedExits.saidaEquipamentos
+        totalSaidas
       };
     }
 
-    // Get the last row (most recent data)
-    const lastRow = geralData.rows[geralData.rows.length - 1];
+    // Try to find row for selected date, otherwise use last row
+    let targetRow = geralData.rows[geralData.rows.length - 1];
     
-    const estoqueAnterior = parseNumber(lastRow?.['EstoqueAnterior']);
-    const entrada = parseNumber(lastRow?.['Entrada']);
-    // Use calculated values for exits if GERAL doesn't have them
-    const saidaComboiosGeral = parseNumber(lastRow?.['Saidas_Para_Comboios']);
-    const saidaEquipamentosGeral = parseNumber(lastRow?.['Saida']);
-    const estoqueAtual = parseNumber(lastRow?.['EstoqueAtual']);
+    if (selectedDate) {
+      const selectedDateStr = format(selectedDate, 'dd/MM/yyyy');
+      const matchingRow = geralData.rows.find(row => {
+        const rowDate = String(row['Data'] || row['DATA'] || '');
+        return rowDate === selectedDateStr;
+      });
+      if (matchingRow) targetRow = matchingRow;
+    }
     
-    // Prefer calculated values from abastecimento if GERAL values are 0
-    const saidaComboios = saidaComboiosGeral > 0 ? saidaComboiosGeral : calculatedExits.saidaComboios;
-    const saidaEquipamentos = saidaEquipamentosGeral > 0 ? saidaEquipamentosGeral : calculatedExits.saidaEquipamentos;
-    const totalSaidas = saidaComboios + saidaEquipamentos;
-
+    const estoqueAnterior = parseNumber(targetRow?.['EstoqueAnterior']);
+    const entradaGeral = parseNumber(targetRow?.['Entrada']);
+    const estoqueAtual = parseNumber(targetRow?.['EstoqueAtual']);
+    
+    // Use calculated values which are filtered by date
     return {
       estoqueAnterior,
-      entrada,
-      saidaComboios,
-      saidaEquipamentos,
+      entrada: calculatedEntries > 0 ? calculatedEntries : entradaGeral,
+      saidaComboios: calculatedExits.saidaComboios,
+      saidaEquipamentos: calculatedExits.saidaEquipamentos,
       estoqueAtual,
       totalSaidas
     };
-  }, [geralData.rows, calculatedExits]);
+  }, [geralData.rows, calculatedExits, calculatedEntries, selectedDate]);
 
   // Get ARLA stock from EstoqueArla sheet - last row
   const estoqueArla = useMemo(() => {
@@ -128,12 +199,23 @@ export function DashboardContent() {
     return parseNumber(lastRow?.['EstoqueAtual']);
   }, [arlaData.rows]);
 
-  // Get recent activities from abastecimento data
+  // Get recent activities from filtered abastecimento data
   const recentActivities = useMemo(() => {
-    if (!abastecimentoData.rows.length) return [];
+    if (!filteredAbastecimentoData.length) return [];
+
+    // Apply search filter
+    let filtered = filteredAbastecimentoData;
+    if (search) {
+      const searchLower = search.toLowerCase();
+      filtered = filtered.filter(row => 
+        String(row['VEICULO'] || row['Veiculo'] || '').toLowerCase().includes(searchLower) ||
+        String(row['MOTORISTA'] || row['Motorista'] || '').toLowerCase().includes(searchLower) ||
+        String(row['LOCAL'] || row['Local'] || '').toLowerCase().includes(searchLower)
+      );
+    }
 
     // Get last 10 records
-    return abastecimentoData.rows
+    return filtered
       .slice(-10)
       .reverse()
       .map((row, index) => ({
@@ -146,16 +228,19 @@ export function DashboardContent() {
         combustivel: String(row['TIPO DE COMBUSTIVEL'] || row['Combustivel'] || 'Diesel'),
         local: String(row['LOCAL'] || row['Local'] || 'N/A')
       }));
-  }, [abastecimentoData.rows]);
+  }, [filteredAbastecimentoData, search]);
 
-  // Calculate consumption ranking by vehicle
+  // Calculate consumption ranking by vehicle (from filtered data)
   const consumptionRanking = useMemo(() => {
     const vehicleMap = new Map<string, { totalLitros: number; abastecimentos: number }>();
     
-    abastecimentoData.rows.forEach(row => {
+    filteredAbastecimentoData.forEach(row => {
       const veiculo = String(row['VEICULO'] || row['Veiculo'] || '').trim();
       const quantidade = parseNumber(row['QUANTIDADE'] || row['Quantidade']);
+      const tipo = String(row['TIPO DE OPERACAO'] || row['TIPO_OPERACAO'] || row['Tipo'] || '').toLowerCase();
       
+      // Only count exits, not entries
+      if (tipo.includes('entrada') || tipo.includes('fornecedor')) return;
       if (!veiculo || quantidade <= 0) return;
       
       const existing = vehicleMap.get(veiculo) || { totalLitros: 0, abastecimentos: 0 };
@@ -171,7 +256,7 @@ export function DashboardContent() {
       abastecimentos: data.abastecimentos,
       mediaPorAbastecimento: data.abastecimentos > 0 ? data.totalLitros / data.abastecimentos : 0
     }));
-  }, [abastecimentoData.rows]);
+  }, [filteredAbastecimentoData]);
 
   // Raw consumption data for month filtering
   const rawConsumptionData = useMemo(() => {
@@ -191,15 +276,22 @@ export function DashboardContent() {
     { label: 'Estoque Atual', value: stockData.estoqueAtual.toLocaleString('pt-BR', { minimumFractionDigits: 2 }), isTotal: true },
   ];
 
-  const totalRecords = abastecimentoData.rows.length;
+  const totalRecords = filteredAbastecimentoData.length;
+
+  // Clear date filter
+  const clearDateFilter = () => {
+    setSelectedDate(undefined);
+  };
 
   // Generate WhatsApp message for daily summary
   const generateWhatsAppMessage = () => {
-    const today = format(new Date(), 'dd/MM/yyyy', { locale: ptBR });
+    const dateStr = selectedDate 
+      ? format(selectedDate, 'dd/MM/yyyy', { locale: ptBR })
+      : format(new Date(), 'dd/MM/yyyy', { locale: ptBR });
     const time = format(new Date(), 'HH:mm', { locale: ptBR });
     
     const message = `📊 *RESUMO DO DIA - ESTOQUE*
-📅 Data: ${today} às ${time}
+📅 Data: ${dateStr} às ${time}
 
 🛢️ *DIESEL*
 • Estoque Anterior: ${stockData.estoqueAnterior.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} L
@@ -213,7 +305,7 @@ export function DashboardContent() {
 • Estoque: ${estoqueArla.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L
 
 📈 *Movimentação*
-• ${recentActivities.length > 0 ? recentActivities.length : 0} abastecimentos registrados
+• ${totalRecords} abastecimentos registrados
 
 _Sistema Abastech_`;
 
@@ -235,38 +327,88 @@ _Sistema Abastech_`;
   return (
     <div className="flex-1 p-3 md:p-6 overflow-auto">
       <div className="space-y-4 md:space-y-6">
-        {/* Filter Bar with Sync Indicator */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-4">
-            <FilterBar totalRecords={totalRecords} />
-            {/* Real-time sync indicator */}
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted/50 border border-border">
-              {loading ? (
-                <>
-                  <RefreshCw className="w-3.5 h-3.5 text-primary animate-spin" />
-                  <span className="text-xs text-muted-foreground">Sincronizando...</span>
-                </>
-              ) : (
-                <>
-                  <Wifi className="w-3.5 h-3.5 text-green-500" />
-                  <div className="flex flex-col">
-                    <span className="text-xs text-green-600 dark:text-green-400 font-medium">Sincronizado</span>
-                    <span className="text-[10px] text-muted-foreground">
-                      {format(lastUpdate, 'HH:mm:ss')}
-                    </span>
-                  </div>
-                </>
-              )}
+        {/* Header with Filters */}
+        <div className="bg-card rounded-lg border border-border p-4 space-y-4">
+          <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+            {/* Search */}
+            <div className="relative flex-1 max-w-md">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar veículos, locais, motoristas..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-10 h-10"
+              />
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              {/* Date Filter */}
+              <div className="flex items-center gap-2">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="h-10 gap-2">
+                      <Calendar className="w-4 h-4" />
+                      {selectedDate ? format(selectedDate, 'dd/MM/yyyy') : 'Selecionar data'}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="end">
+                    <CalendarComponent
+                      mode="single"
+                      selected={selectedDate}
+                      onSelect={setSelectedDate}
+                      locale={ptBR}
+                    />
+                  </PopoverContent>
+                </Popover>
+
+                {selectedDate && (
+                  <Button variant="ghost" size="sm" onClick={clearDateFilter} className="h-10">
+                    <X className="w-4 h-4" />
+                  </Button>
+                )}
+              </div>
+
+              {/* Sync Indicator */}
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted/50 border border-border">
+                {loading ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 text-primary animate-spin" />
+                    <span className="text-xs text-muted-foreground">Sincronizando...</span>
+                  </>
+                ) : (
+                  <>
+                    <Wifi className="w-3.5 h-3.5 text-green-500" />
+                    <div className="flex flex-col">
+                      <span className="text-xs text-green-600 dark:text-green-400 font-medium">Sincronizado</span>
+                      <span className="text-[10px] text-muted-foreground">
+                        {format(lastUpdate, 'HH:mm:ss')}
+                      </span>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* WhatsApp Button */}
+              <Button 
+                onClick={handleWhatsAppExport} 
+                disabled={isSending}
+                className="bg-green-600 hover:bg-green-700 gap-2"
+              >
+                <MessageCircle className="w-4 h-4" />
+                <span className="hidden sm:inline">WhatsApp</span>
+              </Button>
             </div>
           </div>
-          <Button 
-            onClick={handleWhatsAppExport} 
-            disabled={isSending}
-            className="bg-green-600 hover:bg-green-700 gap-2 w-full sm:w-auto"
-          >
-            <MessageCircle className="w-4 h-4" />
-            <span className="sm:inline">WhatsApp</span>
-          </Button>
+
+          {/* Period info */}
+          <div className="flex items-center gap-2 text-sm">
+            <Calendar className="w-4 h-4 text-muted-foreground" />
+            <span className="text-muted-foreground">Data:</span>
+            <span className="font-medium">
+              {selectedDate ? format(selectedDate, "dd 'de' MMMM 'de' yyyy", { locale: ptBR }) : 'Todos os registros'}
+            </span>
+            <span className="text-muted-foreground">• {totalRecords.toLocaleString('pt-BR')} registros</span>
+          </div>
         </div>
 
         {/* Primary Stock KPIs - Different colors */}
@@ -330,7 +472,7 @@ _Sistema Abastech_`;
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <StockSummary
             title="Resumo de Estoque"
-            subtitle="Diesel - Último registro"
+            subtitle={selectedDate ? format(selectedDate, 'dd/MM/yyyy') : 'Último registro'}
             rows={summaryRows}
           />
           <ConsumptionRanking 
@@ -351,14 +493,18 @@ _Sistema Abastech_`;
               </div>
               <div>
                 <h3 className="font-semibold">Atividades Recentes</h3>
-                <p className="text-sm text-muted-foreground">Últimos abastecimentos registrados</p>
+                <p className="text-sm text-muted-foreground">
+                  {selectedDate 
+                    ? `Abastecimentos em ${format(selectedDate, 'dd/MM/yyyy')}`
+                    : 'Últimos abastecimentos registrados'}
+                </p>
               </div>
             </div>
           </div>
           <div className="divide-y divide-border">
             {recentActivities.length === 0 ? (
               <div className="p-8 text-center text-muted-foreground">
-                Nenhuma atividade recente encontrada
+                Nenhuma atividade encontrada {selectedDate ? 'para esta data' : ''}
               </div>
             ) : (
               recentActivities.map((activity) => (
