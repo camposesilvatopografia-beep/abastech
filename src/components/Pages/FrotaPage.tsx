@@ -13,7 +13,8 @@ import {
   FileSpreadsheet,
   Cog,
   Car,
-  Activity
+  Activity,
+  History
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -41,6 +42,7 @@ import autoTable from 'jspdf-autotable';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import * as XLSX from 'xlsx';
+import { VehicleHistoryModal } from '@/components/Frota/VehicleHistoryModal';
 
 const SHEET_NAME = 'Veiculo';
 
@@ -79,6 +81,20 @@ export function FrotaPage() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [groupBy, setGroupBy] = useState<'categoria' | 'empresa' | 'descricao'>('categoria');
   const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
+  
+  // Vehicle history modal state
+  const [historyModalOpen, setHistoryModalOpen] = useState(false);
+  const [selectedVehicle, setSelectedVehicle] = useState<{
+    codigo: string;
+    descricao: string;
+    categoria: string;
+    empresa: string;
+  } | null>(null);
+
+  const openVehicleHistory = (vehicle: { codigo: string; descricao: string; categoria: string; empresa: string }) => {
+    setSelectedVehicle(vehicle);
+    setHistoryModalOpen(true);
+  };
 
   const empresas = useMemo(() => {
     const unique = new Set<string>();
@@ -647,13 +663,14 @@ export function FrotaPage() {
                             <TableHead>Categoria</TableHead>
                             <TableHead>Empresa</TableHead>
                             <TableHead>Status</TableHead>
+                            <TableHead className="text-center">Ações</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
                           {group.items.map((item, idx) => {
                             const statusInfo = STATUS_LABELS[item.status?.toLowerCase() || 'ativo'] || STATUS_LABELS.ativo;
                             return (
-                              <TableRow key={idx}>
+                              <TableRow key={idx} className="hover:bg-muted/30">
                                 <TableCell className="font-medium">{item.codigo}</TableCell>
                                 <TableCell>{item.descricao}</TableCell>
                                 <TableCell>{item.categoria}</TableCell>
@@ -662,6 +679,17 @@ export function FrotaPage() {
                                   <span className={cn("px-2 py-1 rounded-full text-xs font-medium border", statusInfo.color)}>
                                     {statusInfo.label}
                                   </span>
+                                </TableCell>
+                                <TableCell className="text-center">
+                                  <Button 
+                                    variant="ghost" 
+                                    size="sm" 
+                                    className="gap-2 text-primary hover:text-primary hover:bg-primary/10"
+                                    onClick={() => openVehicleHistory(item)}
+                                  >
+                                    <History className="w-4 h-4" />
+                                    <span className="hidden lg:inline">Histórico</span>
+                                  </Button>
                                 </TableCell>
                               </TableRow>
                             );
@@ -676,6 +704,21 @@ export function FrotaPage() {
           </div>
         )}
       </div>
+
+      {/* Vehicle History Modal */}
+      {selectedVehicle && (
+        <VehicleHistoryModal
+          open={historyModalOpen}
+          onClose={() => {
+            setHistoryModalOpen(false);
+            setSelectedVehicle(null);
+          }}
+          vehicleCode={selectedVehicle.codigo}
+          vehicleDescription={selectedVehicle.descricao}
+          vehicleCategory={selectedVehicle.categoria}
+          vehicleEmpresa={selectedVehicle.empresa}
+        />
+      )}
     </div>
   );
 }
