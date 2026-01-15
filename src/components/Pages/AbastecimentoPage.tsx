@@ -1620,6 +1620,7 @@ export function AbastecimentoPage() {
                     <TableHead>Descrição</TableHead>
                     <TableHead>Motorista</TableHead>
                     <TableHead className="text-right">Quantidade (L)</TableHead>
+                    <TableHead className="text-right">Intervalo</TableHead>
                     <TableHead className="text-right">Consumo Médio</TableHead>
                     <TableHead className="text-center w-16">Detalhes</TableHead>
                   </TableRow>
@@ -1627,14 +1628,14 @@ export function AbastecimentoPage() {
                 <TableBody>
                   {loading ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-8">
+                      <TableCell colSpan={8} className="text-center py-8">
                         <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-muted-foreground" />
                         Carregando dados...
                       </TableCell>
                     </TableRow>
                   ) : filteredRows.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                         Nenhum dado encontrado para o período selecionado
                       </TableCell>
                     </TableRow>
@@ -1648,19 +1649,24 @@ export function AbastecimentoPage() {
                         // Equipamento (machines) = L/h (litros por hora trabalhada)
                         // Veículo (vehicles) = km/L (quilômetros por litro)
                         let consumoMedio = '-';
+                        let intervalo = '-';
+                        
                         if (consumoData && consumoData.totalLitros > 0) {
                           if (consumoData.isEquipamento && consumoData.totalHorasTrabalhadas > 0) {
                             // Equipment: L/h (liters per hour)
                             const lH = consumoData.totalLitros / consumoData.totalHorasTrabalhadas;
                             consumoMedio = `${lH.toFixed(2)} L/h`;
+                            intervalo = `${consumoData.totalHorasTrabalhadas.toLocaleString('pt-BR', { minimumFractionDigits: 1 })} h`;
                           } else if (!consumoData.isEquipamento && consumoData.totalKmRodados > 0) {
                             // Vehicle: km/L (kilometers per liter)
                             const kmL = consumoData.totalKmRodados / consumoData.totalLitros;
                             consumoMedio = `${kmL.toFixed(2)} km/L`;
+                            intervalo = `${consumoData.totalKmRodados.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} km`;
                           } else if (consumoData.totalHorasTrabalhadas > 0) {
                             // Fallback to L/h if no km data
                             const lH = consumoData.totalLitros / consumoData.totalHorasTrabalhadas;
                             consumoMedio = `${lH.toFixed(2)} L/h`;
+                            intervalo = `${consumoData.totalHorasTrabalhadas.toLocaleString('pt-BR', { minimumFractionDigits: 1 })} h`;
                           }
                         }
 
@@ -1681,6 +1687,11 @@ export function AbastecimentoPage() {
                             <TableCell>{String(row['MOTORISTA'] || row['Motorista'] || '-')}</TableCell>
                             <TableCell className="text-right font-medium">
                               {parseNumber(row['QUANTIDADE']).toLocaleString('pt-BR', { minimumFractionDigits: 1 })}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <span className="text-sm text-muted-foreground">
+                                {intervalo}
+                              </span>
                             </TableCell>
                             <TableCell className="text-right">
                               <span className={cn(
@@ -1709,7 +1720,7 @@ export function AbastecimentoPage() {
                       })}
                       {filteredRows.length > 50 && (
                         <TableRow>
-                          <TableCell colSpan={7} className="text-center py-4 text-muted-foreground">
+                          <TableCell colSpan={8} className="text-center py-4 text-muted-foreground">
                             Mostrando 50 de {filteredRows.length} registros
                           </TableCell>
                         </TableRow>
