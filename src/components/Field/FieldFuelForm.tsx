@@ -1233,29 +1233,29 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
       {/* Form */}
       <div className="p-4 space-y-4 max-w-2xl mx-auto">
         {/* Current Date/Time Display (Auto-filled) */}
-        <div className="bg-slate-800/80 backdrop-blur-sm rounded-xl border border-amber-600/30 p-4 shadow-lg">
-          <div className="flex items-center gap-2 text-amber-400 mb-2">
+        <div className="bg-card/80 dark:bg-slate-800/80 backdrop-blur-sm rounded-xl border border-amber-600/30 p-4 shadow-lg">
+          <div className="flex items-center gap-2 text-amber-500 mb-2">
             <Clock className="w-4 h-4" />
             <span className="text-sm font-medium">Data e Hora do Registro</span>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <p className="text-xs text-slate-400">Data</p>
-              <p className="text-lg font-bold text-white">{new Date().toLocaleDateString('pt-BR')}</p>
+              <p className="text-xs text-muted-foreground">Data</p>
+              <p className="text-lg font-bold text-foreground">{new Date().toLocaleDateString('pt-BR')}</p>
             </div>
             <div>
-              <p className="text-xs text-slate-400">Hora</p>
-              <p className="text-lg font-bold text-white">{new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>
+              <p className="text-xs text-muted-foreground">Hora</p>
+              <p className="text-lg font-bold text-foreground">{new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>
             </div>
           </div>
-          <p className="text-xs text-slate-500 mt-2 italic">
+          <p className="text-xs text-muted-foreground mt-2 italic">
             * Preenchido automaticamente no momento do registro
           </p>
         </div>
 
         {/* Record Type Selection */}
-        <div className="bg-slate-800/80 backdrop-blur-sm rounded-xl border border-amber-600/30 p-4 space-y-3 shadow-lg">
-          <Label className="flex items-center gap-2 text-base font-medium text-white">
+        <div className="bg-card/80 dark:bg-slate-800/80 backdrop-blur-sm rounded-xl border border-amber-600/30 p-4 space-y-3 shadow-lg">
+          <Label className="flex items-center gap-2 text-base font-medium text-foreground">
             Tipo de Registro
           </Label>
           <div className="grid grid-cols-2 gap-3">
@@ -1266,7 +1266,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                 "h-14 text-lg font-bold transition-all",
                 recordType === 'saida' 
                   ? "bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white border-0 shadow-lg shadow-red-500/30"
-                  : "border-red-600/30 text-slate-300 hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/50"
+                  : "border-red-600/30 text-muted-foreground hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/50"
               )}
               onClick={() => setRecordType('saida')}
             >
@@ -1280,7 +1280,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                 "h-14 text-lg font-bold transition-all",
                 recordType === 'entrada' 
                   ? "bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white border-0 shadow-lg shadow-green-500/30"
-                  : "border-green-600/30 text-slate-300 hover:bg-green-500/10 hover:text-green-400 hover:border-green-500/50"
+                  : "border-green-600/30 text-muted-foreground hover:bg-green-500/10 hover:text-green-400 hover:border-green-500/50"
               )}
               onClick={() => setRecordType('entrada')}
             >

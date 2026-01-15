@@ -68,7 +68,7 @@ export function MetricCard({
       iconColor: "text-white"
     },
     white: {
-      container: "bg-white border border-border text-foreground",
+      container: "bg-card border border-border text-foreground",
       title: "text-muted-foreground",
       value: "text-foreground",
       subtitle: "text-muted-foreground",
