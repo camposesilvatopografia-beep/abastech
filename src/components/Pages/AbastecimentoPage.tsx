@@ -24,8 +24,11 @@ import {
   Building2,
   Eye,
   Image,
-  Truck
+  Truck,
+  Plus,
 } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
+import { AdminFuelRecordModal } from '@/components/Dashboard/AdminFuelRecordModal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { MetricCard } from '@/components/Dashboard/MetricCard';
@@ -106,6 +109,7 @@ function parseNumber(value: any): number {
 }
 
 export function AbastecimentoPage() {
+  const { user } = useAuth();
   const { data, loading, refetch } = useSheetData(SHEET_NAME);
   const { data: geralData } = useSheetData(GERAL_SHEET);
   const { data: saneamentoStockData } = useSheetData(SANEAMENTO_STOCK_SHEET);
@@ -122,6 +126,16 @@ export function AbastecimentoPage() {
   const [selectedRecord, setSelectedRecord] = useState<any>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
+  const [showAdminRecordModal, setShowAdminRecordModal] = useState(false);
+
+  // Check if user can create records (admin or samarakelle)
+  const canCreateRecords = useMemo(() => {
+    if (!user) return false;
+    const username = user.username?.toLowerCase() || '';
+    return username === 'jeanallbuquerque@gmail.com' || 
+           username === 'samarakelle' || 
+           user.role === 'admin';
+  }, [user]);
 
   // Get saneamento stock from estoqueobrasaneamento sheet (column H)
   const estoqueSaneamento = useMemo(() => {
@@ -1061,6 +1075,16 @@ export function AbastecimentoPage() {
           </div>
           
           <div className="flex flex-wrap items-center gap-2">
+            {canCreateRecords && (
+              <Button 
+                size="sm" 
+                onClick={() => setShowAdminRecordModal(true)}
+                className="bg-green-600 hover:bg-green-700"
+              >
+                <Plus className="w-4 h-4 sm:mr-2" />
+                <span className="hidden sm:inline">Novo Apontamento</span>
+              </Button>
+            )}
             <Button variant="outline" size="sm" onClick={() => refetch()} disabled={loading}>
               <RefreshCw className={cn("w-4 h-4 sm:mr-2", loading && "animate-spin")} />
               <span className="hidden sm:inline">Atualizar</span>
@@ -1956,6 +1980,15 @@ export function AbastecimentoPage() {
             onClick={(e) => e.stopPropagation()}
           />
         </div>
+      )}
+
+      {/* Admin Fuel Record Modal */}
+      {canCreateRecords && (
+        <AdminFuelRecordModal
+          open={showAdminRecordModal}
+          onOpenChange={setShowAdminRecordModal}
+          onSuccess={() => refetch()}
+        />
       )}
     </div>
   );
