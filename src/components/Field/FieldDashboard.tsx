@@ -43,6 +43,7 @@ import {
 import { EditRequestModal } from './EditRequestModal';
 import { LocationStockCard, LocationStockCardRef } from './LocationStockCard';
 import logoAbastech from '@/assets/logo-abastech.png';
+import { useTheme } from '@/hooks/useTheme';
 
 interface FieldUser {
   id: string;
@@ -80,6 +81,7 @@ interface DeleteRequest {
 }
 
 export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) {
+  const { theme } = useTheme();
   const [todayRecords, setTodayRecords] = useState<RecentRecord[]>([]);
   const [todayStats, setTodayStats] = useState({
     totalRecords: 0,
@@ -407,10 +409,18 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
 
       {/* Location Selector for Multiple Locations */}
       {hasMultipleLocations && (
-        <div className="bg-slate-800/80 rounded-xl p-4 border border-slate-700">
+        <div className={cn(
+          "rounded-xl p-4 border",
+          theme === 'dark' 
+            ? "bg-slate-800/80 border-slate-700" 
+            : "bg-white border-slate-200 shadow-sm"
+        )}>
           <div className="flex items-center gap-2 mb-3">
-            <MapPin className="w-4 h-4 text-amber-400" />
-            <span className="text-sm font-medium text-slate-200">Visualizar Estoque por Local</span>
+            <MapPin className="w-4 h-4 text-amber-500" />
+            <span className={cn(
+              "text-sm font-medium",
+              theme === 'dark' ? "text-slate-200" : "text-slate-700"
+            )}>Visualizar Estoque por Local</span>
           </div>
           <div className="flex flex-wrap gap-2">
             {user.assigned_locations?.map((loc) => (
@@ -423,7 +433,9 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
                   "text-xs",
                   selectedLocation === loc 
                     ? "bg-amber-500 hover:bg-amber-600 text-white border-amber-500"
-                    : "border-slate-600 text-slate-300 hover:bg-slate-700"
+                    : theme === 'dark'
+                      ? "border-slate-600 text-slate-300 hover:bg-slate-700"
+                      : "border-slate-300 text-slate-600 hover:bg-slate-100"
                 )}
               >
                 {loc}
@@ -459,50 +471,100 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
       )}
 
       {/* Today Stats */}
-      <Card className="bg-slate-800/50 border-slate-700">
+      <Card className={cn(
+        theme === 'dark' 
+          ? "bg-slate-800/50 border-slate-700" 
+          : "bg-white border-slate-200 shadow-sm"
+      )}>
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm flex items-center gap-2 text-slate-200">
-            <FileText className="w-4 h-4 text-amber-400" />
+          <CardTitle className={cn(
+            "text-sm flex items-center gap-2",
+            theme === 'dark' ? "text-slate-200" : "text-slate-700"
+          )}>
+            <FileText className="w-4 h-4 text-amber-500" />
             Meus Apontamentos de Hoje
           </CardTitle>
         </CardHeader>
         <CardContent className="pt-0">
           <div className="grid grid-cols-3 gap-3">
-            <div className="bg-amber-900/30 border border-amber-700/50 rounded-lg p-3 text-center">
-              <FileText className="w-5 h-5 mx-auto mb-1 text-amber-400" />
-              <p className="text-2xl font-bold text-amber-400">{todayStats.totalRecords}</p>
-              <p className="text-xs text-amber-300/70">Registros</p>
+            <div className={cn(
+              "rounded-lg p-3 text-center border",
+              theme === 'dark' 
+                ? "bg-amber-900/30 border-amber-700/50" 
+                : "bg-amber-50 border-amber-200"
+            )}>
+              <FileText className="w-5 h-5 mx-auto mb-1 text-amber-500" />
+              <p className="text-2xl font-bold text-amber-500">{todayStats.totalRecords}</p>
+              <p className={cn(
+                "text-xs",
+                theme === 'dark' ? "text-amber-300/70" : "text-amber-600/70"
+              )}>Registros</p>
             </div>
-            <div className="bg-green-900/30 border border-green-700/50 rounded-lg p-3 text-center">
-              <Fuel className="w-5 h-5 mx-auto mb-1 text-green-400" />
-              <p className="text-2xl font-bold text-green-400">{todayStats.totalLiters.toLocaleString('pt-BR')}</p>
-              <p className="text-xs text-green-300/70">Litros</p>
+            <div className={cn(
+              "rounded-lg p-3 text-center border",
+              theme === 'dark' 
+                ? "bg-green-900/30 border-green-700/50" 
+                : "bg-green-50 border-green-200"
+            )}>
+              <Fuel className="w-5 h-5 mx-auto mb-1 text-green-500" />
+              <p className="text-2xl font-bold text-green-500">{todayStats.totalLiters.toLocaleString('pt-BR')}</p>
+              <p className={cn(
+                "text-xs",
+                theme === 'dark' ? "text-green-300/70" : "text-green-600/70"
+              )}>Litros</p>
             </div>
-            <div className="bg-slate-700/50 border border-slate-600/50 rounded-lg p-3 text-center">
-              <Package className="w-5 h-5 mx-auto mb-1 text-slate-400" />
-              <p className="text-2xl font-bold text-slate-300">{todayStats.totalArla.toLocaleString('pt-BR')}</p>
-              <p className="text-xs text-slate-400">ARLA</p>
+            <div className={cn(
+              "rounded-lg p-3 text-center border",
+              theme === 'dark' 
+                ? "bg-slate-700/50 border-slate-600/50" 
+                : "bg-slate-100 border-slate-200"
+            )}>
+              <Package className={cn(
+                "w-5 h-5 mx-auto mb-1",
+                theme === 'dark' ? "text-slate-400" : "text-slate-500"
+              )} />
+              <p className={cn(
+                "text-2xl font-bold",
+                theme === 'dark' ? "text-slate-300" : "text-slate-600"
+              )}>{todayStats.totalArla.toLocaleString('pt-BR')}</p>
+              <p className={cn(
+                "text-xs",
+                theme === 'dark' ? "text-slate-400" : "text-slate-500"
+              )}>ARLA</p>
             </div>
           </div>
         </CardContent>
       </Card>
 
       {/* Today's Records List */}
-      <Card className="bg-slate-800/50 border-slate-700">
+      <Card className={cn(
+        theme === 'dark' 
+          ? "bg-slate-800/50 border-slate-700" 
+          : "bg-white border-slate-200 shadow-sm"
+      )}>
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm flex items-center gap-2 text-slate-200">
-            <Clock className="w-4 h-4 text-amber-400" />
+          <CardTitle className={cn(
+            "text-sm flex items-center gap-2",
+            theme === 'dark' ? "text-slate-200" : "text-slate-700"
+          )}>
+            <Clock className="w-4 h-4 text-amber-500" />
             Registros do Dia
           </CardTitle>
         </CardHeader>
         <CardContent className="pt-0">
           {isLoading ? (
-            <div className="flex items-center justify-center py-6 text-slate-400">
+            <div className={cn(
+              "flex items-center justify-center py-6",
+              theme === 'dark' ? "text-slate-400" : "text-slate-500"
+            )}>
               <Loader2 className="w-5 h-5 animate-spin mr-2" />
               Carregando...
             </div>
           ) : todayRecords.length === 0 ? (
-            <div className="text-center py-6 text-slate-400">
+            <div className={cn(
+              "text-center py-6",
+              theme === 'dark' ? "text-slate-400" : "text-slate-500"
+            )}>
               <FileText className="w-8 h-8 mx-auto mb-2 opacity-50" />
               <p>Nenhum registro hoje</p>
               <p className="text-xs mt-1">Clique em "Novo Apontamento" para começar</p>
@@ -515,19 +577,29 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
                   className={cn(
                     "flex items-center justify-between p-3 rounded-lg border transition-all",
                     record.record_type === 'entrada' 
-                      ? "bg-green-900/30 border-green-700/50"
-                      : "bg-red-900/20 border-red-800/40"
+                      ? theme === 'dark' 
+                        ? "bg-green-900/30 border-green-700/50"
+                        : "bg-green-50 border-green-200"
+                      : theme === 'dark'
+                        ? "bg-red-900/20 border-red-800/40"
+                        : "bg-red-50 border-red-200"
                   )}
                 >
                   <div className="flex items-center gap-2 flex-1">
                     {record.record_type === 'entrada' ? (
-                      <TrendingUp className="w-4 h-4 text-green-400" />
+                      <TrendingUp className="w-4 h-4 text-green-500" />
                     ) : (
-                      <TrendingDown className="w-4 h-4 text-red-400" />
+                      <TrendingDown className="w-4 h-4 text-red-500" />
                     )}
                     <div>
-                      <p className="text-sm font-medium text-slate-200">{record.vehicle_code}</p>
-                      <p className="text-xs text-slate-400">
+                      <p className={cn(
+                        "text-sm font-medium",
+                        theme === 'dark' ? "text-slate-200" : "text-slate-700"
+                      )}>{record.vehicle_code}</p>
+                      <p className={cn(
+                        "text-xs",
+                        theme === 'dark' ? "text-slate-400" : "text-slate-500"
+                      )}>
                         {formatTime(record.record_time)} • {record.location}
                       </p>
                     </div>
@@ -535,12 +607,15 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
                   <div className="text-right mr-3">
                     <p className={cn(
                       "text-sm font-bold",
-                      record.record_type === 'entrada' ? "text-green-400" : "text-red-400"
+                      record.record_type === 'entrada' ? "text-green-500" : "text-red-500"
                     )}>
                       {record.record_type === 'entrada' ? '+' : '-'}{record.fuel_quantity}L
                     </p>
                     {record.arla_quantity && record.arla_quantity > 0 && (
-                      <p className="text-xs text-slate-400">ARLA: {record.arla_quantity}L</p>
+                      <p className={cn(
+                        "text-xs",
+                        theme === 'dark' ? "text-slate-400" : "text-slate-500"
+                      )}>ARLA: {record.arla_quantity}L</p>
                     )}
                   </div>
                   <div className="flex gap-1">
@@ -548,7 +623,12 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
                     <Button
                       size="icon"
                       variant="ghost"
-                      className="h-8 w-8 text-slate-400 hover:text-blue-400 hover:bg-blue-900/30"
+                      className={cn(
+                        "h-8 w-8",
+                        theme === 'dark' 
+                          ? "text-slate-400 hover:text-blue-400 hover:bg-blue-900/30"
+                          : "text-slate-500 hover:text-blue-500 hover:bg-blue-50"
+                      )}
                       onClick={() => setEditRecord(record)}
                       title="Solicitar edição"
                     >
@@ -558,7 +638,12 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
                     <Button
                       size="icon"
                       variant="ghost"
-                      className="h-8 w-8 text-slate-400 hover:text-red-400 hover:bg-red-900/30"
+                      className={cn(
+                        "h-8 w-8",
+                        theme === 'dark' 
+                          ? "text-slate-400 hover:text-red-400 hover:bg-red-900/30"
+                          : "text-slate-500 hover:text-red-500 hover:bg-red-50"
+                      )}
                       onClick={() => setDeleteRequest({
                         recordId: record.id,
                         vehicleCode: record.vehicle_code,

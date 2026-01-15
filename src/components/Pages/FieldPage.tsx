@@ -194,7 +194,7 @@ export function FieldPage() {
       "min-h-screen flex flex-col transition-colors duration-300",
       theme === 'dark' 
         ? "bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900" 
-        : "bg-gradient-to-br from-slate-100 via-white to-slate-100"
+        : "bg-slate-50"
     )}>
       {/* Header with brand colors */}
       <header className="sticky top-0 z-10 bg-gradient-to-r from-amber-600 to-orange-600 text-white p-3 shadow-lg">
@@ -270,10 +270,10 @@ export function FieldPage() {
         <Button
           variant={currentView === 'form' ? 'default' : 'ghost'}
           className={cn(
-            "flex-1 h-11 gap-2 font-semibold",
+            "flex-1 h-11 gap-2 font-semibold transition-all",
             currentView === 'form' 
               ? "bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/30" 
-              : "bg-emerald-500 hover:bg-emerald-600 text-white shadow-md shadow-emerald-500/20"
+              : "bg-emerald-500 hover:bg-emerald-600 text-white shadow-md shadow-emerald-500/20 animate-pulse-glow"
           )}
           onClick={() => setCurrentView('form')}
         >
