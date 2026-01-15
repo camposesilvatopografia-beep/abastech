@@ -98,7 +98,7 @@ export function FieldPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col">
       {/* Header with brand colors */}
-      <header className="sticky top-0 z-10 bg-gradient-to-r from-amber-600 to-orange-600 text-white p-4 shadow-lg">
+      <header className="sticky top-0 z-10 bg-gradient-to-r from-amber-600 to-orange-600 text-white p-3 shadow-lg">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <img src={logoAbastech} alt="Abastech" className="h-8 w-auto" />
@@ -133,6 +133,36 @@ export function FieldPage() {
         </div>
       </header>
 
+      {/* Navigation Tabs - Right below header */}
+      <nav className="bg-slate-800/90 backdrop-blur-sm border-b border-slate-700 px-4 py-2 flex gap-2">
+        <Button
+          variant={currentView === 'dashboard' ? 'default' : 'ghost'}
+          className={cn(
+            "flex-1 h-11 gap-2",
+            currentView === 'dashboard' 
+              ? "bg-amber-500 hover:bg-amber-600 text-white" 
+              : "text-slate-400 hover:text-white hover:bg-slate-700"
+          )}
+          onClick={() => setCurrentView('dashboard')}
+        >
+          <LayoutDashboard className="w-4 h-4" />
+          <span className="text-sm font-medium">Dashboard</span>
+        </Button>
+        <Button
+          variant={currentView === 'form' ? 'default' : 'ghost'}
+          className={cn(
+            "flex-1 h-11 gap-2",
+            currentView === 'form' 
+              ? "bg-sky-500 hover:bg-sky-600 text-white" 
+              : "text-slate-400 hover:text-white hover:bg-slate-700"
+          )}
+          onClick={() => setCurrentView('form')}
+        >
+          <Fuel className="w-4 h-4" />
+          <span className="text-sm font-medium">Novo Apontamento</span>
+        </Button>
+      </nav>
+
       {/* Connection Banner */}
       {!isOnline && (
         <div className="bg-amber-500 text-amber-900 p-2 text-center text-sm font-medium">
@@ -155,32 +185,6 @@ export function FieldPage() {
           />
         )}
       </main>
-
-      {/* Top Navigation with only Dashboard and Apontamento */}
-      <nav className="bg-slate-900/95 backdrop-blur-sm border-b border-amber-600/30 p-2 flex justify-center gap-4">
-        <Button
-          variant="ghost"
-          className={cn(
-            "flex items-center gap-2 px-6 h-12 text-slate-400 hover:text-amber-400 hover:bg-amber-500/10",
-            currentView === 'dashboard' && "text-amber-400 bg-amber-500/20"
-          )}
-          onClick={() => setCurrentView('dashboard')}
-        >
-          <LayoutDashboard className="w-5 h-5" />
-          <span className="text-sm font-medium">Dashboard</span>
-        </Button>
-        <Button
-          variant="ghost"
-          className={cn(
-            "flex items-center gap-2 px-6 h-12 text-slate-400 hover:text-sky-400 hover:bg-sky-500/10",
-            currentView === 'form' && "text-sky-400 bg-sky-500/20"
-          )}
-          onClick={() => setCurrentView('form')}
-        >
-          <Fuel className="w-5 h-5" />
-          <span className="text-sm font-medium">Apontamento</span>
-        </Button>
-      </nav>
     </div>
   );
 }
