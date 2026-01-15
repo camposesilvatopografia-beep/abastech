@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   Fuel, 
   Mic, 
@@ -28,6 +28,9 @@ import {
   Clock,
   AlertCircle,
   Receipt,
+  Search,
+  ChevronsUpDown,
+  Check,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -40,6 +43,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 import { supabase } from '@/integrations/supabase/client';
 import { useSheetData } from '@/hooks/useGoogleSheets';
 import { toast } from 'sonner';
@@ -1068,11 +1084,20 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
     if (quantityOcrInputRef.current) quantityOcrInputRef.current.value = '';
   };
 
-  // Get unique vehicles from sheet
-  const vehicles = vehiclesData.rows.map(v => ({
-    code: String(v['Codigo'] || ''),
-    description: String(v['Descricao'] || ''),
-  })).filter(v => v.code);
+  // Get unique vehicles from sheet with sorting
+  const vehicles = useMemo(() => {
+    return vehiclesData.rows
+      .map(v => ({
+        code: String(v['Codigo'] || ''),
+        description: String(v['Descricao'] || ''),
+        category: String(v['Categoria'] || ''),
+      }))
+      .filter(v => v.code)
+      .sort((a, b) => a.code.localeCompare(b.code));
+  }, [vehiclesData.rows]);
+
+  // Vehicle search combobox state
+  const [vehicleSearchOpen, setVehicleSearchOpen] = useState(false);
 
   // Success overlay with animation
   if (showSuccess) {
@@ -1160,10 +1185,10 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
               type="button"
               variant={recordType === 'saida' ? 'default' : 'outline'}
               className={cn(
-                "h-14 text-lg",
+                "h-14 text-lg font-bold transition-all",
                 recordType === 'saida' 
-                  ? "bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white border-0"
-                  : "border-amber-600/30 text-slate-300 hover:bg-amber-500/10 hover:text-amber-400"
+                  ? "bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white border-0 shadow-lg shadow-red-500/30"
+                  : "border-red-600/30 text-slate-300 hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/50"
               )}
               onClick={() => setRecordType('saida')}
             >
@@ -1174,10 +1199,10 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
               type="button"
               variant={recordType === 'entrada' ? 'default' : 'outline'}
               className={cn(
-                "h-14 text-lg",
+                "h-14 text-lg font-bold transition-all",
                 recordType === 'entrada' 
-                  ? "bg-green-500 hover:bg-green-600 text-white border-0"
-                  : "border-amber-600/30 text-slate-300 hover:bg-green-500/10 hover:text-green-400"
+                  ? "bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white border-0 shadow-lg shadow-green-500/30"
+                  : "border-green-600/30 text-slate-300 hover:bg-green-500/10 hover:text-green-400 hover:border-green-500/50"
               )}
               onClick={() => setRecordType('entrada')}
             >
@@ -1190,7 +1215,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         {/* SAÍDA FORM */}
         {recordType === 'saida' && (
           <>
-            {/* Vehicle Selection */}
+            {/* Vehicle Selection with Searchable Combobox */}
             <div className="bg-slate-800/80 backdrop-blur-sm rounded-xl border border-amber-600/30 p-4 space-y-3 shadow-lg">
               <div className="flex items-center justify-between">
                 <Label className="flex items-center gap-2 text-base text-white">
@@ -1198,61 +1223,111 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                   Veículo
                 </Label>
                 {voice.isSupported && (
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => startVoiceForField('vehicle')}
-                className={cn(activeVoiceField === 'vehicle' && voice.isListening && "bg-red-100")}
-              >
-                <Mic className="w-4 h-4" />
-              </Button>
-            )}
-          </div>
-              <Select value={vehicleCode} onValueChange={handleVehicleSelect}>
-                <SelectTrigger className="h-12 text-lg">
-                  <SelectValue placeholder="Selecione o veículo" />
-                </SelectTrigger>
-                <SelectContent className="max-h-60 z-50 bg-popover">
-                  {vehicles.length === 0 ? (
-                    <div className="p-3 text-center text-muted-foreground text-sm">
-                      Carregando veículos...
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => startVoiceForField('vehicle')}
+                    className={cn(activeVoiceField === 'vehicle' && voice.isListening && "bg-red-100")}
+                  >
+                    <Mic className="w-4 h-4" />
+                  </Button>
+                )}
+              </div>
+              
+              {/* Searchable Vehicle Combobox */}
+              <Popover open={vehicleSearchOpen} onOpenChange={setVehicleSearchOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={vehicleSearchOpen}
+                    className={cn(
+                      "w-full h-14 justify-between text-lg font-medium bg-slate-700/50 border-slate-600 hover:bg-slate-600/50",
+                      !vehicleCode && "text-muted-foreground"
+                    )}
+                  >
+                    <span className="truncate">
+                      {vehicleCode || "Pesquisar veículo..."}
+                    </span>
+                    <ChevronsUpDown className="ml-2 h-5 w-5 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent 
+                  className="w-[--radix-popover-trigger-width] p-0 bg-slate-800 border-slate-600 shadow-xl z-50" 
+                  align="start"
+                  sideOffset={4}
+                >
+                  <Command className="bg-slate-800">
+                    <div className="flex items-center border-b border-slate-600 px-3">
+                      <Search className="h-4 w-4 shrink-0 opacity-50 mr-2 text-amber-400" />
+                      <CommandInput 
+                        placeholder="Digite código ou descrição..." 
+                        className="h-12 border-0 focus:ring-0 text-white placeholder:text-slate-400 bg-transparent"
+                      />
                     </div>
-                  ) : (
-                    vehicles.map(v => (
-                      <SelectItem key={v.code} value={v.code}>
-                        {v.code}
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
+                    <CommandList className="max-h-[300px]">
+                      <CommandEmpty className="py-6 text-center text-slate-400">
+                        Nenhum veículo encontrado.
+                      </CommandEmpty>
+                      <CommandGroup>
+                        {vehicles.map((vehicle) => (
+                          <CommandItem
+                            key={vehicle.code}
+                            value={`${vehicle.code} ${vehicle.description} ${vehicle.category}`.toLowerCase()}
+                            onSelect={() => {
+                              handleVehicleSelect(vehicle.code);
+                              setVehicleSearchOpen(false);
+                            }}
+                            className="cursor-pointer py-3 px-3 hover:bg-slate-700 aria-selected:bg-amber-600/20 text-white"
+                          >
+                            <Check
+                              className={cn(
+                                "mr-3 h-4 w-4 text-amber-400",
+                                vehicleCode === vehicle.code ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            <div className="flex flex-col">
+                              <span className="font-bold text-amber-400">{vehicle.code}</span>
+                              {vehicle.description && (
+                                <span className="text-sm text-slate-400 truncate max-w-[250px]">
+                                  {vehicle.description}
+                                </span>
+                              )}
+                            </div>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
           
-          {vehicleDescription && (
-            <div className="grid grid-cols-2 gap-2 text-sm">
-              <div className="bg-muted/50 p-2 rounded">
-                <span className="text-muted-foreground">Categoria:</span>
-                <p className="font-medium">{category || '-'}</p>
-              </div>
-              <div className="bg-muted/50 p-2 rounded">
-                <span className="text-muted-foreground">Empresa:</span>
-                <p className="font-medium">{company || '-'}</p>
-              </div>
-            </div>
-          )}
+              {vehicleDescription && (
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div className="bg-slate-700/50 p-2 rounded border border-slate-600">
+                    <span className="text-slate-400 text-xs">Categoria:</span>
+                    <p className="font-medium text-white">{category || '-'}</p>
+                  </div>
+                  <div className="bg-slate-700/50 p-2 rounded border border-slate-600">
+                    <span className="text-slate-400 text-xs">Empresa:</span>
+                    <p className="font-medium text-white">{company || '-'}</p>
+                  </div>
+                </div>
+              )}
           
-          {/* Previous horimeter/km display */}
-          {horimeterPrevious && (
-            <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 p-3 rounded-lg">
-              <div className="flex items-center gap-2 text-blue-700 dark:text-blue-300">
-                <Clock className="w-4 h-4" />
-                <span className="text-sm font-medium">
-                  Último registro: <span className="font-bold">{horimeterPrevious}</span>
-                </span>
-              </div>
+              {/* Previous horimeter/km display */}
+              {horimeterPrevious && (
+                <div className="bg-blue-900/30 border border-blue-700/50 p-3 rounded-lg">
+                  <div className="flex items-center gap-2 text-blue-300">
+                    <Clock className="w-4 h-4" />
+                    <span className="text-sm font-medium">
+                      Último registro: <span className="font-bold text-blue-200">{horimeterPrevious}</span>
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
-          )}
-        </div>
 
         {/* Fuel Quantity with OCR */}
         <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-xl border border-slate-200 dark:border-slate-700 p-4 space-y-3 shadow-sm">
