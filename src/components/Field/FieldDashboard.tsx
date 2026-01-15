@@ -156,26 +156,28 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
     loadRecords();
   }, [fetchTodayRecords]);
 
-  // Real-time subscription for request status changes
+  // Real-time subscription for request status changes and admin actions
   useEffect(() => {
     const channel = supabase
-      .channel('field-requests-changes')
+      .channel('field-dashboard-realtime')
       .on(
         'postgres_changes',
         {
-          event: 'UPDATE',
+          event: '*',
           schema: 'public',
           table: 'field_record_requests',
         },
         (payload) => {
-          const newStatus = payload.new?.status;
-          const requestedBy = payload.new?.requested_by;
+          const newData = payload.new as Record<string, any> | null;
+          const oldData = payload.old as Record<string, any> | null;
+          const newStatus = newData?.status;
+          const requestedBy = newData?.requested_by || oldData?.requested_by;
           
-          // Only refresh if this user's request was updated
-          if (requestedBy === user.id && (newStatus === 'approved' || newStatus === 'rejected')) {
+          // Refresh when this user's request is updated by admin
+          if (requestedBy === user.id) {
             if (newStatus === 'approved') {
               toast.success('Sua solicitação foi aprovada!');
-            } else {
+            } else if (newStatus === 'rejected') {
               toast.info('Sua solicitação foi rejeitada');
             }
             fetchTodayRecords();
@@ -190,12 +192,27 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
           table: 'field_fuel_records',
         },
         (payload) => {
-          // Refresh on any changes to fuel records for this user
+          // Refresh on any changes to fuel records for this user (including admin edits)
           const newRecord = payload.new as Record<string, any> | null;
           const oldRecord = payload.old as Record<string, any> | null;
           if (newRecord?.user_id === user.id || oldRecord?.user_id === user.id) {
             fetchTodayRecords();
           }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'field_users',
+          filter: `id=eq.${user.id}`,
+        },
+        () => {
+          // Refresh when user's own profile is updated (e.g., location assignments)
+          toast.info('Suas informações foram atualizadas');
+          // Reload the page to get updated user data
+          window.location.reload();
         }
       )
       .subscribe();
