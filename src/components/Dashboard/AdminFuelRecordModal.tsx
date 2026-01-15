@@ -299,25 +299,39 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
     }
   };
 
-  // Fetch previous horimeter/km from records
+  // Fetch previous horimeter/km from records - get the MOST RECENT from all sources
   const fetchPreviousValues = async (vehicleCode: string) => {
     try {
-      // Try from field_fuel_records
+      let maxHorimeter = 0;
+      let maxKm = 0;
+      let fuelRecordDate = '';
+      let horimeterRecordDate = '';
+
+      // Try from field_fuel_records - get the most recent
       const { data: fuelRecords } = await supabase
         .from('field_fuel_records')
-        .select('horimeter_current, km_current')
+        .select('horimeter_current, km_current, record_date, record_time, created_at')
         .eq('vehicle_code', vehicleCode)
         .eq('record_type', 'saida')
         .order('record_date', { ascending: false })
         .order('record_time', { ascending: false })
-        .limit(1);
+        .order('created_at', { ascending: false })
+        .limit(10); // Get more records to find the highest values
 
       if (fuelRecords && fuelRecords.length > 0) {
-        const horValue = Number(fuelRecords[0].horimeter_current) || 0;
-        const kmValue = Number(fuelRecords[0].km_current) || 0;
-        
-        if (horValue > 0) setHorimeterPrevious(formatBrazilianNumber(horValue));
-        if (kmValue > 0) setKmPrevious(formatBrazilianNumber(kmValue));
+        // Find the highest values from fuel records
+        fuelRecords.forEach(record => {
+          const horValue = Number(record.horimeter_current) || 0;
+          const kmValue = Number(record.km_current) || 0;
+          
+          if (horValue > maxHorimeter) {
+            maxHorimeter = horValue;
+            fuelRecordDate = record.record_date;
+          }
+          if (kmValue > maxKm) {
+            maxKm = kmValue;
+          }
+        });
       }
 
       // Also try from horimeter_readings
@@ -330,23 +344,38 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
       if (vehicleData?.id) {
         const { data: horimeterRecords } = await supabase
           .from('horimeter_readings')
-          .select('current_value, current_km')
+          .select('current_value, current_km, reading_date, created_at')
           .eq('vehicle_id', vehicleData.id)
           .order('reading_date', { ascending: false })
-          .limit(1);
+          .order('created_at', { ascending: false })
+          .limit(10); // Get more records to find the highest values
 
         if (horimeterRecords && horimeterRecords.length > 0) {
-          const horValue = Number(horimeterRecords[0].current_value) || 0;
-          const kmValue = Number(horimeterRecords[0].current_km) || 0;
-          
-          if (horValue > 0 && !horimeterPrevious) {
-            setHorimeterPrevious(formatBrazilianNumber(horValue));
-          }
-          if (kmValue > 0 && !kmPrevious) {
-            setKmPrevious(formatBrazilianNumber(kmValue));
-          }
+          // Find the highest values from horimeter readings
+          horimeterRecords.forEach(record => {
+            const horValue = Number(record.current_value) || 0;
+            const kmValue = Number(record.current_km) || 0;
+            
+            if (horValue > maxHorimeter) {
+              maxHorimeter = horValue;
+              horimeterRecordDate = record.reading_date;
+            }
+            if (kmValue > maxKm) {
+              maxKm = kmValue;
+            }
+          });
         }
       }
+
+      // Set the highest values found
+      if (maxHorimeter > 0) {
+        setHorimeterPrevious(formatBrazilianNumber(maxHorimeter));
+      }
+      if (maxKm > 0) {
+        setKmPrevious(formatBrazilianNumber(maxKm));
+      }
+
+      console.log(`Vehicle ${vehicleCode} - Max Horimeter: ${maxHorimeter}, Max KM: ${maxKm}`);
     } catch (err) {
       console.error('Error fetching previous values:', err);
     }
