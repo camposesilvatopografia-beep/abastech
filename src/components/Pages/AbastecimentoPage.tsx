@@ -122,13 +122,36 @@ export function AbastecimentoPage() {
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
 
-  // Get current stock from GERAL sheet (column G - EstoqueAtual)
+  // Get current stock from GERAL sheet - based on dateRange filter (daily data)
   const estoqueAtual = useMemo(() => {
     if (!geralData.rows.length) return 0;
+    
+    // For 'hoje' or single day filter, find the exact date row
+    const isSingleDay = periodFilter === 'hoje' || periodFilter === 'ontem' || 
+      (periodFilter === 'personalizado' && startDate && endDate && 
+        format(startDate, 'yyyy-MM-dd') === format(endDate, 'yyyy-MM-dd'));
+    
+    if (isSingleDay) {
+      const targetDate = periodFilter === 'ontem' 
+        ? format(subDays(new Date(), 1), 'dd/MM/yyyy')
+        : startDate 
+          ? format(startDate, 'dd/MM/yyyy')
+          : format(new Date(), 'dd/MM/yyyy');
+      
+      const matchingRow = geralData.rows.find(row => {
+        const rowDate = String(row['Data'] || row['DATA'] || '').trim();
+        return rowDate === targetDate;
+      });
+      
+      if (matchingRow) {
+        return parseNumber(matchingRow['EstoqueAtual'] || matchingRow['ESTOQUE ATUAL']);
+      }
+    }
+    
+    // Fallback to last row
     const lastRow = geralData.rows[geralData.rows.length - 1];
-    const estoqueValue = lastRow?.['EstoqueAtual'] || 0;
-    return parseNumber(estoqueValue);
-  }, [geralData.rows]);
+    return parseNumber(lastRow?.['EstoqueAtual'] || lastRow?.['ESTOQUE ATUAL'] || 0);
+  }, [geralData.rows, periodFilter, startDate, endDate]);
 
   // Get saneamento stock from estoqueobrasaneamento sheet (column H)
   const estoqueSaneamento = useMemo(() => {
