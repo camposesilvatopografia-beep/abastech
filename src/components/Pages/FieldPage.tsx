@@ -156,29 +156,29 @@ export function FieldPage() {
         )}
       </main>
 
-      {/* Bottom Navigation with brand colors */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur-sm border-t border-amber-600/30 p-2 flex justify-around z-20">
+      {/* Top Navigation with only Dashboard and Apontamento */}
+      <nav className="bg-slate-900/95 backdrop-blur-sm border-b border-amber-600/30 p-2 flex justify-center gap-4">
         <Button
           variant="ghost"
           className={cn(
-            "flex-1 flex flex-col items-center gap-1 h-14 text-slate-400 hover:text-amber-400 hover:bg-amber-500/10",
+            "flex items-center gap-2 px-6 h-12 text-slate-400 hover:text-amber-400 hover:bg-amber-500/10",
             currentView === 'dashboard' && "text-amber-400 bg-amber-500/20"
           )}
           onClick={() => setCurrentView('dashboard')}
         >
           <LayoutDashboard className="w-5 h-5" />
-          <span className="text-xs">Dashboard</span>
+          <span className="text-sm font-medium">Dashboard</span>
         </Button>
         <Button
           variant="ghost"
           className={cn(
-            "flex-1 flex flex-col items-center gap-1 h-14 text-slate-400 hover:text-amber-400 hover:bg-amber-500/10",
-            currentView === 'form' && "text-amber-400 bg-amber-500/20"
+            "flex items-center gap-2 px-6 h-12 text-slate-400 hover:text-sky-400 hover:bg-sky-500/10",
+            currentView === 'form' && "text-sky-400 bg-sky-500/20"
           )}
           onClick={() => setCurrentView('form')}
         >
           <Fuel className="w-5 h-5" />
-          <span className="text-xs">Apontamento</span>
+          <span className="text-sm font-medium">Apontamento</span>
         </Button>
       </nav>
     </div>
