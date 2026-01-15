@@ -483,27 +483,52 @@ export function AbastecimentoPage() {
     return empresaMap;
   }, [resumoPorLocal.recordsByLocal]);
 
-  // Calculate average consumption per vehicle (based on horimetro or km)
+  // Calculate average consumption per vehicle (based on horimetro or km difference)
   const consumoMedioVeiculo = useMemo(() => {
-    const veiculoMap = new Map<string, { totalLitros: number; totalHoras: number; totalKm: number; usaKm: boolean }>();
+    const veiculoMap = new Map<string, { 
+      totalLitros: number; 
+      totalHorasTrabalhadas: number; 
+      totalKmRodados: number; 
+      usaKm: boolean;
+      registros: number;
+    }>();
     
     filteredRows.forEach(row => {
       const veiculo = String(row['VEICULO'] || row['Veiculo'] || '').trim();
       const quantidade = parseNumber(row['QUANTIDADE']);
-      const horimetro = parseNumber(row['HORIMETRO'] || row['Horimetro'] || row['HORAS']);
-      const km = parseNumber(row['KM'] || row['Km'] || row['QUILOMETRAGEM']);
+      
+      // Get horimeter/km ANTERIOR and ATUAL values
+      const horAnterior = parseNumber(row['HORIMETRO ANTERIOR'] || row['HOR_ANTERIOR'] || row['HORIMETRO_ANTERIOR'] || 0);
+      const horAtual = parseNumber(row['HORIMETRO ATUAL'] || row['HOR_ATUAL'] || row['HORIMETRO'] || row['Horimetro'] || 0);
+      const kmAnterior = parseNumber(row['KM ANTERIOR'] || row['KM_ANTERIOR'] || 0);
+      const kmAtual = parseNumber(row['KM ATUAL'] || row['KM_ATUAL'] || row['KM'] || row['Km'] || 0);
+      
       const categoria = String(row['CATEGORIA'] || row['Categoria'] || '').toLowerCase();
       
-      if (!veiculo) return;
+      if (!veiculo || quantidade <= 0) return;
       
-      const existing = veiculoMap.get(veiculo) || { totalLitros: 0, totalHoras: 0, totalKm: 0, usaKm: false };
-      const usaKm = categoria.includes('veículo') || categoria.includes('veiculo') || km > 0;
+      // Calculate differences
+      const horasTrabalhadas = horAtual > horAnterior ? horAtual - horAnterior : 0;
+      const kmRodados = kmAtual > kmAnterior ? kmAtual - kmAnterior : 0;
+      
+      const existing = veiculoMap.get(veiculo) || { 
+        totalLitros: 0, 
+        totalHorasTrabalhadas: 0, 
+        totalKmRodados: 0, 
+        usaKm: false,
+        registros: 0
+      };
+      
+      const usaKm = categoria.includes('veículo') || categoria.includes('veiculo') || 
+                    categoria.includes('caminhao') || categoria.includes('caminhão') || 
+                    kmRodados > 0;
       
       veiculoMap.set(veiculo, {
         totalLitros: existing.totalLitros + quantidade,
-        totalHoras: existing.totalHoras + horimetro,
-        totalKm: existing.totalKm + km,
-        usaKm: existing.usaKm || usaKm
+        totalHorasTrabalhadas: existing.totalHorasTrabalhadas + horasTrabalhadas,
+        totalKmRodados: existing.totalKmRodados + kmRodados,
+        usaKm: existing.usaKm || usaKm,
+        registros: existing.registros + 1
       });
     });
     
@@ -1602,14 +1627,14 @@ export function AbastecimentoPage() {
                         const veiculo = String(row['VEICULO'] || row['Veiculo'] || '').trim();
                         const consumoData = consumoMedioVeiculo.get(veiculo);
                         
-                        // Calculate average consumption
+                        // Calculate average consumption based on hours worked or km driven
                         let consumoMedio = '-';
                         if (consumoData && consumoData.totalLitros > 0) {
-                          if (consumoData.usaKm && consumoData.totalKm > 0) {
-                            const kmL = consumoData.totalKm / consumoData.totalLitros;
+                          if (consumoData.usaKm && consumoData.totalKmRodados > 0) {
+                            const kmL = consumoData.totalKmRodados / consumoData.totalLitros;
                             consumoMedio = `${kmL.toFixed(2)} km/L`;
-                          } else if (consumoData.totalHoras > 0) {
-                            const lH = consumoData.totalLitros / consumoData.totalHoras;
+                          } else if (consumoData.totalHorasTrabalhadas > 0) {
+                            const lH = consumoData.totalLitros / consumoData.totalHorasTrabalhadas;
                             consumoMedio = `${lH.toFixed(2)} L/h`;
                           }
                         }
