@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -36,10 +36,13 @@ import {
   Bot,
   Loader2,
   Sparkles,
+  Save,
+  RefreshCw,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { useKpiMappings } from '@/hooks/useKpiMappings';
 
 interface KPIDiagnosticsModalProps {
   open: boolean;
@@ -47,8 +50,6 @@ interface KPIDiagnosticsModalProps {
   sheetName: string;
   sheetHeaders: string[];
   sheetRows: any[];
-  kpiMappings: Record<string, string>;
-  onUpdateMapping: (kpiName: string, columnName: string) => void;
 }
 
 const DEFAULT_KPI_DEFINITIONS = [
@@ -56,6 +57,8 @@ const DEFAULT_KPI_DEFINITIONS = [
   { id: 'estoqueAnterior', label: 'Estoque Anterior', type: 'number', description: 'Valor do estoque no dia anterior' },
   { id: 'entrada', label: 'Entradas', type: 'number', description: 'Total de entradas no período' },
   { id: 'saida', label: 'Saídas', type: 'number', description: 'Total de saídas no período' },
+  { id: 'saidaComboios', label: 'Saída Comboios', type: 'number', description: 'Saída para comboios' },
+  { id: 'saidaEquipamentos', label: 'Saída Equipamentos', type: 'number', description: 'Saída para equipamentos' },
   { id: 'data', label: 'Data', type: 'date', description: 'Data do registro' },
   { id: 'veiculo', label: 'Veículo', type: 'text', description: 'Código do veículo' },
   { id: 'quantidade', label: 'Quantidade', type: 'number', description: 'Quantidade de combustível' },
@@ -67,13 +70,29 @@ export function KPIDiagnosticsModal({
   sheetName,
   sheetHeaders,
   sheetRows,
-  kpiMappings,
-  onUpdateMapping,
 }: KPIDiagnosticsModalProps) {
   const [search, setSearch] = useState('');
   const [selectedTab, setSelectedTab] = useState('diagnostics');
   const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [localMappings, setLocalMappings] = useState<Record<string, string>>({});
+
+  // Use the persistent KPI mappings hook
+  const { 
+    mappings: savedMappings, 
+    loading: loadingMappings, 
+    saving, 
+    updateMapping: saveMapping,
+    saveAllMappings,
+    refreshMappings 
+  } = useKpiMappings(sheetName);
+
+  // Sync local state with saved mappings when loaded
+  useEffect(() => {
+    if (!loadingMappings) {
+      setLocalMappings(savedMappings);
+    }
+  }, [savedMappings, loadingMappings]);
 
   // Analyze headers and detect potential column types
   const headerAnalysis = useMemo(() => {
@@ -146,7 +165,7 @@ export function KPIDiagnosticsModal({
     
     // Check for unmapped KPIs
     DEFAULT_KPI_DEFINITIONS.forEach(kpi => {
-      if (!kpiMappings[kpi.id]) {
+      if (!localMappings[kpi.id]) {
         const suggestedColumn = headerAnalysis.find(h => h.suggestedKpi === kpi.id);
         problems.push({
           type: 'warning',
@@ -177,7 +196,7 @@ export function KPIDiagnosticsModal({
     });
     
     return problems;
-  }, [headerAnalysis, kpiMappings]);
+  }, [headerAnalysis, localMappings]);
 
   const filteredHeaders = useMemo(() => {
     if (!search) return headerAnalysis;
@@ -198,7 +217,7 @@ export function KPIDiagnosticsModal({
         body: {
           headers: sheetHeaders,
           rows: sheetRows,
-          currentMappings: kpiMappings,
+          currentMappings: localMappings,
           sheetName,
         }
       });
@@ -219,6 +238,16 @@ export function KPIDiagnosticsModal({
     } finally {
       setIsAnalyzing(false);
     }
+  };
+
+  // Handle local mapping update
+  const handleLocalMappingChange = (kpiId: string, columnName: string) => {
+    setLocalMappings(prev => ({ ...prev, [kpiId]: columnName }));
+  };
+
+  // Save all mappings to database
+  const handleSaveAllMappings = async () => {
+    await saveAllMappings(localMappings);
   };
 
   return (
@@ -359,14 +388,36 @@ export function KPIDiagnosticsModal({
 
           <TabsContent value="mapping" className="mt-4">
             <div className="space-y-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input
-                  placeholder="Buscar colunas..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="pl-10"
-                />
+              <div className="flex items-center gap-4">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar colunas..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+                <Button
+                  onClick={handleSaveAllMappings}
+                  disabled={saving || loadingMappings}
+                  className="gap-2"
+                >
+                  {saving ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Save className="w-4 h-4" />
+                  )}
+                  Salvar Mapeamentos
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={refreshMappings}
+                  disabled={loadingMappings}
+                  className="gap-2"
+                >
+                  <RefreshCw className={cn("w-4 h-4", loadingMappings && "animate-spin")} />
+                </Button>
               </div>
 
               <ScrollArea className="h-[350px]">
@@ -401,8 +452,8 @@ export function KPIDiagnosticsModal({
                         </TableCell>
                         <TableCell>
                           <Select
-                            value={Object.entries(kpiMappings).find(([_, col]) => col === header.trimmed)?.[0] || ''}
-                            onValueChange={(kpiId) => onUpdateMapping(kpiId, header.trimmed)}
+                            value={Object.entries(localMappings).find(([_, col]) => col === header.trimmed)?.[0] || ''}
+                            onValueChange={(kpiId) => handleLocalMappingChange(kpiId, header.trimmed)}
                           >
                             <SelectTrigger className="w-40">
                               <SelectValue placeholder="Selecionar..." />

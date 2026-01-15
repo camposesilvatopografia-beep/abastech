@@ -291,6 +291,36 @@ export type Database = {
           },
         ]
       }
+      kpi_mappings: {
+        Row: {
+          column_name: string
+          created_at: string
+          id: string
+          kpi_id: string
+          sheet_name: string
+          updated_at: string
+          user_identifier: string
+        }
+        Insert: {
+          column_name: string
+          created_at?: string
+          id?: string
+          kpi_id: string
+          sheet_name: string
+          updated_at?: string
+          user_identifier?: string
+        }
+        Update: {
+          column_name?: string
+          created_at?: string
+          id?: string
+          kpi_id?: string
+          sheet_name?: string
+          updated_at?: string
+          user_identifier?: string
+        }
+        Relationships: []
+      }
       layout_preferences: {
         Row: {
           column_config: Json

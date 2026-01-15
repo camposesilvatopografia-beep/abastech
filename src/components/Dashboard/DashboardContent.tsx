@@ -59,17 +59,7 @@ export function DashboardContent() {
   const [search, setSearch] = useState('');
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [showDiagnostics, setShowDiagnostics] = useState(false);
-  const [kpiMappings, setKpiMappings] = useState<Record<string, string>>({});
   const { toast } = useToast();
-
-  // Update KPI mappings handler
-  const handleUpdateMapping = useCallback((kpiId: string, columnName: string) => {
-    setKpiMappings(prev => ({ ...prev, [kpiId]: columnName }));
-    toast({
-      title: 'Mapeamento atualizado',
-      description: `KPI "${kpiId}" agora usa a coluna "${columnName}"`,
-    });
-  }, [toast]);
 
   // Update last sync time when data changes
   useEffect(() => {
@@ -604,8 +594,6 @@ _Sistema Abastech_`;
         sheetName={GERAL_SHEET}
         sheetHeaders={geralData.headers}
         sheetRows={geralData.rows}
-        kpiMappings={kpiMappings}
-        onUpdateMapping={handleUpdateMapping}
       />
     </div>
   );
