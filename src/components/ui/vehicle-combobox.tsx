@@ -97,13 +97,16 @@ export function VehicleCombobox({
             <CommandGroup>
               {vehicles.map((vehicle) => {
                 const itemValue = useIdAsValue ? vehicle.id! : vehicle.code;
-                const name = vehicle.name || vehicle.description || vehicle.category || '';
+                const name = vehicle.name || vehicle.description || '';
+                const category = vehicle.category || '';
                 const label = `${vehicle.code}${name ? ` - ${name}` : ''}`;
+                // Include code, name and category in search value
+                const searchValue = `${vehicle.code} ${name} ${category}`.toLowerCase();
                 
                 return (
                   <CommandItem
                     key={itemValue}
-                    value={`${vehicle.code} ${name}`.toLowerCase()}
+                    value={searchValue}
                     onSelect={() => {
                       onValueChange(itemValue);
                       setOpen(false);
@@ -116,7 +119,12 @@ export function VehicleCombobox({
                         value === itemValue ? 'opacity-100' : 'opacity-0'
                       )}
                     />
-                    <span className="truncate">{label}</span>
+                    <div className="flex flex-col">
+                      <span className="truncate">{label}</span>
+                      {category && (
+                        <span className="text-xs text-muted-foreground truncate">{category}</span>
+                      )}
+                    </div>
                   </CommandItem>
                 );
               })}
