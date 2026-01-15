@@ -16,6 +16,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { ResponsiveCard, ResponsiveCardGrid, ViewModeToggle, EmptyCardState } from '@/components/ui/responsive-card-view';
 import {
   Table,
   TableBody,
@@ -54,6 +56,8 @@ interface Supplier {
 }
 
 export default function SuppliersPage() {
+  const isMobile = useIsMobile();
+  const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -66,6 +70,11 @@ export default function SuppliersPage() {
     address: '',
   });
   const [isSaving, setIsSaving] = useState(false);
+
+  // Auto-switch to cards on mobile
+  useEffect(() => {
+    if (isMobile) setViewMode('cards');
+  }, [isMobile]);
 
   // Fetch suppliers
   const fetchSuppliers = async () => {
@@ -329,10 +338,11 @@ export default function SuppliersPage() {
         </Card>
       </div>
 
-      {/* Table */}
+      {/* Table or Cards */}
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-lg">Lista de Fornecedores</CardTitle>
+          <ViewModeToggle viewMode={viewMode} onViewModeChange={setViewMode} />
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -340,13 +350,32 @@ export default function SuppliersPage() {
               <RefreshCw className="w-6 h-6 animate-spin text-muted-foreground" />
             </div>
           ) : suppliers.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <Building2 className="w-12 h-12 mx-auto mb-2 opacity-50" />
-              <p>Nenhum fornecedor cadastrado</p>
-              <Button variant="link" onClick={handleNew}>
-                Cadastrar primeiro fornecedor
-              </Button>
-            </div>
+            <EmptyCardState
+              icon={<Building2 className="w-12 h-12" />}
+              title="Nenhum fornecedor cadastrado"
+              description="Cadastre o primeiro fornecedor para começar"
+            />
+          ) : viewMode === 'cards' ? (
+            <ResponsiveCardGrid>
+              {suppliers.map((supplier) => (
+                <ResponsiveCard
+                  key={supplier.id}
+                  title={supplier.name}
+                  isActive={supplier.active}
+                  onToggleActive={() => handleToggleActive(supplier)}
+                  fields={[
+                    { label: 'CNPJ', value: supplier.cnpj || '-' },
+                    { label: 'Telefone', value: supplier.phone || '-', icon: <Phone className="w-3 h-3" /> },
+                    { label: 'Email', value: supplier.email || '-', icon: <Mail className="w-3 h-3" /> },
+                    { label: 'Endereço', value: supplier.address || '-', icon: <MapPin className="w-3 h-3" />, hidden: !supplier.address },
+                  ]}
+                  actions={[
+                    { icon: <Edit className="w-4 h-4" />, onClick: () => handleEdit(supplier) },
+                    { icon: <Trash2 className="w-4 h-4 text-destructive" />, onClick: () => handleDelete(supplier) },
+                  ]}
+                />
+              ))}
+            </ResponsiveCardGrid>
           ) : (
             <div className="overflow-x-auto">
               <Table>
