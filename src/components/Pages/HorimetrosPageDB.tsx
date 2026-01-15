@@ -18,6 +18,10 @@ import {
   Users,
   ChevronDown,
   ChevronUp,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
   Settings,
   CheckSquare,
   Square,
@@ -123,6 +127,12 @@ export function HorimetrosPageDB() {
   const [selectionModeActive, setSelectionModeActive] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(25);
+  
+  const ROWS_PER_PAGE_OPTIONS = [10, 25, 50, 100];
 
   const loading = vehiclesLoading || readingsLoading;
   const isConnected = !loading && readings.length >= 0;
@@ -237,6 +247,18 @@ export function HorimetrosPageDB() {
         : 0
     }));
   }, [filteredReadings]);
+
+  // Pagination calculations
+  const totalPages = Math.ceil(readingsWithInterval.length / rowsPerPage);
+  const paginatedReadings = useMemo(() => {
+    const startIndex = (currentPage - 1) * rowsPerPage;
+    return readingsWithInterval.slice(startIndex, startIndex + rowsPerPage);
+  }, [readingsWithInterval, currentPage, rowsPerPage]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, selectedDate, dateRange, categoryFilter, companyFilter, vehicleFilter]);
 
   // Metrics
   const metrics = useMemo(() => {
@@ -577,75 +599,97 @@ export function HorimetrosPageDB() {
           </div>
         </div>
 
-        {/* Period Filter */}
-        <div className="bg-card rounded-lg border p-4 space-y-4">
-          <div className="flex flex-col md:flex-row gap-3 items-start md:items-center flex-wrap">
-            <div className="flex gap-2 items-center flex-wrap">
-              <span className="text-sm font-medium text-muted-foreground">Período:</span>
-              <Select value={periodFilter} onValueChange={(value) => {
-                setPeriodFilter(value);
-                if (value !== 'personalizado') {
-                  setSelectedDate(undefined);
-                }
-              }}>
-                <SelectTrigger className="w-[140px]">
-                  <SelectValue placeholder="Período" />
-                </SelectTrigger>
-                <SelectContent className="bg-background">
-                  <SelectItem value="todos">Todos</SelectItem>
-                  <SelectItem value="hoje">Hoje</SelectItem>
-                  <SelectItem value="ontem">Ontem</SelectItem>
-                  <SelectItem value="7dias">Últimos 7 dias</SelectItem>
-                  <SelectItem value="30dias">Últimos 30 dias</SelectItem>
-                  <SelectItem value="mes">Este mês</SelectItem>
-                  <SelectItem value="personalizado">Personalizado</SelectItem>
-                </SelectContent>
-              </Select>
-
-              {periodFilter === 'personalizado' && (
-                <>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" size="sm">
-                        <Calendar className="w-4 h-4 mr-2" />
-                        {startDate ? format(startDate, 'dd/MM/yyyy') : 'Data início'}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0 bg-background" align="start">
-                      <CalendarComponent
-                        mode="single"
-                        selected={startDate}
-                        onSelect={setStartDate}
-                        locale={ptBR}
-                      />
-                    </PopoverContent>
-                  </Popover>
-                  <span className="text-sm text-muted-foreground">até</span>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" size="sm">
-                        <Calendar className="w-4 h-4 mr-2" />
-                        {endDate ? format(endDate, 'dd/MM/yyyy') : 'Data fim'}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0 bg-background" align="start">
-                      <CalendarComponent
-                        mode="single"
-                        selected={endDate}
-                        onSelect={setEndDate}
-                        locale={ptBR}
-                      />
-                    </PopoverContent>
-                  </Popover>
-                </>
-              )}
+        {/* Filters */}
+        <div className="bg-card rounded-lg border p-4 space-y-3">
+          {/* Date Filter Row - More prominent */}
+          <div className="flex flex-wrap gap-2 items-center pb-3 border-b">
+            <Calendar className="w-4 h-4 text-primary" />
+            <span className="text-sm font-medium">Data:</span>
+            
+            {/* Quick date buttons */}
+            <div className="flex gap-1">
+              {[
+                { label: 'Hoje', value: 'hoje' },
+                { label: 'Ontem', value: 'ontem' },
+                { label: '7 dias', value: '7dias' },
+                { label: '30 dias', value: '30dias' },
+                { label: 'Mês', value: 'mes' },
+                { label: 'Todos', value: 'todos' },
+              ].map(opt => (
+                <Button
+                  key={opt.value}
+                  variant={periodFilter === opt.value ? 'default' : 'outline'}
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  onClick={() => {
+                    setPeriodFilter(opt.value);
+                    setSelectedDate(undefined);
+                    setStartDate(undefined);
+                    setEndDate(undefined);
+                  }}
+                >
+                  {opt.label}
+                </Button>
+              ))}
+            </div>
+            
+            {/* Custom date pickers */}
+            <div className="flex items-center gap-2 ml-2">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button 
+                    variant={startDate ? 'secondary' : 'outline'} 
+                    size="sm" 
+                    className="h-7 text-xs"
+                  >
+                    {startDate ? format(startDate, 'dd/MM/yy') : 'De'}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0 bg-background" align="start">
+                  <CalendarComponent
+                    mode="single"
+                    selected={startDate}
+                    onSelect={(date) => {
+                      setStartDate(date);
+                      setPeriodFilter('personalizado');
+                    }}
+                    locale={ptBR}
+                  />
+                </PopoverContent>
+              </Popover>
+              <span className="text-xs text-muted-foreground">até</span>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button 
+                    variant={endDate ? 'secondary' : 'outline'} 
+                    size="sm" 
+                    className="h-7 text-xs"
+                  >
+                    {endDate ? format(endDate, 'dd/MM/yy') : 'Até'}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0 bg-background" align="start">
+                  <CalendarComponent
+                    mode="single"
+                    selected={endDate}
+                    onSelect={(date) => {
+                      setEndDate(date);
+                      setPeriodFilter('personalizado');
+                    }}
+                    locale={ptBR}
+                  />
+                </PopoverContent>
+              </Popover>
               
-              {(selectedDate || periodFilter !== 'todos') && (
-                <Button variant="ghost" size="sm" onClick={clearDateFilter} title="Limpar filtros">
-                  <X className="w-4 h-4" />
+              {(startDate || endDate || periodFilter !== 'todos') && (
+                <Button variant="ghost" size="sm" className="h-7 px-2" onClick={clearDateFilter}>
+                  <X className="w-3 h-3" />
                 </Button>
               )}
             </div>
+          </div>
+          
+          <div className="flex flex-col md:flex-row gap-3 items-start md:items-center flex-wrap">
 
             <div className="flex gap-2 items-center flex-wrap">
               <span className="text-sm font-medium text-muted-foreground">Categoria:</span>
@@ -738,14 +782,14 @@ export function HorimetrosPageDB() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {readingsWithInterval.length === 0 ? (
+                {paginatedReadings.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={selectionModeActive ? 13 : 12} className="text-center py-8 text-muted-foreground">
                       Nenhum registro encontrado para o período selecionado
                     </TableCell>
                   </TableRow>
                 ) : (
-                  readingsWithInterval.map(reading => (
+                  paginatedReadings.map(reading => (
                     <TableRow key={reading.id} className={cn(selectedIds.has(reading.id) && "bg-primary/5")}>
                       {selectionModeActive && (
                         <TableCell>
@@ -804,18 +848,78 @@ export function HorimetrosPageDB() {
               </TableBody>
             </Table>
             
-            {/* Summary Footer */}
+            {/* Pagination Footer */}
             {readingsWithInterval.length > 0 && (
-              <div className="border-t bg-muted/30 p-3 flex justify-between items-center text-sm">
-                <span className="text-muted-foreground">
-                  Total: <strong>{readingsWithInterval.length}</strong> registros
-                  {selectedIds.size > 0 && (
-                    <span className="ml-2 text-primary">({selectedIds.size} selecionados)</span>
-                  )}
-                </span>
-                <span className="text-muted-foreground">
-                  Intervalo Total: <strong className="text-green-600">+{metrics.totalInterval.toLocaleString('pt-BR')}</strong>
-                </span>
+              <div className="border-t bg-muted/30 p-3 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 text-sm">
+                <div className="flex items-center gap-4">
+                  <span className="text-muted-foreground">
+                    Total: <strong>{readingsWithInterval.length}</strong> registros
+                    {selectedIds.size > 0 && (
+                      <span className="ml-2 text-primary">({selectedIds.size} selecionados)</span>
+                    )}
+                  </span>
+                  <span className="text-muted-foreground hidden sm:inline">
+                    Intervalo: <strong className="text-green-600">+{metrics.totalInterval.toLocaleString('pt-BR')}</strong>
+                  </span>
+                </div>
+                
+                {/* Pagination Controls */}
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">Exibir:</span>
+                  <Select value={rowsPerPage.toString()} onValueChange={(v) => { setRowsPerPage(Number(v)); setCurrentPage(1); }}>
+                    <SelectTrigger className="w-[70px] h-8">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-background">
+                      {ROWS_PER_PAGE_OPTIONS.map(opt => (
+                        <SelectItem key={opt} value={opt.toString()}>{opt}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  
+                  <span className="text-xs text-muted-foreground mx-2">
+                    Pág. {currentPage} de {totalPages || 1}
+                  </span>
+                  
+                  <div className="flex items-center gap-1">
+                    <Button 
+                      variant="outline" 
+                      size="icon" 
+                      className="h-8 w-8"
+                      onClick={() => setCurrentPage(1)}
+                      disabled={currentPage === 1}
+                    >
+                      <ChevronsLeft className="w-4 h-4" />
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="icon" 
+                      className="h-8 w-8"
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="icon" 
+                      className="h-8 w-8"
+                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                      disabled={currentPage === totalPages || totalPages === 0}
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="icon" 
+                      className="h-8 w-8"
+                      onClick={() => setCurrentPage(totalPages)}
+                      disabled={currentPage === totalPages || totalPages === 0}
+                    >
+                      <ChevronsRight className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
               </div>
             )}
           </div>
