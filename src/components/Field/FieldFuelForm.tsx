@@ -1294,10 +1294,10 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         {recordType === 'saida' && (
           <>
             {/* Vehicle Selection with Searchable Combobox */}
-            <div className="bg-slate-800/80 backdrop-blur-sm rounded-xl border border-amber-600/30 p-4 space-y-3 shadow-lg">
+            <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-xl border border-slate-200 dark:border-slate-700 p-4 space-y-3 shadow-sm">
               <div className="flex items-center justify-between">
-                <Label className="flex items-center gap-2 text-base text-white">
-                  <Truck className="w-4 h-4 text-amber-400" />
+                <Label className="flex items-center gap-2 text-base">
+                  <Truck className="w-4 h-4" />
                   Veículo
                 </Label>
                 {/* QR Code Scanner Button */}
@@ -1316,15 +1316,15 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                     variant="outline"
                     onClick={() => qrInputRef.current?.click()}
                     disabled={isScanning}
-                    className="gap-1 border-amber-600/50 hover:bg-amber-600/20"
+                    className="gap-1"
                     title="Escanear QR Code do veículo"
                   >
                     {isScanning ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
                     ) : (
                       <>
-                        <QrCode className="w-4 h-4 text-amber-400" />
-                        <span className="text-xs hidden sm:inline text-amber-400">QR</span>
+                        <QrCode className="w-4 h-4" />
+                        <span className="text-xs hidden sm:inline">QR</span>
                       </>
                     )}
                   </Button>
@@ -1339,7 +1339,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                     role="combobox"
                     aria-expanded={vehicleSearchOpen}
                     className={cn(
-                      "w-full h-14 justify-between text-lg font-medium bg-slate-700/50 border-slate-600 hover:bg-slate-600/50",
+                      "w-full h-14 justify-between text-lg font-medium",
                       !vehicleCode && "text-muted-foreground"
                     )}
                   >
@@ -1350,20 +1350,20 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent 
-                  className="w-[--radix-popover-trigger-width] p-0 bg-slate-800 border-slate-600 shadow-xl z-50" 
+                  className="w-[--radix-popover-trigger-width] p-0 bg-popover border shadow-xl z-50" 
                   align="start"
                   sideOffset={4}
                 >
-                  <Command className="bg-slate-800">
-                    <div className="flex items-center border-b border-slate-600 px-3">
-                      <Search className="h-4 w-4 shrink-0 opacity-50 mr-2 text-amber-400" />
+                  <Command>
+                    <div className="flex items-center border-b px-3">
+                      <Search className="h-4 w-4 shrink-0 opacity-50 mr-2" />
                       <CommandInput 
                         placeholder="Digite código ou descrição..." 
-                        className="h-12 border-0 focus:ring-0 text-white placeholder:text-slate-400 bg-transparent"
+                        className="h-12 border-0 focus:ring-0"
                       />
                     </div>
                     <CommandList className="max-h-[300px]">
-                      <CommandEmpty className="py-6 text-center text-slate-400">
+                      <CommandEmpty className="py-6 text-center text-muted-foreground">
                         Nenhum veículo encontrado.
                       </CommandEmpty>
                       <CommandGroup>
@@ -1375,18 +1375,18 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                               handleVehicleSelect(vehicle.code);
                               setVehicleSearchOpen(false);
                             }}
-                            className="cursor-pointer py-3 px-3 hover:bg-slate-700 aria-selected:bg-amber-600/20 text-white"
+                            className="cursor-pointer py-3 px-3"
                           >
                             <Check
                               className={cn(
-                                "mr-3 h-4 w-4 text-amber-400",
+                                "mr-3 h-4 w-4",
                                 vehicleCode === vehicle.code ? "opacity-100" : "opacity-0"
                               )}
                             />
                             <div className="flex flex-col">
-                              <span className="font-bold text-amber-400">{vehicle.code}</span>
+                              <span className="font-bold">{vehicle.code}</span>
                               {vehicle.description && (
-                                <span className="text-sm text-slate-400 truncate max-w-[250px]">
+                                <span className="text-sm text-muted-foreground truncate max-w-[250px]">
                                   {vehicle.description}
                                 </span>
                               )}
@@ -1401,24 +1401,24 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
           
               {vehicleDescription && (
                 <div className="grid grid-cols-2 gap-2 text-sm">
-                  <div className="bg-slate-700/50 p-2 rounded border border-slate-600">
-                    <span className="text-slate-400 text-xs">Categoria:</span>
-                    <p className="font-medium text-white">{category || '-'}</p>
+                  <div className="bg-muted/50 p-2 rounded border">
+                    <span className="text-muted-foreground text-xs">Categoria:</span>
+                    <p className="font-medium">{category || '-'}</p>
                   </div>
-                  <div className="bg-slate-700/50 p-2 rounded border border-slate-600">
-                    <span className="text-slate-400 text-xs">Empresa:</span>
-                    <p className="font-medium text-white">{company || '-'}</p>
+                  <div className="bg-muted/50 p-2 rounded border">
+                    <span className="text-muted-foreground text-xs">Empresa:</span>
+                    <p className="font-medium">{company || '-'}</p>
                   </div>
                 </div>
               )}
           
               {/* Previous horimeter/km display */}
               {horimeterPrevious && (
-                <div className="bg-blue-900/30 border border-blue-700/50 p-3 rounded-lg">
-                  <div className="flex items-center gap-2 text-blue-300">
+                <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700/50 p-3 rounded-lg">
+                  <div className="flex items-center gap-2 text-blue-700 dark:text-blue-300">
                     <Clock className="w-4 h-4" />
                     <span className="text-sm font-medium">
-                      Último registro: <span className="font-bold text-blue-200">{horimeterPrevious}</span>
+                      Último registro: <span className="font-bold text-blue-600 dark:text-blue-200">{horimeterPrevious}</span>
                     </span>
                   </div>
                 </div>
