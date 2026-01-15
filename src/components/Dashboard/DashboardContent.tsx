@@ -13,7 +13,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 
-const GERAL_SHEET = 'GERAL';
+const GERAL_SHEET = 'Geral';
 const ABASTECIMENTO_SHEET = 'AbastecimentoCanteiro01';
 const VEHICLE_SHEET = 'Veiculo';
 const ARLA_SHEET = 'EstoqueArla';
