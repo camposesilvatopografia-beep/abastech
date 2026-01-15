@@ -86,7 +86,7 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
   const todayStr = format(new Date(), "dd 'de' MMMM", { locale: ptBR });
   const todayDateStr = format(new Date(), 'yyyy-MM-dd');
 
-  // Fetch only today's records from database
+  // Fetch only today's records from database (excluding those with approved deletion)
   useEffect(() => {
     const fetchTodayRecords = async () => {
       setIsLoading(true);
@@ -104,7 +104,25 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
 
         if (error) throw error;
 
-        const mappedRecords = records?.map(r => ({
+        // Fetch approved deletion requests to filter them out
+        const recordIds = records?.map(r => r.id) || [];
+        let approvedDeletions: string[] = [];
+        
+        if (recordIds.length > 0) {
+          const { data: deletionRequests } = await supabase
+            .from('field_record_requests')
+            .select('record_id')
+            .in('record_id', recordIds)
+            .eq('request_type', 'delete')
+            .eq('status', 'approved');
+          
+          approvedDeletions = deletionRequests?.map(d => d.record_id) || [];
+        }
+
+        // Filter out records with approved deletions
+        const filteredRecords = records?.filter(r => !approvedDeletions.includes(r.id)) || [];
+
+        const mappedRecords = filteredRecords.map(r => ({
           id: r.id,
           record_date: r.record_date,
           record_time: r.record_time,
@@ -117,7 +135,7 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
           km_current: r.km_current || undefined,
           arla_quantity: r.arla_quantity || undefined,
           observations: r.observations || undefined,
-        })) || [];
+        }));
 
         setTodayRecords(mappedRecords);
 
@@ -173,7 +191,7 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
     }
   };
 
-  // Refresh records after request
+  // Refresh records after request (excluding approved deletions)
   const refreshRecords = async () => {
     const todayDateOnly = format(new Date(), 'yyyy-MM-dd');
     const { data: records } = await supabase
@@ -184,7 +202,19 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
       .order('record_time', { ascending: false });
 
     if (records) {
-      setTodayRecords(records.map(r => ({
+      // Fetch approved deletion requests to filter them out
+      const recordIds = records.map(r => r.id);
+      const { data: deletionRequests } = await supabase
+        .from('field_record_requests')
+        .select('record_id')
+        .in('record_id', recordIds)
+        .eq('request_type', 'delete')
+        .eq('status', 'approved');
+      
+      const approvedDeletions = deletionRequests?.map(d => d.record_id) || [];
+      const filteredRecords = records.filter(r => !approvedDeletions.includes(r.id));
+
+      setTodayRecords(filteredRecords.map(r => ({
         id: r.id,
         record_date: r.record_date,
         record_time: r.record_time,
@@ -198,6 +228,13 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
         arla_quantity: r.arla_quantity || undefined,
         observations: r.observations || undefined,
       })));
+
+      // Recalculate stats
+      setTodayStats({
+        totalRecords: filteredRecords.length,
+        totalLiters: filteredRecords.reduce((sum, r) => sum + (r.fuel_quantity || 0), 0),
+        totalArla: filteredRecords.reduce((sum, r) => sum + (r.arla_quantity || 0), 0),
+      });
     }
   };
 
