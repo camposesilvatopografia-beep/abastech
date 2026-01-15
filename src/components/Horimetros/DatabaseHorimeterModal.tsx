@@ -28,7 +28,7 @@ import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { VehicleCombobox } from '@/components/ui/vehicle-combobox';
 import { useVehicles, useHorimeterReadings, HorimeterWithVehicle } from '@/hooks/useHorimeters';
 import { useToast } from '@/hooks/use-toast';
-import { Clock, Save, History, AlertTriangle, RefreshCw, TrendingUp, CalendarIcon } from 'lucide-react';
+import { Clock, Save, History, AlertTriangle, RefreshCw, TrendingUp, CalendarIcon, X } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, isWithinInterval, startOfDay, isSameDay, isAfter } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -357,7 +357,7 @@ export function DatabaseHorimeterModal({
         onOpenChange(false);
         onSuccess?.();
       } else {
-        // Keep form open for new entries - just reset for next entry
+        // Keep form open for new entries - reset fields and set date to today (the new last reading date)
         toast({
           title: 'Registro salvo!',
           description: 'Formulário pronto para novo apontamento.',
@@ -365,9 +365,8 @@ export function DatabaseHorimeterModal({
         setHorimeterValue('');
         setKmValue('');
         setObservacao('');
-        // Keep vehicle and operator for convenience, update date to last reading
-        const updatedReadings = await refetch();
-        // Date will be updated via useEffect when readings change
+        // Set date to the date we just saved (which is now the last reading)
+        setSelectedDate(selectedDate);
         onSuccess?.();
       }
     } catch (error) {
@@ -681,6 +680,7 @@ export function DatabaseHorimeterModal({
                   onClick={() => onOpenChange(false)}
                   disabled={isSaving}
                 >
+                  <X className="w-4 h-4 mr-2" />
                   Fechar
                 </Button>
               </div>
