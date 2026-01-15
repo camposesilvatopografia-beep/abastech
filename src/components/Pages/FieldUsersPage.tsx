@@ -158,13 +158,24 @@ export function FieldUsersPage() {
     try {
       const counts: Record<string, number> = {};
       
+      // First, get all approved deletions
+      const { data: approvedDeletions } = await supabase
+        .from('field_record_requests')
+        .select('record_id')
+        .eq('request_type', 'delete')
+        .eq('status', 'approved');
+      
+      const approvedDeletionIds = new Set(approvedDeletions?.map(d => d.record_id) || []);
+      
       for (const user of users) {
-        const { count } = await supabase
+        const { data: records } = await supabase
           .from('field_fuel_records')
-          .select('*', { count: 'exact', head: true })
+          .select('id')
           .eq('user_id', user.id);
         
-        counts[user.id] = count || 0;
+        // Filter out approved deletions
+        const validRecords = records?.filter(r => !approvedDeletionIds.has(r.id)) || [];
+        counts[user.id] = validRecords.length;
       }
       
       setUserRecordCounts(counts);
@@ -179,16 +190,36 @@ export function FieldUsersPage() {
     setLoadingHistory(true);
     
     try {
-      const { data, error } = await supabase
+      // Fetch user's records
+      const { data: records, error } = await supabase
         .from('field_fuel_records')
         .select('*')
         .eq('user_id', user.id)
         .order('record_date', { ascending: false })
         .order('record_time', { ascending: false })
-        .limit(50);
+        .limit(100);
 
       if (error) throw error;
-      setHistoryRecords(data || []);
+
+      // Fetch approved deletions
+      const recordIds = records?.map(r => r.id) || [];
+      let approvedDeletionIds: string[] = [];
+      
+      if (recordIds.length > 0) {
+        const { data: approvedDeletions } = await supabase
+          .from('field_record_requests')
+          .select('record_id')
+          .in('record_id', recordIds)
+          .eq('request_type', 'delete')
+          .eq('status', 'approved');
+        
+        approvedDeletionIds = approvedDeletions?.map(d => d.record_id) || [];
+      }
+
+      // Filter out records with approved deletions
+      const filteredRecords = records?.filter(r => !approvedDeletionIds.includes(r.id)) || [];
+      
+      setHistoryRecords(filteredRecords.slice(0, 50));
     } catch (err) {
       console.error('Error fetching history:', err);
       toast.error('Erro ao carregar histórico');
