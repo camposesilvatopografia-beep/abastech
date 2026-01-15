@@ -10,12 +10,16 @@ import {
   CloudOff,
   RefreshCw,
   Loader2,
+  Sun,
+  Moon,
+  Plus,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import logoAbastech from '@/assets/logo-abastech.png';
+import { useTheme } from '@/hooks/useTheme';
 
 interface FieldUser {
   id: string;
@@ -35,6 +39,7 @@ export function FieldPage() {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [pendingCount, setPendingCount] = useState(0);
   const [isSyncing, setIsSyncing] = useState(false);
+  const { theme, toggleTheme } = useTheme();
 
   // Function to fetch and update user data from database
   const refreshUserData = useCallback(async (userId: string) => {
@@ -185,7 +190,12 @@ export function FieldPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col">
+    <div className={cn(
+      "min-h-screen flex flex-col transition-colors duration-300",
+      theme === 'dark' 
+        ? "bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900" 
+        : "bg-gradient-to-br from-slate-100 via-white to-slate-100"
+    )}>
       {/* Header with brand colors */}
       <header className="sticky top-0 z-10 bg-gradient-to-r from-amber-600 to-orange-600 text-white p-3 shadow-lg">
         <div className="flex items-center justify-between">
@@ -210,6 +220,19 @@ export function FieldPage() {
                 </span>
               )}
             </div>
+            {/* Theme Toggle */}
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={toggleTheme}
+              className="text-white hover:bg-white/20"
+            >
+              {theme === 'dark' ? (
+                <Sun className="w-5 h-5" />
+              ) : (
+                <Moon className="w-5 h-5" />
+              )}
+            </Button>
             <Button 
               variant="ghost" 
               size="icon" 
@@ -223,14 +246,21 @@ export function FieldPage() {
       </header>
 
       {/* Navigation Tabs - Right below header */}
-      <nav className="bg-slate-800/90 backdrop-blur-sm border-b border-slate-700 px-4 py-2 flex gap-2">
+      <nav className={cn(
+        "backdrop-blur-sm border-b px-4 py-2 flex gap-2",
+        theme === 'dark' 
+          ? "bg-slate-800/90 border-slate-700" 
+          : "bg-white/90 border-slate-200"
+      )}>
         <Button
           variant={currentView === 'dashboard' ? 'default' : 'ghost'}
           className={cn(
             "flex-1 h-11 gap-2",
             currentView === 'dashboard' 
               ? "bg-amber-500 hover:bg-amber-600 text-white" 
-              : "text-slate-400 hover:text-white hover:bg-slate-700"
+              : theme === 'dark'
+                ? "text-slate-400 hover:text-white hover:bg-slate-700"
+                : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
           )}
           onClick={() => setCurrentView('dashboard')}
         >
@@ -240,21 +270,26 @@ export function FieldPage() {
         <Button
           variant={currentView === 'form' ? 'default' : 'ghost'}
           className={cn(
-            "flex-1 h-11 gap-2",
+            "flex-1 h-11 gap-2 font-semibold",
             currentView === 'form' 
-              ? "bg-sky-500 hover:bg-sky-600 text-white" 
-              : "text-slate-400 hover:text-white hover:bg-slate-700"
+              ? "bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/30" 
+              : "bg-emerald-500 hover:bg-emerald-600 text-white shadow-md shadow-emerald-500/20"
           )}
           onClick={() => setCurrentView('form')}
         >
-          <Fuel className="w-4 h-4" />
-          <span className="text-sm font-medium">Novo Apontamento</span>
+          <Plus className="w-5 h-5" />
+          <span className="text-sm font-bold">Novo Apontamento</span>
         </Button>
       </nav>
 
       {/* Connection Banner */}
       {!isOnline && (
-        <div className="bg-amber-500 text-amber-900 p-2 text-center text-sm font-medium">
+        <div className={cn(
+          "p-2 text-center text-sm font-medium",
+          theme === 'dark' 
+            ? "bg-amber-500 text-amber-900" 
+            : "bg-amber-100 text-amber-800 border-b border-amber-200"
+        )}>
           Modo offline - dados serão sincronizados quando houver conexão
         </div>
       )}
