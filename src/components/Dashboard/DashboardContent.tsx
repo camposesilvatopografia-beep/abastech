@@ -193,35 +193,49 @@ export function DashboardContent() {
       return rowDate === targetDateStr;
     });
 
-    // If we found a matching row for the date, use its values
+    // If we found a matching row for the date, use its values from GERAL sheet
     if (matchingRow) {
-      const estoqueAnterior = parseNumber(matchingRow['EstoqueAnterior'] || matchingRow['ESTOQUE ANTERIOR']);
+      // Use exact column names from Google Sheets
+      const estoqueAnterior = parseNumber(matchingRow['Estoque Anterior'] || matchingRow['EstoqueAnterior'] || matchingRow['ESTOQUE ANTERIOR']);
       const entradaGeral = parseNumber(matchingRow['Entrada'] || matchingRow['ENTRADA']);
-      const estoqueAtual = parseNumber(matchingRow['EstoqueAtual'] || matchingRow['ESTOQUE ATUAL']);
+      const saidaComboiosGeral = parseNumber(matchingRow['Saida para Comboios'] || matchingRow['SAIDA PARA COMBOIOS']);
+      const saidaEquipamentosGeral = parseNumber(matchingRow['Saida para Equipamentos'] || matchingRow['SAIDA PARA EQUIPAMENTOS']);
+      const estoqueAtual = parseNumber(matchingRow['Estoque Atual'] || matchingRow['EstoqueAtual'] || matchingRow['ESTOQUE ATUAL']);
+      
+      // Use values from GERAL sheet (which is the source of truth)
+      // Only use calculated values if GERAL sheet values are zero
+      const finalSaidaComboios = saidaComboiosGeral > 0 ? saidaComboiosGeral : calculatedExits.saidaComboios;
+      const finalSaidaEquipamentos = saidaEquipamentosGeral > 0 ? saidaEquipamentosGeral : calculatedExits.saidaEquipamentos;
+      const finalEntrada = entradaGeral > 0 ? entradaGeral : calculatedEntries;
       
       return {
         estoqueAnterior,
-        entrada: calculatedEntries > 0 ? calculatedEntries : entradaGeral,
-        saidaComboios: calculatedExits.saidaComboios,
-        saidaEquipamentos: calculatedExits.saidaEquipamentos,
+        entrada: finalEntrada,
+        saidaComboios: finalSaidaComboios,
+        saidaEquipamentos: finalSaidaEquipamentos,
         estoqueAtual,
-        totalSaidas
+        totalSaidas: finalSaidaComboios + finalSaidaEquipamentos
       };
     }
 
     // Fallback: use last row if no matching date found
     const lastRow = geralData.rows[geralData.rows.length - 1];
-    const estoqueAnterior = parseNumber(lastRow?.['EstoqueAnterior'] || lastRow?.['ESTOQUE ANTERIOR']);
+    const estoqueAnterior = parseNumber(lastRow?.['Estoque Anterior'] || lastRow?.['EstoqueAnterior'] || lastRow?.['ESTOQUE ANTERIOR']);
     const entradaGeral = parseNumber(lastRow?.['Entrada'] || lastRow?.['ENTRADA']);
-    const estoqueAtual = parseNumber(lastRow?.['EstoqueAtual'] || lastRow?.['ESTOQUE ATUAL']);
+    const saidaComboiosGeral = parseNumber(lastRow?.['Saida para Comboios'] || lastRow?.['SAIDA PARA COMBOIOS']);
+    const saidaEquipamentosGeral = parseNumber(lastRow?.['Saida para Equipamentos'] || lastRow?.['SAIDA PARA EQUIPAMENTOS']);
+    const estoqueAtual = parseNumber(lastRow?.['Estoque Atual'] || lastRow?.['EstoqueAtual'] || lastRow?.['ESTOQUE ATUAL']);
+    
+    const finalSaidaComboios = saidaComboiosGeral > 0 ? saidaComboiosGeral : calculatedExits.saidaComboios;
+    const finalSaidaEquipamentos = saidaEquipamentosGeral > 0 ? saidaEquipamentosGeral : calculatedExits.saidaEquipamentos;
     
     return {
       estoqueAnterior,
-      entrada: calculatedEntries > 0 ? calculatedEntries : entradaGeral,
-      saidaComboios: calculatedExits.saidaComboios,
-      saidaEquipamentos: calculatedExits.saidaEquipamentos,
+      entrada: entradaGeral > 0 ? entradaGeral : calculatedEntries,
+      saidaComboios: finalSaidaComboios,
+      saidaEquipamentos: finalSaidaEquipamentos,
       estoqueAtual,
-      totalSaidas
+      totalSaidas: finalSaidaComboios + finalSaidaEquipamentos
     };
   }, [geralData.rows, calculatedExits, calculatedEntries, selectedDate]);
 
