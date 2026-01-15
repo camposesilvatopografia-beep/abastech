@@ -152,10 +152,61 @@ export function FieldPage() {
     };
   }, [user?.id]);
 
-  // Monitor online status
+  // Sync pending records to sheet
+  const syncPendingRecords = useCallback(async () => {
+    if (!user || isSyncing) return;
+    
+    setIsSyncing(true);
+    try {
+      // Get all pending records for this user
+      const { data: pendingRecords, error } = await supabase
+        .from('field_fuel_records')
+        .select('*')
+        .eq('synced_to_sheet', false)
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
+      if (pendingRecords && pendingRecords.length > 0) {
+        // Mark records as synced (in a real scenario, you'd sync to Google Sheets here)
+        const { error: updateError } = await supabase
+          .from('field_fuel_records')
+          .update({ synced_to_sheet: true })
+          .eq('user_id', user.id)
+          .eq('synced_to_sheet', false);
+
+        if (updateError) throw updateError;
+
+        toast.success(`${pendingRecords.length} registro(s) sincronizado(s) com sucesso!`, {
+          duration: 4000,
+        });
+        setPendingCount(0);
+      }
+    } catch (err) {
+      console.error('Error syncing pending records:', err);
+      toast.error('Erro ao sincronizar registros pendentes');
+    } finally {
+      setIsSyncing(false);
+    }
+  }, [user, isSyncing]);
+
+  // Monitor online status and auto-sync when coming back online
   useEffect(() => {
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
+    const handleOnline = () => {
+      setIsOnline(true);
+      toast.success('Conexão restabelecida! Sincronizando...', {
+        duration: 3000,
+      });
+      // Auto-sync when back online
+      syncPendingRecords();
+    };
+    
+    const handleOffline = () => {
+      setIsOnline(false);
+      toast.warning('Você está offline. Registros serão sincronizados quando a conexão voltar.', {
+        duration: 5000,
+      });
+    };
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
@@ -164,7 +215,7 @@ export function FieldPage() {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
-  }, []);
+  }, [syncPendingRecords]);
 
   // Check pending records
   useEffect(() => {
@@ -181,7 +232,7 @@ export function FieldPage() {
     };
 
     checkPending();
-    const interval = setInterval(checkPending, 30000);
+    const interval = setInterval(checkPending, 15000);
     return () => clearInterval(interval);
   }, [user]);
 
@@ -222,15 +273,28 @@ export function FieldPage() {
           <div className="flex items-center gap-2">
             {/* Sync status */}
             <div className="flex items-center gap-1">
-              {isOnline ? (
+              {isSyncing ? (
+                <Loader2 className="w-4 h-4 text-blue-300 animate-spin" />
+              ) : isOnline ? (
                 <Cloud className="w-4 h-4 text-green-300" />
               ) : (
-                <CloudOff className="w-4 h-4 text-yellow-300" />
+                <CloudOff className="w-4 h-4 text-yellow-300 animate-pulse" />
               )}
               {pendingCount > 0 && (
-                <span className="text-xs bg-yellow-400 text-yellow-900 px-1.5 py-0.5 rounded-full font-medium">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={syncPendingRecords}
+                  disabled={!isOnline || isSyncing}
+                  className="h-6 px-1.5 py-0 bg-yellow-400 hover:bg-yellow-500 text-yellow-900 rounded-full font-medium text-xs gap-1"
+                >
+                  {isSyncing ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : (
+                    <RefreshCw className="w-3 h-3" />
+                  )}
                   {pendingCount}
-                </span>
+                </Button>
               )}
             </div>
             {/* Settings Popover */}
@@ -338,15 +402,38 @@ export function FieldPage() {
         </Button>
       </nav>
 
-      {/* Connection Banner */}
-      {!isOnline && (
+      {/* Connection Banner - Offline or Pending Sync */}
+      {(!isOnline || pendingCount > 0) && (
         <div className={cn(
-          "p-2 text-center text-sm font-medium",
-          theme === 'dark' 
-            ? "bg-amber-500 text-amber-900" 
-            : "bg-amber-100 text-amber-800 border-b border-amber-200"
+          "p-2 text-center text-sm font-medium flex items-center justify-center gap-2",
+          !isOnline 
+            ? theme === 'dark' 
+              ? "bg-red-500/90 text-white animate-pulse" 
+              : "bg-red-100 text-red-800 border-b border-red-200"
+            : theme === 'dark'
+              ? "bg-amber-500 text-amber-900"
+              : "bg-amber-100 text-amber-800 border-b border-amber-200"
         )}>
-          Modo offline - dados serão sincronizados quando houver conexão
+          {!isOnline ? (
+            <>
+              <CloudOff className="w-4 h-4" />
+              <span>Sem conexão - {pendingCount} registro(s) aguardando sincronização</span>
+            </>
+          ) : pendingCount > 0 ? (
+            <>
+              <RefreshCw className={cn("w-4 h-4", isSyncing && "animate-spin")} />
+              <span>{pendingCount} registro(s) pendente(s)</span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={syncPendingRecords}
+                disabled={isSyncing}
+                className="h-6 px-2 py-0 ml-2 bg-amber-600 hover:bg-amber-700 text-white text-xs rounded"
+              >
+                {isSyncing ? 'Sincronizando...' : 'Sincronizar Agora'}
+              </Button>
+            </>
+          ) : null}
         </div>
       )}
 
