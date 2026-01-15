@@ -171,7 +171,7 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
     loadRecords();
   }, [fetchTodayRecords]);
 
-  // Real-time subscription for request status changes and admin actions
+  // Real-time subscription for request status changes and admin actions on records
   useEffect(() => {
     const channel = supabase
       .channel('field-dashboard-realtime')
@@ -213,21 +213,6 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
           if (newRecord?.user_id === user.id || oldRecord?.user_id === user.id) {
             fetchTodayRecords();
           }
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'field_users',
-          filter: `id=eq.${user.id}`,
-        },
-        () => {
-          // Refresh when user's own profile is updated (e.g., location assignments)
-          toast.info('Suas informações foram atualizadas');
-          // Reload the page to get updated user data
-          window.location.reload();
         }
       )
       .subscribe();
