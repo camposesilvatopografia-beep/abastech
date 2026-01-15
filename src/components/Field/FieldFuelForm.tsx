@@ -171,6 +171,11 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
   
   // Form state
   const [recordType, setRecordType] = useState<'saida' | 'entrada'>('saida');
+  
+  // Quick entry mode for simplified records
+  type QuickEntryMode = 'normal' | 'arla_only' | 'lubrication_only' | 'filter_blow_only' | 'oil_only';
+  const [quickEntryMode, setQuickEntryMode] = useState<QuickEntryMode>('normal');
+  const [showQuickOptions, setShowQuickOptions] = useState(false);
   const [vehicleCode, setVehicleCode] = useState('');
   const [vehicleDescription, setVehicleDescription] = useState('');
   const [category, setCategory] = useState('');
@@ -866,52 +871,78 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
 
   // Save record
   const handleSave = async () => {
-    // Validate based on record type
-    if (recordType === 'saida') {
-      if (!vehicleCode || !fuelQuantity) {
-        toast.error('Preencha veículo e quantidade');
-        return;
-      }
-      // Validate horimeter for equipment
-      if (isEquipment && !horimeterCurrent) {
-        toast.error('Horímetro Atual é obrigatório para equipamentos');
+    // Quick entry mode validation - simplified
+    if (quickEntryMode !== 'normal') {
+      if (!vehicleCode) {
+        toast.error('Selecione o veículo');
         return;
       }
       
-      // Validate photos are required for Saida
-      if (!photoPump) {
-        toast.error('Foto da Bomba é obrigatória para registros de Saída');
+      // Mode-specific validation
+      if (quickEntryMode === 'arla_only' && !arlaQuantity) {
+        toast.error('Informe a quantidade de ARLA');
         return;
       }
-      if (!photoHorimeter) {
-        toast.error('Foto do Horímetro é obrigatória para registros de Saída');
+      if (quickEntryMode === 'lubrication_only' && !lubricant) {
+        toast.error('Selecione o lubrificante');
         return;
       }
-      
-      // Validate horimeter current > previous
-      if (horimeterCurrent && horimeterPrevious) {
-        const currentValue = parseBrazilianNumber(horimeterCurrent);
-        const previousValue = parseBrazilianNumber(horimeterPrevious);
-        
-        if (currentValue <= previousValue) {
-          toast.error(`Horímetro Atual (${formatBrazilianNumber(currentValue)}) deve ser maior que o Anterior (${formatBrazilianNumber(previousValue)})`);
+      if (quickEntryMode === 'filter_blow_only' && !filterBlowQuantity) {
+        toast.error('Informe a quantidade de Sopra Filtro');
+        return;
+      }
+      if (quickEntryMode === 'oil_only' && (!oilType || !oilQuantity)) {
+        toast.error('Selecione o tipo de óleo e informe a quantidade');
+        return;
+      }
+    } else {
+      // Normal mode validation
+      if (recordType === 'saida') {
+        if (!vehicleCode || !fuelQuantity) {
+          toast.error('Preencha veículo e quantidade');
+          return;
+        }
+        // Validate horimeter for equipment
+        if (isEquipment && !horimeterCurrent) {
+          toast.error('Horímetro Atual é obrigatório para equipamentos');
           return;
         }
         
-        // Warn if difference is too large (possible error)
-        const difference = currentValue - previousValue;
-        if (difference > 500) {
-          const confirmed = window.confirm(
-            `A diferença de horímetro é muito alta (${formatBrazilianNumber(difference)}). Deseja continuar mesmo assim?`
-          );
-          if (!confirmed) return;
+        // Validate photos are required for Saida
+        if (!photoPump) {
+          toast.error('Foto da Bomba é obrigatória para registros de Saída');
+          return;
         }
-      }
-    } else {
-      // Entrada validation
-      if (!supplier || !fuelQuantity) {
-        toast.error('Preencha fornecedor e quantidade');
-        return;
+        if (!photoHorimeter) {
+          toast.error('Foto do Horímetro é obrigatória para registros de Saída');
+          return;
+        }
+        
+        // Validate horimeter current > previous
+        if (horimeterCurrent && horimeterPrevious) {
+          const currentValue = parseBrazilianNumber(horimeterCurrent);
+          const previousValue = parseBrazilianNumber(horimeterPrevious);
+          
+          if (currentValue <= previousValue) {
+            toast.error(`Horímetro Atual (${formatBrazilianNumber(currentValue)}) deve ser maior que o Anterior (${formatBrazilianNumber(previousValue)})`);
+            return;
+          }
+          
+          // Warn if difference is too large (possible error)
+          const difference = currentValue - previousValue;
+          if (difference > 500) {
+            const confirmed = window.confirm(
+              `A diferença de horímetro é muito alta (${formatBrazilianNumber(difference)}). Deseja continuar mesmo assim?`
+            );
+            if (!confirmed) return;
+          }
+        }
+      } else {
+        // Entrada validation
+        if (!supplier || !fuelQuantity) {
+          toast.error('Preencha fornecedor e quantidade');
+          return;
+        }
       }
     }
 
@@ -1178,10 +1209,35 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
     setInvoiceNumber('');
     setUnitPrice('');
     setEntryLocation('');
+    setQuickEntryMode('normal');
+    setShowQuickOptions(false);
     if (photoPumpInputRef.current) photoPumpInputRef.current.value = '';
     if (photoHorimeterInputRef.current) photoHorimeterInputRef.current.value = '';
     if (ocrInputRef.current) ocrInputRef.current.value = '';
     if (quantityOcrInputRef.current) quantityOcrInputRef.current.value = '';
+  };
+
+  // Determine user location type
+  const userLocationInfo = useMemo(() => {
+    const userLocations = user.assigned_locations || [];
+    const isComboioUser = userLocations.some(loc => 
+      loc.toLowerCase().includes('comboio') || loc.toLowerCase().startsWith('cb')
+    );
+    const isTanqueUser = userLocations.some(loc => 
+      loc.toLowerCase().includes('tanque') || loc.toLowerCase().includes('canteiro')
+    );
+    return { isComboioUser, isTanqueUser, isOnlyComboio: isComboioUser && !isTanqueUser };
+  }, [user.assigned_locations]);
+
+  // Get quick entry mode label
+  const getQuickModeLabel = (mode: QuickEntryMode): string => {
+    switch (mode) {
+      case 'arla_only': return 'Apenas ARLA';
+      case 'lubrication_only': return 'Apenas Lubrificação';
+      case 'filter_blow_only': return 'Apenas Sopra Filtro';
+      case 'oil_only': return 'Apenas Completar Óleo';
+      default: return 'Apontamento Rápido';
+    }
   };
 
   // Get unique vehicles from sheet with sorting
@@ -1350,28 +1406,28 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
           <div className="grid grid-cols-2 gap-3">
             <Button
               type="button"
-              variant={recordType === 'saida' ? 'default' : 'outline'}
+              variant={recordType === 'saida' && quickEntryMode === 'normal' ? 'default' : 'outline'}
               className={cn(
                 "h-14 text-lg font-bold transition-all",
-                recordType === 'saida' 
+                recordType === 'saida' && quickEntryMode === 'normal'
                   ? "bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white border-0 shadow-lg shadow-red-500/30"
                   : "border-red-600/30 text-muted-foreground hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/50"
               )}
-              onClick={() => setRecordType('saida')}
+              onClick={() => { setRecordType('saida'); setQuickEntryMode('normal'); setShowQuickOptions(false); }}
             >
               <Fuel className="w-5 h-5 mr-2" />
               Saída
             </Button>
             <Button
               type="button"
-              variant={recordType === 'entrada' ? 'default' : 'outline'}
+              variant={recordType === 'entrada' && quickEntryMode === 'normal' ? 'default' : 'outline'}
               className={cn(
                 "h-14 text-lg font-bold transition-all",
-                recordType === 'entrada' 
+                recordType === 'entrada' && quickEntryMode === 'normal'
                   ? "bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white border-0 shadow-lg shadow-green-500/30"
                   : "border-green-600/30 text-muted-foreground hover:bg-green-500/10 hover:text-green-400 hover:border-green-500/50"
               )}
-              onClick={() => setRecordType('entrada')}
+              onClick={() => { setRecordType('entrada'); setQuickEntryMode('normal'); setShowQuickOptions(false); }}
             >
               <Building2 className="w-5 h-5 mr-2" />
               Entrada
@@ -1379,8 +1435,403 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
           </div>
         </div>
 
-        {/* SAÍDA FORM */}
+        {/* Quick Entry Options based on user location */}
         {recordType === 'saida' && (
+          <div className="bg-purple-50/80 dark:bg-purple-950/30 backdrop-blur-sm rounded-xl border border-purple-200 dark:border-purple-800 p-4 space-y-3 shadow-sm">
+            <div className="flex items-center justify-between">
+              <Label className="flex items-center gap-2 text-base text-purple-700 dark:text-purple-400">
+                <Wrench className="w-4 h-4" />
+                Apontamento Rápido
+              </Label>
+              <Button
+                type="button"
+                size="sm"
+                variant={showQuickOptions ? "default" : "outline"}
+                className={cn(
+                  "gap-1",
+                  showQuickOptions 
+                    ? "bg-purple-500 hover:bg-purple-600 text-white" 
+                    : "border-purple-300 text-purple-600 hover:bg-purple-100 dark:hover:bg-purple-900"
+                )}
+                onClick={() => {
+                  setShowQuickOptions(!showQuickOptions);
+                  if (!showQuickOptions) setQuickEntryMode('normal');
+                }}
+              >
+                {showQuickOptions ? 'Ocultar' : 'Opções'}
+              </Button>
+            </div>
+
+            {showQuickOptions && (
+              <div className="space-y-2">
+                <p className="text-xs text-purple-600 dark:text-purple-400">
+                  Selecione para registrar sem informar horímetro/km e quantidade de diesel
+                </p>
+                
+                {/* Tanque/Canteiro users - ARLA only option */}
+                {userLocationInfo.isTanqueUser && (
+                  <Button
+                    type="button"
+                    variant={quickEntryMode === 'arla_only' ? 'default' : 'outline'}
+                    className={cn(
+                      "w-full h-12 justify-start gap-2",
+                      quickEntryMode === 'arla_only'
+                        ? "bg-blue-500 hover:bg-blue-600 text-white"
+                        : "border-blue-300 text-blue-600 hover:bg-blue-100 dark:hover:bg-blue-900"
+                    )}
+                    onClick={() => setQuickEntryMode(quickEntryMode === 'arla_only' ? 'normal' : 'arla_only')}
+                  >
+                    <Droplet className="w-5 h-5" />
+                    Apenas ARLA
+                  </Button>
+                )}
+
+                {/* Comboio users - Lubrication/Filter/Oil options */}
+                {userLocationInfo.isComboioUser && (
+                  <div className="grid grid-cols-1 gap-2">
+                    <Button
+                      type="button"
+                      variant={quickEntryMode === 'lubrication_only' ? 'default' : 'outline'}
+                      className={cn(
+                        "w-full h-12 justify-start gap-2",
+                        quickEntryMode === 'lubrication_only'
+                          ? "bg-orange-500 hover:bg-orange-600 text-white"
+                          : "border-orange-300 text-orange-600 hover:bg-orange-100 dark:hover:bg-orange-900"
+                      )}
+                      onClick={() => setQuickEntryMode(quickEntryMode === 'lubrication_only' ? 'normal' : 'lubrication_only')}
+                    >
+                      <Wrench className="w-5 h-5" />
+                      Apenas Lubrificação
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={quickEntryMode === 'filter_blow_only' ? 'default' : 'outline'}
+                      className={cn(
+                        "w-full h-12 justify-start gap-2",
+                        quickEntryMode === 'filter_blow_only'
+                          ? "bg-amber-500 hover:bg-amber-600 text-white"
+                          : "border-amber-300 text-amber-600 hover:bg-amber-100 dark:hover:bg-amber-900"
+                      )}
+                      onClick={() => setQuickEntryMode(quickEntryMode === 'filter_blow_only' ? 'normal' : 'filter_blow_only')}
+                    >
+                      <AlertCircle className="w-5 h-5" />
+                      Apenas Sopra Filtro
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={quickEntryMode === 'oil_only' ? 'default' : 'outline'}
+                      className={cn(
+                        "w-full h-12 justify-start gap-2",
+                        quickEntryMode === 'oil_only'
+                          ? "bg-yellow-500 hover:bg-yellow-600 text-white"
+                          : "border-yellow-300 text-yellow-600 hover:bg-yellow-100 dark:hover:bg-yellow-900"
+                      )}
+                      onClick={() => setQuickEntryMode(quickEntryMode === 'oil_only' ? 'normal' : 'oil_only')}
+                    >
+                      <Fuel className="w-5 h-5" />
+                      Apenas Completar Óleo
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Active quick mode indicator */}
+            {quickEntryMode !== 'normal' && (
+              <div className="bg-purple-100 dark:bg-purple-900/50 border border-purple-300 dark:border-purple-700 p-3 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-purple-700 dark:text-purple-300">
+                    Modo: {getQuickModeLabel(quickEntryMode)}
+                  </span>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 px-2 text-purple-600 hover:text-purple-800"
+                    onClick={() => setQuickEntryMode('normal')}
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+                <p className="text-xs text-purple-600 dark:text-purple-400 mt-1">
+                  Sem necessidade de horímetro/km ou diesel
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* QUICK ENTRY MODE FORMS */}
+        {quickEntryMode !== 'normal' && recordType === 'saida' && (
+          <>
+            {/* Vehicle Selection - Always needed for quick modes */}
+            <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-xl border border-slate-200 dark:border-slate-700 p-4 space-y-3 shadow-sm">
+              <div className="flex items-center justify-between">
+                <Label className="flex items-center gap-2 text-base">
+                  <Truck className="w-4 h-4" />
+                  Veículo
+                  <span className="text-red-500">*</span>
+                </Label>
+                {/* QR Code Scanner Button */}
+                <div className="flex items-center gap-1">
+                  <input
+                    ref={qrInputRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={handleQRCodeScan}
+                    className="hidden"
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => qrInputRef.current?.click()}
+                    disabled={isScanning}
+                    className="gap-1"
+                    title="Escanear QR Code do veículo"
+                  >
+                    {isScanning ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <>
+                        <QrCode className="w-4 h-4" />
+                        <span className="text-xs hidden sm:inline">QR</span>
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+              
+              {/* Searchable Vehicle Combobox */}
+              <Popover open={vehicleSearchOpen} onOpenChange={setVehicleSearchOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={vehicleSearchOpen}
+                    className={cn(
+                      "w-full h-14 justify-between text-lg font-medium",
+                      !vehicleCode && "text-muted-foreground"
+                    )}
+                  >
+                    <span className="truncate">
+                      {vehicleCode || "Pesquisar veículo..."}
+                    </span>
+                    <ChevronsUpDown className="ml-2 h-5 w-5 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent 
+                  className="w-[--radix-popover-trigger-width] p-0 bg-background border shadow-lg z-50" 
+                  align="start"
+                  sideOffset={4}
+                >
+                  <Command className="bg-background">
+                    <div className="flex items-center border-b px-3">
+                      <Search className="h-4 w-4 shrink-0 opacity-50 mr-2" />
+                      <CommandInput 
+                        placeholder="Pesquisar veículo..." 
+                        className="h-12 border-0 focus:ring-0 text-base"
+                      />
+                    </div>
+                    <CommandList className="max-h-[250px]">
+                      <CommandEmpty>Nenhum veículo encontrado.</CommandEmpty>
+                      <CommandGroup>
+                        {vehicles.map((vehicle) => (
+                          <CommandItem
+                            key={vehicle.code}
+                            value={`${vehicle.code} ${vehicle.description} ${vehicle.category}`.toLowerCase()}
+                            onSelect={() => {
+                              handleVehicleSelect(vehicle.code);
+                              setVehicleSearchOpen(false);
+                            }}
+                            className="cursor-pointer py-3"
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                vehicleCode === vehicle.code ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            <div className="flex flex-col">
+                              <span className="font-medium">{vehicle.code}</span>
+                              {vehicle.description && (
+                                <span className="text-xs text-muted-foreground">{vehicle.description}</span>
+                              )}
+                            </div>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+
+              {/* Selected vehicle info */}
+              {vehicleCode && vehicleDescription && (
+                <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700/50 p-3 rounded-lg">
+                  <p className="text-sm text-blue-700 dark:text-blue-300">
+                    <span className="font-medium">{vehicleCode}</span> - {vehicleDescription}
+                  </p>
+                  {category && (
+                    <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                      Categoria: {category}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* ARLA Only Form */}
+            {quickEntryMode === 'arla_only' && (
+              <div className="bg-blue-50/80 dark:bg-blue-950/30 backdrop-blur-sm rounded-xl border border-blue-200 dark:border-blue-800 p-4 space-y-3 shadow-sm">
+                <Label className="flex items-center gap-2 text-base text-blue-700 dark:text-blue-400">
+                  <Droplet className="w-4 h-4" />
+                  Quantidade de ARLA (Litros)
+                  <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  type="number"
+                  inputMode="decimal"
+                  placeholder="Ex: 20"
+                  value={arlaQuantity}
+                  onChange={(e) => setArlaQuantity(e.target.value)}
+                  className="h-14 text-2xl text-center font-bold"
+                />
+              </div>
+            )}
+
+            {/* Lubrication Only Form */}
+            {quickEntryMode === 'lubrication_only' && (
+              <div className="bg-orange-50/80 dark:bg-orange-950/30 backdrop-blur-sm rounded-xl border border-orange-200 dark:border-orange-800 p-4 space-y-3 shadow-sm">
+                <Label className="flex items-center gap-2 text-base text-orange-700 dark:text-orange-400">
+                  <Wrench className="w-4 h-4" />
+                  Lubrificante
+                  <span className="text-red-500">*</span>
+                </Label>
+                <Select value={lubricant} onValueChange={setLubricant}>
+                  <SelectTrigger className="h-12 text-lg border-orange-300 dark:border-orange-700">
+                    <SelectValue placeholder="Selecione o lubrificante" />
+                  </SelectTrigger>
+                  <SelectContent className="z-50 bg-popover">
+                    {lubricants.length === 0 ? (
+                      <div className="p-3 text-center text-muted-foreground text-sm">
+                        Nenhum lubrificante cadastrado
+                      </div>
+                    ) : (
+                      lubricants.map(lub => (
+                        <SelectItem key={lub.id} value={lub.name}>
+                          {lub.name}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* Filter Blow Only Form */}
+            {quickEntryMode === 'filter_blow_only' && (
+              <div className="bg-amber-50/80 dark:bg-amber-950/30 backdrop-blur-sm rounded-xl border border-amber-200 dark:border-amber-800 p-4 space-y-3 shadow-sm">
+                <Label className="flex items-center gap-2 text-base text-amber-700 dark:text-amber-400">
+                  <AlertCircle className="w-4 h-4" />
+                  Quantidade Sopra Filtro
+                  <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  type="number"
+                  inputMode="decimal"
+                  placeholder="Ex: 1"
+                  value={filterBlowQuantity}
+                  onChange={(e) => setFilterBlowQuantity(e.target.value)}
+                  className="h-14 text-2xl text-center font-bold"
+                />
+              </div>
+            )}
+
+            {/* Oil Only Form */}
+            {quickEntryMode === 'oil_only' && (
+              <div className="bg-yellow-50/80 dark:bg-yellow-950/30 backdrop-blur-sm rounded-xl border border-yellow-200 dark:border-yellow-800 p-4 space-y-4 shadow-sm">
+                <Label className="flex items-center gap-2 text-base text-yellow-700 dark:text-yellow-400">
+                  <Fuel className="w-4 h-4" />
+                  Completar Óleo
+                </Label>
+                
+                <div className="space-y-2">
+                  <Label className="text-sm">Tipo de Óleo <span className="text-red-500">*</span></Label>
+                  <Select value={oilType} onValueChange={setOilType}>
+                    <SelectTrigger className="h-12 text-lg border-yellow-300 dark:border-yellow-700">
+                      <SelectValue placeholder="Selecione o tipo de óleo" />
+                    </SelectTrigger>
+                    <SelectContent className="z-50 bg-popover">
+                      {oilTypes.length === 0 ? (
+                        <div className="p-3 text-center text-muted-foreground text-sm">
+                          Nenhum tipo de óleo cadastrado
+                        </div>
+                      ) : (
+                        oilTypes.map(oil => (
+                          <SelectItem key={oil.id} value={oil.name}>
+                            {oil.name}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-sm">Quantidade (Litros) <span className="text-red-500">*</span></Label>
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    placeholder="Ex: 5"
+                    value={oilQuantity}
+                    onChange={(e) => setOilQuantity(e.target.value)}
+                    className="h-14 text-2xl text-center font-bold"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Location - for quick modes */}
+            <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-xl border border-slate-200 dark:border-slate-700 p-4 space-y-3 shadow-sm">
+              <Label className="flex items-center gap-2 text-base">
+                <MapPin className="w-4 h-4" />
+                Local
+              </Label>
+              <Select value={location} onValueChange={setLocation}>
+                <SelectTrigger className="h-12">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {(user.assigned_locations && user.assigned_locations.length > 0
+                    ? user.assigned_locations
+                    : ['Tanque Canteiro 01', 'Tanque Canteiro 02', 'Comboio 01', 'Comboio 02', 'Comboio 03', 'Posto Externo']
+                  ).map((loc) => (
+                    <SelectItem key={loc} value={loc}>
+                      {loc}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Observations for quick modes */}
+            <div className="bg-slate-800/80 backdrop-blur-sm rounded-xl border border-amber-600/30 p-4 space-y-3 shadow-lg">
+              <Label className="text-base text-white">Observações</Label>
+              <Textarea
+                placeholder="Observações opcionais..."
+                value={observations}
+                onChange={(e) => setObservations(e.target.value)}
+                rows={2}
+                className="bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-400"
+              />
+            </div>
+          </>
+        )}
+
+        {/* NORMAL SAÍDA FORM - only when not in quick mode */}
+        {recordType === 'saida' && quickEntryMode === 'normal' && (
           <>
             {/* Vehicle Selection with Searchable Combobox */}
             <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-xl border border-slate-200 dark:border-slate-700 p-4 space-y-3 shadow-sm">
@@ -1755,11 +2206,11 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
             </div>
           </div>
         )}
-          </>
+        </>
         )}
 
-        {/* ARLA - only for Saida */}
-        {recordType === 'saida' && (
+        {/* ARLA - only for normal Saida mode */}
+        {recordType === 'saida' && quickEntryMode === 'normal' && (
           <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-xl border border-slate-200 dark:border-slate-700 p-4 space-y-3 shadow-sm">
             <div className="flex items-center justify-between">
               <Label className="flex items-center gap-2 text-base">
@@ -2173,7 +2624,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
       <div className="p-4 pb-8 max-w-2xl mx-auto">
         <Button 
           onClick={handleSave} 
-          disabled={isSaving || isUploadingPhotos || !fuelQuantity || (recordType === 'saida' ? !vehicleCode : !supplier)}
+          disabled={isSaving || isUploadingPhotos || !vehicleCode || (quickEntryMode === 'normal' && recordType === 'saida' && !fuelQuantity) || (quickEntryMode === 'normal' && recordType === 'entrada' && !supplier)}
           className={cn(
             "w-full h-14 text-lg gap-2 shadow-lg",
             recordType === 'entrada' 
