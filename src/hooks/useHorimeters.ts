@@ -10,6 +10,7 @@ export interface Vehicle {
   category: string | null;
   company: string | null;
   unit: string;
+  status: string | null;
   created_at: string;
   updated_at: string;
 }

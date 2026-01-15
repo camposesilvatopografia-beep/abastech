@@ -49,22 +49,30 @@ export function BatchHorimeterModal({ open, onOpenChange, onSuccess }: BatchHori
   const [startDate, setStartDate] = useState<Date>(subDays(new Date(), 6));
   const [endDate, setEndDate] = useState<Date>(new Date());
 
-  // Get previous values for the selected vehicle
+  // Get previous values and operator for the selected vehicle
   const previousValues = useMemo(() => {
-    if (!selectedVehicleId || readings.length === 0) return { horimeter: 0, km: 0 };
+    if (!selectedVehicleId || readings.length === 0) return { horimeter: 0, km: 0, operator: '' };
     
     const vehicleReadings = readings
       .filter(r => r.vehicle_id === selectedVehicleId)
       .sort((a, b) => new Date(b.reading_date).getTime() - new Date(a.reading_date).getTime());
     
-    if (vehicleReadings.length === 0) return { horimeter: 0, km: 0 };
+    if (vehicleReadings.length === 0) return { horimeter: 0, km: 0, operator: '' };
     
     const latest = vehicleReadings[0];
     return {
       horimeter: latest.current_value || 0,
-      km: (latest as any).current_km || 0
+      km: (latest as any).current_km || 0,
+      operator: latest.operator || ''
     };
   }, [selectedVehicleId, readings]);
+
+  // Auto-fill operator when vehicle changes
+  useEffect(() => {
+    if (selectedVehicleId && previousValues.operator) {
+      setOperador(previousValues.operator);
+    }
+  }, [selectedVehicleId, previousValues.operator]);
 
   // Generate entries for date range when vehicle changes or dates change
   useEffect(() => {
