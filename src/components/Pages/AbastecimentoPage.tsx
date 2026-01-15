@@ -54,6 +54,7 @@ import { format, parse, isValid, startOfDay, endOfDay, isWithinInterval, subDays
 import { ptBR } from 'date-fns/locale';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { toast } from 'sonner';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
@@ -113,6 +114,13 @@ export function AbastecimentoPage() {
   const { data, loading, refetch } = useSheetData(SHEET_NAME);
   const { data: geralData } = useSheetData(GERAL_SHEET);
   const { data: saneamentoStockData } = useSheetData(SANEAMENTO_STOCK_SHEET);
+  // Fetch stock data for comboios
+  const { data: estoqueComboio01Data } = useSheetData('EstoqueComboio01');
+  const { data: estoqueComboio02Data } = useSheetData('EstoqueComboio02');
+  const { data: estoqueComboio03Data } = useSheetData('EstoqueComboio03');
+  const { data: estoqueTanque01Data } = useSheetData('EstoqueTanque01');
+  const { data: estoqueTanque02Data } = useSheetData('EstoqueTanque02');
+  
   const [activeTab, setActiveTab] = useState('resumo');
   const [search, setSearch] = useState('');
   const [localFilter, setLocalFilter] = useState('all');
@@ -1053,6 +1061,265 @@ export function AbastecimentoPage() {
       setIsExporting(false);
     }
   }, [resumoPorEmpresa, dateRange]);
+
+  // Helper to get stock data for a location from its sheet
+  const getStockDataFromSheet = useCallback((sheetData: { rows: any[] }, targetDate: string) => {
+    if (!sheetData.rows.length) {
+      return { estoqueAnterior: 0, entrada: 0, saidaComboios: 0, saidaEquipamentos: 0, total: 0, estoqueAtual: 0 };
+    }
+    
+    // Find row matching target date
+    const matchingRow = sheetData.rows.find(row => {
+      const rowDate = String(row['Data'] || row['DATA'] || '').trim();
+      return rowDate === targetDate;
+    });
+    
+    if (matchingRow) {
+      const estoqueAnterior = parseNumber(matchingRow['Estoque Anterior'] || matchingRow['ESTOQUE ANTERIOR'] || 0);
+      const entrada = parseNumber(matchingRow['Entrada'] || matchingRow['ENTRADA'] || 0);
+      const saidaComboios = parseNumber(matchingRow['Saida Comboios'] || matchingRow['SAIDA COMBOIOS'] || matchingRow['Saida para Comboios'] || 0);
+      const saidaEquipamentos = parseNumber(matchingRow['Saida Equipamentos'] || matchingRow['SAIDA EQUIPAMENTOS'] || matchingRow['Saida para Equipamentos'] || 0);
+      const total = saidaComboios + saidaEquipamentos;
+      const estoqueAtual = parseNumber(matchingRow['Estoque Atual'] || matchingRow['ESTOQUE ATUAL'] || 0);
+      
+      return { estoqueAnterior, entrada, saidaComboios, saidaEquipamentos, total, estoqueAtual };
+    }
+    
+    // If no exact date match, get last row
+    const lastRow = sheetData.rows[sheetData.rows.length - 1];
+    return {
+      estoqueAnterior: parseNumber(lastRow['Estoque Anterior'] || lastRow['ESTOQUE ANTERIOR'] || 0),
+      entrada: parseNumber(lastRow['Entrada'] || lastRow['ENTRADA'] || 0),
+      saidaComboios: parseNumber(lastRow['Saida Comboios'] || lastRow['SAIDA COMBOIOS'] || 0),
+      saidaEquipamentos: parseNumber(lastRow['Saida Equipamentos'] || lastRow['SAIDA EQUIPAMENTOS'] || 0),
+      total: parseNumber(lastRow['Saida Comboios'] || 0) + parseNumber(lastRow['Saida Equipamentos'] || 0),
+      estoqueAtual: parseNumber(lastRow['Estoque Atual'] || lastRow['ESTOQUE ATUAL'] || 0)
+    };
+  }, []);
+
+  // Export General PDF with Summary (Resumo Geral) - Format like the reference image
+  const exportPDFResumoGeral = useCallback(() => {
+    setIsExporting(true);
+    
+    try {
+      const doc = new jsPDF('landscape');
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const targetDate = format(new Date(), 'dd/MM/yyyy');
+      
+      let currentY = 20;
+      
+      // Title - Resumo Geral
+      doc.setFontSize(16);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Resumo Geral', pageWidth / 2, currentY, { align: 'center' });
+      currentY += 10;
+      
+      // Date
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Data: ${targetDate}`, pageWidth / 2, currentY, { align: 'center' });
+      currentY += 10;
+      
+      // Collect stock data for all locations
+      const tanque01 = getStockDataFromSheet(estoqueTanque01Data, targetDate);
+      const tanque02 = getStockDataFromSheet(estoqueTanque02Data, targetDate);
+      const comboio01 = getStockDataFromSheet(estoqueComboio01Data, targetDate);
+      const comboio02 = getStockDataFromSheet(estoqueComboio02Data, targetDate);
+      const comboio03 = getStockDataFromSheet(estoqueComboio03Data, targetDate);
+      
+      // Summary table data
+      const summaryData = [
+        ['Tanque Canteiro 01', tanque01.estoqueAnterior, tanque01.entrada, tanque01.saidaComboios, tanque01.saidaEquipamentos, tanque01.total, tanque01.estoqueAtual],
+        ['Tanque Canteiro 02', tanque02.estoqueAnterior, tanque02.entrada, tanque02.saidaComboios, tanque02.saidaEquipamentos, tanque02.total, tanque02.estoqueAtual],
+        ['Comboio 01', comboio01.estoqueAnterior, comboio01.entrada, comboio01.saidaComboios, comboio01.saidaEquipamentos, comboio01.total, comboio01.estoqueAtual],
+        ['Comboio 02', comboio02.estoqueAnterior, comboio02.entrada, comboio02.saidaComboios, comboio02.saidaEquipamentos, comboio02.total, comboio02.estoqueAtual],
+        ['Comboio 03', comboio03.estoqueAnterior, comboio03.entrada, comboio03.saidaComboios, comboio03.saidaEquipamentos, comboio03.total, comboio03.estoqueAtual],
+      ];
+      
+      // Calculate totals
+      const totalGeralRow = summaryData.reduce((acc, row) => {
+        return [
+          'Total geral',
+          (acc[1] as number) + (row[1] as number),
+          (acc[2] as number) + (row[2] as number),
+          (acc[3] as number) + (row[3] as number),
+          (acc[4] as number) + (row[4] as number),
+          (acc[5] as number) + (row[5] as number),
+          (acc[6] as number) + (row[6] as number),
+        ];
+      }, ['Total geral', 0, 0, 0, 0, 0, 0] as any[]);
+      
+      summaryData.push(totalGeralRow);
+      
+      // Format numbers for display
+      const formattedSummaryData = summaryData.map(row => [
+        row[0],
+        typeof row[1] === 'number' ? row[1].toLocaleString('pt-BR', { minimumFractionDigits: 1 }) : row[1],
+        typeof row[2] === 'number' ? row[2].toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : row[2],
+        typeof row[3] === 'number' ? row[3].toLocaleString('pt-BR', { minimumFractionDigits: 0 }) : row[3],
+        typeof row[4] === 'number' ? row[4].toLocaleString('pt-BR', { minimumFractionDigits: 1 }) : row[4],
+        typeof row[5] === 'number' ? row[5].toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : row[5],
+        typeof row[6] === 'number' ? row[6].toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : row[6],
+      ]);
+      
+      // Draw summary table
+      autoTable(doc, {
+        startY: currentY,
+        head: [[
+          'Descrição',
+          'Estoque\nAnterior',
+          'Entrada',
+          'Saída para\nComboios',
+          'Saída para\nEquipamentos',
+          'Total',
+          'Estoque Atual'
+        ]],
+        body: formattedSummaryData,
+        styles: { 
+          fontSize: 9,
+          cellPadding: 3,
+        },
+        headStyles: { 
+          fillColor: [200, 200, 200],
+          textColor: [0, 0, 0],
+          fontStyle: 'bold',
+          halign: 'center',
+          valign: 'middle',
+        },
+        columnStyles: {
+          0: { cellWidth: 50 },
+          1: { cellWidth: 30, halign: 'right' },
+          2: { cellWidth: 25, halign: 'right' },
+          3: { cellWidth: 30, halign: 'right' },
+          4: { cellWidth: 35, halign: 'right' },
+          5: { cellWidth: 30, halign: 'right' },
+          6: { cellWidth: 35, halign: 'right' },
+        },
+        alternateRowStyles: {
+          fillColor: [255, 255, 255]
+        },
+        theme: 'grid',
+        didParseCell: (data) => {
+          // Style the totals row (last row)
+          if (data.row.index === formattedSummaryData.length - 1) {
+            data.cell.styles.fontStyle = 'bold';
+            data.cell.styles.fillColor = [230, 230, 230];
+          }
+        },
+      });
+      
+      currentY = (doc as any).lastAutoTable?.finalY + 20 || currentY + 80;
+      
+      // Section: Tanques 01 e 02 - Detailed records
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(180, 0, 0);
+      doc.text('Tanques 01 e 02', pageWidth / 2, currentY, { align: 'center' });
+      doc.setTextColor(0, 0, 0);
+      currentY += 8;
+      
+      // Get all records and calculate consumption
+      let totalDiesel = 0;
+      let totalConsumo = 0;
+      let countConsumo = 0;
+      
+      const allRecords = Object.values(resumoPorLocal.recordsByLocal).flat();
+      
+      const tableData = allRecords.map((record, index) => {
+        const usaKm = record.kmAtual > 0 || record.kmAnterior > 0;
+        const anterior = usaKm ? record.kmAnterior : record.horAnterior;
+        const atual = usaKm ? record.kmAtual : record.horAtual;
+        const intervalo = atual - anterior;
+        
+        let consumo = 0;
+        if (record.quantidade > 0 && intervalo > 0) {
+          if (usaKm) {
+            consumo = intervalo / record.quantidade;
+          } else {
+            consumo = record.quantidade / intervalo;
+          }
+          totalConsumo += consumo;
+          countConsumo++;
+        }
+        
+        totalDiesel += record.quantidade;
+        
+        return [
+          (index + 1).toString() + '.',
+          record.codigo,
+          record.descricao,
+          record.motorista,
+          anterior > 0 ? anterior.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '-',
+          atual > 0 ? atual.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '-',
+          intervalo > 0 ? intervalo.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '-',
+          consumo > 0 ? consumo.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '0,00',
+          record.quantidade.toLocaleString('pt-BR', { minimumFractionDigits: 0 })
+        ];
+      });
+      
+      // Check if we need a new page
+      if (currentY > 150) {
+        doc.addPage();
+        currentY = 20;
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(180, 0, 0);
+        doc.text('Tanques 01 e 02', pageWidth / 2, currentY, { align: 'center' });
+        doc.setTextColor(0, 0, 0);
+        currentY += 8;
+      }
+      
+      // Draw detailed table
+      autoTable(doc, {
+        startY: currentY,
+        head: [[
+          '',
+          'Código',
+          'Descrição',
+          'Motorista/Operador',
+          'Hor/Km\nAnterior',
+          'Hor/Km\nAtual',
+          'Intervalo\n(h/km)',
+          'Consumo',
+          'Qtd Diesel'
+        ]],
+        body: tableData,
+        styles: { 
+          fontSize: 8,
+          cellPadding: 2,
+        },
+        headStyles: { 
+          fillColor: [200, 200, 200],
+          textColor: [0, 0, 0],
+          fontStyle: 'bold',
+          halign: 'center',
+          valign: 'middle',
+        },
+        columnStyles: {
+          0: { cellWidth: 10, halign: 'center' },
+          1: { cellWidth: 25 },
+          2: { cellWidth: 45 },
+          3: { cellWidth: 45 },
+          4: { cellWidth: 25, halign: 'right' },
+          5: { cellWidth: 28, halign: 'right' },
+          6: { cellWidth: 28, halign: 'right' },
+          7: { cellWidth: 22, halign: 'right' },
+          8: { cellWidth: 22, halign: 'right' },
+        },
+        alternateRowStyles: {
+          fillColor: [255, 255, 255]
+        },
+        theme: 'grid',
+      });
+      
+      doc.save(`resumo_geral_abastecimento_${format(new Date(), 'yyyyMMdd')}.pdf`);
+    } catch (error) {
+      console.error('Error exporting PDF:', error);
+      toast.error('Erro ao exportar PDF');
+    } finally {
+      setIsExporting(false);
+    }
+  }, [getStockDataFromSheet, estoqueTanque01Data, estoqueTanque02Data, estoqueComboio01Data, estoqueComboio02Data, estoqueComboio03Data, resumoPorLocal]);
 
   // Print function
   const handlePrint = useCallback(() => {

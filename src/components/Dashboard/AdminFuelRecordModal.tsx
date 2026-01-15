@@ -12,7 +12,12 @@ import {
   Wrench,
   Clock,
   Receipt,
-  X,
+  TrendingUp,
+  TrendingDown,
+  AlertTriangle,
+  Zap,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -31,6 +36,17 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
 import { VehicleCombobox } from '@/components/ui/vehicle-combobox';
 import { supabase } from '@/integrations/supabase/client';
 import { useSheetData } from '@/hooks/useGoogleSheets';
@@ -43,9 +59,15 @@ interface AdminFuelRecordModalProps {
   onSuccess?: () => void;
 }
 
+type QuickEntryMode = 'normal' | 'arla_only' | 'lubrication_only' | 'filter_blow_only' | 'oil_only';
+
 export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFuelRecordModalProps) {
-  const { data: vehiclesData, refetch: refetchVehicles } = useSheetData('Veiculo');
+  const { data: vehiclesData } = useSheetData('Veiculo');
   const [isSaving, setIsSaving] = useState(false);
+  
+  // Quick entry mode
+  const [quickEntryMode, setQuickEntryMode] = useState<QuickEntryMode>('normal');
+  const [showQuickOptions, setShowQuickOptions] = useState(false);
   
   // Form state
   const [recordType, setRecordType] = useState<'saida' | 'entrada'>('saida');
@@ -108,6 +130,74 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
     return parseFloat(normalized) || 0;
   };
 
+  // Validation for horimeter/km
+  const horimeterValidation = useMemo(() => {
+    const current = parseBrazilianNumber(horimeterCurrent);
+    const previous = parseBrazilianNumber(horimeterPrevious);
+    
+    if (!current || !previous) return { status: 'neutral', message: '' };
+    
+    if (current < previous) {
+      return { 
+        status: 'error', 
+        message: `Valor atual (${formatBrazilianNumber(current)}) menor que anterior (${formatBrazilianNumber(previous)})` 
+      };
+    }
+    
+    const diff = current - previous;
+    if (diff > 500) {
+      return { 
+        status: 'warning', 
+        message: `Diferença alta: ${formatBrazilianNumber(diff)} horas` 
+      };
+    }
+    
+    return { 
+      status: 'success', 
+      message: `Diferença: ${formatBrazilianNumber(diff)} horas` 
+    };
+  }, [horimeterCurrent, horimeterPrevious]);
+
+  const kmValidation = useMemo(() => {
+    const current = parseBrazilianNumber(kmCurrent);
+    const previous = parseBrazilianNumber(kmPrevious);
+    
+    if (!current || !previous) return { status: 'neutral', message: '' };
+    
+    if (current < previous) {
+      return { 
+        status: 'error', 
+        message: `Valor atual (${formatBrazilianNumber(current)}) menor que anterior (${formatBrazilianNumber(previous)})` 
+      };
+    }
+    
+    const diff = current - previous;
+    if (diff > 10000) {
+      return { 
+        status: 'warning', 
+        message: `Diferença alta: ${formatBrazilianNumber(diff)} km` 
+      };
+    }
+    
+    return { 
+      status: 'success', 
+      message: `Diferença: ${formatBrazilianNumber(diff)} km` 
+    };
+  }, [kmCurrent, kmPrevious]);
+
+  const getValidationIcon = (status: string) => {
+    switch (status) {
+      case 'success':
+        return <TrendingUp className="h-4 w-4 text-green-500" />;
+      case 'warning':
+        return <AlertTriangle className="h-4 w-4 text-yellow-500" />;
+      case 'error':
+        return <TrendingDown className="h-4 w-4 text-red-500" />;
+      default:
+        return null;
+    }
+  };
+
   // Fetch database data
   useEffect(() => {
     const fetchData = async () => {
@@ -139,6 +229,8 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
   }, [open]);
 
   const resetForm = () => {
+    setQuickEntryMode('normal');
+    setShowQuickOptions(false);
     setRecordType('saida');
     setVehicleCode('');
     setVehicleDescription('');
@@ -263,18 +355,63 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
     }
   };
 
+  // Get quick entry mode label
+  const getQuickModeLabel = (mode: QuickEntryMode): string => {
+    switch (mode) {
+      case 'arla_only': return 'Apenas ARLA';
+      case 'lubrication_only': return 'Apenas Lubrificação';
+      case 'filter_blow_only': return 'Apenas Sopra Filtro';
+      case 'oil_only': return 'Apenas Completar Óleo';
+      default: return 'Normal';
+    }
+  };
+
   // Save record
   const handleSave = async () => {
-    // Validate
-    if (recordType === 'saida') {
+    // Quick entry mode validation
+    if (quickEntryMode !== 'normal') {
       if (!vehicleCode) {
         toast.error('Selecione o veículo');
         return;
       }
-    } else {
-      if (!supplier) {
-        toast.error('Selecione o fornecedor');
+      
+      if (quickEntryMode === 'arla_only' && !arlaQuantity) {
+        toast.error('Informe a quantidade de ARLA');
         return;
+      }
+      if (quickEntryMode === 'lubrication_only' && !lubricant) {
+        toast.error('Selecione o lubrificante');
+        return;
+      }
+      if (quickEntryMode === 'filter_blow_only' && !filterBlowQuantity) {
+        toast.error('Informe a quantidade de Sopra Filtro');
+        return;
+      }
+      if (quickEntryMode === 'oil_only' && (!oilType || !oilQuantity)) {
+        toast.error('Selecione o tipo de óleo e informe a quantidade');
+        return;
+      }
+    } else {
+      // Normal mode validation
+      if (recordType === 'saida') {
+        if (!vehicleCode) {
+          toast.error('Selecione o veículo');
+          return;
+        }
+        // Validate horimeter if provided
+        if (horimeterValidation.status === 'error') {
+          toast.error('Horímetro atual deve ser maior que o anterior');
+          return;
+        }
+        if (kmValidation.status === 'error') {
+          toast.error('KM atual deve ser maior que o anterior');
+          return;
+        }
+      } else {
+        if (!supplier) {
+          toast.error('Selecione o fornecedor');
+          return;
+        }
       }
     }
 
@@ -288,11 +425,11 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
 
       // Prepare record for database
       const dbRecord = {
-        record_type: recordType,
-        vehicle_code: recordType === 'entrada' ? 'ENTRADA' : vehicleCode,
-        vehicle_description: recordType === 'entrada' ? supplier : vehicleDescription,
-        category: recordType === 'entrada' ? 'ENTRADA' : category,
-        operator_name: recordType === 'entrada' ? '' : operatorName,
+        record_type: quickEntryMode !== 'normal' ? 'saida' : recordType,
+        vehicle_code: recordType === 'entrada' && quickEntryMode === 'normal' ? 'ENTRADA' : vehicleCode,
+        vehicle_description: recordType === 'entrada' && quickEntryMode === 'normal' ? supplier : vehicleDescription,
+        category: recordType === 'entrada' && quickEntryMode === 'normal' ? 'ENTRADA' : category,
+        operator_name: recordType === 'entrada' && quickEntryMode === 'normal' ? '' : operatorName,
         company,
         work_site: workSite,
         horimeter_previous: parseBrazilianNumber(horimeterPrevious),
@@ -302,8 +439,8 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
         fuel_quantity: parseFloat(fuelQuantity) || 0,
         fuel_type: fuelType,
         arla_quantity: parseFloat(arlaQuantity) || 0,
-        location: recordType === 'entrada' ? entryLocation : location,
-        observations: observations || null,
+        location: recordType === 'entrada' && quickEntryMode === 'normal' ? entryLocation : location,
+        observations: quickEntryMode !== 'normal' ? `[${getQuickModeLabel(quickEntryMode)}] ${observations}`.trim() : (observations || null),
         oil_type: oilType || null,
         oil_quantity: parseFloat(oilQuantity) || null,
         filter_blow: !!filterBlowQuantity,
@@ -334,10 +471,10 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
       const sheetData: Record<string, any> = {
         'DATA': formattedDate,
         'HORA': recordTime,
-        'TIPO': recordType === 'entrada' ? 'Entrada' : 'Saída',
-        'VEICULO': recordType === 'entrada' ? 'ENTRADA' : vehicleCode,
-        'DESCRICAO': recordType === 'entrada' ? supplier : vehicleDescription,
-        'CATEGORIA': recordType === 'entrada' ? 'ENTRADA' : category,
+        'TIPO': recordType === 'entrada' && quickEntryMode === 'normal' ? 'Entrada' : 'Saída',
+        'VEICULO': dbRecord.vehicle_code,
+        'DESCRICAO': dbRecord.vehicle_description,
+        'CATEGORIA': dbRecord.category,
         'MOTORISTA': operatorName,
         'EMPRESA': company,
         'OBRA': workSite,
@@ -348,8 +485,8 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
         'QUANTIDADE': parseFloat(fuelQuantity) || 0,
         'QUANTIDADE DE ARLA': parseFloat(arlaQuantity) || '',
         'TIPO DE COMBUSTIVEL': fuelType,
-        'LOCAL': recordType === 'entrada' ? entryLocation : location,
-        'OBSERVAÇÃO': observations || '',
+        'LOCAL': dbRecord.location,
+        'OBSERVAÇÃO': dbRecord.observations || '',
         'TIPO DE ÓLEO': oilType || '',
         'QUANTIDADE DE ÓLEO': parseFloat(oilQuantity) || '',
         'SOPRA FILTRO': filterBlowQuantity || '',
@@ -363,7 +500,6 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
       const syncSuccess = await syncToGoogleSheets(sheetData);
 
       if (syncSuccess) {
-        // Update synced status
         await supabase
           .from('field_fuel_records')
           .update({ synced_to_sheet: true })
@@ -405,7 +541,7 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
                   "flex-1",
                   recordType === 'saida' && "bg-red-600 hover:bg-red-700"
                 )}
-                onClick={() => setRecordType('saida')}
+                onClick={() => { setRecordType('saida'); setQuickEntryMode('normal'); }}
               >
                 Saída
               </Button>
@@ -416,14 +552,193 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
                   "flex-1",
                   recordType === 'entrada' && "bg-green-600 hover:bg-green-700"
                 )}
-                onClick={() => setRecordType('entrada')}
+                onClick={() => { setRecordType('entrada'); setQuickEntryMode('normal'); }}
               >
                 Entrada
               </Button>
             </div>
           </div>
 
-          {recordType === 'saida' ? (
+          {/* Quick Entry Options - Only for Saida */}
+          {recordType === 'saida' && (
+            <Collapsible open={showQuickOptions} onOpenChange={setShowQuickOptions}>
+              <CollapsibleTrigger asChild>
+                <Button variant="outline" className="w-full justify-between" size="sm">
+                  <span className="flex items-center gap-2">
+                    <Zap className="h-4 w-4 text-yellow-500" />
+                    Apontamento Rápido
+                  </span>
+                  {showQuickOptions ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="pt-2">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  <Button
+                    type="button"
+                    variant={quickEntryMode === 'arla_only' ? 'default' : 'outline'}
+                    size="sm"
+                    className={cn(quickEntryMode === 'arla_only' && "bg-blue-600 hover:bg-blue-700")}
+                    onClick={() => setQuickEntryMode(quickEntryMode === 'arla_only' ? 'normal' : 'arla_only')}
+                  >
+                    <Droplet className="h-4 w-4 mr-1" />
+                    Apenas ARLA
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={quickEntryMode === 'lubrication_only' ? 'default' : 'outline'}
+                    size="sm"
+                    className={cn(quickEntryMode === 'lubrication_only' && "bg-amber-600 hover:bg-amber-700")}
+                    onClick={() => setQuickEntryMode(quickEntryMode === 'lubrication_only' ? 'normal' : 'lubrication_only')}
+                  >
+                    <Wrench className="h-4 w-4 mr-1" />
+                    Lubrificação
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={quickEntryMode === 'filter_blow_only' ? 'default' : 'outline'}
+                    size="sm"
+                    className={cn(quickEntryMode === 'filter_blow_only' && "bg-orange-600 hover:bg-orange-700")}
+                    onClick={() => setQuickEntryMode(quickEntryMode === 'filter_blow_only' ? 'normal' : 'filter_blow_only')}
+                  >
+                    Sopra Filtro
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={quickEntryMode === 'oil_only' ? 'default' : 'outline'}
+                    size="sm"
+                    className={cn(quickEntryMode === 'oil_only' && "bg-purple-600 hover:bg-purple-700")}
+                    onClick={() => setQuickEntryMode(quickEntryMode === 'oil_only' ? 'normal' : 'oil_only')}
+                  >
+                    Completar Óleo
+                  </Button>
+                </div>
+                {quickEntryMode !== 'normal' && (
+                  <div className="mt-2 p-2 bg-muted rounded-lg text-sm text-muted-foreground">
+                    Modo: <span className="font-medium text-foreground">{getQuickModeLabel(quickEntryMode)}</span>
+                  </div>
+                )}
+              </CollapsibleContent>
+            </Collapsible>
+          )}
+
+          {/* Quick Entry Forms */}
+          {quickEntryMode !== 'normal' && (
+            <div className="space-y-4 p-4 bg-muted/50 rounded-lg border">
+              {/* Vehicle Selection */}
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <Truck className="h-4 w-4" />
+                  Veículo *
+                </Label>
+                <VehicleCombobox
+                  vehicles={vehicleOptions}
+                  value={vehicleCode}
+                  onValueChange={handleVehicleSelect}
+                  placeholder="Selecione o veículo..."
+                />
+              </div>
+
+              {/* ARLA Only */}
+              {quickEntryMode === 'arla_only' && (
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <Droplet className="h-4 w-4 text-blue-500" />
+                    Quantidade ARLA (L) *
+                  </Label>
+                  <Input
+                    type="number"
+                    value={arlaQuantity}
+                    onChange={(e) => setArlaQuantity(e.target.value)}
+                    placeholder="0"
+                    step="0.01"
+                    className="text-lg h-12"
+                  />
+                </div>
+              )}
+
+              {/* Lubrication Only */}
+              {quickEntryMode === 'lubrication_only' && (
+                <div className="space-y-2">
+                  <Label>Lubrificante *</Label>
+                  <Select value={lubricant} onValueChange={setLubricant}>
+                    <SelectTrigger className="h-12">
+                      <SelectValue placeholder="Selecione..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {lubricants.map(lub => (
+                        <SelectItem key={lub.id} value={lub.name}>{lub.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {/* Filter Blow Only */}
+              {quickEntryMode === 'filter_blow_only' && (
+                <div className="space-y-2">
+                  <Label>Quantidade Sopra Filtro *</Label>
+                  <Input
+                    type="number"
+                    value={filterBlowQuantity}
+                    onChange={(e) => setFilterBlowQuantity(e.target.value)}
+                    placeholder="0"
+                    className="text-lg h-12"
+                  />
+                </div>
+              )}
+
+              {/* Oil Only */}
+              {quickEntryMode === 'oil_only' && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Tipo de Óleo *</Label>
+                    <Select value={oilType} onValueChange={setOilType}>
+                      <SelectTrigger className="h-12">
+                        <SelectValue placeholder="Selecione..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {oilTypes.map(oil => (
+                          <SelectItem key={oil.id} value={oil.name}>{oil.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Quantidade (L) *</Label>
+                    <Input
+                      type="number"
+                      value={oilQuantity}
+                      onChange={(e) => setOilQuantity(e.target.value)}
+                      placeholder="0"
+                      step="0.1"
+                      className="text-lg h-12"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Location */}
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <MapPin className="h-4 w-4" />
+                  Local
+                </Label>
+                <Select value={location} onValueChange={setLocation}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {locationOptions.map(loc => (
+                      <SelectItem key={loc} value={loc}>{loc}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+
+          {/* Normal Entry Forms */}
+          {quickEntryMode === 'normal' && recordType === 'saida' && (
             <>
               {/* Vehicle Selection */}
               <div className="space-y-2">
@@ -443,7 +758,6 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                {/* Operator */}
                 <div className="space-y-2">
                   <Label className="flex items-center gap-2">
                     <User className="h-4 w-4" />
@@ -455,8 +769,6 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
                     placeholder="Nome do operador"
                   />
                 </div>
-
-                {/* Company */}
                 <div className="space-y-2">
                   <Label className="flex items-center gap-2">
                     <Building2 className="h-4 w-4" />
@@ -470,60 +782,93 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
                 </div>
               </div>
 
-              {/* Horimeter/KM */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <Gauge className="h-4 w-4 text-amber-500" />
-                    Horímetro Anterior
-                  </Label>
-                  <Input
-                    value={horimeterPrevious}
-                    onChange={(e) => setHorimeterPrevious(e.target.value)}
-                    placeholder="0,00"
-                    className="border-amber-300 focus:border-amber-500"
-                  />
+              {/* Horimeter with validation */}
+              <TooltipProvider>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2">
+                      <Gauge className="h-4 w-4 text-amber-500" />
+                      Horímetro Anterior
+                    </Label>
+                    <Input
+                      value={horimeterPrevious}
+                      onChange={(e) => setHorimeterPrevious(e.target.value)}
+                      placeholder="0,00"
+                      className="border-amber-300 focus:border-amber-500"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2">
+                      <Gauge className="h-4 w-4 text-amber-500" />
+                      Horímetro Atual
+                      {horimeterValidation.status !== 'neutral' && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span>{getValidationIcon(horimeterValidation.status)}</span>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>{horimeterValidation.message}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      )}
+                    </Label>
+                    <Input
+                      value={horimeterCurrent}
+                      onChange={(e) => setHorimeterCurrent(e.target.value)}
+                      placeholder="0,00"
+                      className={cn(
+                        "border-amber-300 focus:border-amber-500",
+                        horimeterValidation.status === 'error' && "border-red-500 focus:border-red-600",
+                        horimeterValidation.status === 'warning' && "border-yellow-500 focus:border-yellow-600",
+                        horimeterValidation.status === 'success' && "border-green-500 focus:border-green-600"
+                      )}
+                    />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <Gauge className="h-4 w-4 text-amber-500" />
-                    Horímetro Atual
-                  </Label>
-                  <Input
-                    value={horimeterCurrent}
-                    onChange={(e) => setHorimeterCurrent(e.target.value)}
-                    placeholder="0,00"
-                    className="border-amber-300 focus:border-amber-500"
-                  />
-                </div>
-              </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <Clock className="h-4 w-4 text-blue-500" />
-                    KM Anterior
-                  </Label>
-                  <Input
-                    value={kmPrevious}
-                    onChange={(e) => setKmPrevious(e.target.value)}
-                    placeholder="0,00"
-                    className="border-blue-300 focus:border-blue-500"
-                  />
+                {/* KM with validation */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2">
+                      <Clock className="h-4 w-4 text-blue-500" />
+                      KM Anterior
+                    </Label>
+                    <Input
+                      value={kmPrevious}
+                      onChange={(e) => setKmPrevious(e.target.value)}
+                      placeholder="0,00"
+                      className="border-blue-300 focus:border-blue-500"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2">
+                      <Clock className="h-4 w-4 text-blue-500" />
+                      KM Atual
+                      {kmValidation.status !== 'neutral' && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span>{getValidationIcon(kmValidation.status)}</span>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>{kmValidation.message}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      )}
+                    </Label>
+                    <Input
+                      value={kmCurrent}
+                      onChange={(e) => setKmCurrent(e.target.value)}
+                      placeholder="0,00"
+                      className={cn(
+                        "border-blue-300 focus:border-blue-500",
+                        kmValidation.status === 'error' && "border-red-500 focus:border-red-600",
+                        kmValidation.status === 'warning' && "border-yellow-500 focus:border-yellow-600",
+                        kmValidation.status === 'success' && "border-green-500 focus:border-green-600"
+                      )}
+                    />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <Clock className="h-4 w-4 text-blue-500" />
-                    KM Atual
-                  </Label>
-                  <Input
-                    value={kmCurrent}
-                    onChange={(e) => setKmCurrent(e.target.value)}
-                    placeholder="0,00"
-                    className="border-blue-300 focus:border-blue-500"
-                  />
-                </div>
-              </div>
+              </TooltipProvider>
 
               {/* Fuel */}
               <div className="grid grid-cols-2 gap-4">
@@ -555,7 +900,7 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
                 </div>
               </div>
 
-              {/* ARLA */}
+              {/* ARLA and Location */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="flex items-center gap-2">
@@ -648,9 +993,11 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
                 </div>
               </div>
             </>
-          ) : (
+          )}
+
+          {/* Entrada Fields */}
+          {quickEntryMode === 'normal' && recordType === 'entrada' && (
             <>
-              {/* Entrada Fields */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="flex items-center gap-2">
