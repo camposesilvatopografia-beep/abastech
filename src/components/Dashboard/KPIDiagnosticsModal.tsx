@@ -7,7 +7,6 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import {
   Select,
@@ -34,9 +33,13 @@ import {
   Search,
   Settings,
   Zap,
-  RefreshCw,
+  Bot,
+  Loader2,
+  Sparkles,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 interface KPIDiagnosticsModalProps {
   open: boolean;
@@ -69,7 +72,8 @@ export function KPIDiagnosticsModal({
 }: KPIDiagnosticsModalProps) {
   const [search, setSearch] = useState('');
   const [selectedTab, setSelectedTab] = useState('diagnostics');
-  const [testValue, setTestValue] = useState('');
+  const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   // Analyze headers and detect potential column types
   const headerAnalysis = useMemo(() => {
@@ -184,6 +188,39 @@ export function KPIDiagnosticsModal({
     );
   }, [headerAnalysis, search]);
 
+  // AI Analysis function
+  const handleAiAnalysis = async () => {
+    setIsAnalyzing(true);
+    setAiAnalysis(null);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('analyze-kpi', {
+        body: {
+          headers: sheetHeaders,
+          rows: sheetRows,
+          currentMappings: kpiMappings,
+          sheetName,
+        }
+      });
+
+      if (error) throw error;
+      
+      if (data?.error) {
+        toast.error(data.error);
+        return;
+      }
+
+      setAiAnalysis(data.analysis);
+      setSelectedTab('ai');
+      toast.success('Análise IA concluída!');
+    } catch (error) {
+      console.error('AI analysis error:', error);
+      toast.error('Erro ao analisar dados. Tente novamente.');
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[85vh] overflow-hidden">
@@ -196,7 +233,7 @@ export function KPIDiagnosticsModal({
         </DialogHeader>
 
         <Tabs value={selectedTab} onValueChange={setSelectedTab} className="flex-1">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="diagnostics" className="gap-2">
               <Zap className="w-4 h-4" />
               Diagnóstico
@@ -205,6 +242,10 @@ export function KPIDiagnosticsModal({
                   {issues.length}
                 </Badge>
               )}
+            </TabsTrigger>
+            <TabsTrigger value="ai" className="gap-2">
+              <Bot className="w-4 h-4" />
+              Assistente IA
             </TabsTrigger>
             <TabsTrigger value="mapping" className="gap-2">
               <Database className="w-4 h-4" />
@@ -253,6 +294,67 @@ export function KPIDiagnosticsModal({
                 )}
               </div>
             </ScrollArea>
+          </TabsContent>
+
+          <TabsContent value="ai" className="mt-4">
+            <div className="space-y-4">
+              {!aiAnalysis && !isAnalyzing && (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+                    <Sparkles className="w-8 h-8 text-primary" />
+                  </div>
+                  <h3 className="text-lg font-semibold mb-2">Assistente de Análise IA</h3>
+                  <p className="text-sm text-muted-foreground max-w-md mb-6">
+                    O assistente IA irá analisar os dados da planilha, identificar inconsistências 
+                    e sugerir correções baseadas em padrões detectados.
+                  </p>
+                  <Button onClick={handleAiAnalysis} className="gap-2">
+                    <Bot className="w-4 h-4" />
+                    Iniciar Análise IA
+                  </Button>
+                </div>
+              )}
+
+              {isAnalyzing && (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4 animate-pulse">
+                    <Loader2 className="w-8 h-8 text-primary animate-spin" />
+                  </div>
+                  <h3 className="text-lg font-semibold mb-2">Analisando dados...</h3>
+                  <p className="text-sm text-muted-foreground">
+                    O assistente está processando {sheetRows.length} registros
+                  </p>
+                </div>
+              )}
+
+              {aiAnalysis && !isAnalyzing && (
+                <ScrollArea className="h-[380px]">
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Bot className="w-5 h-5 text-primary" />
+                        <span className="font-semibold">Análise do Assistente IA</span>
+                      </div>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={handleAiAnalysis}
+                        disabled={isAnalyzing}
+                        className="gap-2"
+                      >
+                        <Sparkles className="w-4 h-4" />
+                        Nova Análise
+                      </Button>
+                    </div>
+                    <div className="bg-muted/50 rounded-lg p-4 prose prose-sm dark:prose-invert max-w-none">
+                      <div className="whitespace-pre-wrap text-sm leading-relaxed">
+                        {aiAnalysis}
+                      </div>
+                    </div>
+                  </div>
+                </ScrollArea>
+              )}
+            </div>
           </TabsContent>
 
           <TabsContent value="mapping" className="mt-4">
@@ -360,7 +462,20 @@ export function KPIDiagnosticsModal({
           </TabsContent>
         </Tabs>
 
-        <div className="flex justify-end gap-2 mt-4 pt-4 border-t">
+        <div className="flex justify-between gap-2 mt-4 pt-4 border-t">
+          <Button 
+            variant="default" 
+            onClick={handleAiAnalysis}
+            disabled={isAnalyzing}
+            className="gap-2"
+          >
+            {isAnalyzing ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Bot className="w-4 h-4" />
+            )}
+            {isAnalyzing ? 'Analisando...' : 'Análise IA'}
+          </Button>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Fechar
           </Button>
