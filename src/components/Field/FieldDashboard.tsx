@@ -179,6 +179,15 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
       setIsLoading(false);
     };
     loadRecords();
+
+    // Poll every 10 seconds to ensure data is fresh
+    const pollInterval = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        fetchTodayRecords();
+      }
+    }, 10000);
+
+    return () => clearInterval(pollInterval);
   }, [fetchTodayRecords]);
 
   // Function to trigger visual pulse indicator
