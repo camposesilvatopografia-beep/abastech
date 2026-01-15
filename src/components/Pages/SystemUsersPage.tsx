@@ -17,10 +17,13 @@ import {
   Users,
   UserCheck,
   UserX,
+  Clock,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { ResponsiveCard, ResponsiveCardGrid, ViewModeToggle, EmptyCardState } from '@/components/ui/responsive-card-view';
 import {
   Table,
   TableBody,
@@ -78,6 +81,8 @@ const ROLES: { value: SystemUserRole; label: string; color: string }[] = [
 ];
 
 export default function SystemUsersPage() {
+  const isMobile = useIsMobile();
+  const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
   const [users, setUsers] = useState<SystemUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -93,6 +98,10 @@ export default function SystemUsersPage() {
     role: 'operador' as SystemUserRole,
   });
 
+  // Auto-switch to cards on mobile
+  useEffect(() => {
+    if (isMobile) setViewMode('cards');
+  }, [isMobile]);
   // Fetch users from system_users table
   const fetchUsers = async () => {
     setLoading(true);
@@ -417,10 +426,11 @@ export default function SystemUsersPage() {
         </Card>
       </div>
 
-      {/* Table */}
+      {/* Table or Cards */}
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-lg">Lista de Usuários</CardTitle>
+          <ViewModeToggle viewMode={viewMode} onViewModeChange={setViewMode} />
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -428,13 +438,41 @@ export default function SystemUsersPage() {
               <RefreshCw className="w-6 h-6 animate-spin text-muted-foreground" />
             </div>
           ) : users.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <User className="w-12 h-12 mx-auto mb-2 opacity-50" />
-              <p>Nenhum usuário cadastrado</p>
-              <Button variant="link" onClick={handleNew}>
-                Cadastrar primeiro usuário
-              </Button>
-            </div>
+            <EmptyCardState
+              icon={<User className="w-12 h-12" />}
+              title="Nenhum usuário cadastrado"
+              description="Cadastre o primeiro usuário para começar"
+            />
+          ) : viewMode === 'cards' ? (
+            <ResponsiveCardGrid>
+              {users.map((user) => (
+                <ResponsiveCard
+                  key={user.id}
+                  title={user.name}
+                  subtitle={`@${user.username}`}
+                  badge={user.role ? {
+                    label: ROLES.find(r => r.value === user.role)?.label || user.role,
+                    className: `text-white ${ROLES.find(r => r.value === user.role)?.color || ''}`
+                  } : undefined}
+                  isActive={user.active ?? false}
+                  onToggleActive={() => handleToggleActive(user)}
+                  fields={[
+                    { label: 'Email', value: user.email || '-' },
+                    { 
+                      label: 'Último Acesso', 
+                      value: user.last_login 
+                        ? new Date(user.last_login).toLocaleString('pt-BR')
+                        : 'Nunca acessou',
+                      icon: <Clock className="w-3 h-3" />
+                    },
+                  ]}
+                  actions={[
+                    { icon: <Edit className="w-4 h-4" />, onClick: () => handleEdit(user) },
+                    { icon: <Trash2 className="w-4 h-4 text-destructive" />, onClick: () => handleDelete(user) },
+                  ]}
+                />
+              ))}
+            </ResponsiveCardGrid>
           ) : (
             <div className="overflow-x-auto">
               <Table>

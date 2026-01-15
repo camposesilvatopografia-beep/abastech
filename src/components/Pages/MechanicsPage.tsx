@@ -10,10 +10,13 @@ import {
   Check,
   Ban,
   Phone,
+  Tag,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { ResponsiveCard, ResponsiveCardGrid, ViewModeToggle, EmptyCardState } from '@/components/ui/responsive-card-view';
 import {
   Table,
   TableBody,
@@ -50,6 +53,8 @@ interface Mechanic {
 }
 
 export default function MechanicsPage() {
+  const isMobile = useIsMobile();
+  const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
   const [mechanics, setMechanics] = useState<Mechanic[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -60,6 +65,11 @@ export default function MechanicsPage() {
     specialty: '',
   });
   const [isSaving, setIsSaving] = useState(false);
+
+  // Auto-switch to cards on mobile
+  useEffect(() => {
+    if (isMobile) setViewMode('cards');
+  }, [isMobile]);
 
   // Fetch mechanics
   const fetchMechanics = async () => {
@@ -290,10 +300,11 @@ export default function MechanicsPage() {
         </Card>
       </div>
 
-      {/* Table */}
+      {/* Table or Cards */}
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-lg">Lista de Mecânicos</CardTitle>
+          <ViewModeToggle viewMode={viewMode} onViewModeChange={setViewMode} />
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -301,13 +312,30 @@ export default function MechanicsPage() {
               <RefreshCw className="w-6 h-6 animate-spin text-muted-foreground" />
             </div>
           ) : mechanics.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <Wrench className="w-12 h-12 mx-auto mb-2 opacity-50" />
-              <p>Nenhum mecânico cadastrado</p>
-              <Button variant="link" onClick={handleNew}>
-                Cadastrar primeiro mecânico
-              </Button>
-            </div>
+            <EmptyCardState
+              icon={<Wrench className="w-12 h-12" />}
+              title="Nenhum mecânico cadastrado"
+              description="Cadastre o primeiro mecânico para começar"
+            />
+          ) : viewMode === 'cards' ? (
+            <ResponsiveCardGrid>
+              {mechanics.map((mechanic) => (
+                <ResponsiveCard
+                  key={mechanic.id}
+                  title={mechanic.name}
+                  isActive={mechanic.active}
+                  onToggleActive={() => handleToggleActive(mechanic)}
+                  fields={[
+                    { label: 'Telefone', value: mechanic.phone || '-', icon: <Phone className="w-3 h-3" /> },
+                    { label: 'Especialidade', value: mechanic.specialty || '-', icon: <Tag className="w-3 h-3" /> },
+                  ]}
+                  actions={[
+                    { icon: <Edit className="w-4 h-4" />, onClick: () => handleEdit(mechanic) },
+                    { icon: <Trash2 className="w-4 h-4 text-destructive" />, onClick: () => handleDelete(mechanic) },
+                  ]}
+                />
+              ))}
+            </ResponsiveCardGrid>
           ) : (
             <div className="overflow-x-auto">
               <Table>

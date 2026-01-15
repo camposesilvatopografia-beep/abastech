@@ -9,10 +9,13 @@ import {
   RefreshCw,
   Check,
   Ban,
+  Package,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { ResponsiveCard, ResponsiveCardGrid, ViewModeToggle, EmptyCardState } from '@/components/ui/responsive-card-view';
 import {
   Table,
   TableBody,
@@ -74,6 +77,8 @@ const UNITS = [
 ];
 
 export default function LubricantsPage() {
+  const isMobile = useIsMobile();
+  const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
   const [lubricants, setLubricants] = useState<Lubricant[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -85,6 +90,11 @@ export default function LubricantsPage() {
     unit: 'L',
   });
   const [isSaving, setIsSaving] = useState(false);
+
+  // Auto-switch to cards on mobile
+  useEffect(() => {
+    if (isMobile) setViewMode('cards');
+  }, [isMobile]);
 
   // Fetch lubricants
   const fetchLubricants = async () => {
@@ -363,10 +373,11 @@ export default function LubricantsPage() {
         </Card>
       </div>
 
-      {/* Table */}
+      {/* Table or Cards */}
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-lg">Lista de Lubrificantes</CardTitle>
+          <ViewModeToggle viewMode={viewMode} onViewModeChange={setViewMode} />
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -374,13 +385,34 @@ export default function LubricantsPage() {
               <RefreshCw className="w-6 h-6 animate-spin text-muted-foreground" />
             </div>
           ) : lubricants.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <Droplets className="w-12 h-12 mx-auto mb-2 opacity-50" />
-              <p>Nenhum lubrificante cadastrado</p>
-              <Button variant="link" onClick={handleNew}>
-                Cadastrar primeiro lubrificante
-              </Button>
-            </div>
+            <EmptyCardState
+              icon={<Droplets className="w-12 h-12" />}
+              title="Nenhum lubrificante cadastrado"
+              description="Cadastre o primeiro lubrificante para começar"
+            />
+          ) : viewMode === 'cards' ? (
+            <ResponsiveCardGrid>
+              {lubricants.map((lubricant) => (
+                <ResponsiveCard
+                  key={lubricant.id}
+                  title={lubricant.name}
+                  badge={lubricant.type ? { 
+                    label: TYPES.find(t => t.value === lubricant.type)?.label || lubricant.type,
+                    className: TYPES.find(t => t.value === lubricant.type)?.color || ''
+                  } : undefined}
+                  isActive={lubricant.active ?? false}
+                  onToggleActive={() => handleToggleActive(lubricant)}
+                  fields={[
+                    { label: 'Descrição', value: lubricant.description || '-' },
+                    { label: 'Unidade', value: lubricant.unit || 'L', icon: <Package className="w-3 h-3" /> },
+                  ]}
+                  actions={[
+                    { icon: <Edit className="w-4 h-4" />, onClick: () => handleEdit(lubricant) },
+                    { icon: <Trash2 className="w-4 h-4 text-destructive" />, onClick: () => handleDelete(lubricant) },
+                  ]}
+                />
+              ))}
+            </ResponsiveCardGrid>
           ) : (
             <div className="overflow-x-auto">
               <Table>
