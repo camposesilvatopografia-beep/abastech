@@ -1,7 +1,7 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { format, addDays, subDays, startOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Calendar, Clock, Plus, Trash2, Check, AlertTriangle, Save, Loader2, Maximize2, Minimize2 } from 'lucide-react';
+import { Calendar, Clock, Plus, Trash2, Check, AlertTriangle, Save, Loader2, Maximize2, Minimize2, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -17,6 +17,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useVehicles, useHorimeterReadings } from '@/hooks/useHorimeters';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -29,6 +30,14 @@ interface BatchEntry {
   saved: boolean;
   saving?: boolean;
   error?: string;
+}
+
+interface ValidationResult {
+  isValid: boolean;
+  previousValue: number;
+  currentValue: number;
+  difference: number;
+  warning?: string;
 }
 
 interface BatchHorimeterModalProps {
@@ -106,6 +115,71 @@ export function BatchHorimeterModal({ open, onOpenChange, onSuccess }: BatchHori
   const selectedVehicle = useMemo(() => {
     return vehicles.find(v => v.id === selectedVehicleId);
   }, [vehicles, selectedVehicleId]);
+
+  // Parse numeric value from string
+  const parseNumericValue = useCallback((value: string): number | null => {
+    if (!value || value.trim() === '') return null;
+    return parseFloat(value.replace(/\./g, '').replace(',', '.'));
+  }, []);
+
+  // Get validation for a specific entry based on previous entries and readings
+  const getEntryValidation = useCallback((index: number, field: 'horimeter' | 'km'): ValidationResult => {
+    const entry = entries[index];
+    if (!entry) return { isValid: true, previousValue: 0, currentValue: 0, difference: 0 };
+
+    const currentValue = parseNumericValue(field === 'horimeter' ? entry.horimeterValue : entry.kmValue);
+    if (currentValue === null) return { isValid: true, previousValue: 0, currentValue: 0, difference: 0 };
+
+    // Find previous value from earlier entries in the batch or from database
+    let previousValue = 0;
+
+    // First check previous entries in the batch (going backwards)
+    for (let i = index - 1; i >= 0; i--) {
+      const prevEntry = entries[i];
+      const prevValue = parseNumericValue(field === 'horimeter' ? prevEntry.horimeterValue : prevEntry.kmValue);
+      if (prevValue !== null && prevValue > 0) {
+        previousValue = prevValue;
+        break;
+      }
+    }
+
+    // If no previous entry in batch, use database values
+    if (previousValue === 0) {
+      previousValue = field === 'horimeter' ? previousValues.horimeter : previousValues.km;
+    }
+
+    const difference = currentValue - previousValue;
+    
+    // Validation rules
+    if (previousValue > 0 && currentValue < previousValue) {
+      return {
+        isValid: false,
+        previousValue,
+        currentValue,
+        difference,
+        warning: `Valor menor que anterior (${previousValue.toLocaleString('pt-BR')})`
+      };
+    }
+
+    // Warning for large jumps (>500h or >10000km)
+    const threshold = field === 'horimeter' ? 500 : 10000;
+    if (previousValue > 0 && difference > threshold) {
+      return {
+        isValid: true,
+        previousValue,
+        currentValue,
+        difference,
+        warning: `Diferença alta: +${difference.toLocaleString('pt-BR')} ${field === 'horimeter' ? 'h' : 'km'}`
+      };
+    }
+
+    return {
+      isValid: true,
+      previousValue,
+      currentValue,
+      difference
+    };
+  }, [entries, previousValues, parseNumericValue]);
 
   const updateEntry = (index: number, field: 'horimeterValue' | 'kmValue', value: string) => {
     setEntries(prev => {
@@ -430,50 +504,170 @@ export function BatchHorimeterModal({ open, onOpenChange, onSuccess }: BatchHori
                       </div>
 
                       {/* Horimeter Input */}
-                      <div>
-                        <Input
-                          placeholder="4.520"
-                          value={entry.horimeterValue}
-                          onChange={(e) => updateEntry(index, 'horimeterValue', e.target.value)}
-                          disabled={entry.saved || entry.saving}
-                          className={cn(
-                            "font-mono transition-all",
-                            isFieldsExpanded 
-                              ? "h-14 text-2xl font-bold text-center border-2 border-amber-300 focus:border-amber-500 focus:ring-amber-500/20" 
-                              : isExpanded 
-                                ? "h-10 text-lg" 
-                                : "h-9",
-                            entry.saved && "bg-green-100 dark:bg-green-900/50 border-green-300",
-                            entry.saving && "bg-blue-50 dark:bg-blue-900/30"
-                          )}
-                        />
-                        {isFieldsExpanded && (
-                          <p className="text-[10px] text-amber-600 mt-1 text-center">Horímetro</p>
-                        )}
-                      </div>
+                      {(() => {
+                        const validation = getEntryValidation(index, 'horimeter');
+                        const hasValue = entry.horimeterValue && entry.horimeterValue.trim() !== '';
+                        const showValidation = hasValue && !entry.saved && !entry.saving;
+                        
+                        return (
+                          <div className="relative">
+                            <div className="flex items-center gap-1">
+                              <Input
+                                placeholder="4.520"
+                                value={entry.horimeterValue}
+                                onChange={(e) => updateEntry(index, 'horimeterValue', e.target.value)}
+                                disabled={entry.saved || entry.saving}
+                                className={cn(
+                                  "font-mono transition-all flex-1",
+                                  isFieldsExpanded 
+                                    ? "h-14 text-2xl font-bold text-center border-2" 
+                                    : isExpanded 
+                                      ? "h-10 text-lg" 
+                                      : "h-9",
+                                  entry.saved && "bg-green-100 dark:bg-green-900/50 border-green-300",
+                                  entry.saving && "bg-blue-50 dark:bg-blue-900/30",
+                                  showValidation && !validation.isValid && "border-red-400 bg-red-50 dark:bg-red-950/30 focus:border-red-500 focus:ring-red-500/20",
+                                  showValidation && validation.isValid && validation.warning && "border-yellow-400 bg-yellow-50 dark:bg-yellow-950/30 focus:border-yellow-500 focus:ring-yellow-500/20",
+                                  showValidation && validation.isValid && !validation.warning && "border-green-400 bg-green-50 dark:bg-green-950/30 focus:border-green-500 focus:ring-green-500/20",
+                                  !showValidation && isFieldsExpanded && "border-amber-300 focus:border-amber-500 focus:ring-amber-500/20"
+                                )}
+                              />
+                              {showValidation && (
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <div className={cn(
+                                        "flex items-center justify-center w-6 h-6 rounded-full shrink-0",
+                                        !validation.isValid && "bg-red-100 text-red-600 dark:bg-red-900/50",
+                                        validation.isValid && validation.warning && "bg-yellow-100 text-yellow-600 dark:bg-yellow-900/50",
+                                        validation.isValid && !validation.warning && "bg-green-100 text-green-600 dark:bg-green-900/50"
+                                      )}>
+                                        {!validation.isValid ? (
+                                          <TrendingDown className="w-3.5 h-3.5" />
+                                        ) : validation.warning ? (
+                                          <AlertTriangle className="w-3.5 h-3.5" />
+                                        ) : (
+                                          <TrendingUp className="w-3.5 h-3.5" />
+                                        )}
+                                      </div>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top" className="max-w-[200px]">
+                                      {validation.warning ? (
+                                        <p className="text-xs">{validation.warning}</p>
+                                      ) : validation.previousValue > 0 ? (
+                                        <p className="text-xs">
+                                          +{validation.difference.toLocaleString('pt-BR')}h 
+                                          (anterior: {validation.previousValue.toLocaleString('pt-BR')}h)
+                                        </p>
+                                      ) : (
+                                        <p className="text-xs">Primeiro registro</p>
+                                      )}
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              )}
+                            </div>
+                            {isFieldsExpanded && (
+                              <p className={cn(
+                                "text-[10px] mt-1 text-center",
+                                showValidation && !validation.isValid && "text-red-600",
+                                showValidation && validation.isValid && validation.warning && "text-yellow-600",
+                                showValidation && validation.isValid && !validation.warning && "text-green-600",
+                                !showValidation && "text-amber-600"
+                              )}>
+                                Horímetro {showValidation && validation.previousValue > 0 && (
+                                  <span className="font-medium">
+                                    (ant: {validation.previousValue.toLocaleString('pt-BR')})
+                                  </span>
+                                )}
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })()}
 
                       {/* KM Input */}
-                      <div>
-                        <Input
-                          placeholder="125.000"
-                          value={entry.kmValue}
-                          onChange={(e) => updateEntry(index, 'kmValue', e.target.value)}
-                          disabled={entry.saved || entry.saving}
-                          className={cn(
-                            "font-mono transition-all",
-                            isFieldsExpanded 
-                              ? "h-14 text-2xl font-bold text-center border-2 border-blue-300 focus:border-blue-500 focus:ring-blue-500/20" 
-                              : isExpanded 
-                                ? "h-10 text-lg" 
-                                : "h-9",
-                            entry.saved && "bg-green-100 dark:bg-green-900/50 border-green-300",
-                            entry.saving && "bg-blue-50 dark:bg-blue-900/30"
-                          )}
-                        />
-                        {isFieldsExpanded && (
-                          <p className="text-[10px] text-blue-600 mt-1 text-center">Quilômetros</p>
-                        )}
-                      </div>
+                      {(() => {
+                        const validation = getEntryValidation(index, 'km');
+                        const hasValue = entry.kmValue && entry.kmValue.trim() !== '';
+                        const showValidation = hasValue && !entry.saved && !entry.saving;
+                        
+                        return (
+                          <div className="relative">
+                            <div className="flex items-center gap-1">
+                              <Input
+                                placeholder="125.000"
+                                value={entry.kmValue}
+                                onChange={(e) => updateEntry(index, 'kmValue', e.target.value)}
+                                disabled={entry.saved || entry.saving}
+                                className={cn(
+                                  "font-mono transition-all flex-1",
+                                  isFieldsExpanded 
+                                    ? "h-14 text-2xl font-bold text-center border-2" 
+                                    : isExpanded 
+                                      ? "h-10 text-lg" 
+                                      : "h-9",
+                                  entry.saved && "bg-green-100 dark:bg-green-900/50 border-green-300",
+                                  entry.saving && "bg-blue-50 dark:bg-blue-900/30",
+                                  showValidation && !validation.isValid && "border-red-400 bg-red-50 dark:bg-red-950/30 focus:border-red-500 focus:ring-red-500/20",
+                                  showValidation && validation.isValid && validation.warning && "border-yellow-400 bg-yellow-50 dark:bg-yellow-950/30 focus:border-yellow-500 focus:ring-yellow-500/20",
+                                  showValidation && validation.isValid && !validation.warning && "border-green-400 bg-green-50 dark:bg-green-950/30 focus:border-green-500 focus:ring-green-500/20",
+                                  !showValidation && isFieldsExpanded && "border-blue-300 focus:border-blue-500 focus:ring-blue-500/20"
+                                )}
+                              />
+                              {showValidation && (
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <div className={cn(
+                                        "flex items-center justify-center w-6 h-6 rounded-full shrink-0",
+                                        !validation.isValid && "bg-red-100 text-red-600 dark:bg-red-900/50",
+                                        validation.isValid && validation.warning && "bg-yellow-100 text-yellow-600 dark:bg-yellow-900/50",
+                                        validation.isValid && !validation.warning && "bg-green-100 text-green-600 dark:bg-green-900/50"
+                                      )}>
+                                        {!validation.isValid ? (
+                                          <TrendingDown className="w-3.5 h-3.5" />
+                                        ) : validation.warning ? (
+                                          <AlertTriangle className="w-3.5 h-3.5" />
+                                        ) : (
+                                          <TrendingUp className="w-3.5 h-3.5" />
+                                        )}
+                                      </div>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top" className="max-w-[200px]">
+                                      {validation.warning ? (
+                                        <p className="text-xs">{validation.warning}</p>
+                                      ) : validation.previousValue > 0 ? (
+                                        <p className="text-xs">
+                                          +{validation.difference.toLocaleString('pt-BR')} km 
+                                          (anterior: {validation.previousValue.toLocaleString('pt-BR')} km)
+                                        </p>
+                                      ) : (
+                                        <p className="text-xs">Primeiro registro</p>
+                                      )}
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              )}
+                            </div>
+                            {isFieldsExpanded && (
+                              <p className={cn(
+                                "text-[10px] mt-1 text-center",
+                                showValidation && !validation.isValid && "text-red-600",
+                                showValidation && validation.isValid && validation.warning && "text-yellow-600",
+                                showValidation && validation.isValid && !validation.warning && "text-green-600",
+                                !showValidation && "text-blue-600"
+                              )}>
+                                Quilômetros {showValidation && validation.previousValue > 0 && (
+                                  <span className="font-medium">
+                                    (ant: {validation.previousValue.toLocaleString('pt-BR')})
+                                  </span>
+                                )}
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })()}
 
                       {/* Status Indicator */}
                       <div className="flex justify-center">
