@@ -1607,15 +1607,20 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         {/* ENTRADA FORM */}
         {recordType === 'entrada' && (
           <>
-            {/* Logic: Tanque users see suppliers, Comboio users see entry locations */}
+            {/* Logic: Tanque users see suppliers + invoice, Comboio users ONLY see entry location */}
             {(() => {
               const userLocations = user.assigned_locations || [];
-              const isTanqueUser = userLocations.some(loc => 
-                loc.toLowerCase().includes('tanque') || loc.toLowerCase().includes('canteiro')
-              );
+              
+              // Check if user is exclusively a Comboio user (no Tanque locations)
               const isComboioUser = userLocations.some(loc => 
                 loc.toLowerCase().includes('comboio') || loc.toLowerCase().startsWith('cb')
               );
+              const isTanqueUser = userLocations.some(loc => 
+                loc.toLowerCase().includes('tanque') || loc.toLowerCase().includes('canteiro')
+              );
+              
+              // If user has ONLY Comboio locations (not Tanque), show simplified form
+              const isOnlyComboio = isComboioUser && !isTanqueUser;
 
               return (
                 <>
@@ -1653,8 +1658,8 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                     </div>
                   )}
 
-                  {/* For Comboio users - Show Entry Location (Tanque) Selection */}
-                  {isComboioUser && (
+                  {/* For Comboio users ONLY - Show Entry Location (Tanque) Selection */}
+                  {isOnlyComboio && (
                     <div className="bg-green-50/80 dark:bg-green-950/30 backdrop-blur-sm rounded-xl border border-green-200 dark:border-green-800 p-4 space-y-3 shadow-sm">
                       <Label className="flex items-center gap-2 text-base text-green-700 dark:text-green-400">
                         <MapPin className="w-4 h-4" />
@@ -1679,7 +1684,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
               );
             })()}
 
-            {/* Fuel Quantity with number in words */}
+            {/* Fuel Quantity with number in words - Always visible */}
             <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-xl border border-slate-200 dark:border-slate-700 p-4 space-y-3 shadow-sm">
               <div className="flex items-center justify-between">
                 <Label className="flex items-center gap-2 text-base">
@@ -1704,108 +1709,117 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
               )}
             </div>
 
-            {/* Invoice Number - Only for Tanque users (external supplier entries) */}
-            {user.assigned_locations?.some(loc => 
-              loc.toLowerCase().includes('tanque') || loc.toLowerCase().includes('canteiro')
-            ) && (
-              <>
-                <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-xl border border-slate-200 dark:border-slate-700 p-4 space-y-3 shadow-sm">
-                  <Label className="flex items-center gap-2 text-base">
-                    <Receipt className="w-4 h-4" />
-                    Nota Fiscal
-                  </Label>
-                  <Input
-                    type="text"
-                    placeholder="Número da NF"
-                    value={invoiceNumber}
-                    onChange={(e) => setInvoiceNumber(e.target.value)}
-                    className="h-12 text-lg"
-                  />
-                </div>
-
-                {/* Unit Price - currency auto-format */}
-                <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-xl border border-slate-200 dark:border-slate-700 p-4 space-y-3 shadow-sm">
-                  <Label className="flex items-center gap-2 text-base">
-                    Valor Unitário (R$)
-                  </Label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-medium">
-                      R$
-                    </span>
+            {/* Invoice, Unit Price, Entry Location, Photo - ONLY for Tanque users */}
+            {(() => {
+              const userLocations = user.assigned_locations || [];
+              const isTanqueUser = userLocations.some(loc => 
+                loc.toLowerCase().includes('tanque') || loc.toLowerCase().includes('canteiro')
+              );
+              
+              if (!isTanqueUser) return null;
+              
+              return (
+                <>
+                  <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-xl border border-slate-200 dark:border-slate-700 p-4 space-y-3 shadow-sm">
+                    <Label className="flex items-center gap-2 text-base">
+                      <Receipt className="w-4 h-4" />
+                      Nota Fiscal
+                    </Label>
                     <Input
                       type="text"
-                      inputMode="numeric"
-                      placeholder="0,00"
-                      value={unitPrice}
-                      onChange={(e) => handleUnitPriceChange(e.target.value)}
-                      className="h-12 text-lg pl-10"
+                      placeholder="Número da NF"
+                      value={invoiceNumber}
+                      onChange={(e) => setInvoiceNumber(e.target.value)}
+                      className="h-12 text-lg"
                     />
                   </div>
-                </div>
 
-                {/* Entry Location for Tanque Users */}
-                <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-xl border border-slate-200 dark:border-slate-700 p-4 space-y-3 shadow-sm">
-                  <Label className="flex items-center gap-2 text-base">
-                    <MapPin className="w-4 h-4" />
-                    Local de Entrada
-                  </Label>
-                  <Select value={entryLocation} onValueChange={setEntryLocation}>
-                    <SelectTrigger className="h-12">
-                      <SelectValue placeholder="Selecione o local" />
-                    </SelectTrigger>
-                    <SelectContent className="z-50 bg-popover">
-                      {(user.assigned_locations || ['Tanque Canteiro 01', 'Tanque Canteiro 02']).map(loc => (
-                        <SelectItem key={loc} value={loc}>{loc}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                {/* Invoice Photo */}
-                <div className="bg-green-50/80 dark:bg-green-950/30 backdrop-blur-sm rounded-xl border border-green-200 dark:border-green-800 p-4 space-y-3 shadow-sm">
-                  <Label className="flex items-center gap-2 text-base text-green-600 dark:text-green-400">
-                    <Camera className="w-4 h-4" />
-                    Foto da Nota Fiscal (Opcional)
-                  </Label>
-                  <input
-                    ref={photoInvoiceInputRef}
-                    type="file"
-                    accept="image/*"
-                    capture="environment"
-                    onChange={handleInvoicePhotoCapture}
-                    className="hidden"
-                  />
-                  {photoInvoicePreview ? (
+                  {/* Unit Price - currency auto-format */}
+                  <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-xl border border-slate-200 dark:border-slate-700 p-4 space-y-3 shadow-sm">
+                    <Label className="flex items-center gap-2 text-base">
+                      Valor Unitário (R$)
+                    </Label>
                     <div className="relative">
-                      <img 
-                        src={photoInvoicePreview} 
-                        alt="Nota Fiscal" 
-                        className="w-full h-40 object-cover rounded-lg border border-green-200"
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-medium">
+                        R$
+                      </span>
+                      <Input
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="0,00"
+                        value={unitPrice}
+                        onChange={(e) => handleUnitPriceChange(e.target.value)}
+                        className="h-12 text-lg pl-10"
                       />
+                    </div>
+                  </div>
+
+                  {/* Entry Location for Tanque Users */}
+                  <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-xl border border-slate-200 dark:border-slate-700 p-4 space-y-3 shadow-sm">
+                    <Label className="flex items-center gap-2 text-base">
+                      <MapPin className="w-4 h-4" />
+                      Local de Entrada
+                    </Label>
+                    <Select value={entryLocation} onValueChange={setEntryLocation}>
+                      <SelectTrigger className="h-12">
+                        <SelectValue placeholder="Selecione o local" />
+                      </SelectTrigger>
+                      <SelectContent className="z-50 bg-popover">
+                        {(userLocations.filter(loc => 
+                          loc.toLowerCase().includes('tanque') || loc.toLowerCase().includes('canteiro')
+                        )).map(loc => (
+                          <SelectItem key={loc} value={loc}>{loc}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  {/* Invoice Photo */}
+                  <div className="bg-green-50/80 dark:bg-green-950/30 backdrop-blur-sm rounded-xl border border-green-200 dark:border-green-800 p-4 space-y-3 shadow-sm">
+                    <Label className="flex items-center gap-2 text-base text-green-600 dark:text-green-400">
+                      <Camera className="w-4 h-4" />
+                      Foto da Nota Fiscal (Opcional)
+                    </Label>
+                    <input
+                      ref={photoInvoiceInputRef}
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      onChange={handleInvoicePhotoCapture}
+                      className="hidden"
+                    />
+                    {photoInvoicePreview ? (
+                      <div className="relative">
+                        <img 
+                          src={photoInvoicePreview} 
+                          alt="Nota Fiscal" 
+                          className="w-full h-40 object-cover rounded-lg border border-green-200"
+                        />
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="destructive"
+                          className="absolute -top-2 -right-2 h-6 w-6"
+                          onClick={() => removePhoto('invoice')}
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    ) : (
                       <Button
                         type="button"
-                        size="icon"
-                        variant="destructive"
-                        className="absolute -top-2 -right-2 h-6 w-6"
-                        onClick={() => removePhoto('invoice')}
+                        variant="outline"
+                        className="w-full h-32 flex flex-col gap-2 border-green-200 hover:bg-green-50 dark:hover:bg-green-950"
+                        onClick={() => photoInvoiceInputRef.current?.click()}
                       >
-                        <Trash2 className="w-3 h-3" />
+                        <Receipt className="w-8 h-8 text-green-500" />
+                        <span className="text-xs text-muted-foreground">Tirar Foto da NF</span>
                       </Button>
-                    </div>
-                  ) : (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="w-full h-32 flex flex-col gap-2 border-green-200 hover:bg-green-50 dark:hover:bg-green-950"
-                      onClick={() => photoInvoiceInputRef.current?.click()}
-                    >
-                      <Receipt className="w-8 h-8 text-green-500" />
-                      <span className="text-xs text-muted-foreground">Tirar Foto da NF</span>
-                    </Button>
-                  )}
-                </div>
-              </>
-            )}
+                    )}
+                  </div>
+                </>
+              );
+            })()}
           </>
         )}
 
