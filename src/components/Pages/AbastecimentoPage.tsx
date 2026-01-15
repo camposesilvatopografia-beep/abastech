@@ -230,9 +230,9 @@ export function AbastecimentoPage() {
     });
   }, [data.rows, dateRange, search, localFilter, tipoFilter, combustivelFilter, empresaFilter]);
 
-  // Calculate metrics from filtered data
+  // Calculate metrics from filtered data - separating equipment exits from comboio exits
   const metrics = useMemo(() => {
-    let totalQuantidade = 0;
+    let saidaEquipamentos = 0;
     let totalArla = 0;
     let totalValor = 0;
     let registros = 0;
@@ -241,8 +241,24 @@ export function AbastecimentoPage() {
       const quantidade = parseNumber(row['QUANTIDADE']);
       const arla = parseNumber(row['QUANTIDADE DE ARLA']);
       const valor = parseNumber(row['VALOR TOTAL']);
+      const fornecedor = String(row['FORNECEDOR'] || '').trim();
+      const tipo = String(row['TIPO'] || row['TIPO DE OPERACAO'] || '').toLowerCase();
+      const local = String(row['LOCAL'] || '').toLowerCase();
+      const veiculo = String(row['VEICULO'] || '').toLowerCase();
       
-      totalQuantidade += quantidade;
+      // Skip entries from suppliers - only count exits
+      if (fornecedor || tipo.includes('entrada')) {
+        return;
+      }
+      
+      // Skip exits to comboios (internal transfers)
+      const isComboioDestination = local.includes('comboio') || veiculo.includes('comboio') || veiculo.startsWith('cb-');
+      if (isComboioDestination) {
+        return;
+      }
+      
+      // Count as equipment exit
+      saidaEquipamentos += quantidade;
       totalArla += arla;
       totalValor += valor;
       registros++;
@@ -250,10 +266,10 @@ export function AbastecimentoPage() {
 
     return {
       registros,
-      totalQuantidade,
+      saidaEquipamentos,
       totalArla,
       totalValor,
-      mediaConsumo: registros > 0 ? totalQuantidade / registros : 0
+      mediaConsumo: registros > 0 ? saidaEquipamentos / registros : 0
     };
   }, [filteredRows]);
 
@@ -1041,8 +1057,8 @@ export function AbastecimentoPage() {
             icon={Fuel}
           />
           <MetricCard
-            title="TOTAL DE SAÍDAS"
-            value={`${metrics.totalQuantidade.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L`}
+            title="SAÍDA P/ EQUIPAMENTOS"
+            value={`${metrics.saidaEquipamentos.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L`}
             subtitle="Diesel consumido"
             variant="red"
             icon={TrendingDown}

@@ -112,18 +112,19 @@ export function DashboardContent() {
       const quantidade = parseNumber(row['QUANTIDADE'] || row['Quantidade']);
       const fornecedor = String(row['FORNECEDOR'] || '').trim();
       
-      // Only count outgoing/exit records (Saída) - exclude entries from suppliers
+      // Exclude entries from suppliers (has FORNECEDOR or TIPO contains 'entrada')
       if (tipo.includes('entrada') || fornecedor) return;
       if (quantidade <= 0) return;
       
-      // Check if it's a transfer TO a comboio (local contains comboio)
-      // OR if the vehicle being refueled IS a comboio
+      // Check if the destination is a comboio (LOCAL contains 'comboio')
+      // OR if the vehicle code indicates comboio (e.g., 'CB-' prefix or name contains 'COMBOIO')
       const isComboioDestination = local.includes('comboio');
-      const isComboioVehicle = isComboio(veiculo);
+      const isComboioVehicle = isComboio(veiculo) || veiculo.toUpperCase().startsWith('CB-') || veiculo.toUpperCase().includes('COMBOIO');
       
       if (isComboioDestination || isComboioVehicle) {
         saidaComboios += quantidade;
       } else {
+        // All other exits go to equipamentos (máquinas, veículos de obra, etc.)
         saidaEquipamentos += quantidade;
       }
     });
@@ -131,17 +132,32 @@ export function DashboardContent() {
     return { saidaComboios, saidaEquipamentos };
   }, [filteredAbastecimentoData, isComboio]);
 
-  // Calculate entries from filtered data (supplier deliveries on selected date)
+  // Calculate entries from filtered data - ONLY from external suppliers (Cavalo Marinho, Ipiranga, etc.)
+  // NOT from comboios - comboio transfers are internal movements, not entries
   const calculatedEntries = useMemo(() => {
     let entradas = 0;
     
+    // List of known suppliers for validation
+    const knownSuppliers = ['cavalo marinho', 'ipiranga', 'shell', 'petrobras', 'br', 'ale', 'texaco', 'raízen'];
+    
     filteredAbastecimentoData.forEach(row => {
       const tipo = String(row['TIPO DE OPERACAO'] || row['TIPO_OPERACAO'] || row['Tipo'] || row['TIPO'] || '').toLowerCase();
-      const fornecedor = String(row['FORNECEDOR'] || '').trim();
+      const fornecedor = String(row['FORNECEDOR'] || '').trim().toLowerCase();
       const quantidade = parseNumber(row['QUANTIDADE'] || row['Quantidade']);
+      const veiculo = String(row['VEICULO'] || row['Veiculo'] || '').trim().toLowerCase();
+      const local = String(row['LOCAL'] || row['Local'] || '').toLowerCase();
       
-      // Count entries from suppliers (has FORNECEDOR or is entrada type)
-      if ((tipo.includes('entrada') || fornecedor) && quantidade > 0) {
+      // Skip if no quantity
+      if (quantidade <= 0) return;
+      
+      // Entry is valid ONLY if it has a supplier field (external supplier delivery)
+      // AND the supplier is NOT a comboio
+      const isFromComboio = veiculo.includes('comboio') || veiculo.startsWith('cb-') || local.includes('comboio');
+      const hasValidSupplier = fornecedor && !isFromComboio;
+      const isEntryType = tipo.includes('entrada');
+      
+      // Count as entry only if from external supplier (not comboio)
+      if ((isEntryType || hasValidSupplier) && !isFromComboio) {
         entradas += quantidade;
       }
     });

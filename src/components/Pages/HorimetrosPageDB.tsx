@@ -300,17 +300,24 @@ export function HorimetrosPageDB() {
     }
   };
 
-  // Bulk delete handler
+  // Bulk delete handler - optimized for speed with parallel deletion
   const handleBulkDelete = async () => {
     if (selectedIds.size === 0) return;
     
+    const idsToDelete = Array.from(selectedIds);
+    const totalCount = idsToDelete.length;
+    
     try {
-      for (const id of selectedIds) {
-        await deleteReading(id);
+      // Delete in parallel batches of 10 for efficiency
+      const batchSize = 10;
+      for (let i = 0; i < idsToDelete.length; i += batchSize) {
+        const batch = idsToDelete.slice(i, i + batchSize);
+        await Promise.all(batch.map(id => deleteReading(id)));
       }
+      
       toast({
-        title: 'Registros excluídos',
-        description: `${selectedIds.size} registro(s) excluído(s) com sucesso`,
+        title: 'Exclusão concluída',
+        description: `${totalCount} registro(s) excluído(s) com sucesso`,
       });
       setSelectedIds(new Set());
       setShowBulkDeleteConfirm(false);
