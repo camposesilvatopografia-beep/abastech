@@ -9,6 +9,80 @@ interface SheetRow {
   [key: string]: string | number | boolean | null;
 }
 
+// -----------------------------
+// In-memory caching & coalescing
+// -----------------------------
+// Goal: drastically reduce calls to sheets.googleapis.com to avoid 429 quota spikes.
+// Notes:
+// - Edge function instances keep memory across requests for a while, so this cache helps a lot.
+// - We cache reads briefly (seconds) and metadata longer (minutes).
+
+const SHEET_DATA_TTL_MS = 15_000; // short TTL to feel "real-time" but avoid bursts
+const METADATA_TTL_MS = 5 * 60_000;
+const HEADER_TTL_MS = 5 * 60_000;
+
+type CacheEntry<T> = { value: T; expiresAt: number };
+
+const sheetDataCache = new Map<string, CacheEntry<any[][]>>();
+const sheetDataInFlight = new Map<string, Promise<any[][]>>();
+
+const metadataCache = new Map<string, CacheEntry<any>>();
+const metadataInFlight = new Map<string, Promise<any>>();
+
+const headerCache = new Map<string, CacheEntry<any[]>>();
+const headerInFlight = new Map<string, Promise<any[]>>();
+
+let accessTokenCache: CacheEntry<string> | null = null;
+let accessTokenInFlight: Promise<string> | null = null;
+
+function nowMs() {
+  return Date.now();
+}
+
+function cacheGet<T>(map: Map<string, CacheEntry<T>>, key: string): T | null {
+  const entry = map.get(key);
+  if (!entry) return null;
+  if (entry.expiresAt <= nowMs()) {
+    map.delete(key);
+    return null;
+  }
+  return entry.value;
+}
+
+function cacheSet<T>(map: Map<string, CacheEntry<T>>, key: string, value: T, ttlMs: number) {
+  map.set(key, { value, expiresAt: nowMs() + ttlMs });
+}
+
+function invalidateSheetCaches(sheetId: string, sheetName: string) {
+  const needle1 = `${sheetId}:`;
+  const needle2 = `!`;
+  for (const key of sheetDataCache.keys()) {
+    if (!key.startsWith(needle1)) continue;
+    // Key includes the range, which includes the sheet name before '!'
+    if (key.includes(needle2) && (key.includes(`${sheetName}!`) || key.includes(`'${sheetName.replace(/'/g, "''")}')`))) {
+      sheetDataCache.delete(key);
+    }
+  }
+  // Header cache keys are `${sheetId}:${sheetName}:headers:*`
+  for (const key of headerCache.keys()) {
+    if (key.startsWith(`${sheetId}:${sheetName}:headers:`)) headerCache.delete(key);
+  }
+  // Metadata cache is per sheetId only
+  metadataCache.delete(sheetId);
+}
+
+function detectRateLimit(errorText: string) {
+  return (
+    errorText.includes('"code": 429') ||
+    errorText.includes("RESOURCE_EXHAUSTED") ||
+    errorText.includes("RATE_LIMIT_EXCEEDED")
+  );
+}
+
+async function sleep(ms: number) {
+  await new Promise((r) => setTimeout(r, ms));
+}
+
 // Create JWT manually
 async function createJWT(privateKeyPem: string, payload: object): Promise<string> {
   const header = { alg: "RS256", typ: "JWT" };
@@ -101,9 +175,7 @@ function formatPrivateKey(rawKey: string): string {
   }
 
   // Heuristic: find any PEM block inside a larger string (e.g., pasted JSON with extra fields)
-  const pemBlock = rawKey.match(
-    /-----BEGIN PRIVATE KEY-----[\s\S]*?-----END PRIVATE KEY-----/
-  );
+  const pemBlock = rawKey.match(/-----BEGIN PRIVATE KEY-----[\s\S]*?-----END PRIVATE KEY-----/);
   if (pemBlock?.[0]) {
     console.log("Extracted PEM block from larger text");
     return pemBlock[0].replace(/\\n/g, "\n").replace(/\\r/g, "").trim();
@@ -116,57 +188,79 @@ function formatPrivateKey(rawKey: string): string {
 }
 
 async function getAccessToken(): Promise<string> {
-  const serviceAccountEmail = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_EMAIL");
-  const privateKeyRaw = Deno.env.get("GOOGLE_PRIVATE_KEY");
-
-  if (!serviceAccountEmail || !privateKeyRaw) {
-    throw new Error(
-      "Missing Google Service Account credentials. Please configure GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_PRIVATE_KEY."
-    );
+  // Fast path: valid cached token
+  if (accessTokenCache && accessTokenCache.expiresAt > nowMs() + 60_000) {
+    return accessTokenCache.value;
   }
 
-  console.log("Service Account Email:", serviceAccountEmail);
-  console.log("Private Key raw length:", privateKeyRaw.length);
+  // Coalesce concurrent requests
+  if (accessTokenInFlight) return accessTokenInFlight;
 
-  const privateKey = formatPrivateKey(privateKeyRaw);
-  console.log("Private key formatted, length:", privateKey.length);
+  accessTokenInFlight = (async () => {
+    const serviceAccountEmail = Deno.env.get("GOOGLE_SERVICE_ACCOUNT_EMAIL");
+    const privateKeyRaw = Deno.env.get("GOOGLE_PRIVATE_KEY");
 
-  const now = Math.floor(Date.now() / 1000);
-  const payload = {
-    iss: serviceAccountEmail,
-    scope: "https://www.googleapis.com/auth/spreadsheets",
-    aud: "https://oauth2.googleapis.com/token",
-    iat: now,
-    exp: now + 3600,
-  };
-
-  try {
-    const jwt = await createJWT(privateKey, payload);
-    console.log("JWT created successfully");
-
-    // Exchange JWT for access token
-    const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
-        assertion: jwt,
-      }),
-    });
-
-    if (!tokenResponse.ok) {
-      const errorText = await tokenResponse.text();
-      console.error("Token exchange failed:", errorText);
-      throw new Error(`Failed to get access token: ${errorText}`);
+    if (!serviceAccountEmail || !privateKeyRaw) {
+      throw new Error(
+        "Missing Google Service Account credentials. Please configure GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_PRIVATE_KEY."
+      );
     }
 
-    const tokenData = await tokenResponse.json();
-    console.log("Access token obtained successfully");
-    return tokenData.access_token;
-  } catch (error) {
-    console.error("Error creating JWT or getting token:", error);
-    throw error;
-  }
+    console.log("Service Account Email:", serviceAccountEmail);
+    console.log("Private Key raw length:", privateKeyRaw.length);
+
+    const privateKey = formatPrivateKey(privateKeyRaw);
+    console.log("Private key formatted, length:", privateKey.length);
+
+    const now = Math.floor(Date.now() / 1000);
+    const payload = {
+      iss: serviceAccountEmail,
+      scope: "https://www.googleapis.com/auth/spreadsheets",
+      aud: "https://oauth2.googleapis.com/token",
+      iat: now,
+      exp: now + 3600,
+    };
+
+    try {
+      const jwt = await createJWT(privateKey, payload);
+      console.log("JWT created successfully");
+
+      // Exchange JWT for access token
+      const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+          assertion: jwt,
+        }),
+      });
+
+      if (!tokenResponse.ok) {
+        const errorText = await tokenResponse.text();
+        console.error("Token exchange failed:", errorText);
+        throw new Error(`Failed to get access token: ${errorText}`);
+      }
+
+      const tokenData = await tokenResponse.json();
+      console.log("Access token obtained successfully");
+
+      const token = tokenData.access_token as string;
+      const expiresInSec = Number(tokenData.expires_in ?? 3600);
+      accessTokenCache = {
+        value: token,
+        expiresAt: nowMs() + Math.max(60_000, expiresInSec * 1000),
+      };
+
+      return token;
+    } catch (error) {
+      console.error("Error creating JWT or getting token:", error);
+      throw error;
+    } finally {
+      accessTokenInFlight = null;
+    }
+  })();
+
+  return accessTokenInFlight;
 }
 
 // Helper to format sheet range - wraps sheet name in single quotes if it contains special characters
@@ -178,7 +272,7 @@ function formatRange(sheetName: string, cellRange: string = "A:ZZ"): string {
   return `${sheetName}!${cellRange}`;
 }
 
-async function getSheetData(accessToken: string, sheetId: string, range: string): Promise<any[][]> {
+async function fetchSheetValues(accessToken: string, sheetId: string, range: string): Promise<any[][]> {
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(range)}`;
 
   const response = await fetch(url, {
@@ -193,6 +287,41 @@ async function getSheetData(accessToken: string, sheetId: string, range: string)
 
   const data = await response.json();
   return data.values || [];
+}
+
+async function getSheetData(accessToken: string, sheetId: string, range: string): Promise<any[][]> {
+  const key = `${sheetId}:${range}`;
+
+  const cached = cacheGet(sheetDataCache, key);
+  if (cached) return cached;
+
+  const inFlight = sheetDataInFlight.get(key);
+  if (inFlight) return inFlight;
+
+  const promise = (async () => {
+    try {
+      // Small retry for bursty 429 (does NOT fix quota, but smooths spikes)
+      try {
+        const values = await fetchSheetValues(accessToken, sheetId, range);
+        cacheSet(sheetDataCache, key, values, SHEET_DATA_TTL_MS);
+        return values;
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        if (detectRateLimit(msg)) {
+          await sleep(900);
+          const values = await fetchSheetValues(accessToken, sheetId, range);
+          cacheSet(sheetDataCache, key, values, SHEET_DATA_TTL_MS);
+          return values;
+        }
+        throw e;
+      }
+    } finally {
+      sheetDataInFlight.delete(key);
+    }
+  })();
+
+  sheetDataInFlight.set(key, promise);
+  return promise;
 }
 
 async function appendRow(accessToken: string, sheetId: string, range: string, values: any[]): Promise<void> {
@@ -237,17 +366,60 @@ async function updateRow(accessToken: string, sheetId: string, range: string, va
   }
 }
 
+async function getSpreadsheetMetadata(accessToken: string, sheetId: string): Promise<any> {
+  const cached = cacheGet(metadataCache, sheetId);
+  if (cached) return cached;
+
+  const inFlight = metadataInFlight.get(sheetId);
+  if (inFlight) return inFlight;
+
+  const promise = (async () => {
+    try {
+      const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}`;
+      const response = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to get spreadsheet metadata: ${errorText}`);
+      }
+
+      const metadata = await response.json();
+      cacheSet(metadataCache, sheetId, metadata, METADATA_TTL_MS);
+      return metadata;
+    } finally {
+      metadataInFlight.delete(sheetId);
+    }
+  })();
+
+  metadataInFlight.set(sheetId, promise);
+  return promise;
+}
+
+async function getHeaders(accessToken: string, sheetId: string, sheetName: string, headerRange: string) {
+  const key = `${sheetId}:${sheetName}:headers:${headerRange}`;
+  const cached = cacheGet(headerCache, key);
+  if (cached) return cached;
+
+  const inFlight = headerInFlight.get(key);
+  if (inFlight) return inFlight;
+
+  const promise = (async () => {
+    try {
+      const headerData = await getSheetData(accessToken, sheetId, formatRange(sheetName, headerRange));
+      const headerRow = headerData?.[0] ?? [];
+      cacheSet(headerCache, key, headerRow, HEADER_TTL_MS);
+      return headerRow;
+    } finally {
+      headerInFlight.delete(key);
+    }
+  })();
+
+  headerInFlight.set(key, promise);
+  return promise;
+}
+
 async function deleteRow(accessToken: string, sheetId: string, sheetName: string, rowIndex: number): Promise<void> {
-  const metaUrl = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}`;
-  const metaResponse = await fetch(metaUrl, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
-
-  if (!metaResponse.ok) {
-    throw new Error("Failed to get spreadsheet metadata");
-  }
-
-  const metadata = await metaResponse.json();
+  const metadata = await getSpreadsheetMetadata(accessToken, sheetId);
   const sheet = metadata.sheets?.find((s: any) => s.properties?.title === sheetName);
 
   if (!sheet) {
@@ -255,7 +427,6 @@ async function deleteRow(accessToken: string, sheetId: string, sheetName: string
   }
 
   const sheetGid = sheet.properties.sheetId;
-
   const batchUrl = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}:batchUpdate`;
 
   const response = await fetch(batchUrl, {
@@ -288,17 +459,7 @@ async function deleteRow(accessToken: string, sheetId: string, sheetName: string
 }
 
 async function getSheetNames(accessToken: string, sheetId: string): Promise<string[]> {
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}`;
-
-  const response = await fetch(url, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
-
-  if (!response.ok) {
-    throw new Error("Failed to get spreadsheet metadata");
-  }
-
-  const metadata = await response.json();
+  const metadata = await getSpreadsheetMetadata(accessToken, sheetId);
   return metadata.sheets?.map((s: any) => s.properties?.title) || [];
 }
 
@@ -352,20 +513,23 @@ serve(async (req) => {
         if (!sheetName || !data) {
           throw new Error("sheetName and data are required for create action");
         }
+
         // Read headers from row 1, starting from column B (DATA is in column B)
-        const createHeaders = await getSheetData(accessToken, sheetId, formatRange(sheetName, "B1:ZZ1"));
-        if (createHeaders.length === 0) {
+        const headerRow = await getHeaders(accessToken, sheetId, sheetName, "B1:ZZ1");
+        if (headerRow.length === 0) {
           throw new Error("No headers found in sheet");
         }
-        const headerRow = createHeaders[0];
+
         console.log("Headers found:", headerRow);
-        
+
         // Map data to headers - values start from column B (no empty column needed)
-        const newRowValues = headerRow.map((header: string) => data[header.trim()] ?? "");
+        const newRowValues = headerRow.map((header: string) => data[String(header).trim()] ?? "");
         console.log("Values to append:", newRowValues);
-        
+
         // Append starting from column B
         await appendRow(accessToken, sheetId, formatRange(sheetName, "B:ZZ"), newRowValues);
+
+        invalidateSheetCaches(sheetId, sheetName);
         result = { success: true, message: "Row created successfully" };
         break;
       }
@@ -374,13 +538,16 @@ serve(async (req) => {
         if (!sheetName || !data || rowIndex === undefined) {
           throw new Error("sheetName, data, and rowIndex are required for update action");
         }
-        const updateHeaders = await getSheetData(accessToken, sheetId, formatRange(sheetName, "1:1"));
-        if (updateHeaders.length === 0) {
+
+        const updateHeaderRow = await getHeaders(accessToken, sheetId, sheetName, "1:1");
+        if (updateHeaderRow.length === 0) {
           throw new Error("No headers found in sheet");
         }
-        const updateHeaderRow = updateHeaders[0];
+
         const updateValues = updateHeaderRow.map((header: string) => data[header] ?? "");
         await updateRow(accessToken, sheetId, formatRange(sheetName, `A${rowIndex}`), updateValues);
+
+        invalidateSheetCaches(sheetId, sheetName);
         result = { success: true, message: "Row updated successfully" };
         break;
       }
@@ -389,7 +556,10 @@ serve(async (req) => {
         if (!sheetName || rowIndex === undefined) {
           throw new Error("sheetName and rowIndex are required for delete action");
         }
+
         await deleteRow(accessToken, sheetId, sheetName, rowIndex - 1);
+
+        invalidateSheetCaches(sheetId, sheetName);
         result = { success: true, message: "Row deleted successfully" };
         break;
       }
@@ -405,7 +575,10 @@ serve(async (req) => {
     });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
+
+    // IMPORTANT: if Google returns 429, surface it clearly (still 500 to client invoke, but with a consistent message)
     console.error("Error in google-sheets function:", errorMessage);
+
     return new Response(JSON.stringify({ error: errorMessage }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
