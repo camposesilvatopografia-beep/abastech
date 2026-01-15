@@ -597,12 +597,12 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
                       <Wrench className="h-4 w-4" />
                       Tipo de Óleo
                     </Label>
-                    <Select value={oilType} onValueChange={setOilType}>
+                    <Select value={oilType} onValueChange={(val) => setOilType(val === '_none' ? '' : val)}>
                       <SelectTrigger>
                         <SelectValue placeholder="Selecione..." />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">Nenhum</SelectItem>
+                        <SelectItem value="_none">Nenhum</SelectItem>
                         {oilTypes.map(oil => (
                           <SelectItem key={oil.id} value={oil.name}>{oil.name}</SelectItem>
                         ))}
@@ -624,12 +624,12 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
                 <div className="grid grid-cols-2 gap-4 mt-4">
                   <div className="space-y-2">
                     <Label>Lubrificante</Label>
-                    <Select value={lubricant} onValueChange={setLubricant}>
+                    <Select value={lubricant} onValueChange={(val) => setLubricant(val === '_none' ? '' : val)}>
                       <SelectTrigger>
                         <SelectValue placeholder="Selecione..." />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">Nenhum</SelectItem>
+                        <SelectItem value="_none">Nenhum</SelectItem>
                         {lubricants.map(lub => (
                           <SelectItem key={lub.id} value={lub.name}>{lub.name}</SelectItem>
                         ))}
