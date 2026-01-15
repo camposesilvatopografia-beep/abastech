@@ -209,186 +209,183 @@ export function BatchHorimeterModal({ open, onOpenChange, onSuccess }: BatchHori
   const savedCount = entries.filter(e => e.saved).length;
   const totalDays = entries.length;
 
+  const [isExpanded, setIsExpanded] = useState(false);
+
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-5xl max-h-[95vh] flex flex-col p-0 gap-0">
+      <DialogContent className={cn(
+        "max-h-[95vh] flex flex-col p-0 gap-0 transition-all duration-300",
+        isExpanded ? "max-w-[95vw] h-[95vh]" : "max-w-4xl"
+      )}>
         {/* Header */}
-        <DialogHeader className="p-6 pb-4 border-b bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/30">
-          <DialogTitle className="flex items-center gap-3 text-xl">
-            <div className="p-2 rounded-lg bg-amber-500 text-white">
-              <Plus className="w-5 h-5" />
-            </div>
-            Cadastro em Lote - Horímetros
-          </DialogTitle>
-          <p className="text-sm text-muted-foreground mt-1">
-            Registre leituras de horímetro para múltiplos dias de uma só vez
+        <DialogHeader className="p-4 pb-3 border-b bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/30">
+          <div className="flex items-center justify-between">
+            <DialogTitle className="flex items-center gap-3 text-lg">
+              <div className="p-2 rounded-lg bg-amber-500 text-white">
+                <Plus className="w-4 h-4" />
+              </div>
+              Cadastro em Lote
+            </DialogTitle>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => setIsExpanded(!isExpanded)}
+              className="shrink-0"
+            >
+              {isExpanded ? 'Reduzir' : 'Expandir Tela'}
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Registre horímetros para múltiplos dias
           </p>
         </DialogHeader>
 
-        <div className="flex-1 overflow-hidden flex flex-col p-6 gap-6">
-          {/* Configuration Section */}
-          <Card className="border-dashed">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Clock className="w-4 h-4 text-amber-500" />
-                Configuração
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Vehicle and Operator */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">Veículo <span className="text-destructive">*</span></Label>
-                  <VehicleCombobox
-                    vehicles={vehicles.map(v => ({
-                      id: v.id,
-                      code: v.code,
-                      name: v.name || '',
-                      description: v.description || '',
-                      category: v.category || '',
-                    }))}
-                    value={selectedVehicleId}
-                    onValueChange={setSelectedVehicleId}
-                    placeholder="Selecione o veículo..."
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">Operador</Label>
-                  <Input
-                    value={operador}
-                    onChange={(e) => setOperador(e.target.value)}
-                    placeholder="Nome do operador"
-                    className="h-10"
-                  />
-                </div>
-              </div>
-
-              {/* Date Range */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium flex items-center gap-2">
-                    <Calendar className="w-4 h-4 text-muted-foreground" />
-                    Data Início
-                  </Label>
-                  <Input
-                    type="date"
-                    value={format(startDate, 'yyyy-MM-dd')}
-                    onChange={(e) => setStartDate(new Date(e.target.value + 'T00:00:00'))}
-                    className="h-10"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium flex items-center gap-2">
-                    <Calendar className="w-4 h-4 text-muted-foreground" />
-                    Data Fim
-                  </Label>
-                  <Input
-                    type="date"
-                    value={format(endDate, 'yyyy-MM-dd')}
-                    onChange={(e) => setEndDate(new Date(e.target.value + 'T00:00:00'))}
-                    className="h-10"
-                  />
-                </div>
-              </div>
-
-              {/* Vehicle Info & Previous Values */}
-              {selectedVehicle && (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 p-4 bg-muted/50 rounded-lg border">
-                  <div className="flex flex-col">
-                    <span className="text-xs text-muted-foreground uppercase tracking-wide">Veículo Selecionado</span>
-                    <span className="font-bold text-lg">{selectedVehicle.code}</span>
-                    <span className="text-sm text-muted-foreground">{selectedVehicle.name}</span>
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="text-xs text-muted-foreground uppercase tracking-wide">Último Horímetro</span>
-                    <span className="font-bold text-lg text-amber-600">
-                      {previousValues.horimeter > 0 ? previousValues.horimeter.toLocaleString('pt-BR') + 'h' : '—'}
-                    </span>
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="text-xs text-muted-foreground uppercase tracking-wide">Último KM</span>
-                    <span className="font-bold text-lg text-blue-600">
-                      {previousValues.km > 0 ? previousValues.km.toLocaleString('pt-BR') + ' km' : '—'}
-                    </span>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Status Summary */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Badge variant="outline" className="h-8 px-3 gap-1.5 bg-green-50 text-green-700 border-green-200 dark:bg-green-950/30 dark:text-green-400 dark:border-green-800">
-                <Check className="w-3.5 h-3.5" />
-                {savedCount} salvos
-              </Badge>
-              <Badge variant="outline" className="h-8 px-3 gap-1.5 bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-800">
-                <Clock className="w-3.5 h-3.5" />
-                {unsavedCount} pendentes
-              </Badge>
-              <Badge variant="outline" className="h-8 px-3 gap-1.5">
-                <Calendar className="w-3.5 h-3.5" />
-                {totalDays} dias
-              </Badge>
+        <div className={cn(
+          "flex-1 overflow-hidden flex flex-col p-4 gap-4",
+          isExpanded && "p-6 gap-6"
+        )}>
+          {/* Compact Configuration Section */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3 p-3 bg-muted/30 rounded-lg border">
+            <div className="space-y-1">
+              <Label className="text-xs font-medium">Veículo *</Label>
+              <VehicleCombobox
+                vehicles={vehicles.map(v => ({
+                  id: v.id,
+                  code: v.code,
+                  name: v.name || '',
+                  description: v.description || '',
+                  category: v.category || '',
+                }))}
+                value={selectedVehicleId}
+                onValueChange={setSelectedVehicleId}
+                placeholder="Selecionar..."
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs font-medium">Operador</Label>
+              <Input
+                value={operador}
+                onChange={(e) => setOperador(e.target.value)}
+                placeholder="Nome"
+                className="h-9"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs font-medium">Data Início</Label>
+              <Input
+                type="date"
+                value={format(startDate, 'yyyy-MM-dd')}
+                onChange={(e) => setStartDate(new Date(e.target.value + 'T00:00:00'))}
+                className="h-9"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs font-medium">Data Fim</Label>
+              <Input
+                type="date"
+                value={format(endDate, 'yyyy-MM-dd')}
+                onChange={(e) => setEndDate(new Date(e.target.value + 'T00:00:00'))}
+                className="h-9"
+              />
             </div>
           </div>
 
-          {/* Entries Table */}
-          <Card className="flex-1 overflow-hidden">
-            <CardHeader className="py-3 px-4 bg-muted/30 border-b">
-              <div className="grid grid-cols-[180px_1fr_1fr_80px] gap-4 text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                <span>Data</span>
-                <span className="flex items-center gap-1.5">
-                  <Clock className="w-3.5 h-3.5 text-amber-500" />
-                  Horímetro (horas)
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <Calendar className="w-3.5 h-3.5 text-blue-500" />
-                  Quilometragem (km)
-                </span>
-                <span className="text-center">Status</span>
+          {/* Vehicle Info & Previous Values - Compact */}
+          {selectedVehicle && (
+            <div className="flex items-center justify-between gap-4 p-2 px-4 bg-muted/50 rounded-lg border text-sm">
+              <div className="flex items-center gap-3">
+                <span className="font-bold">{selectedVehicle.code}</span>
+                <span className="text-muted-foreground">{selectedVehicle.name}</span>
               </div>
-            </CardHeader>
-            <ScrollArea className="h-[300px]">
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <Clock className="w-3.5 h-3.5 text-amber-500" />
+                  <span className="font-semibold text-amber-600">
+                    {previousValues.horimeter > 0 ? previousValues.horimeter.toLocaleString('pt-BR') + 'h' : '—'}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Calendar className="w-3.5 h-3.5 text-blue-500" />
+                  <span className="font-semibold text-blue-600">
+                    {previousValues.km > 0 ? previousValues.km.toLocaleString('pt-BR') + ' km' : '—'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Status Summary - Compact */}
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className="h-6 px-2 gap-1 text-xs bg-green-50 text-green-700 border-green-200 dark:bg-green-950/30 dark:text-green-400">
+              <Check className="w-3 h-3" />
+              {savedCount}
+            </Badge>
+            <Badge variant="outline" className="h-6 px-2 gap-1 text-xs bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400">
+              <Clock className="w-3 h-3" />
+              {unsavedCount}
+            </Badge>
+            <Badge variant="outline" className="h-6 px-2 gap-1 text-xs">
+              <Calendar className="w-3 h-3" />
+              {totalDays} dias
+            </Badge>
+          </div>
+
+          {/* Entries Table */}
+          <Card className="flex-1 overflow-hidden border-0 shadow-none">
+            <div className="grid grid-cols-[140px_1fr_1fr_60px] gap-3 py-2 px-3 bg-muted/50 border-b text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              <span>Data</span>
+              <span className="flex items-center gap-1">
+                <Clock className="w-3 h-3 text-amber-500" />
+                Horímetro
+              </span>
+              <span className="flex items-center gap-1">
+                <Calendar className="w-3 h-3 text-blue-500" />
+                KM
+              </span>
+              <span className="text-center">Status</span>
+            </div>
+            <ScrollArea className={cn(
+              isExpanded ? "h-[calc(100vh-380px)]" : "h-[280px]"
+            )}>
               <div className="divide-y">
                 {entries.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
-                    <Calendar className="w-12 h-12 mb-3 opacity-30" />
-                    <p className="text-sm">Selecione um veículo e período para gerar os registros</p>
+                  <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                    <Calendar className="w-10 h-10 mb-2 opacity-30" />
+                    <p className="text-sm">Selecione veículo e período</p>
                   </div>
                 ) : (
                   entries.map((entry, index) => (
                     <div 
                       key={entry.id}
                       className={cn(
-                        "grid grid-cols-[180px_1fr_1fr_80px] gap-4 p-4 items-center transition-colors",
+                        "grid grid-cols-[140px_1fr_1fr_60px] gap-3 py-2 px-3 items-center transition-colors",
                         entry.saved && "bg-green-50/50 dark:bg-green-950/20",
                         entry.error && "bg-red-50/50 dark:bg-red-950/20",
                         entry.saving && "bg-blue-50/50 dark:bg-blue-950/20",
-                        !entry.saved && !entry.error && !entry.saving && "hover:bg-muted/30"
+                        !entry.saved && !entry.error && !entry.saving && "hover:bg-muted/20"
                       )}
                     >
                       {/* Date Column */}
                       <div className="flex flex-col">
-                        <span className="font-semibold text-base">
-                          {format(entry.date, 'dd/MM/yyyy')}
+                        <span className="font-medium text-sm">
+                          {format(entry.date, 'dd/MM')}
                         </span>
-                        <span className="text-xs text-muted-foreground capitalize">
-                          {format(entry.date, 'EEEE', { locale: ptBR })}
+                        <span className="text-[10px] text-muted-foreground capitalize">
+                          {format(entry.date, 'EEE', { locale: ptBR })}
                         </span>
                       </div>
 
                       {/* Horimeter Input */}
                       <div>
                         <Input
-                          placeholder="Ex: 4.520"
+                          placeholder="4.520"
                           value={entry.horimeterValue}
                           onChange={(e) => updateEntry(index, 'horimeterValue', e.target.value)}
                           disabled={entry.saved || entry.saving}
                           className={cn(
-                            "h-10 font-mono text-base",
-                            entry.saved && "bg-green-100 dark:bg-green-900/50 border-green-300 dark:border-green-700",
+                            "h-9 font-mono",
+                            isExpanded && "h-10 text-lg",
+                            entry.saved && "bg-green-100 dark:bg-green-900/50 border-green-300",
                             entry.saving && "bg-blue-50 dark:bg-blue-900/30"
                           )}
                         />
@@ -397,13 +394,14 @@ export function BatchHorimeterModal({ open, onOpenChange, onSuccess }: BatchHori
                       {/* KM Input */}
                       <div>
                         <Input
-                          placeholder="Ex: 125.000"
+                          placeholder="125.000"
                           value={entry.kmValue}
                           onChange={(e) => updateEntry(index, 'kmValue', e.target.value)}
                           disabled={entry.saved || entry.saving}
                           className={cn(
-                            "h-10 font-mono text-base",
-                            entry.saved && "bg-green-100 dark:bg-green-900/50 border-green-300 dark:border-green-700",
+                            "h-9 font-mono",
+                            isExpanded && "h-10 text-lg",
+                            entry.saved && "bg-green-100 dark:bg-green-900/50 border-green-300",
                             entry.saving && "bg-blue-50 dark:bg-blue-900/30"
                           )}
                         />
@@ -412,17 +410,11 @@ export function BatchHorimeterModal({ open, onOpenChange, onSuccess }: BatchHori
                       {/* Status Indicator */}
                       <div className="flex justify-center">
                         {entry.saving ? (
-                          <div className="flex items-center gap-1.5 text-blue-600">
-                            <Loader2 className="w-5 h-5 animate-spin" />
-                          </div>
+                          <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
                         ) : entry.saved ? (
-                          <div className="flex items-center gap-1.5 text-green-600" title="Salvo">
-                            <Check className="w-5 h-5" />
-                          </div>
+                          <Check className="w-4 h-4 text-green-600" />
                         ) : entry.error ? (
-                          <div className="flex items-center gap-1.5 text-red-600" title={entry.error}>
-                            <AlertTriangle className="w-5 h-5" />
-                          </div>
+                          <AlertTriangle className="w-4 h-4 text-red-600" />
                         ) : (entry.horimeterValue || entry.kmValue) ? (
                           <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" title="Pendente" />
                         ) : null}
