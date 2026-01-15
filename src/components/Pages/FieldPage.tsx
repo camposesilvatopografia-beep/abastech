@@ -17,6 +17,8 @@ import {
   Volume2,
   VolumeX,
   Smartphone,
+  Bell,
+  BellOff,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
@@ -25,6 +27,7 @@ import { toast } from 'sonner';
 import logoAbastech from '@/assets/logo-abastech.png';
 import { useTheme } from '@/hooks/useTheme';
 import { useFieldSettings } from '@/hooks/useFieldSettings';
+import { usePushNotifications } from '@/hooks/usePushNotifications';
 import {
   Popover,
   PopoverContent,
@@ -32,6 +35,7 @@ import {
 } from '@/components/ui/popover';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 
 interface FieldUser {
   id: string;
@@ -53,6 +57,13 @@ export function FieldPage() {
   const [isSyncing, setIsSyncing] = useState(false);
   const { theme, toggleTheme } = useTheme();
   const { settings, toggleSound, toggleVibration } = useFieldSettings();
+  const { 
+    permission: notificationPermission, 
+    requestPermission: requestNotificationPermission,
+    notifySyncComplete,
+    notifyOffline,
+    notifyOnline,
+  } = usePushNotifications();
 
   // Function to fetch and update user data from database
   const refreshUserData = useCallback(async (userId: string) => {
@@ -177,9 +188,14 @@ export function FieldPage() {
 
         if (updateError) throw updateError;
 
-        toast.success(`${pendingRecords.length} registro(s) sincronizado(s) com sucesso!`, {
+        const count = pendingRecords.length;
+        toast.success(`${count} registro(s) sincronizado(s) com sucesso!`, {
           duration: 4000,
         });
+        
+        // Send push notification
+        notifySyncComplete(count);
+        
         setPendingCount(0);
       }
     } catch (err) {
@@ -188,7 +204,7 @@ export function FieldPage() {
     } finally {
       setIsSyncing(false);
     }
-  }, [user, isSyncing]);
+  }, [user, isSyncing, notifySyncComplete]);
 
   // Monitor online status and auto-sync when coming back online
   useEffect(() => {
@@ -197,6 +213,8 @@ export function FieldPage() {
       toast.success('Conexão restabelecida! Sincronizando...', {
         duration: 3000,
       });
+      // Send push notification
+      notifyOnline();
       // Auto-sync when back online
       syncPendingRecords();
     };
@@ -206,6 +224,8 @@ export function FieldPage() {
       toast.warning('Você está offline. Registros serão sincronizados quando a conexão voltar.', {
         duration: 5000,
       });
+      // Send push notification
+      notifyOffline();
     };
 
     window.addEventListener('online', handleOnline);
@@ -215,7 +235,7 @@ export function FieldPage() {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
-  }, [syncPendingRecords]);
+  }, [syncPendingRecords, notifyOnline, notifyOffline]);
 
   // Check pending records
   useEffect(() => {
@@ -338,6 +358,7 @@ export function FieldPage() {
                     />
                   </div>
                   
+                  {/* Vibration Toggle */}
                   <div className="flex items-center justify-between">
                     <Label htmlFor="vibration-toggle" className="text-sm flex items-center gap-2">
                       <Smartphone className="w-4 h-4" />
@@ -348,6 +369,28 @@ export function FieldPage() {
                       checked={settings.vibrationEnabled}
                       onCheckedChange={toggleVibration}
                     />
+                  </div>
+                  
+                  {/* Notifications Toggle */}
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="notification-toggle" className="text-sm flex items-center gap-2">
+                      {notificationPermission === 'granted' ? <Bell className="w-4 h-4" /> : <BellOff className="w-4 h-4" />}
+                      Notificações
+                    </Label>
+                    {notificationPermission === 'granted' ? (
+                      <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+                        Ativas
+                      </Badge>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={requestNotificationPermission}
+                      >
+                        Ativar
+                      </Button>
+                    )}
                   </div>
                 </div>
               </PopoverContent>
