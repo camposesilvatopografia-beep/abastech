@@ -168,16 +168,20 @@ export function DashboardContent() {
   }, [filteredAbastecimentoData]);
 
   // Extract stock values from GERAL sheet - get EXACT row for selected date
+  // IMPORTANT: Estoque Atual should be CALCULATED using the formula:
+  // (Estoque Anterior + Entrada) - (Saída Comboios + Saída Equipamentos)
   const stockData = useMemo(() => {
     const totalSaidas = calculatedExits.saidaComboios + calculatedExits.saidaEquipamentos;
     
     if (!geralData.rows.length) {
+      // When no GERAL data, calculate based on abastecimento data
+      const estoqueCalculado = 0 + calculatedEntries - totalSaidas;
       return {
         estoqueAnterior: 0,
         entrada: calculatedEntries,
         saidaComboios: calculatedExits.saidaComboios,
         saidaEquipamentos: calculatedExits.saidaEquipamentos,
-        estoqueAtual: 0,
+        estoqueAtual: Math.max(0, estoqueCalculado),
         totalSaidas
       };
     }
@@ -200,21 +204,24 @@ export function DashboardContent() {
       const entradaGeral = parseNumber(matchingRow['Entrada'] || matchingRow['ENTRADA']);
       const saidaComboiosGeral = parseNumber(matchingRow['Saida para Comboios'] || matchingRow['SAIDA PARA COMBOIOS']);
       const saidaEquipamentosGeral = parseNumber(matchingRow['Saida para Equipamentos'] || matchingRow['SAIDA PARA EQUIPAMENTOS']);
-      const estoqueAtual = parseNumber(matchingRow['Estoque Atual'] || matchingRow['EstoqueAtual'] || matchingRow['ESTOQUE ATUAL']);
       
       // Use values from GERAL sheet (which is the source of truth)
       // Only use calculated values if GERAL sheet values are zero
       const finalSaidaComboios = saidaComboiosGeral > 0 ? saidaComboiosGeral : calculatedExits.saidaComboios;
       const finalSaidaEquipamentos = saidaEquipamentosGeral > 0 ? saidaEquipamentosGeral : calculatedExits.saidaEquipamentos;
       const finalEntrada = entradaGeral > 0 ? entradaGeral : calculatedEntries;
+      const finalTotalSaidas = finalSaidaComboios + finalSaidaEquipamentos;
+      
+      // CALCULATE Estoque Atual using the formula: (Anterior + Entrada) - Saídas
+      const estoqueCalculado = (estoqueAnterior + finalEntrada) - finalTotalSaidas;
       
       return {
         estoqueAnterior,
         entrada: finalEntrada,
         saidaComboios: finalSaidaComboios,
         saidaEquipamentos: finalSaidaEquipamentos,
-        estoqueAtual,
-        totalSaidas: finalSaidaComboios + finalSaidaEquipamentos
+        estoqueAtual: estoqueCalculado,
+        totalSaidas: finalTotalSaidas
       };
     }
 
@@ -224,18 +231,22 @@ export function DashboardContent() {
     const entradaGeral = parseNumber(lastRow?.['Entrada'] || lastRow?.['ENTRADA']);
     const saidaComboiosGeral = parseNumber(lastRow?.['Saida para Comboios'] || lastRow?.['SAIDA PARA COMBOIOS']);
     const saidaEquipamentosGeral = parseNumber(lastRow?.['Saida para Equipamentos'] || lastRow?.['SAIDA PARA EQUIPAMENTOS']);
-    const estoqueAtual = parseNumber(lastRow?.['Estoque Atual'] || lastRow?.['EstoqueAtual'] || lastRow?.['ESTOQUE ATUAL']);
     
     const finalSaidaComboios = saidaComboiosGeral > 0 ? saidaComboiosGeral : calculatedExits.saidaComboios;
     const finalSaidaEquipamentos = saidaEquipamentosGeral > 0 ? saidaEquipamentosGeral : calculatedExits.saidaEquipamentos;
+    const finalEntrada = entradaGeral > 0 ? entradaGeral : calculatedEntries;
+    const finalTotalSaidas = finalSaidaComboios + finalSaidaEquipamentos;
+    
+    // CALCULATE Estoque Atual using the formula: (Anterior + Entrada) - Saídas
+    const estoqueCalculado = (estoqueAnterior + finalEntrada) - finalTotalSaidas;
     
     return {
       estoqueAnterior,
-      entrada: entradaGeral > 0 ? entradaGeral : calculatedEntries,
+      entrada: finalEntrada,
       saidaComboios: finalSaidaComboios,
       saidaEquipamentos: finalSaidaEquipamentos,
-      estoqueAtual,
-      totalSaidas: finalSaidaComboios + finalSaidaEquipamentos
+      estoqueAtual: estoqueCalculado,
+      totalSaidas: finalTotalSaidas
     };
   }, [geralData.rows, calculatedExits, calculatedEntries, selectedDate]);
 
