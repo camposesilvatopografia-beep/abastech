@@ -361,47 +361,50 @@ export function useHorimeterReadings(vehicleId?: string) {
       
       if (deleteError) throw deleteError;
       
+      // IMPORTANT: Remove from local state IMMEDIATELY for UI responsiveness
       setReadings(prev => prev.filter(r => r.id !== id));
       
-      // Sync deletion to Google Sheets
+      // Sync deletion to Google Sheets (fire and forget - don't block UI)
       if (readingToDelete?.vehicle) {
-        try {
-          const { data: sheetData } = await supabase.functions.invoke('google-sheets', {
-            body: { action: 'getData', sheetName: 'Horimetros' },
-          });
-          
-          const rows = sheetData?.rows || [];
-          const [year, month, day] = readingToDelete.reading_date.split('-');
-          const formattedDate = `${day}/${month}/${year}`;
-          
-          const rowIndex = rows.findIndex((row: any) => {
-            const rowVehicle = String(row.Veiculo || row.VEICULO || '').trim();
-            const rowDate = String(row.Data || row.DATA || row[' Data'] || '').trim();
-            return rowVehicle === readingToDelete.vehicle.code && rowDate === formattedDate;
-          });
-          
-          if (rowIndex >= 0) {
-            const sheetRowIndex = rowIndex + 2; // +1 for header, +1 for 1-based index
-            
-            await supabase.functions.invoke('google-sheets', {
-              body: {
-                action: 'delete',
-                sheetName: 'Horimetros',
-                rowIndex: sheetRowIndex,
-              },
+        (async () => {
+          try {
+            const { data: sheetData } = await supabase.functions.invoke('google-sheets', {
+              body: { action: 'getData', sheetName: 'Horimetros' },
             });
             
-            console.log('Registro excluído da planilha Horimetros');
+            const rows = sheetData?.rows || [];
+            const [year, month, day] = readingToDelete.reading_date.split('-');
+            const formattedDate = `${day}/${month}/${year}`;
+            
+            const rowIndex = rows.findIndex((row: any) => {
+              const rowVehicle = String(row.Veiculo || row.VEICULO || '').trim();
+              const rowDate = String(row.Data || row.DATA || row[' Data'] || '').trim();
+              return rowVehicle === readingToDelete.vehicle.code && rowDate === formattedDate;
+            });
+            
+            if (rowIndex >= 0) {
+              const sheetRowIndex = rowIndex + 2; // +1 for header, +1 for 1-based index
+              
+              await supabase.functions.invoke('google-sheets', {
+                body: {
+                  action: 'delete',
+                  sheetName: 'Horimetros',
+                  rowIndex: sheetRowIndex,
+                },
+              });
+              
+              console.log('Registro excluído da planilha Horimetros');
+            }
+          } catch (syncErr) {
+            console.error('Erro ao sincronizar exclusão com planilha:', syncErr);
+            // Don't throw - the DB deletion was successful
           }
-        } catch (syncErr) {
-          console.error('Erro ao sincronizar exclusão com planilha:', syncErr);
-          // Don't throw - the DB deletion was successful
-        }
+        })();
       }
       
       toast({
         title: 'Sucesso!',
-        description: 'Registro excluído e removido da planilha',
+        description: 'Registro excluído',
       });
     } catch (err: any) {
       console.error('Error deleting reading:', err);

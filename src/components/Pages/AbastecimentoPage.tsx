@@ -23,7 +23,8 @@ import {
   Download,
   Building2,
   Eye,
-  Image
+  Image,
+  Truck
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -233,6 +234,7 @@ export function AbastecimentoPage() {
   // Calculate metrics from filtered data - separating equipment exits from comboio exits
   const metrics = useMemo(() => {
     let saidaEquipamentos = 0;
+    let saidaComboios = 0;
     let totalArla = 0;
     let totalValor = 0;
     let registros = 0;
@@ -251,14 +253,18 @@ export function AbastecimentoPage() {
         return;
       }
       
-      // Skip exits to comboios (internal transfers)
+      if (quantidade <= 0) return;
+      
+      // Check if destination is a comboio (internal transfers)
       const isComboioDestination = local.includes('comboio') || veiculo.includes('comboio') || veiculo.startsWith('cb-');
+      
       if (isComboioDestination) {
-        return;
+        saidaComboios += quantidade;
+      } else {
+        // Count as equipment exit
+        saidaEquipamentos += quantidade;
       }
       
-      // Count as equipment exit
-      saidaEquipamentos += quantidade;
       totalArla += arla;
       totalValor += valor;
       registros++;
@@ -267,6 +273,7 @@ export function AbastecimentoPage() {
     return {
       registros,
       saidaEquipamentos,
+      saidaComboios,
       totalArla,
       totalValor,
       mediaConsumo: registros > 0 ? saidaEquipamentos / registros : 0
@@ -1048,7 +1055,7 @@ export function AbastecimentoPage() {
         </div>
 
         {/* Metric Cards - Responsive Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 md:gap-4">
           <MetricCard
             title="REGISTROS NO PERÍODO"
             value={metrics.registros.toString()}
@@ -1064,10 +1071,17 @@ export function AbastecimentoPage() {
             icon={TrendingDown}
           />
           <MetricCard
+            title="SAÍDA P/ COMBOIOS"
+            value={`${metrics.saidaComboios.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L`}
+            subtitle="Transferências internas"
+            variant="yellow"
+            icon={Truck}
+          />
+          <MetricCard
             title="ARLA TOTAL DE SAÍDAS"
             value={`${metrics.totalArla.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L`}
             subtitle="Arla consumido"
-            variant="yellow"
+            variant="blue"
             icon={Droplet}
           />
           <MetricCard

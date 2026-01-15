@@ -1,8 +1,9 @@
 import { useMemo, useState, useCallback, useEffect } from 'react';
-import { Droplet, TrendingDown, TrendingUp, Package, Truck, ArrowDownCircle, ArrowUpCircle, Clock, Fuel, Calendar, MessageCircle, Wifi, RefreshCw, X, Search } from 'lucide-react';
+import { Droplet, TrendingDown, TrendingUp, Package, Truck, ArrowDownCircle, ArrowUpCircle, Clock, Fuel, Calendar, MessageCircle, Wifi, RefreshCw, X, Search, Settings } from 'lucide-react';
 import { MetricCard } from './MetricCard';
 import { StockSummary } from './StockSummary';
 import { ConsumptionRanking } from './ConsumptionRanking';
+import { KPIDiagnosticsModal } from './KPIDiagnosticsModal';
 import { useSheetData } from '@/hooks/useGoogleSheets';
 import { format, parse, isWithinInterval, startOfDay, endOfDay, isValid } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -57,7 +58,18 @@ export function DashboardContent() {
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   const [search, setSearch] = useState('');
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
+  const [showDiagnostics, setShowDiagnostics] = useState(false);
+  const [kpiMappings, setKpiMappings] = useState<Record<string, string>>({});
   const { toast } = useToast();
+
+  // Update KPI mappings handler
+  const handleUpdateMapping = useCallback((kpiId: string, columnName: string) => {
+    setKpiMappings(prev => ({ ...prev, [kpiId]: columnName }));
+    toast({
+      title: 'Mapeamento atualizado',
+      description: `KPI "${kpiId}" agora usa a coluna "${columnName}"`,
+    });
+  }, [toast]);
 
   // Update last sync time when data changes
   useEffect(() => {
@@ -419,6 +431,17 @@ _Sistema Abastech_`;
                 )}
               </div>
 
+              {/* Diagnostics Button */}
+              <Button 
+                variant="outline"
+                size="sm"
+                onClick={() => setShowDiagnostics(true)}
+                className="gap-2"
+              >
+                <Settings className="w-4 h-4" />
+                <span className="hidden sm:inline">Diagnóstico</span>
+              </Button>
+
               {/* WhatsApp Button */}
               <Button 
                 onClick={handleWhatsAppExport} 
@@ -573,6 +596,17 @@ _Sistema Abastech_`;
           </div>
         </div>
       </div>
+
+      {/* KPI Diagnostics Modal */}
+      <KPIDiagnosticsModal
+        open={showDiagnostics}
+        onOpenChange={setShowDiagnostics}
+        sheetName={GERAL_SHEET}
+        sheetHeaders={geralData.headers}
+        sheetRows={geralData.rows}
+        kpiMappings={kpiMappings}
+        onUpdateMapping={handleUpdateMapping}
+      />
     </div>
   );
 }
