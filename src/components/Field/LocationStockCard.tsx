@@ -10,6 +10,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useSheetData } from '@/hooks/useGoogleSheets';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { cn } from '@/lib/utils';
+import { useTheme } from '@/hooks/useTheme';
 
 interface LocationStockCardProps {
   location: string;
@@ -76,6 +78,7 @@ function isToday(dateStr: string): boolean {
 
 export const LocationStockCard = forwardRef<LocationStockCardRef, LocationStockCardProps>(
   function LocationStockCard({ location }, ref) {
+  const { theme } = useTheme();
   const stockSheetName = getStockSheetName(location);
   const { data: stockSheetData, loading, refetch } = useSheetData(stockSheetName);
   
@@ -183,14 +186,24 @@ export const LocationStockCard = forwardRef<LocationStockCardRef, LocationStockC
   }, [location]);
 
   return (
-    <Card className="bg-slate-800/50 border-slate-700">
+    <Card className={cn(
+      theme === 'dark' 
+        ? "bg-slate-800/50 border-slate-700" 
+        : "bg-white border-slate-200 shadow-sm"
+    )}>
       <CardHeader className="pb-2">
-        <CardTitle className="text-sm flex items-center justify-between text-slate-200">
+        <CardTitle className={cn(
+          "text-sm flex items-center justify-between",
+          theme === 'dark' ? "text-slate-200" : "text-slate-700"
+        )}>
           <span className="flex items-center gap-2">
-            <Database className="w-4 h-4 text-amber-400" />
+            <Database className="w-4 h-4 text-amber-500" />
             {shortLocationName}
           </span>
-          <span className="text-[10px] text-slate-400 font-normal">
+          <span className={cn(
+            "text-[10px] font-normal",
+            theme === 'dark' ? "text-slate-400" : "text-slate-500"
+          )}>
             {todayStr}
           </span>
         </CardTitle>
@@ -198,44 +211,76 @@ export const LocationStockCard = forwardRef<LocationStockCardRef, LocationStockC
       <CardContent className="pt-0">
         {loading ? (
           <div className="flex items-center justify-center py-4">
-            <div className="w-5 h-5 border-2 border-amber-400 border-t-transparent rounded-full animate-spin" />
+            <div className="w-5 h-5 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
           </div>
         ) : (
           <div className="grid grid-cols-4 gap-2">
             {/* 1. Estoque Anterior */}
-            <div className="bg-yellow-900/30 border border-yellow-700/50 rounded-lg p-2 text-center">
-              <LogOutIcon className="w-3 h-3 mx-auto mb-1 text-yellow-400" />
-              <p className="text-lg font-bold text-yellow-400">
+            <div className={cn(
+              "rounded-lg p-2 text-center border",
+              theme === 'dark' 
+                ? "bg-yellow-900/30 border-yellow-700/50" 
+                : "bg-yellow-50 border-yellow-200"
+            )}>
+              <LogOutIcon className="w-3 h-3 mx-auto mb-1 text-yellow-500" />
+              <p className="text-lg font-bold text-yellow-500">
                 {stockKPIs.estoqueAnterior.toLocaleString('pt-BR')}
               </p>
-              <p className="text-[10px] text-yellow-300/70">Est. Anterior</p>
+              <p className={cn(
+                "text-[10px]",
+                theme === 'dark' ? "text-yellow-300/70" : "text-yellow-600/70"
+              )}>Est. Anterior</p>
             </div>
             
             {/* 2. Entradas */}
-            <div className="bg-green-900/30 border border-green-700/50 rounded-lg p-2 text-center">
-              <LogIn className="w-3 h-3 mx-auto mb-1 text-green-400" />
-              <p className="text-lg font-bold text-green-400">
+            <div className={cn(
+              "rounded-lg p-2 text-center border",
+              theme === 'dark' 
+                ? "bg-green-900/30 border-green-700/50" 
+                : "bg-green-50 border-green-200"
+            )}>
+              <LogIn className="w-3 h-3 mx-auto mb-1 text-green-500" />
+              <p className="text-lg font-bold text-green-500">
                 +{stockKPIs.entradas.toLocaleString('pt-BR')}
               </p>
-              <p className="text-[10px] text-green-300/70">Entradas</p>
+              <p className={cn(
+                "text-[10px]",
+                theme === 'dark' ? "text-green-300/70" : "text-green-600/70"
+              )}>Entradas</p>
             </div>
             
             {/* 3. Saídas */}
-            <div className="bg-red-900/30 border border-red-700/50 rounded-lg p-2 text-center">
-              <TrendingDown className="w-3 h-3 mx-auto mb-1 text-red-400" />
-              <p className="text-lg font-bold text-red-400">
+            <div className={cn(
+              "rounded-lg p-2 text-center border",
+              theme === 'dark' 
+                ? "bg-red-900/30 border-red-700/50" 
+                : "bg-red-50 border-red-200"
+            )}>
+              <TrendingDown className="w-3 h-3 mx-auto mb-1 text-red-500" />
+              <p className="text-lg font-bold text-red-500">
                 -{stockKPIs.saidas.toLocaleString('pt-BR')}
               </p>
-              <p className="text-[10px] text-red-300/70">Saídas</p>
+              <p className={cn(
+                "text-[10px]",
+                theme === 'dark' ? "text-red-300/70" : "text-red-600/70"
+              )}>Saídas</p>
             </div>
             
             {/* 4. Estoque Atual */}
-            <div className="bg-blue-900/30 border border-blue-700/50 rounded-lg p-2 text-center">
-              <Fuel className="w-3 h-3 mx-auto mb-1 text-blue-400" />
-              <p className="text-lg font-bold text-blue-400">
+            <div className={cn(
+              "rounded-lg p-2 text-center border",
+              theme === 'dark' 
+                ? "bg-blue-900/30 border-blue-700/50" 
+                : "bg-blue-50 border-blue-200"
+            )}>
+              <Fuel className="w-3 h-3 mx-auto mb-1 text-blue-500" />
+              <p className="text-lg font-bold text-blue-500">
                 {stockKPIs.estoqueAtual.toLocaleString('pt-BR')}
               </p>
-              <p className="text-[10px] text-blue-300/70">Est. Atual</p>
+              <p className={cn(
+                "text-[10px]",
+                theme === 'dark' ? "text-blue-300/70" : "text-blue-600/70"
+              )}>Est. Atual</p>
             </div>
           </div>
         )}
