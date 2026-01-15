@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { format, addDays, subDays, startOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Calendar, Clock, Plus, Trash2, Check, AlertTriangle } from 'lucide-react';
+import { Calendar, Clock, Plus, Trash2, Check, AlertTriangle, Save, Loader2 } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -15,6 +15,8 @@ import { Label } from '@/components/ui/label';
 import { VehicleCombobox } from '@/components/ui/vehicle-combobox';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Separator } from '@/components/ui/separator';
 import { useVehicles, useHorimeterReadings } from '@/hooks/useHorimeters';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -25,6 +27,7 @@ interface BatchEntry {
   horimeterValue: string;
   kmValue: string;
   saved: boolean;
+  saving?: boolean;
   error?: string;
 }
 
@@ -121,6 +124,11 @@ export function BatchHorimeterModal({ open, onOpenChange, onSuccess }: BatchHori
     let errors = 0;
 
     for (const entry of unsavedEntries) {
+      // Mark as saving
+      setEntries(prev => prev.map(e => 
+        e.id === entry.id ? { ...e, saving: true } : e
+      ));
+
       try {
         const horimeterNum = entry.horimeterValue 
           ? parseFloat(entry.horimeterValue.replace(/\./g, '').replace(',', '.')) 
@@ -129,7 +137,12 @@ export function BatchHorimeterModal({ open, onOpenChange, onSuccess }: BatchHori
           ? parseFloat(entry.kmValue.replace(/\./g, '').replace(',', '.')) 
           : null;
 
-        if (!horimeterNum && !kmNum) continue;
+        if (!horimeterNum && !kmNum) {
+          setEntries(prev => prev.map(e => 
+            e.id === entry.id ? { ...e, saving: false } : e
+          ));
+          continue;
+        }
 
         // Get previous values for this specific date
         const dateStr = format(entry.date, 'yyyy-MM-dd');
@@ -156,12 +169,12 @@ export function BatchHorimeterModal({ open, onOpenChange, onSuccess }: BatchHori
         
         // Mark as saved
         setEntries(prev => prev.map(e => 
-          e.id === entry.id ? { ...e, saved: true, error: undefined } : e
+          e.id === entry.id ? { ...e, saved: true, saving: false, error: undefined } : e
         ));
       } catch (err: any) {
         errors++;
         setEntries(prev => prev.map(e => 
-          e.id === entry.id ? { ...e, error: err.message || 'Erro ao salvar' } : e
+          e.id === entry.id ? { ...e, saving: false, error: err.message || 'Erro ao salvar' } : e
         ));
       }
     }
@@ -194,183 +207,252 @@ export function BatchHorimeterModal({ open, onOpenChange, onSuccess }: BatchHori
 
   const unsavedCount = entries.filter(e => !e.saved && (e.horimeterValue || e.kmValue)).length;
   const savedCount = entries.filter(e => e.saved).length;
+  const totalDays = entries.length;
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-4xl max-h-[95vh] flex flex-col">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Plus className="w-5 h-5" />
+      <DialogContent className="max-w-5xl max-h-[95vh] flex flex-col p-0 gap-0">
+        {/* Header */}
+        <DialogHeader className="p-6 pb-4 border-b bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/30">
+          <DialogTitle className="flex items-center gap-3 text-xl">
+            <div className="p-2 rounded-lg bg-amber-500 text-white">
+              <Plus className="w-5 h-5" />
+            </div>
             Cadastro em Lote - Horímetros
           </DialogTitle>
+          <p className="text-sm text-muted-foreground mt-1">
+            Registre leituras de horímetro para múltiplos dias de uma só vez
+          </p>
         </DialogHeader>
 
-        <div className="space-y-4 flex-1 overflow-hidden flex flex-col">
-          {/* Vehicle Selection */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Veículo *</Label>
-              <VehicleCombobox
-                vehicles={vehicles.map(v => ({
-                  id: v.id,
-                  code: v.code,
-                  name: v.name || '',
-                  description: v.description || '',
-                  category: v.category || '',
-                }))}
-                value={selectedVehicleId}
-                onValueChange={setSelectedVehicleId}
-                placeholder="Selecione o veículo..."
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Operador</Label>
-              <Input
-                value={operador}
-                onChange={(e) => setOperador(e.target.value)}
-                placeholder="Nome do operador"
-              />
-            </div>
-          </div>
-
-          {/* Date Range */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Data Início</Label>
-              <Input
-                type="date"
-                value={format(startDate, 'yyyy-MM-dd')}
-                onChange={(e) => setStartDate(new Date(e.target.value + 'T00:00:00'))}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Data Fim</Label>
-              <Input
-                type="date"
-                value={format(endDate, 'yyyy-MM-dd')}
-                onChange={(e) => setEndDate(new Date(e.target.value + 'T00:00:00'))}
-              />
-            </div>
-          </div>
-
-          {/* Previous Values Info */}
-          {selectedVehicle && (
-            <div className="grid grid-cols-2 gap-4 p-3 bg-muted/50 rounded-lg border">
-              <div className="flex items-center gap-2">
-                <Clock className="w-4 h-4 text-amber-600" />
-                <span className="text-sm">
-                  <span className="text-muted-foreground">Último Horímetro:</span>{' '}
-                  <span className="font-bold text-amber-600">
-                    {previousValues.horimeter > 0 ? previousValues.horimeter.toLocaleString('pt-BR') : '-'}
-                  </span>
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-blue-600" />
-                <span className="text-sm">
-                  <span className="text-muted-foreground">Último KM:</span>{' '}
-                  <span className="font-bold text-blue-600">
-                    {previousValues.km > 0 ? previousValues.km.toLocaleString('pt-BR') : '-'}
-                  </span>
-                </span>
-              </div>
-            </div>
-          )}
-
-          {/* Status Badges */}
-          <div className="flex items-center gap-2">
-            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-              <Check className="w-3 h-3 mr-1" />
-              {savedCount} salvos
-            </Badge>
-            <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
-              <Clock className="w-3 h-3 mr-1" />
-              {unsavedCount} pendentes
-            </Badge>
-          </div>
-
-          {/* Entries List - Expanded View */}
-          <ScrollArea className="flex-1 min-h-[300px] max-h-[450px] border rounded-lg">
-            <div className="p-3 space-y-2">
-              {entries.length === 0 ? (
-                <div className="text-center py-12 text-muted-foreground">
-                  Selecione um veículo e período para gerar os registros
+        <div className="flex-1 overflow-hidden flex flex-col p-6 gap-6">
+          {/* Configuration Section */}
+          <Card className="border-dashed">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Clock className="w-4 h-4 text-amber-500" />
+                Configuração
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Vehicle and Operator */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Veículo <span className="text-destructive">*</span></Label>
+                  <VehicleCombobox
+                    vehicles={vehicles.map(v => ({
+                      id: v.id,
+                      code: v.code,
+                      name: v.name || '',
+                      description: v.description || '',
+                      category: v.category || '',
+                    }))}
+                    value={selectedVehicleId}
+                    onValueChange={setSelectedVehicleId}
+                    placeholder="Selecione o veículo..."
+                  />
                 </div>
-              ) : (
-                entries.map((entry, index) => (
-                  <div 
-                    key={entry.id}
-                    className={cn(
-                      "grid grid-cols-[180px_1fr_1fr_50px] gap-3 p-3 rounded-lg border items-center transition-colors",
-                      entry.saved && "bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800",
-                      entry.error && "bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800",
-                      !entry.saved && !entry.error && "hover:bg-muted/50"
-                    )}
-                  >
-                    {/* Date with expanded format */}
-                    <div className="flex flex-col">
-                      <div className="flex items-center gap-2">
-                        <Calendar className="w-4 h-4 text-primary" />
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Operador</Label>
+                  <Input
+                    value={operador}
+                    onChange={(e) => setOperador(e.target.value)}
+                    placeholder="Nome do operador"
+                    className="h-10"
+                  />
+                </div>
+              </div>
+
+              {/* Date Range */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-muted-foreground" />
+                    Data Início
+                  </Label>
+                  <Input
+                    type="date"
+                    value={format(startDate, 'yyyy-MM-dd')}
+                    onChange={(e) => setStartDate(new Date(e.target.value + 'T00:00:00'))}
+                    className="h-10"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-muted-foreground" />
+                    Data Fim
+                  </Label>
+                  <Input
+                    type="date"
+                    value={format(endDate, 'yyyy-MM-dd')}
+                    onChange={(e) => setEndDate(new Date(e.target.value + 'T00:00:00'))}
+                    className="h-10"
+                  />
+                </div>
+              </div>
+
+              {/* Vehicle Info & Previous Values */}
+              {selectedVehicle && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 p-4 bg-muted/50 rounded-lg border">
+                  <div className="flex flex-col">
+                    <span className="text-xs text-muted-foreground uppercase tracking-wide">Veículo Selecionado</span>
+                    <span className="font-bold text-lg">{selectedVehicle.code}</span>
+                    <span className="text-sm text-muted-foreground">{selectedVehicle.name}</span>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-xs text-muted-foreground uppercase tracking-wide">Último Horímetro</span>
+                    <span className="font-bold text-lg text-amber-600">
+                      {previousValues.horimeter > 0 ? previousValues.horimeter.toLocaleString('pt-BR') + 'h' : '—'}
+                    </span>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-xs text-muted-foreground uppercase tracking-wide">Último KM</span>
+                    <span className="font-bold text-lg text-blue-600">
+                      {previousValues.km > 0 ? previousValues.km.toLocaleString('pt-BR') + ' km' : '—'}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Status Summary */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Badge variant="outline" className="h-8 px-3 gap-1.5 bg-green-50 text-green-700 border-green-200 dark:bg-green-950/30 dark:text-green-400 dark:border-green-800">
+                <Check className="w-3.5 h-3.5" />
+                {savedCount} salvos
+              </Badge>
+              <Badge variant="outline" className="h-8 px-3 gap-1.5 bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-800">
+                <Clock className="w-3.5 h-3.5" />
+                {unsavedCount} pendentes
+              </Badge>
+              <Badge variant="outline" className="h-8 px-3 gap-1.5">
+                <Calendar className="w-3.5 h-3.5" />
+                {totalDays} dias
+              </Badge>
+            </div>
+          </div>
+
+          {/* Entries Table */}
+          <Card className="flex-1 overflow-hidden">
+            <CardHeader className="py-3 px-4 bg-muted/30 border-b">
+              <div className="grid grid-cols-[180px_1fr_1fr_80px] gap-4 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                <span>Data</span>
+                <span className="flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5 text-amber-500" />
+                  Horímetro (horas)
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5 text-blue-500" />
+                  Quilometragem (km)
+                </span>
+                <span className="text-center">Status</span>
+              </div>
+            </CardHeader>
+            <ScrollArea className="h-[300px]">
+              <div className="divide-y">
+                {entries.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+                    <Calendar className="w-12 h-12 mb-3 opacity-30" />
+                    <p className="text-sm">Selecione um veículo e período para gerar os registros</p>
+                  </div>
+                ) : (
+                  entries.map((entry, index) => (
+                    <div 
+                      key={entry.id}
+                      className={cn(
+                        "grid grid-cols-[180px_1fr_1fr_80px] gap-4 p-4 items-center transition-colors",
+                        entry.saved && "bg-green-50/50 dark:bg-green-950/20",
+                        entry.error && "bg-red-50/50 dark:bg-red-950/20",
+                        entry.saving && "bg-blue-50/50 dark:bg-blue-950/20",
+                        !entry.saved && !entry.error && !entry.saving && "hover:bg-muted/30"
+                      )}
+                    >
+                      {/* Date Column */}
+                      <div className="flex flex-col">
                         <span className="font-semibold text-base">
                           {format(entry.date, 'dd/MM/yyyy')}
                         </span>
+                        <span className="text-xs text-muted-foreground capitalize">
+                          {format(entry.date, 'EEEE', { locale: ptBR })}
+                        </span>
                       </div>
-                      <span className="text-xs text-muted-foreground ml-6 capitalize">
-                        {format(entry.date, 'EEEE', { locale: ptBR })}
-                      </span>
+
+                      {/* Horimeter Input */}
+                      <div>
+                        <Input
+                          placeholder="Ex: 4.520"
+                          value={entry.horimeterValue}
+                          onChange={(e) => updateEntry(index, 'horimeterValue', e.target.value)}
+                          disabled={entry.saved || entry.saving}
+                          className={cn(
+                            "h-10 font-mono text-base",
+                            entry.saved && "bg-green-100 dark:bg-green-900/50 border-green-300 dark:border-green-700",
+                            entry.saving && "bg-blue-50 dark:bg-blue-900/30"
+                          )}
+                        />
+                      </div>
+
+                      {/* KM Input */}
+                      <div>
+                        <Input
+                          placeholder="Ex: 125.000"
+                          value={entry.kmValue}
+                          onChange={(e) => updateEntry(index, 'kmValue', e.target.value)}
+                          disabled={entry.saved || entry.saving}
+                          className={cn(
+                            "h-10 font-mono text-base",
+                            entry.saved && "bg-green-100 dark:bg-green-900/50 border-green-300 dark:border-green-700",
+                            entry.saving && "bg-blue-50 dark:bg-blue-900/30"
+                          )}
+                        />
+                      </div>
+
+                      {/* Status Indicator */}
+                      <div className="flex justify-center">
+                        {entry.saving ? (
+                          <div className="flex items-center gap-1.5 text-blue-600">
+                            <Loader2 className="w-5 h-5 animate-spin" />
+                          </div>
+                        ) : entry.saved ? (
+                          <div className="flex items-center gap-1.5 text-green-600" title="Salvo">
+                            <Check className="w-5 h-5" />
+                          </div>
+                        ) : entry.error ? (
+                          <div className="flex items-center gap-1.5 text-red-600" title={entry.error}>
+                            <AlertTriangle className="w-5 h-5" />
+                          </div>
+                        ) : (entry.horimeterValue || entry.kmValue) ? (
+                          <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" title="Pendente" />
+                        ) : null}
+                      </div>
                     </div>
-                    <div className="space-y-1">
-                      <Input
-                        placeholder="Horímetro"
-                        value={entry.horimeterValue}
-                        onChange={(e) => updateEntry(index, 'horimeterValue', e.target.value)}
-                        disabled={entry.saved}
-                        className={cn(
-                          "h-9 text-sm",
-                          entry.saved && "bg-green-100 dark:bg-green-900/50"
-                        )}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Input
-                        placeholder="KM"
-                        value={entry.kmValue}
-                        onChange={(e) => updateEntry(index, 'kmValue', e.target.value)}
-                        disabled={entry.saved}
-                        className={cn(
-                          "h-9 text-sm",
-                          entry.saved && "bg-green-100 dark:bg-green-900/50"
-                        )}
-                      />
-                    </div>
-                    <div className="flex justify-center" title={entry.error || undefined}>
-                      {entry.saved ? (
-                        <Check className="w-5 h-5 text-green-600" />
-                      ) : entry.error ? (
-                        <AlertTriangle className="w-5 h-5 text-red-600" />
-                      ) : null}
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </ScrollArea>
+                  ))
+                )}
+              </div>
+            </ScrollArea>
+          </Card>
         </div>
 
-        <DialogFooter className="mt-4">
-          <Button variant="outline" onClick={handleClose}>
+        {/* Footer */}
+        <DialogFooter className="p-6 pt-4 border-t bg-muted/20 gap-3">
+          <Button variant="outline" onClick={handleClose} className="min-w-[100px]">
             Fechar
           </Button>
           <Button 
             onClick={handleSaveAll} 
-            disabled={isSaving || unsavedCount === 0}
-            className="gap-2"
+            disabled={isSaving || unsavedCount === 0 || !selectedVehicleId}
+            className="min-w-[180px] gap-2 bg-amber-500 hover:bg-amber-600 text-white"
           >
             {isSaving ? (
-              <>Salvando...</>
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Salvando...
+              </>
             ) : (
               <>
-                <Check className="w-4 h-4" />
+                <Save className="w-4 h-4" />
                 Salvar {unsavedCount} Registro(s)
               </>
             )}
