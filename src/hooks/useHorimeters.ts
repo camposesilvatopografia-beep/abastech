@@ -187,14 +187,16 @@ export function useHorimeterReadings(vehicleId?: string) {
       
       // Sync to Google Sheets
       const vehicle = (data as HorimeterWithVehicle).vehicle;
+      let syncSuccess = false;
+      
       if (vehicle) {
         try {
           const [year, month, day] = reading.reading_date.split('-');
           const formattedDate = `${day}/${month}/${year}`;
           
-          // Use provided values or fallback to current_value based on category
-          const horimeterVal = _horimeterValue || 0;
-          const kmVal = _kmValue || 0;
+          // Use provided values or fallback to current_value
+          const horimeterVal = _horimeterValue || reading.current_value || 0;
+          const kmVal = _kmValue || reading.current_km || 0;
           
           const rowData = {
             'Data': formattedDate,
@@ -210,7 +212,9 @@ export function useHorimeterReadings(vehicleId?: string) {
             'Observacao': reading.observations || '',
           };
           
-          await supabase.functions.invoke('google-sheets', {
+          console.log('Sincronizando com planilha Horimetros:', rowData);
+          
+          const { error: syncError } = await supabase.functions.invoke('google-sheets', {
             body: {
               action: 'create',
               sheetName: 'Horimetros',
@@ -218,7 +222,10 @@ export function useHorimeterReadings(vehicleId?: string) {
             },
           });
           
-          console.log('Registro sincronizado com planilha Horimetros');
+          if (syncError) throw syncError;
+          
+          syncSuccess = true;
+          console.log('✓ Registro sincronizado com planilha Horimetros');
         } catch (syncErr) {
           console.error('Erro ao sincronizar com planilha (registro salvo no BD):', syncErr);
           // Don't throw - the DB save was successful
@@ -227,7 +234,9 @@ export function useHorimeterReadings(vehicleId?: string) {
       
       toast({
         title: 'Sucesso!',
-        description: 'Registro criado e sincronizado com planilha',
+        description: syncSuccess 
+          ? '✓ Registro salvo e sincronizado com planilha' 
+          : 'Registro salvo (sincronização pendente)',
       });
       return data;
     } catch (err: any) {
