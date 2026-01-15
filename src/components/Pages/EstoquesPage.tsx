@@ -199,6 +199,7 @@ export function EstoquesPage() {
     }
 
     // Calculate saidas (exits) and entradas (entries) from filtered abastecimento data
+    // Using SAME LOGIC as Dashboard for consistency
     let saidasPeriodo = 0;
     let entradasPeriodo = 0;
     let saidasArla = 0;
@@ -207,16 +208,27 @@ export function EstoquesPage() {
       const quantidade = parseNumber(row['QUANTIDADE'] || row['Quantidade']);
       const arla = parseNumber(row['QUANTIDADE DE ARLA'] || row['Quantidade de Arla'] || row['ARLA']);
       const tipo = String(row['TIPO DE OPERACAO'] || row['TIPO'] || row['Tipo'] || '').toLowerCase();
-      const fornecedor = String(row['FORNECEDOR'] || '').trim();
+      const fornecedor = String(row['FORNECEDOR'] || '').trim().toLowerCase();
+      const veiculo = String(row['VEICULO'] || row['Veiculo'] || '').trim().toLowerCase();
+      const local = String(row['LOCAL'] || row['Local'] || '').toLowerCase();
 
       // Count exits (Saída type, no supplier, not an entrada)
       if (!fornecedor && quantidade > 0 && !tipo.includes('entrada')) {
         saidasPeriodo += quantidade;
       }
       
-      // Count entries (from suppliers or entrada type)
-      if ((fornecedor || tipo.includes('entrada')) && quantidade > 0) {
-        entradasPeriodo += quantidade;
+      // Count entries - SAME LOGIC AS DASHBOARD:
+      // Entry is valid ONLY if it has a supplier field (external supplier delivery)
+      // AND the supplier is NOT a comboio (comboio transfers are internal movements)
+      if (quantidade > 0) {
+        const isFromComboio = veiculo.includes('comboio') || veiculo.startsWith('cb-') || local.includes('comboio');
+        const hasValidSupplier = fornecedor && !isFromComboio;
+        const isEntryType = tipo.includes('entrada');
+        
+        // Count as entry only if from external supplier (not comboio)
+        if ((isEntryType || hasValidSupplier) && !isFromComboio) {
+          entradasPeriodo += quantidade;
+        }
       }
 
       // ARLA exits

@@ -342,32 +342,32 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
         setDeleteRequest(null);
         setDeleteReason('');
       }}>
-        <AlertDialogContent className="bg-slate-900 border-amber-600/30">
+        <AlertDialogContent className="bg-card border-amber-600/30">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-white flex items-center gap-2">
+            <AlertDialogTitle className="text-foreground flex items-center gap-2">
               <AlertCircle className="w-5 h-5 text-amber-500" />
               Solicitar Exclusão
             </AlertDialogTitle>
-            <AlertDialogDescription className="text-slate-400">
-              Esta ação requer aprovação de um administrador. O registro de <strong className="text-white">{deleteRequest?.vehicleCode}</strong> com <strong className="text-amber-400">{deleteRequest?.quantity}L</strong> será enviado para revisão.
+            <AlertDialogDescription className="text-muted-foreground">
+              Esta ação requer aprovação de um administrador. O registro de <strong className="text-foreground">{deleteRequest?.vehicleCode}</strong> com <strong className="text-amber-500">{deleteRequest?.quantity}L</strong> será enviado para revisão.
             </AlertDialogDescription>
           </AlertDialogHeader>
           
           {/* Reason field - required */}
           <div className="py-2">
-            <label className="text-sm font-medium text-slate-200 mb-2 block">
-              Motivo da solicitação <span className="text-red-400">*</span>
+            <label className="text-sm font-medium text-foreground mb-2 block">
+              Motivo da solicitação <span className="text-destructive">*</span>
             </label>
             <textarea
               value={deleteReason}
               onChange={(e) => setDeleteReason(e.target.value)}
               placeholder="Informe o motivo pelo qual deseja excluir este registro..."
-              className="w-full min-h-[80px] rounded-lg bg-slate-800 border border-slate-600 text-white placeholder:text-slate-500 p-3 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-colors"
+              className="w-full min-h-[80px] rounded-lg bg-background border border-border text-foreground placeholder:text-muted-foreground p-3 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-colors"
             />
           </div>
           
           <AlertDialogFooter>
-            <AlertDialogCancel className="bg-slate-700 text-white hover:bg-slate-600 border-0">
+            <AlertDialogCancel className="bg-secondary text-secondary-foreground hover:bg-secondary/80 border-0">
               Cancelar
             </AlertDialogCancel>
             <AlertDialogAction 

@@ -119,23 +119,23 @@ export function EditRequestModal({ record, userId, onClose, onSuccess }: EditReq
 
   return (
     <Dialog open={!!record} onOpenChange={() => onClose()}>
-      <DialogContent className="bg-slate-900 border-slate-700 text-white max-w-md max-h-[90vh] overflow-y-auto">
+      <DialogContent className="bg-card border-border text-foreground max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-white">
-            <Edit2 className="w-5 h-5 text-blue-400" />
+          <DialogTitle className="flex items-center gap-2 text-foreground">
+            <Edit2 className="w-5 h-5 text-blue-500" />
             Solicitar Edição
           </DialogTitle>
-          <DialogDescription className="text-slate-400">
-            Registro: <strong className="text-white">{record.vehicle_code}</strong> - {record.record_date}
+          <DialogDescription className="text-muted-foreground">
+            Registro: <strong className="text-foreground">{record.vehicle_code}</strong> - {record.record_date}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
           {/* Fuel Quantity */}
           <div className="space-y-2">
-            <Label className="text-slate-300">
+            <Label className="text-foreground">
               Quantidade de Combustível (L)
-              <span className="text-xs text-slate-500 ml-2">Atual: {record.fuel_quantity}L</span>
+              <span className="text-xs text-muted-foreground ml-2">Atual: {record.fuel_quantity}L</span>
             </Label>
             <Input
               type="number"
@@ -145,15 +145,15 @@ export function EditRequestModal({ record, userId, onClose, onSuccess }: EditReq
                 ...prev, 
                 fuel_quantity: parseFloat(e.target.value) || 0 
               }))}
-              className="bg-slate-800 border-slate-600 text-white"
+              className="bg-background border-border text-foreground"
             />
           </div>
 
           {/* Horimeter */}
           <div className="space-y-2">
-            <Label className="text-slate-300">
+            <Label className="text-foreground">
               Horímetro Atual
-              <span className="text-xs text-slate-500 ml-2">Atual: {record.horimeter_current || '-'}</span>
+              <span className="text-xs text-muted-foreground ml-2">Atual: {record.horimeter_current || '-'}</span>
             </Label>
             <Input
               type="number"
@@ -163,15 +163,15 @@ export function EditRequestModal({ record, userId, onClose, onSuccess }: EditReq
                 ...prev, 
                 horimeter_current: parseFloat(e.target.value) || 0 
               }))}
-              className="bg-slate-800 border-slate-600 text-white"
+              className="bg-background border-border text-foreground"
             />
           </div>
 
           {/* KM */}
           <div className="space-y-2">
-            <Label className="text-slate-300">
+            <Label className="text-foreground">
               KM Atual
-              <span className="text-xs text-slate-500 ml-2">Atual: {record.km_current || '-'}</span>
+              <span className="text-xs text-muted-foreground ml-2">Atual: {record.km_current || '-'}</span>
             </Label>
             <Input
               type="number"
@@ -181,15 +181,15 @@ export function EditRequestModal({ record, userId, onClose, onSuccess }: EditReq
                 ...prev, 
                 km_current: parseInt(e.target.value) || 0 
               }))}
-              className="bg-slate-800 border-slate-600 text-white"
+              className="bg-background border-border text-foreground"
             />
           </div>
 
           {/* ARLA */}
           <div className="space-y-2">
-            <Label className="text-slate-300">
+            <Label className="text-foreground">
               ARLA (L)
-              <span className="text-xs text-slate-500 ml-2">Atual: {record.arla_quantity || 0}L</span>
+              <span className="text-xs text-muted-foreground ml-2">Atual: {record.arla_quantity || 0}L</span>
             </Label>
             <Input
               type="number"
@@ -199,33 +199,33 @@ export function EditRequestModal({ record, userId, onClose, onSuccess }: EditReq
                 ...prev, 
                 arla_quantity: parseFloat(e.target.value) || 0 
               }))}
-              className="bg-slate-800 border-slate-600 text-white"
+              className="bg-background border-border text-foreground"
             />
           </div>
 
           {/* Observations */}
           <div className="space-y-2">
-            <Label className="text-slate-300">Observações</Label>
+            <Label className="text-foreground">Observações</Label>
             <Textarea
               value={proposedChanges.observations}
               onChange={(e) => setProposedChanges(prev => ({ 
                 ...prev, 
                 observations: e.target.value 
               }))}
-              className="bg-slate-800 border-slate-600 text-white min-h-[60px]"
+              className="bg-background border-border text-foreground min-h-[60px]"
               placeholder="Observações do registro..."
             />
           </div>
 
           {/* Reason - Required */}
-          <div className="space-y-2 pt-2 border-t border-slate-700">
-            <Label className="text-amber-400">
-              Motivo da Alteração <span className="text-red-400">*</span>
+          <div className="space-y-2 pt-2 border-t border-border">
+            <Label className="text-amber-500">
+              Motivo da Alteração <span className="text-destructive">*</span>
             </Label>
             <Textarea
               value={reason}
               onChange={(e) => setReason(e.target.value)}
-              className="bg-slate-800 border-amber-600/50 text-white min-h-[80px]"
+              className="bg-background border-amber-600/50 text-foreground min-h-[80px]"
               placeholder="Explique por que você precisa alterar este registro..."
             />
           </div>
@@ -235,14 +235,14 @@ export function EditRequestModal({ record, userId, onClose, onSuccess }: EditReq
           <Button
             variant="outline"
             onClick={onClose}
-            className="bg-slate-700 text-white hover:bg-slate-600 border-0"
+            className="bg-secondary text-secondary-foreground hover:bg-secondary/80 border-0"
           >
             Cancelar
           </Button>
           <Button
             onClick={handleSubmit}
             disabled={isSubmitting || !reason.trim()}
-            className="bg-blue-600 hover:bg-blue-700"
+            className="bg-blue-600 hover:bg-blue-700 text-white"
           >
             {isSubmitting ? (
               <>
