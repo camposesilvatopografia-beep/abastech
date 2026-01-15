@@ -299,15 +299,13 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
     }
   };
 
-  // Fetch previous horimeter/km from records - get the MOST RECENT from all sources
+  // Fetch previous horimeter/km from records - get the MOST RECENT from all sources (DB + Google Sheets)
   const fetchPreviousValues = async (vehicleCode: string) => {
     try {
       let maxHorimeter = 0;
       let maxKm = 0;
-      let fuelRecordDate = '';
-      let horimeterRecordDate = '';
 
-      // Try from field_fuel_records - get the most recent
+      // 1. Try from field_fuel_records (Supabase)
       const { data: fuelRecords } = await supabase
         .from('field_fuel_records')
         .select('horimeter_current, km_current, record_date, record_time, created_at')
@@ -316,25 +314,18 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
         .order('record_date', { ascending: false })
         .order('record_time', { ascending: false })
         .order('created_at', { ascending: false })
-        .limit(10); // Get more records to find the highest values
+        .limit(10);
 
       if (fuelRecords && fuelRecords.length > 0) {
-        // Find the highest values from fuel records
         fuelRecords.forEach(record => {
           const horValue = Number(record.horimeter_current) || 0;
           const kmValue = Number(record.km_current) || 0;
-          
-          if (horValue > maxHorimeter) {
-            maxHorimeter = horValue;
-            fuelRecordDate = record.record_date;
-          }
-          if (kmValue > maxKm) {
-            maxKm = kmValue;
-          }
+          if (horValue > maxHorimeter) maxHorimeter = horValue;
+          if (kmValue > maxKm) maxKm = kmValue;
         });
       }
 
-      // Also try from horimeter_readings
+      // 2. Try from horimeter_readings (Supabase)
       const { data: vehicleData } = await supabase
         .from('vehicles')
         .select('id')
@@ -348,26 +339,71 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
           .eq('vehicle_id', vehicleData.id)
           .order('reading_date', { ascending: false })
           .order('created_at', { ascending: false })
-          .limit(10); // Get more records to find the highest values
+          .limit(10);
 
         if (horimeterRecords && horimeterRecords.length > 0) {
-          // Find the highest values from horimeter readings
           horimeterRecords.forEach(record => {
             const horValue = Number(record.current_value) || 0;
             const kmValue = Number(record.current_km) || 0;
-            
-            if (horValue > maxHorimeter) {
-              maxHorimeter = horValue;
-              horimeterRecordDate = record.reading_date;
-            }
-            if (kmValue > maxKm) {
-              maxKm = kmValue;
-            }
+            if (horValue > maxHorimeter) maxHorimeter = horValue;
+            if (kmValue > maxKm) maxKm = kmValue;
           });
         }
       }
 
-      // Set the highest values found
+      // 3. Try from Google Sheets - AbastecimentoCanteiro01
+      try {
+        const abastecimentoResponse = await supabase.functions.invoke('google-sheets', {
+          body: {
+            action: 'read',
+            sheetName: 'AbastecimentoCanteiro01',
+          },
+        });
+
+        if (abastecimentoResponse.data?.rows) {
+          const vehicleRows = abastecimentoResponse.data.rows.filter((row: any) => {
+            const rowVehicle = String(row['VEICULO'] || row['Veiculo'] || '').trim().toUpperCase();
+            return rowVehicle === vehicleCode.toUpperCase();
+          });
+
+          vehicleRows.forEach((row: any) => {
+            const horValue = parseFloat(String(row['HORIMETRO ATUAL'] || row['Horimetro Atual'] || row['HOR_ATUAL'] || '0').replace(/\./g, '').replace(',', '.')) || 0;
+            const kmValue = parseFloat(String(row['KM ATUAL'] || row['Km Atual'] || row['KM_ATUAL'] || '0').replace(/\./g, '').replace(',', '.')) || 0;
+            if (horValue > maxHorimeter) maxHorimeter = horValue;
+            if (kmValue > maxKm) maxKm = kmValue;
+          });
+        }
+      } catch (sheetErr) {
+        console.warn('Could not fetch from AbastecimentoCanteiro01 sheet:', sheetErr);
+      }
+
+      // 4. Try from Google Sheets - Horimetros
+      try {
+        const horimetrosResponse = await supabase.functions.invoke('google-sheets', {
+          body: {
+            action: 'read',
+            sheetName: 'Horimetros',
+          },
+        });
+
+        if (horimetrosResponse.data?.rows) {
+          const vehicleRows = horimetrosResponse.data.rows.filter((row: any) => {
+            const rowVehicle = String(row['Veiculo'] || row['VEICULO'] || row['Codigo'] || row['CODIGO'] || '').trim().toUpperCase();
+            return rowVehicle === vehicleCode.toUpperCase();
+          });
+
+          vehicleRows.forEach((row: any) => {
+            const horValue = parseFloat(String(row['Hor_Atual'] || row['HOR_ATUAL'] || row['Horimetro Atual'] || '0').replace(/\./g, '').replace(',', '.')) || 0;
+            const kmValue = parseFloat(String(row['Km_Atual'] || row['KM_ATUAL'] || row['Km Atual'] || '0').replace(/\./g, '').replace(',', '.')) || 0;
+            if (horValue > maxHorimeter) maxHorimeter = horValue;
+            if (kmValue > maxKm) maxKm = kmValue;
+          });
+        }
+      } catch (sheetErr) {
+        console.warn('Could not fetch from Horimetros sheet:', sheetErr);
+      }
+
+      // Set the highest values found from all sources
       if (maxHorimeter > 0) {
         setHorimeterPrevious(formatBrazilianNumber(maxHorimeter));
       }
@@ -375,7 +411,7 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
         setKmPrevious(formatBrazilianNumber(maxKm));
       }
 
-      console.log(`Vehicle ${vehicleCode} - Max Horimeter: ${maxHorimeter}, Max KM: ${maxKm}`);
+      console.log(`Vehicle ${vehicleCode} - Max Horimeter: ${maxHorimeter}, Max KM: ${maxKm} (from DB + Sheets)`);
     } catch (err) {
       console.error('Error fetching previous values:', err);
     }
