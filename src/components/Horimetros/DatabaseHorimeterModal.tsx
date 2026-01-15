@@ -362,20 +362,35 @@ export function DatabaseHorimeterModal({
 
   const isLoading = vehiclesLoading || readingsLoading;
 
+  const [isExpanded, setIsExpanded] = useState(false);
+
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-xl max-h-[95vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Clock className="w-5 h-5 text-primary" />
-              {isEditMode ? 'Editar Registro' : 'Novo Registro'}
-            </DialogTitle>
-            <DialogDescription>
-              {isEditMode 
-                ? 'Altere os dados do registro de horímetro ou quilometragem' 
-                : 'Preencha os dados para registrar o horímetro ou quilometragem'}
-            </DialogDescription>
+        <DialogContent className={cn(
+          "max-h-[95vh] overflow-y-auto transition-all duration-300",
+          isExpanded ? "max-w-4xl" : "max-w-xl"
+        )}>
+          <DialogHeader className="flex flex-row items-start justify-between">
+            <div>
+              <DialogTitle className="flex items-center gap-2">
+                <Clock className="w-5 h-5 text-primary" />
+                {isEditMode ? 'Editar Registro' : 'Novo Registro'}
+              </DialogTitle>
+              <DialogDescription>
+                {isEditMode 
+                  ? 'Altere os dados do registro de horímetro ou quilometragem' 
+                  : 'Preencha os dados para registrar o horímetro ou quilometragem'}
+              </DialogDescription>
+            </div>
+            <Button 
+              variant="ghost" 
+              size="sm"
+              onClick={() => setIsExpanded(!isExpanded)}
+              className="shrink-0"
+            >
+              {isExpanded ? 'Reduzir' : 'Expandir'}
+            </Button>
           </DialogHeader>
 
           {isLoading ? (
@@ -486,24 +501,47 @@ export function DatabaseHorimeterModal({
                 )}
               </div>
 
-              {/* Horimeter and KM Values - Side by Side */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <Label htmlFor="horimeter" className="text-sm flex items-center gap-1">
-                    <Clock className="w-3 h-3" />
-                    Horímetro (h)
+              {/* Horimeter and KM Values - Expanded or Compact */}
+              <div className={cn(
+                "grid gap-4",
+                isExpanded ? "grid-cols-2" : "grid-cols-2"
+              )}>
+                <div className={cn(
+                  "space-y-2 p-4 rounded-lg border-2 border-dashed border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/20",
+                  isExpanded && "p-6"
+                )}>
+                  <Label htmlFor="horimeter" className={cn(
+                    "flex items-center gap-2 font-semibold text-amber-700 dark:text-amber-400",
+                    isExpanded && "text-base"
+                  )}>
+                    <Clock className={cn("w-4 h-4", isExpanded && "w-5 h-5")} />
+                    Horímetro (horas)
                   </Label>
                   <Input
                     id="horimeter"
                     value={horimeterValue}
                     onChange={(e) => setHorimeterValue(e.target.value)}
                     placeholder="Ex: 1.250,5"
-                    className="h-9"
+                    className={cn(
+                      "font-mono text-lg",
+                      isExpanded && "h-14 text-2xl"
+                    )}
                   />
+                  {previousHorimeter > 0 && (
+                    <p className="text-xs text-amber-600 dark:text-amber-400">
+                      Anterior: {previousHorimeter.toLocaleString('pt-BR')}h
+                    </p>
+                  )}
                 </div>
-                <div className="space-y-1">
-                  <Label htmlFor="km" className="text-sm flex items-center gap-1">
-                    <TrendingUp className="w-3 h-3" />
+                <div className={cn(
+                  "space-y-2 p-4 rounded-lg border-2 border-dashed border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20",
+                  isExpanded && "p-6"
+                )}>
+                  <Label htmlFor="km" className={cn(
+                    "flex items-center gap-2 font-semibold text-blue-700 dark:text-blue-400",
+                    isExpanded && "text-base"
+                  )}>
+                    <TrendingUp className={cn("w-4 h-4", isExpanded && "w-5 h-5")} />
                     Quilometragem (km)
                   </Label>
                   <Input
@@ -511,8 +549,16 @@ export function DatabaseHorimeterModal({
                     value={kmValue}
                     onChange={(e) => setKmValue(e.target.value)}
                     placeholder="Ex: 85.420"
-                    className="h-9"
+                    className={cn(
+                      "font-mono text-lg",
+                      isExpanded && "h-14 text-2xl"
+                    )}
                   />
+                  {previousKm > 0 && (
+                    <p className="text-xs text-blue-600 dark:text-blue-400">
+                      Anterior: {previousKm.toLocaleString('pt-BR')} km
+                    </p>
+                  )}
                 </div>
               </div>
               

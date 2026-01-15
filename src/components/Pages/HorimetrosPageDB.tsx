@@ -119,7 +119,8 @@ export function HorimetrosPageDB() {
   const [deleteConfirm, setDeleteConfirm] = useState<HorimeterWithVehicle | null>(null);
   const [showMissingModal, setShowMissingModal] = useState(false);
   
-  // Multi-selection state
+  // Multi-selection state - disabled by default
+  const [selectionModeActive, setSelectionModeActive] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
 
@@ -353,6 +354,14 @@ export function HorimetrosPageDB() {
     }
   };
 
+  // Toggle selection mode
+  const toggleSelectionMode = () => {
+    if (selectionModeActive) {
+      setSelectedIds(new Set());
+    }
+    setSelectionModeActive(!selectionModeActive);
+  };
+
   const exportToPDF = () => {
     const doc = new jsPDF('landscape');
     const pageWidth = doc.internal.pageSize.getWidth();
@@ -501,7 +510,16 @@ export function HorimetrosPageDB() {
               <span className="sm:hidden">Lote</span>
             </Button>
             
-            {selectedIds.size > 0 && (
+            <Button 
+              variant={selectionModeActive ? "secondary" : "outline"}
+              size="sm"
+              onClick={toggleSelectionMode}
+            >
+              {selectionModeActive ? <CheckSquare className="w-4 h-4 mr-2" /> : <Square className="w-4 h-4 mr-2" />}
+              <span className="hidden sm:inline">Selecionar</span>
+            </Button>
+            
+            {selectionModeActive && selectedIds.size > 0 && (
               <Button 
                 variant="destructive"
                 size="sm"
@@ -536,41 +554,25 @@ export function HorimetrosPageDB() {
           </div>
         </div>
 
-        {/* Metrics */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-          <MetricCard
-            title="Total de Registros"
-            value={metrics.registros.toString()}
-            icon={Clock}
-            variant="blue"
-          />
-          <MetricCard
-            title="Intervalo Total"
-            value={metrics.totalInterval.toLocaleString('pt-BR')}
-            subtitle="horas/km no período"
-            icon={Clock}
-            variant="green"
-          />
-          <MetricCard
-            title="Veículos Cadastrados"
-            value={vehicles.length.toString()}
-            icon={Clock}
-            variant="yellow"
-          />
-          {/* Missing vehicles card - clickable */}
+        {/* Metrics - Simplified */}
+        <div className="flex items-center gap-4">
+          <div className="bg-primary/10 border border-primary/20 rounded-lg px-4 py-2 flex items-center gap-3">
+            <Clock className="w-5 h-5 text-primary" />
+            <div>
+              <p className="text-xs text-muted-foreground font-medium">Total de Registros</p>
+              <p className="text-xl font-bold text-primary">{metrics.registros}</p>
+            </div>
+          </div>
+          
+          {/* Missing vehicles - compact */}
           <div 
-            className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg p-4 cursor-pointer hover:bg-red-100 dark:hover:bg-red-950/50 transition-colors"
+            className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg px-4 py-2 cursor-pointer hover:bg-red-100 dark:hover:bg-red-950/50 transition-colors flex items-center gap-3"
             onClick={() => setShowMissingModal(true)}
           >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-red-600 dark:text-red-400 font-medium">SEM REGISTRO HOJE</p>
-                <p className="text-2xl font-bold text-red-700 dark:text-red-300">{missingVehicles.length}</p>
-                <p className="text-xs text-red-500 dark:text-red-400/70">
-                  Clique para ver lista
-                </p>
-              </div>
-              <AlertTriangle className="w-8 h-8 text-red-400" />
+            <AlertTriangle className="w-5 h-5 text-red-500" />
+            <div>
+              <p className="text-xs text-red-600 dark:text-red-400 font-medium">Sem registro hoje</p>
+              <p className="text-lg font-bold text-red-700 dark:text-red-300">{missingVehicles.length}</p>
             </div>
           </div>
         </div>
@@ -714,12 +716,14 @@ export function HorimetrosPageDB() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-10">
-                    <Checkbox
-                      checked={selectedIds.size === readingsWithInterval.length && readingsWithInterval.length > 0}
-                      onCheckedChange={toggleSelectAll}
-                    />
-                  </TableHead>
+                  {selectionModeActive && (
+                    <TableHead className="w-10">
+                      <Checkbox
+                        checked={selectedIds.size === readingsWithInterval.length && readingsWithInterval.length > 0}
+                        onCheckedChange={toggleSelectAll}
+                      />
+                    </TableHead>
+                  )}
                   <TableHead>Data</TableHead>
                   <TableHead>Veículo</TableHead>
                   <TableHead>Empresa</TableHead>
@@ -736,19 +740,21 @@ export function HorimetrosPageDB() {
               <TableBody>
                 {readingsWithInterval.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={12} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={selectionModeActive ? 13 : 12} className="text-center py-8 text-muted-foreground">
                       Nenhum registro encontrado para o período selecionado
                     </TableCell>
                   </TableRow>
                 ) : (
                   readingsWithInterval.map(reading => (
                     <TableRow key={reading.id} className={cn(selectedIds.has(reading.id) && "bg-primary/5")}>
-                      <TableCell>
-                        <Checkbox
-                          checked={selectedIds.has(reading.id)}
-                          onCheckedChange={() => toggleSelection(reading.id)}
-                        />
-                      </TableCell>
+                      {selectionModeActive && (
+                        <TableCell>
+                          <Checkbox
+                            checked={selectedIds.has(reading.id)}
+                            onCheckedChange={() => toggleSelection(reading.id)}
+                          />
+                        </TableCell>
+                      )}
                       <TableCell>
                         {format(new Date(reading.reading_date + 'T00:00:00'), 'dd/MM/yyyy')}
                       </TableCell>
