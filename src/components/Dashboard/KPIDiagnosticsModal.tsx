@@ -38,6 +38,9 @@ import {
   Sparkles,
   Save,
   RefreshCw,
+  Wand2,
+  Check,
+  ArrowRight,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
@@ -74,6 +77,9 @@ export function KPIDiagnosticsModal({
   const [search, setSearch] = useState('');
   const [selectedTab, setSelectedTab] = useState('diagnostics');
   const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
+  const [aiSuggestedMappings, setAiSuggestedMappings] = useState<Record<string, string>>({});
+  const [aiCorrections, setAiCorrections] = useState<Array<{ type: string; description: string; action: string }>>([]);
+  const [aiIssues, setAiIssues] = useState<Array<{ severity: string; message: string; solution: string }>>([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [localMappings, setLocalMappings] = useState<Record<string, string>>({});
 
@@ -230,8 +236,13 @@ export function KPIDiagnosticsModal({
       }
 
       setAiAnalysis(data.analysis);
+      setAiSuggestedMappings(data.suggestedMappings || {});
+      setAiCorrections(data.corrections || []);
+      setAiIssues(data.issues || []);
       setSelectedTab('ai');
-      toast.success('Análise IA concluída!');
+      
+      const mappingsCount = Object.keys(data.suggestedMappings || {}).length;
+      toast.success(`Análise IA concluída! ${mappingsCount} mapeamentos sugeridos.`);
     } catch (error) {
       console.error('AI analysis error:', error);
       toast.error('Erro ao analisar dados. Tente novamente.');
@@ -248,6 +259,29 @@ export function KPIDiagnosticsModal({
   // Save all mappings to database
   const handleSaveAllMappings = async () => {
     await saveAllMappings(localMappings);
+  };
+
+  // Apply AI suggested mappings
+  const handleApplyAiMappings = async () => {
+    if (Object.keys(aiSuggestedMappings).length === 0) {
+      toast.error('Nenhum mapeamento sugerido pela IA');
+      return;
+    }
+
+    // Merge AI suggestions with existing mappings (AI takes precedence)
+    const mergedMappings = { ...localMappings, ...aiSuggestedMappings };
+    setLocalMappings(mergedMappings);
+    
+    // Save to database
+    await saveAllMappings(mergedMappings);
+    
+    toast.success(`${Object.keys(aiSuggestedMappings).length} mapeamentos aplicados com sucesso!`);
+  };
+
+  // Apply a single AI suggested mapping
+  const handleApplySingleMapping = (kpiId: string, columnName: string) => {
+    setLocalMappings(prev => ({ ...prev, [kpiId]: columnName }));
+    saveMapping(kpiId, columnName);
   };
 
   return (
@@ -364,18 +398,128 @@ export function KPIDiagnosticsModal({
                         <Bot className="w-5 h-5 text-primary" />
                         <span className="font-semibold">Análise do Assistente IA</span>
                       </div>
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        onClick={handleAiAnalysis}
-                        disabled={isAnalyzing}
-                        className="gap-2"
-                      >
-                        <Sparkles className="w-4 h-4" />
-                        Nova Análise
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={handleAiAnalysis}
+                          disabled={isAnalyzing}
+                          className="gap-2"
+                        >
+                          <Sparkles className="w-4 h-4" />
+                          Nova Análise
+                        </Button>
+                      </div>
                     </div>
+
+                    {/* AI Suggested Mappings - Apply Button */}
+                    {Object.keys(aiSuggestedMappings).length > 0 && (
+                      <div className="bg-primary/10 border border-primary/30 rounded-lg p-4 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Wand2 className="w-5 h-5 text-primary" />
+                            <span className="font-semibold text-primary">Mapeamentos Sugeridos pela IA</span>
+                            <Badge variant="secondary">{Object.keys(aiSuggestedMappings).length}</Badge>
+                          </div>
+                          <Button 
+                            onClick={handleApplyAiMappings}
+                            disabled={saving}
+                            size="sm"
+                            className="gap-2"
+                          >
+                            {saving ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Check className="w-4 h-4" />
+                            )}
+                            Aplicar Todos
+                          </Button>
+                        </div>
+                        
+                        <div className="grid gap-2">
+                          {Object.entries(aiSuggestedMappings).map(([kpiId, columnName]) => {
+                            const kpiDef = DEFAULT_KPI_DEFINITIONS.find(k => k.id === kpiId);
+                            const isApplied = localMappings[kpiId] === columnName;
+                            
+                            return (
+                              <div 
+                                key={kpiId}
+                                className={cn(
+                                  "flex items-center justify-between p-2 rounded-md",
+                                  isApplied ? "bg-success/10" : "bg-background"
+                                )}
+                              >
+                                <div className="flex items-center gap-3">
+                                  <Badge variant="outline" className="font-mono">
+                                    {kpiDef?.label || kpiId}
+                                  </Badge>
+                                  <ArrowRight className="w-4 h-4 text-muted-foreground" />
+                                  <span className="font-mono text-sm">{columnName}</span>
+                                </div>
+                                {isApplied ? (
+                                  <Badge variant="default" className="gap-1">
+                                    <Check className="w-3 h-3" />
+                                    Aplicado
+                                  </Badge>
+                                ) : (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleApplySingleMapping(kpiId, columnName)}
+                                    className="gap-1 text-xs"
+                                  >
+                                    Aplicar
+                                  </Button>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* AI Issues */}
+                    {aiIssues.length > 0 && (
+                      <div className="space-y-2">
+                        <h4 className="font-semibold text-sm">Problemas Identificados</h4>
+                        {aiIssues.map((issue, idx) => (
+                          <div
+                            key={idx}
+                            className={cn(
+                              "p-3 rounded-lg border",
+                              issue.severity === 'error' 
+                                ? "bg-destructive/10 border-destructive/30" 
+                                : issue.severity === 'warning'
+                                ? "bg-warning/10 border-warning/30"
+                                : "bg-muted/50 border-muted"
+                            )}
+                          >
+                            <p className="font-medium text-sm">{issue.message}</p>
+                            <p className="text-xs text-muted-foreground mt-1">{issue.solution}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* AI Corrections */}
+                    {aiCorrections.length > 0 && (
+                      <div className="space-y-2">
+                        <h4 className="font-semibold text-sm">Correções Recomendadas</h4>
+                        {aiCorrections.map((correction, idx) => (
+                          <div key={idx} className="p-3 rounded-lg bg-muted/50 border">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Badge variant="outline" className="text-xs">{correction.type}</Badge>
+                              <span className="font-medium text-sm">{correction.description}</span>
+                            </div>
+                            <p className="text-xs text-muted-foreground">{correction.action}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Raw Analysis Text */}
                     <div className="bg-muted/50 rounded-lg p-4 prose prose-sm dark:prose-invert max-w-none">
+                      <h4 className="font-semibold text-sm mb-2">Análise Detalhada</h4>
                       <div className="whitespace-pre-wrap text-sm leading-relaxed">
                         {aiAnalysis}
                       </div>
