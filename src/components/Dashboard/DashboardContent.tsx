@@ -168,20 +168,17 @@ export function DashboardContent() {
   }, [filteredAbastecimentoData]);
 
   // Extract stock values from GERAL sheet - get EXACT row for selected date
-  // IMPORTANT: Estoque Atual should be CALCULATED using the formula:
-  // (Estoque Anterior + Entrada) - (Saída Comboios + Saída Equipamentos)
+  // IMPORTANT: Estoque Atual comes DIRECTLY from column G of the Geral sheet (not calculated)
   const stockData = useMemo(() => {
     const totalSaidas = calculatedExits.saidaComboios + calculatedExits.saidaEquipamentos;
     
     if (!geralData.rows.length) {
-      // When no GERAL data, calculate based on abastecimento data
-      const estoqueCalculado = 0 + calculatedEntries - totalSaidas;
       return {
         estoqueAnterior: 0,
         entrada: calculatedEntries,
         saidaComboios: calculatedExits.saidaComboios,
         saidaEquipamentos: calculatedExits.saidaEquipamentos,
-        estoqueAtual: Math.max(0, estoqueCalculado),
+        estoqueAtual: 0,
         totalSaidas
       };
     }
@@ -202,25 +199,24 @@ export function DashboardContent() {
       // Use exact column names from Google Sheets
       const estoqueAnterior = parseNumber(matchingRow['Estoque Anterior'] || matchingRow['EstoqueAnterior'] || matchingRow['ESTOQUE ANTERIOR']);
       const entradaGeral = parseNumber(matchingRow['Entrada'] || matchingRow['ENTRADA']);
-      const saidaComboiosGeral = parseNumber(matchingRow['Saida para Comboios'] || matchingRow['SAIDA PARA COMBOIOS']);
-      const saidaEquipamentosGeral = parseNumber(matchingRow['Saida para Equipamentos'] || matchingRow['SAIDA PARA EQUIPAMENTOS']);
+      const saidaComboiosGeral = parseNumber(matchingRow['Saida para Comboios'] || matchingRow['SAIDA PARA COMBOIOS'] || matchingRow['Saída para Comboios']);
+      const saidaEquipamentosGeral = parseNumber(matchingRow['Saida para Equipamentos'] || matchingRow['SAIDA PARA EQUIPAMENTOS'] || matchingRow['Saída para Equipamentos']);
+      
+      // READ Estoque Atual DIRECTLY from column G of Geral sheet (not calculated)
+      const estoqueAtualGeral = parseNumber(matchingRow['Estoque Atual'] || matchingRow['EstoqueAtual'] || matchingRow['ESTOQUE ATUAL']);
       
       // Use values from GERAL sheet (which is the source of truth)
-      // Only use calculated values if GERAL sheet values are zero
       const finalSaidaComboios = saidaComboiosGeral > 0 ? saidaComboiosGeral : calculatedExits.saidaComboios;
       const finalSaidaEquipamentos = saidaEquipamentosGeral > 0 ? saidaEquipamentosGeral : calculatedExits.saidaEquipamentos;
       const finalEntrada = entradaGeral > 0 ? entradaGeral : calculatedEntries;
       const finalTotalSaidas = finalSaidaComboios + finalSaidaEquipamentos;
-      
-      // CALCULATE Estoque Atual using the formula: (Anterior + Entrada) - Saídas
-      const estoqueCalculado = (estoqueAnterior + finalEntrada) - finalTotalSaidas;
       
       return {
         estoqueAnterior,
         entrada: finalEntrada,
         saidaComboios: finalSaidaComboios,
         saidaEquipamentos: finalSaidaEquipamentos,
-        estoqueAtual: estoqueCalculado,
+        estoqueAtual: estoqueAtualGeral, // Use value directly from sheet
         totalSaidas: finalTotalSaidas
       };
     }
@@ -229,23 +225,23 @@ export function DashboardContent() {
     const lastRow = geralData.rows[geralData.rows.length - 1];
     const estoqueAnterior = parseNumber(lastRow?.['Estoque Anterior'] || lastRow?.['EstoqueAnterior'] || lastRow?.['ESTOQUE ANTERIOR']);
     const entradaGeral = parseNumber(lastRow?.['Entrada'] || lastRow?.['ENTRADA']);
-    const saidaComboiosGeral = parseNumber(lastRow?.['Saida para Comboios'] || lastRow?.['SAIDA PARA COMBOIOS']);
-    const saidaEquipamentosGeral = parseNumber(lastRow?.['Saida para Equipamentos'] || lastRow?.['SAIDA PARA EQUIPAMENTOS']);
+    const saidaComboiosGeral = parseNumber(lastRow?.['Saida para Comboios'] || lastRow?.['SAIDA PARA COMBOIOS'] || lastRow?.['Saída para Comboios']);
+    const saidaEquipamentosGeral = parseNumber(lastRow?.['Saida para Equipamentos'] || lastRow?.['SAIDA PARA EQUIPAMENTOS'] || lastRow?.['Saída para Equipamentos']);
+    
+    // READ Estoque Atual DIRECTLY from column G of Geral sheet (not calculated)
+    const estoqueAtualGeral = parseNumber(lastRow?.['Estoque Atual'] || lastRow?.['EstoqueAtual'] || lastRow?.['ESTOQUE ATUAL']);
     
     const finalSaidaComboios = saidaComboiosGeral > 0 ? saidaComboiosGeral : calculatedExits.saidaComboios;
     const finalSaidaEquipamentos = saidaEquipamentosGeral > 0 ? saidaEquipamentosGeral : calculatedExits.saidaEquipamentos;
     const finalEntrada = entradaGeral > 0 ? entradaGeral : calculatedEntries;
     const finalTotalSaidas = finalSaidaComboios + finalSaidaEquipamentos;
     
-    // CALCULATE Estoque Atual using the formula: (Anterior + Entrada) - Saídas
-    const estoqueCalculado = (estoqueAnterior + finalEntrada) - finalTotalSaidas;
-    
     return {
       estoqueAnterior,
       entrada: finalEntrada,
       saidaComboios: finalSaidaComboios,
       saidaEquipamentos: finalSaidaEquipamentos,
-      estoqueAtual: estoqueCalculado,
+      estoqueAtual: estoqueAtualGeral, // Use value directly from sheet
       totalSaidas: finalTotalSaidas
     };
   }, [geralData.rows, calculatedExits, calculatedEntries, selectedDate]);
