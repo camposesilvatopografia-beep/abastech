@@ -1421,7 +1421,7 @@ export function AbastecimentoPage() {
         </div>
 
         {/* Metric Cards - Responsive Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 md:gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
           <MetricCard
             title="REGISTROS NO PERÍODO"
             value={additionalMetrics.registros.toString()}
@@ -1449,13 +1449,6 @@ export function AbastecimentoPage() {
             subtitle="Arla consumido"
             variant="blue"
             icon={Droplet}
-          />
-          <MetricCard
-            title="ESTOQUE ATUAL"
-            value={`${metricsFromGeral.estoqueAtual.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L`}
-            subtitle="Combustível disponível"
-            variant="navy"
-            icon={TrendingUp}
           />
         </div>
 
