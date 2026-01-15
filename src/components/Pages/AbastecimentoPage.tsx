@@ -500,7 +500,7 @@ export function AbastecimentoPage() {
       totalLitros: number; 
       totalHorasTrabalhadas: number; 
       totalKmRodados: number; 
-      usaKm: boolean;
+      isEquipamento: boolean;
       registros: number;
     }>();
     
@@ -526,19 +526,25 @@ export function AbastecimentoPage() {
         totalLitros: 0, 
         totalHorasTrabalhadas: 0, 
         totalKmRodados: 0, 
-        usaKm: false,
+        isEquipamento: false,
         registros: 0
       };
       
-      const usaKm = categoria.includes('veículo') || categoria.includes('veiculo') || 
-                    categoria.includes('caminhao') || categoria.includes('caminhão') || 
-                    kmRodados > 0;
+      // Determine if it's an Equipment (uses L/h) or Vehicle (uses km/L)
+      // Equipamento = uses horimeter (L/h)
+      // Veículo = uses km (km/L)
+      const isEquipamento = categoria.includes('equipamento') || 
+                            categoria.includes('máquina') || categoria.includes('maquina') ||
+                            categoria.includes('escavadeira') || categoria.includes('retro') ||
+                            categoria.includes('pá carregadeira') || categoria.includes('pa carregadeira') ||
+                            categoria.includes('trator') || categoria.includes('rolo') ||
+                            categoria.includes('motoniveladora') || categoria.includes('gerador');
       
       veiculoMap.set(veiculo, {
         totalLitros: existing.totalLitros + quantidade,
         totalHorasTrabalhadas: existing.totalHorasTrabalhadas + horasTrabalhadas,
         totalKmRodados: existing.totalKmRodados + kmRodados,
-        usaKm: existing.usaKm || usaKm,
+        isEquipamento: existing.isEquipamento || isEquipamento,
         registros: existing.registros + 1
       });
     });
@@ -1638,13 +1644,21 @@ export function AbastecimentoPage() {
                         const veiculo = String(row['VEICULO'] || row['Veiculo'] || '').trim();
                         const consumoData = consumoMedioVeiculo.get(veiculo);
                         
-                        // Calculate average consumption based on hours worked or km driven
+                        // Calculate average consumption based on category:
+                        // Equipamento (machines) = L/h (litros por hora trabalhada)
+                        // Veículo (vehicles) = km/L (quilômetros por litro)
                         let consumoMedio = '-';
                         if (consumoData && consumoData.totalLitros > 0) {
-                          if (consumoData.usaKm && consumoData.totalKmRodados > 0) {
+                          if (consumoData.isEquipamento && consumoData.totalHorasTrabalhadas > 0) {
+                            // Equipment: L/h (liters per hour)
+                            const lH = consumoData.totalLitros / consumoData.totalHorasTrabalhadas;
+                            consumoMedio = `${lH.toFixed(2)} L/h`;
+                          } else if (!consumoData.isEquipamento && consumoData.totalKmRodados > 0) {
+                            // Vehicle: km/L (kilometers per liter)
                             const kmL = consumoData.totalKmRodados / consumoData.totalLitros;
                             consumoMedio = `${kmL.toFixed(2)} km/L`;
                           } else if (consumoData.totalHorasTrabalhadas > 0) {
+                            // Fallback to L/h if no km data
                             const lH = consumoData.totalLitros / consumoData.totalHorasTrabalhadas;
                             consumoMedio = `${lH.toFixed(2)} L/h`;
                           }
