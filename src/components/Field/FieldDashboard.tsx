@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { 
   Fuel, 
   TrendingUp, 
@@ -16,7 +16,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
-import { format, startOfDay, endOfDay } from 'date-fns';
+import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -84,77 +84,126 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
 
   // Get today's date for display
   const todayStr = format(new Date(), "dd 'de' MMMM", { locale: ptBR });
-  const todayDateStr = format(new Date(), 'yyyy-MM-dd');
+  const todayDateOnly = format(new Date(), 'yyyy-MM-dd');
 
-  // Fetch only today's records from database (excluding those with approved deletion)
-  useEffect(() => {
-    const fetchTodayRecords = async () => {
-      setIsLoading(true);
-      try {
-        const today = new Date();
-        const todayDateOnly = format(today, 'yyyy-MM-dd');
+  // Fetch records function (reusable)
+  const fetchTodayRecords = useCallback(async () => {
+    try {
+      // Fetch only today's records for this user
+      const { data: records, error } = await supabase
+        .from('field_fuel_records')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('record_date', todayDateOnly)
+        .order('record_time', { ascending: false });
 
-        // Fetch only today's records for this user
-        const { data: records, error } = await supabase
-          .from('field_fuel_records')
-          .select('*')
-          .eq('user_id', user.id)
-          .eq('record_date', todayDateOnly)
-          .order('record_time', { ascending: false });
+      if (error) throw error;
 
-        if (error) throw error;
-
-        // Fetch approved deletion requests to filter them out
-        const recordIds = records?.map(r => r.id) || [];
-        let approvedDeletions: string[] = [];
+      // Fetch approved deletion requests to filter them out
+      const recordIds = records?.map(r => r.id) || [];
+      let approvedDeletions: string[] = [];
+      
+      if (recordIds.length > 0) {
+        const { data: deletionRequests } = await supabase
+          .from('field_record_requests')
+          .select('record_id')
+          .in('record_id', recordIds)
+          .eq('request_type', 'delete')
+          .eq('status', 'approved');
         
-        if (recordIds.length > 0) {
-          const { data: deletionRequests } = await supabase
-            .from('field_record_requests')
-            .select('record_id')
-            .in('record_id', recordIds)
-            .eq('request_type', 'delete')
-            .eq('status', 'approved');
-          
-          approvedDeletions = deletionRequests?.map(d => d.record_id) || [];
-        }
-
-        // Filter out records with approved deletions
-        const filteredRecords = records?.filter(r => !approvedDeletions.includes(r.id)) || [];
-
-        const mappedRecords = filteredRecords.map(r => ({
-          id: r.id,
-          record_date: r.record_date,
-          record_time: r.record_time,
-          vehicle_code: r.vehicle_code,
-          fuel_quantity: r.fuel_quantity,
-          location: r.location || '',
-          record_type: (r as any).record_type || 'saida',
-          operator_name: r.operator_name || undefined,
-          horimeter_current: r.horimeter_current || undefined,
-          km_current: r.km_current || undefined,
-          arla_quantity: r.arla_quantity || undefined,
-          observations: r.observations || undefined,
-        }));
-
-        setTodayRecords(mappedRecords);
-
-        // Calculate today stats
-        setTodayStats({
-          totalRecords: mappedRecords.length,
-          totalLiters: mappedRecords.reduce((sum, r) => sum + (r.fuel_quantity || 0), 0),
-          totalArla: mappedRecords.reduce((sum, r) => sum + (r.arla_quantity || 0), 0),
-        });
-
-      } catch (err) {
-        console.error('Error fetching today records:', err);
-      } finally {
-        setIsLoading(false);
+        approvedDeletions = deletionRequests?.map(d => d.record_id) || [];
       }
-    };
 
-    fetchTodayRecords();
-  }, [user.id]);
+      // Filter out records with approved deletions
+      const filteredRecords = records?.filter(r => !approvedDeletions.includes(r.id)) || [];
+
+      const mappedRecords = filteredRecords.map(r => ({
+        id: r.id,
+        record_date: r.record_date,
+        record_time: r.record_time,
+        vehicle_code: r.vehicle_code,
+        fuel_quantity: r.fuel_quantity,
+        location: r.location || '',
+        record_type: (r as any).record_type || 'saida',
+        operator_name: r.operator_name || undefined,
+        horimeter_current: r.horimeter_current || undefined,
+        km_current: r.km_current || undefined,
+        arla_quantity: r.arla_quantity || undefined,
+        observations: r.observations || undefined,
+      }));
+
+      setTodayRecords(mappedRecords);
+
+      // Calculate today stats
+      setTodayStats({
+        totalRecords: mappedRecords.length,
+        totalLiters: mappedRecords.reduce((sum, r) => sum + (r.fuel_quantity || 0), 0),
+        totalArla: mappedRecords.reduce((sum, r) => sum + (r.arla_quantity || 0), 0),
+      });
+
+    } catch (err) {
+      console.error('Error fetching today records:', err);
+    }
+  }, [user.id, todayDateOnly]);
+
+  // Initial fetch
+  useEffect(() => {
+    const loadRecords = async () => {
+      setIsLoading(true);
+      await fetchTodayRecords();
+      setIsLoading(false);
+    };
+    loadRecords();
+  }, [fetchTodayRecords]);
+
+  // Real-time subscription for request status changes
+  useEffect(() => {
+    const channel = supabase
+      .channel('field-requests-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'field_record_requests',
+        },
+        (payload) => {
+          const newStatus = payload.new?.status;
+          const requestedBy = payload.new?.requested_by;
+          
+          // Only refresh if this user's request was updated
+          if (requestedBy === user.id && (newStatus === 'approved' || newStatus === 'rejected')) {
+            if (newStatus === 'approved') {
+              toast.success('Sua solicitação foi aprovada!');
+            } else {
+              toast.info('Sua solicitação foi rejeitada');
+            }
+            fetchTodayRecords();
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'field_fuel_records',
+        },
+        (payload) => {
+          // Refresh on any changes to fuel records for this user
+          const newRecord = payload.new as Record<string, any> | null;
+          const oldRecord = payload.old as Record<string, any> | null;
+          if (newRecord?.user_id === user.id || oldRecord?.user_id === user.id) {
+            fetchTodayRecords();
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user.id, fetchTodayRecords]);
 
   const formatTime = (timeStr: string) => {
     return timeStr?.substring(0, 5) || timeStr;
@@ -191,52 +240,8 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
     }
   };
 
-  // Refresh records after request (excluding approved deletions)
-  const refreshRecords = async () => {
-    const todayDateOnly = format(new Date(), 'yyyy-MM-dd');
-    const { data: records } = await supabase
-      .from('field_fuel_records')
-      .select('*')
-      .eq('user_id', user.id)
-      .eq('record_date', todayDateOnly)
-      .order('record_time', { ascending: false });
-
-    if (records) {
-      // Fetch approved deletion requests to filter them out
-      const recordIds = records.map(r => r.id);
-      const { data: deletionRequests } = await supabase
-        .from('field_record_requests')
-        .select('record_id')
-        .in('record_id', recordIds)
-        .eq('request_type', 'delete')
-        .eq('status', 'approved');
-      
-      const approvedDeletions = deletionRequests?.map(d => d.record_id) || [];
-      const filteredRecords = records.filter(r => !approvedDeletions.includes(r.id));
-
-      setTodayRecords(filteredRecords.map(r => ({
-        id: r.id,
-        record_date: r.record_date,
-        record_time: r.record_time,
-        vehicle_code: r.vehicle_code,
-        fuel_quantity: r.fuel_quantity,
-        location: r.location || '',
-        record_type: (r as any).record_type || 'saida',
-        operator_name: r.operator_name || undefined,
-        horimeter_current: r.horimeter_current || undefined,
-        km_current: r.km_current || undefined,
-        arla_quantity: r.arla_quantity || undefined,
-        observations: r.observations || undefined,
-      })));
-
-      // Recalculate stats
-      setTodayStats({
-        totalRecords: filteredRecords.length,
-        totalLiters: filteredRecords.reduce((sum, r) => sum + (r.fuel_quantity || 0), 0),
-        totalArla: filteredRecords.reduce((sum, r) => sum + (r.arla_quantity || 0), 0),
-      });
-    }
-  };
+  // Use the reusable fetchTodayRecords for refresh
+  const refreshRecords = fetchTodayRecords;
 
   return (
     <div className="space-y-4 p-4 pb-24">
