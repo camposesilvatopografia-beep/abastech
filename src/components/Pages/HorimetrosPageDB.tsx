@@ -121,6 +121,7 @@ export function HorimetrosPageDB() {
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [companyFilter, setCompanyFilter] = useState<string>('all');
   const [vehicleFilter, setVehicleFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('ativo');
   const [showNewModal, setShowNewModal] = useState(false);
   const [showBatchModal, setShowBatchModal] = useState(false);
   const [showSyncModal, setShowSyncModal] = useState(false);
@@ -166,6 +167,15 @@ export function HorimetrosPageDB() {
     const unique = new Set<string>();
     vehicles.forEach(v => {
       if (v.company) unique.add(v.company);
+    });
+    return Array.from(unique).sort();
+  }, [vehicles]);
+
+  // Get unique statuses
+  const statuses = useMemo(() => {
+    const unique = new Set<string>();
+    vehicles.forEach(v => {
+      if (v.status) unique.add(v.status);
     });
     return Array.from(unique).sort();
   }, [vehicles]);
@@ -232,6 +242,12 @@ export function HorimetrosPageDB() {
         matchesVehicle = reading.vehicle_id === vehicleFilter;
       }
 
+      // Status filter - filter by vehicle status
+      let matchesStatus = true;
+      if (statusFilter !== 'all') {
+        matchesStatus = reading.vehicle?.status?.toLowerCase() === statusFilter.toLowerCase();
+      }
+
       // Date filter - period range or single date
       let matchesDate = true;
       const readingDate = new Date(reading.reading_date + 'T00:00:00');
@@ -244,7 +260,7 @@ export function HorimetrosPageDB() {
         matchesDate = isWithinInterval(readingDate, { start: dateRange.start, end: dateRange.end });
       }
 
-      return matchesSearch && matchesDate && matchesCategory && matchesCompany && matchesVehicle;
+      return matchesSearch && matchesDate && matchesCategory && matchesCompany && matchesVehicle && matchesStatus;
     }).sort((a, b) => {
       // Sort by date descending, then by vehicle code
       const dateCompare = new Date(b.reading_date).getTime() - new Date(a.reading_date).getTime();
@@ -273,7 +289,7 @@ export function HorimetrosPageDB() {
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, selectedDate, dateRange, categoryFilter, companyFilter, vehicleFilter]);
+  }, [search, selectedDate, dateRange, categoryFilter, companyFilter, vehicleFilter, statusFilter]);
 
   // Metrics
   const metrics = useMemo(() => {
@@ -766,6 +782,23 @@ export function HorimetrosPageDB() {
                   <SelectItem value="all">Todos</SelectItem>
                   {vehicles.map(v => (
                     <SelectItem key={v.id} value={v.id}>{v.code}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex gap-2 items-center flex-wrap">
+              <span className="text-sm font-medium text-muted-foreground">Status:</span>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-[120px]">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent className="bg-background">
+                  <SelectItem value="all">Todos</SelectItem>
+                  {statuses.map(status => (
+                    <SelectItem key={status} value={status}>
+                      {status.charAt(0).toUpperCase() + status.slice(1)}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
