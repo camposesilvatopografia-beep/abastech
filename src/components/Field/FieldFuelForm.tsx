@@ -63,6 +63,7 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { formatCurrencyInput, parseCurrencyInput, formatQuantityInput } from '@/lib/numberToWords';
 import logoAbastech from '@/assets/logo-abastech.png';
+import { useFieldSettings, playSuccessSound, vibrateDevice } from '@/hooks/useFieldSettings';
 
 interface FieldUser {
   id: string;
@@ -139,6 +140,7 @@ function useVoiceRecognition() {
 export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
   const { data: vehiclesData } = useSheetData('Veiculo');
   const { data: abastecimentoData } = useSheetData('AbastecimentoCanteiro01');
+  const { settings } = useFieldSettings();
   const [isSaving, setIsSaving] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [activeVoiceField, setActiveVoiceField] = useState<string | null>(null);
@@ -1027,32 +1029,10 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
       }
 
       // Haptic feedback - vibrate on success
-      if ('vibrate' in navigator) {
-        navigator.vibrate([100, 50, 100]); // Short vibration pattern
-      }
+      vibrateDevice(settings.vibrationEnabled);
       
       // Audio notification on success
-      try {
-        const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-        const oscillator = audioContext.createOscillator();
-        const gainNode = audioContext.createGain();
-        
-        oscillator.connect(gainNode);
-        gainNode.connect(audioContext.destination);
-        
-        // Success sound - two ascending tones
-        oscillator.frequency.setValueAtTime(523.25, audioContext.currentTime); // C5
-        oscillator.frequency.setValueAtTime(659.25, audioContext.currentTime + 0.15); // E5
-        oscillator.frequency.setValueAtTime(783.99, audioContext.currentTime + 0.3); // G5
-        
-        gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
-        
-        oscillator.start(audioContext.currentTime);
-        oscillator.stop(audioContext.currentTime + 0.5);
-      } catch (audioErr) {
-        console.log('Audio notification not available:', audioErr);
-      }
+      playSuccessSound(settings.soundEnabled);
 
       setShowSuccess(true);
       
