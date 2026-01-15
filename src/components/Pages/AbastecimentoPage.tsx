@@ -222,7 +222,9 @@ export function AbastecimentoPage() {
     });
   }, [data.rows, dateRange, search, localFilter, tipoFilter, combustivelFilter, empresaFilter]);
 
-  // Calculate metrics from GERAL sheet based on date filter - read real values
+  // Calculate metrics from GERAL sheet based on date filter
+  // IMPORTANT: Estoque Atual should be CALCULATED using the formula:
+  // (Estoque Anterior + Entrada) - (Saída Comboios + Saída Equipamentos)
   const metricsFromGeral = useMemo(() => {
     if (!geralData.rows.length) {
       return {
@@ -252,12 +254,20 @@ export function AbastecimentoPage() {
       });
       
       if (matchingRow) {
+        const estoqueAnterior = parseNumber(matchingRow['Estoque Anterior'] || matchingRow['ESTOQUE ANTERIOR'] || 0);
+        const entrada = parseNumber(matchingRow['Entrada'] || matchingRow['ENTRADA'] || 0);
+        const saidaComboios = parseNumber(matchingRow['Saida para Comboios'] || matchingRow['SAIDA PARA COMBOIOS'] || 0);
+        const saidaEquipamentos = parseNumber(matchingRow['Saida para Equipamentos'] || matchingRow['SAIDA PARA EQUIPAMENTOS'] || 0);
+        
+        // CALCULATE Estoque Atual using the formula: (Anterior + Entrada) - Saídas
+        const estoqueCalculado = (estoqueAnterior + entrada) - (saidaComboios + saidaEquipamentos);
+        
         return {
-          estoqueAnterior: parseNumber(matchingRow['Estoque Anterior'] || matchingRow['ESTOQUE ANTERIOR'] || 0),
-          entrada: parseNumber(matchingRow['Entrada'] || matchingRow['ENTRADA'] || 0),
-          saidaComboios: parseNumber(matchingRow['Saida para Comboios'] || matchingRow['SAIDA PARA COMBOIOS'] || 0),
-          saidaEquipamentos: parseNumber(matchingRow['Saida para Equipamentos'] || matchingRow['SAIDA PARA EQUIPAMENTOS'] || 0),
-          estoqueAtual: parseNumber(matchingRow['Estoque Atual'] || matchingRow['ESTOQUE ATUAL'] || 0)
+          estoqueAnterior,
+          entrada,
+          saidaComboios,
+          saidaEquipamentos,
+          estoqueAtual: estoqueCalculado
         };
       }
     }
@@ -267,7 +277,6 @@ export function AbastecimentoPage() {
     let totalSaidaComboios = 0;
     let totalSaidaEquipamentos = 0;
     let firstEstoqueAnterior = 0;
-    let lastEstoqueAtual = 0;
     let foundFirst = false;
     
     geralData.rows.forEach(row => {
@@ -283,16 +292,18 @@ export function AbastecimentoPage() {
         totalEntrada += parseNumber(row['Entrada'] || row['ENTRADA'] || 0);
         totalSaidaComboios += parseNumber(row['Saida para Comboios'] || row['SAIDA PARA COMBOIOS'] || 0);
         totalSaidaEquipamentos += parseNumber(row['Saida para Equipamentos'] || row['SAIDA PARA EQUIPAMENTOS'] || 0);
-        lastEstoqueAtual = parseNumber(row['Estoque Atual'] || row['ESTOQUE ATUAL'] || 0);
       }
     });
+    
+    // CALCULATE Estoque Atual using the formula: (Anterior + Entrada) - Saídas
+    const estoqueCalculado = (firstEstoqueAnterior + totalEntrada) - (totalSaidaComboios + totalSaidaEquipamentos);
     
     return {
       estoqueAnterior: firstEstoqueAnterior,
       entrada: totalEntrada,
       saidaComboios: totalSaidaComboios,
       saidaEquipamentos: totalSaidaEquipamentos,
-      estoqueAtual: lastEstoqueAtual
+      estoqueAtual: estoqueCalculado
     };
   }, [geralData.rows, periodFilter, startDate, endDate, dateRange]);
 
