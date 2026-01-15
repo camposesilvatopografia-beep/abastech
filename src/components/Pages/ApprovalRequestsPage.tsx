@@ -124,14 +124,77 @@ export function ApprovalRequestsPage() {
       const currentUser = JSON.parse(localStorage.getItem('abastech_user') || '{}');
 
       if (actionType === 'approve') {
-        // If approving a delete request, delete the record
+        // If approving a delete request, delete from database AND Google Sheets
         if (selectedRequest.request_type === 'delete') {
+          // First, get the record details before deleting
+          const { data: recordToDelete, error: fetchError } = await supabase
+            .from('field_fuel_records')
+            .select('*')
+            .eq('id', selectedRequest.record_id)
+            .single();
+
+          if (fetchError) {
+            console.error('Error fetching record for deletion:', fetchError);
+            // Continue with deletion even if we can't fetch details
+          }
+
+          // Delete from database
           const { error: deleteError } = await supabase
             .from('field_fuel_records')
             .delete()
             .eq('id', selectedRequest.record_id);
 
           if (deleteError) throw deleteError;
+
+          // Sync deletion to Google Sheets (find and remove matching row)
+          if (recordToDelete) {
+            try {
+              toast.info('Sincronizando exclusão com planilha...');
+              
+              // Get all rows from the sheet to find the matching one
+              const { data: sheetData } = await supabase.functions.invoke('google-sheets', {
+                body: { action: 'getData', sheetName: 'AbastecimentoCanteiro01' },
+              });
+              
+              const rows = sheetData?.rows || [];
+              
+              // Format the date for comparison (DD/MM/YYYY)
+              const recordDate = new Date(recordToDelete.record_date);
+              const formattedDate = `${String(recordDate.getDate()).padStart(2, '0')}/${String(recordDate.getMonth() + 1).padStart(2, '0')}/${recordDate.getFullYear()}`;
+              
+              // Find the row index by matching vehicle, date, time, and quantity
+              const rowIndex = rows.findIndex((row: any) => {
+                const rowVehicle = String(row['VEICULO'] || row['Veiculo'] || '').trim();
+                const rowDate = String(row['DATA'] || row['Data'] || '').trim();
+                const rowTime = String(row['HORA'] || row['Hora'] || '').trim();
+                const rowQty = parseFloat(String(row['QUANTIDADE'] || row['Quantidade'] || 0)) || 0;
+                
+                return rowVehicle === recordToDelete.vehicle_code && 
+                       rowDate === formattedDate &&
+                       rowTime === recordToDelete.record_time &&
+                       Math.abs(rowQty - recordToDelete.fuel_quantity) < 0.01;
+              });
+              
+              if (rowIndex >= 0) {
+                const sheetRowIndex = rowIndex + 2; // +1 for header, +1 for 1-based index
+                
+                await supabase.functions.invoke('google-sheets', {
+                  body: {
+                    action: 'delete',
+                    sheetName: 'AbastecimentoCanteiro01',
+                    rowIndex: sheetRowIndex,
+                  },
+                });
+                
+                console.log('✓ Registro excluído da planilha AbastecimentoCanteiro01');
+              } else {
+                console.warn('Registro não encontrado na planilha para exclusão');
+              }
+            } catch (syncErr) {
+              console.error('Erro ao sincronizar exclusão com planilha:', syncErr);
+              // Don't fail the operation - DB deletion was successful
+            }
+          }
         }
         
         // If approving an edit request, apply the proposed changes
@@ -167,7 +230,7 @@ export function ApprovalRequestsPage() {
 
         toast.success(
           selectedRequest.request_type === 'delete'
-            ? 'Exclusão aprovada e registro removido'
+            ? 'Exclusão aprovada e registro removido do sistema e planilha'
             : 'Edição aprovada e alterações aplicadas'
         );
       } else {
