@@ -512,6 +512,8 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
         'LOCAL DE ENTRADA': entryLocation || '',
       };
 
+      // Sync to Google Sheets immediately
+      toast.loading('Sincronizando com planilha...', { id: 'sync-sheet' });
       const syncSuccess = await syncToGoogleSheets(sheetData);
 
       if (syncSuccess) {
@@ -521,9 +523,25 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
           .eq('record_date', dbRecordDate)
           .eq('record_time', dbRecordTime)
           .eq('vehicle_code', dbRecord.vehicle_code);
+        
+        toast.success('Registro salvo e sincronizado com a planilha!', { id: 'sync-sheet' });
+      } else {
+        toast.warning('Registro salvo, mas sincronização com planilha falhou. Tentando novamente...', { id: 'sync-sheet' });
+        // Retry sync once
+        const retrySuccess = await syncToGoogleSheets(sheetData);
+        if (retrySuccess) {
+          await supabase
+            .from('field_fuel_records')
+            .update({ synced_to_sheet: true })
+            .eq('record_date', dbRecordDate)
+            .eq('record_time', dbRecordTime)
+            .eq('vehicle_code', dbRecord.vehicle_code);
+          toast.success('Sincronização concluída!', { id: 'sync-sheet' });
+        } else {
+          toast.error('Sincronização falhou. Registro será sincronizado posteriormente.', { id: 'sync-sheet' });
+        }
       }
 
-      toast.success('Registro salvo com sucesso!');
       onOpenChange(false);
       onSuccess?.();
     } catch (err) {
