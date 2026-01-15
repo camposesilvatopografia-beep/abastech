@@ -1,4 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 import { 
   Fuel, 
   Save, 
@@ -18,7 +20,14 @@ import {
   Zap,
   ChevronDown,
   ChevronUp,
+  CalendarIcon,
 } from 'lucide-react';
+import { Calendar } from '@/components/ui/calendar';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -98,6 +107,10 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
   const [invoiceNumber, setInvoiceNumber] = useState('');
   const [unitPrice, setUnitPrice] = useState('');
   const [entryLocation, setEntryLocation] = useState('');
+  
+  // Date and time fields
+  const [recordDate, setRecordDate] = useState<Date>(new Date());
+  const [recordTime, setRecordTime] = useState('');
   
   // Database data
   const [oilTypes, setOilTypes] = useState<{ id: string; name: string }[]>([]);
@@ -255,6 +268,8 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
     setInvoiceNumber('');
     setUnitPrice('');
     setEntryLocation('');
+    setRecordDate(new Date());
+    setRecordTime(new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
   };
 
   // Transform vehicles for combobox
@@ -418,10 +433,10 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
     setIsSaving(true);
 
     try {
-      const now = new Date();
-      const recordDate = now.toISOString().split('T')[0];
-      const recordTime = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-      const formattedDate = now.toLocaleDateString('pt-BR');
+      const selectedDate = recordDate;
+      const dbRecordDate = format(selectedDate, 'yyyy-MM-dd');
+      const dbRecordTime = recordTime || new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      const formattedDate = format(selectedDate, 'dd/MM/yyyy');
 
       // Prepare record for database
       const dbRecord = {
@@ -450,8 +465,8 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
         invoice_number: invoiceNumber || null,
         unit_price: parseFloat(unitPrice.replace(/\./g, '').replace(',', '.')) || null,
         entry_location: entryLocation || null,
-        record_date: recordDate,
-        record_time: recordTime,
+        record_date: dbRecordDate,
+        record_time: dbRecordTime,
         synced_to_sheet: false,
       };
 
@@ -503,8 +518,8 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
         await supabase
           .from('field_fuel_records')
           .update({ synced_to_sheet: true })
-          .eq('record_date', recordDate)
-          .eq('record_time', recordTime)
+          .eq('record_date', dbRecordDate)
+          .eq('record_time', dbRecordTime)
           .eq('vehicle_code', dbRecord.vehicle_code);
       }
 
@@ -530,6 +545,52 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
         </DialogHeader>
 
         <div className="space-y-4">
+          {/* Date and Time */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <CalendarIcon className="h-4 w-4" />
+                Data
+              </Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-start text-left font-normal",
+                      !recordDate && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {recordDate ? format(recordDate, "dd/MM/yyyy", { locale: ptBR }) : <span>Selecione...</span>}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={recordDate}
+                    onSelect={(date) => date && setRecordDate(date)}
+                    initialFocus
+                    className="p-3 pointer-events-auto"
+                    locale={ptBR}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <Clock className="h-4 w-4" />
+                Hora
+              </Label>
+              <Input
+                type="time"
+                value={recordTime}
+                onChange={(e) => setRecordTime(e.target.value)}
+                className="h-10"
+              />
+            </div>
+          </div>
+
           {/* Record Type */}
           <div className="space-y-2">
             <Label>Tipo de Registro</Label>
