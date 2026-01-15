@@ -27,20 +27,50 @@ serve(async (req) => {
 
     const systemPrompt = `Você é um assistente especialista em análise de dados de planilhas do Google Sheets para um sistema de gestão de frotas e abastecimento.
 
-Sua tarefa é analisar os cabeçalhos e dados de uma planilha e identificar:
-1. Inconsistências nos dados (valores fora do padrão, datas inválidas, valores negativos onde não deveriam, etc.)
-2. Problemas de mapeamento entre colunas e KPIs
-3. Sugestões de correção baseadas em padrões detectados
-4. Recomendações para melhorar a qualidade dos dados
+Sua tarefa é analisar os cabeçalhos e dados de uma planilha e:
+1. Identificar inconsistências nos dados
+2. Sugerir mapeamentos corretos entre colunas da planilha e KPIs do sistema
+3. Fornecer correções específicas
 
-Contexto do sistema:
-- O sistema gerencia abastecimento de veículos/equipamentos
-- KPIs principais: Estoque Atual, Estoque Anterior, Entradas, Saídas, Quantidade, Data, Veículo
-- Valores numéricos devem ser positivos
-- Datas devem estar no formato DD/MM/YYYY ou YYYY-MM-DD
-- Códigos de veículos seguem padrões específicos
+KPIs disponíveis no sistema (use EXATAMENTE estes IDs):
+- estoqueAtual: Estoque Atual (valor numérico do estoque atual)
+- estoqueAnterior: Estoque Anterior (valor do dia anterior)
+- entrada: Entradas (total de entradas)
+- saida: Saídas (total de saídas)
+- saidaComboios: Saída para Comboios (transferências internas)
+- saidaEquipamentos: Saída para Equipamentos (abastecimento de máquinas)
+- data: Data do registro
+- veiculo: Código do veículo
+- quantidade: Quantidade de combustível
 
-Responda SEMPRE em português brasileiro de forma clara e objetiva.`;
+IMPORTANTE: Você DEVE retornar sua resposta em formato JSON válido com a seguinte estrutura:
+{
+  "analysis": "Texto da análise em português...",
+  "suggestedMappings": {
+    "estoqueAtual": "Nome exato da coluna na planilha",
+    "estoqueAnterior": "Nome exato da coluna na planilha",
+    "entrada": "Nome exato da coluna na planilha",
+    "saida": "Nome exato da coluna na planilha",
+    "data": "Nome exato da coluna na planilha"
+  },
+  "corrections": [
+    {
+      "type": "mapping" | "data" | "formula",
+      "description": "Descrição da correção",
+      "action": "Ação a ser tomada"
+    }
+  ],
+  "issues": [
+    {
+      "severity": "error" | "warning" | "info",
+      "message": "Descrição do problema",
+      "solution": "Como resolver"
+    }
+  ]
+}
+
+Use APENAS os nomes de colunas que existem nos cabeçalhos fornecidos. Não invente nomes.
+Responda APENAS com o JSON, sem texto adicional antes ou depois.`;
 
     const userPrompt = `Analise esta planilha "${sheetName}":
 
@@ -52,13 +82,11 @@ ${JSON.stringify(currentMappings || {}, null, 2)}
 
 TOTAL DE REGISTROS: ${rows.length}
 
-Por favor, forneça:
-1. Lista de inconsistências detectadas (se houver)
-2. Problemas de mapeamento identificados
-3. Sugestões de correção específicas
-4. Recomendações gerais para melhorar a qualidade dos dados
-
-Seja específico e prático nas sugestões.`;
+Analise os dados e retorne o JSON com:
+1. Análise textual das inconsistências
+2. Mapeamentos sugeridos (apenas para colunas que existem!)
+3. Lista de correções necessárias
+4. Lista de problemas identificados`;
 
     console.log('Calling Lovable AI for KPI analysis...');
     
@@ -101,13 +129,58 @@ Seja específico e prático nas sugestões.`;
     }
 
     const aiResponse = await response.json();
-    const analysis = aiResponse.choices?.[0]?.message?.content || "Não foi possível gerar análise.";
+    const rawContent = aiResponse.choices?.[0]?.message?.content || "";
+    
+    console.log('Raw AI response:', rawContent);
+
+    // Parse the JSON response from AI
+    let parsedResponse;
+    try {
+      // Clean the response - remove markdown code blocks if present
+      let cleanContent = rawContent.trim();
+      if (cleanContent.startsWith('```json')) {
+        cleanContent = cleanContent.slice(7);
+      } else if (cleanContent.startsWith('```')) {
+        cleanContent = cleanContent.slice(3);
+      }
+      if (cleanContent.endsWith('```')) {
+        cleanContent = cleanContent.slice(0, -3);
+      }
+      cleanContent = cleanContent.trim();
+      
+      parsedResponse = JSON.parse(cleanContent);
+    } catch (parseError) {
+      console.error('Failed to parse AI response as JSON:', parseError);
+      // Fallback: return the raw text as analysis
+      parsedResponse = {
+        analysis: rawContent,
+        suggestedMappings: {},
+        corrections: [],
+        issues: []
+      };
+    }
+
+    // Validate suggested mappings against actual headers
+    const validHeaders = headers.map((h: string) => h.trim());
+    const validatedMappings: Record<string, string> = {};
+    
+    if (parsedResponse.suggestedMappings) {
+      for (const [kpiId, columnName] of Object.entries(parsedResponse.suggestedMappings)) {
+        if (typeof columnName === 'string' && validHeaders.includes(columnName.trim())) {
+          validatedMappings[kpiId] = columnName.trim();
+        }
+      }
+    }
 
     console.log('AI analysis completed successfully');
+    console.log('Validated mappings:', validatedMappings);
 
     return new Response(JSON.stringify({ 
       success: true,
-      analysis,
+      analysis: parsedResponse.analysis || rawContent,
+      suggestedMappings: validatedMappings,
+      corrections: parsedResponse.corrections || [],
+      issues: parsedResponse.issues || [],
       timestamp: new Date().toISOString()
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
