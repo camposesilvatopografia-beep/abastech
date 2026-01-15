@@ -54,12 +54,13 @@ export function useSheetNames() {
   return { sheetNames, loading, error, refetch: fetchSheetNames };
 }
 
-export function useSheetData(sheetName: string | null, options?: { pollingInterval?: number }) {
+export function useSheetData(sheetName: string | null, options?: { pollingInterval?: number; suppressErrors?: boolean }) {
   const [data, setData] = useState<SheetData>({ headers: [], rows: [] });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
   const pollingInterval = options?.pollingInterval || 0; // 0 = no polling
+  const suppressErrors = options?.suppressErrors || false; // Don't show toast for optional sheets
 
   const fetchData = useCallback(
     async (silent = false) => {
@@ -99,7 +100,8 @@ export function useSheetData(sheetName: string | null, options?: { pollingInterv
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to fetch data';
         setError(message);
-        if (!silent) {
+        // Only show toast if not suppressed and not silent
+        if (!silent && !suppressErrors) {
           toast({
             title: 'Erro ao carregar dados',
             description: message,
@@ -111,7 +113,7 @@ export function useSheetData(sheetName: string | null, options?: { pollingInterv
         if (!silent) setLoading(false);
       }
     },
-    [sheetName, toast]
+    [sheetName, toast, suppressErrors]
   );
 
   useEffect(() => {

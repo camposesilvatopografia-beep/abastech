@@ -113,13 +113,13 @@ export function AbastecimentoPage() {
   const { user } = useAuth();
   const { data, loading, refetch } = useSheetData(SHEET_NAME);
   const { data: geralData } = useSheetData(GERAL_SHEET);
-  const { data: saneamentoStockData } = useSheetData(SANEAMENTO_STOCK_SHEET);
-  // Fetch stock data for comboios
-  const { data: estoqueComboio01Data } = useSheetData('EstoqueComboio01');
-  const { data: estoqueComboio02Data } = useSheetData('EstoqueComboio02');
-  const { data: estoqueComboio03Data } = useSheetData('EstoqueComboio03');
-  const { data: estoqueTanque01Data } = useSheetData('EstoqueTanque01');
-  const { data: estoqueTanque02Data } = useSheetData('EstoqueTanque02');
+  const { data: saneamentoStockData } = useSheetData(SANEAMENTO_STOCK_SHEET, { suppressErrors: true });
+  // Fetch stock data for comboios - suppress errors for optional sheets that may not exist
+  const { data: estoqueComboio01Data } = useSheetData('EstoqueComboio01', { suppressErrors: true });
+  const { data: estoqueComboio02Data } = useSheetData('EstoqueComboio02', { suppressErrors: true });
+  const { data: estoqueComboio03Data } = useSheetData('EstoqueComboio03', { suppressErrors: true });
+  const { data: estoqueTanque01Data } = useSheetData('EstoqueTanque01', { suppressErrors: true });
+  const { data: estoqueTanque02Data } = useSheetData('EstoqueTanque02', { suppressErrors: true });
   
   const [activeTab, setActiveTab] = useState('resumo');
   const [search, setSearch] = useState('');
