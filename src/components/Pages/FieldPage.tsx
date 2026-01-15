@@ -19,6 +19,7 @@ import {
   Smartphone,
   Bell,
   BellOff,
+  Database,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
@@ -28,6 +29,7 @@ import logoAbastech from '@/assets/logo-abastech.png';
 import { useTheme } from '@/hooks/useTheme';
 import { useFieldSettings } from '@/hooks/useFieldSettings';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
+import { useOfflineStorage } from '@/hooks/useOfflineStorage';
 import {
   Popover,
   PopoverContent,
@@ -64,6 +66,9 @@ export function FieldPage() {
     notifyOffline,
     notifyOnline,
   } = usePushNotifications();
+  
+  // Offline storage hook - will be null until user is loaded
+  const offlineStorage = useOfflineStorage(user?.id);
 
   // Function to fetch and update user data from database
   const refreshUserData = useCallback(async (userId: string) => {
@@ -163,13 +168,39 @@ export function FieldPage() {
     };
   }, [user?.id]);
 
-  // Sync pending records to sheet
+  // Sync pending records - both from Supabase and IndexedDB
   const syncPendingRecords = useCallback(async () => {
     if (!user || isSyncing) return;
     
     setIsSyncing(true);
+    let totalSynced = 0;
+    
     try {
-      // Get all pending records for this user
+      // First, sync records from IndexedDB to Supabase
+      if (offlineStorage.isSupported) {
+        const offlineRecords = await offlineStorage.getPendingRecords();
+        
+        for (const record of offlineRecords) {
+          try {
+            const { error } = await supabase
+              .from('field_fuel_records')
+              .insert(record.data as any);
+            
+            if (error) {
+              console.error('Error syncing offline record:', error);
+              await offlineStorage.markSyncFailed(record.id);
+            } else {
+              await offlineStorage.markRecordSynced(record.id);
+              totalSynced++;
+            }
+          } catch (err) {
+            console.error('Error processing offline record:', err);
+            await offlineStorage.markSyncFailed(record.id);
+          }
+        }
+      }
+      
+      // Then, sync records in Supabase that aren't synced to sheet
       const { data: pendingRecords, error } = await supabase
         .from('field_fuel_records')
         .select('*')
@@ -179,7 +210,6 @@ export function FieldPage() {
       if (error) throw error;
 
       if (pendingRecords && pendingRecords.length > 0) {
-        // Mark records as synced (in a real scenario, you'd sync to Google Sheets here)
         const { error: updateError } = await supabase
           .from('field_fuel_records')
           .update({ synced_to_sheet: true })
@@ -187,24 +217,26 @@ export function FieldPage() {
           .eq('synced_to_sheet', false);
 
         if (updateError) throw updateError;
-
-        const count = pendingRecords.length;
-        toast.success(`${count} registro(s) sincronizado(s) com sucesso!`, {
+        totalSynced += pendingRecords.length;
+      }
+      
+      if (totalSynced > 0) {
+        toast.success(`${totalSynced} registro(s) sincronizado(s) com sucesso!`, {
           duration: 4000,
         });
-        
-        // Send push notification
-        notifySyncComplete(count);
-        
-        setPendingCount(0);
+        notifySyncComplete(totalSynced);
       }
+      
+      setPendingCount(0);
+      await offlineStorage.refreshCount();
+      
     } catch (err) {
       console.error('Error syncing pending records:', err);
       toast.error('Erro ao sincronizar registros pendentes');
     } finally {
       setIsSyncing(false);
     }
-  }, [user, isSyncing, notifySyncComplete]);
+  }, [user, isSyncing, notifySyncComplete, offlineStorage]);
 
   // Monitor online status and auto-sync when coming back online
   useEffect(() => {
@@ -213,18 +245,18 @@ export function FieldPage() {
       toast.success('Conexão restabelecida! Sincronizando...', {
         duration: 3000,
       });
-      // Send push notification
       notifyOnline();
       // Auto-sync when back online
-      syncPendingRecords();
+      setTimeout(() => {
+        syncPendingRecords();
+      }, 1000);
     };
     
     const handleOffline = () => {
       setIsOnline(false);
-      toast.warning('Você está offline. Registros serão sincronizados quando a conexão voltar.', {
+      toast.warning('Você está offline. Registros serão salvos localmente.', {
         duration: 5000,
       });
-      // Send push notification
       notifyOffline();
     };
 
@@ -237,24 +269,32 @@ export function FieldPage() {
     };
   }, [syncPendingRecords, notifyOnline, notifyOffline]);
 
-  // Check pending records
+  // Check pending records (both Supabase and IndexedDB)
   useEffect(() => {
     if (!user) return;
 
     const checkPending = async () => {
+      let totalPending = 0;
+      
+      // Check Supabase pending
       const { count } = await supabase
         .from('field_fuel_records')
         .select('*', { count: 'exact', head: true })
         .eq('synced_to_sheet', false)
         .eq('user_id', user.id);
       
-      setPendingCount(count || 0);
+      totalPending += count || 0;
+      
+      // Add offline pending count
+      totalPending += offlineStorage.pendingCount;
+      
+      setPendingCount(totalPending);
     };
 
     checkPending();
     const interval = setInterval(checkPending, 15000);
     return () => clearInterval(interval);
-  }, [user]);
+  }, [user, offlineStorage.pendingCount]);
 
   const handleLogin = async (loggedUser: FieldUser) => {
     setUser(loggedUser);

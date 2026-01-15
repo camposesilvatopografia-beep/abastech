@@ -64,6 +64,7 @@ import { cn } from '@/lib/utils';
 import { formatCurrencyInput, parseCurrencyInput, formatQuantityInput } from '@/lib/numberToWords';
 import logoAbastech from '@/assets/logo-abastech.png';
 import { useFieldSettings, playSuccessSound, vibrateDevice } from '@/hooks/useFieldSettings';
+import { useOfflineStorage } from '@/hooks/useOfflineStorage';
 
 interface FieldUser {
   id: string;
@@ -141,12 +142,14 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
   const { data: vehiclesData } = useSheetData('Veiculo');
   const { data: abastecimentoData } = useSheetData('AbastecimentoCanteiro01');
   const { settings } = useFieldSettings();
+  const offlineStorage = useOfflineStorage(user.id);
   const [isSaving, setIsSaving] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [activeVoiceField, setActiveVoiceField] = useState<string | null>(null);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [pendingCount, setPendingCount] = useState(0);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [savedOffline, setSavedOffline] = useState(false);
   
   // Photo state
   const [photoPump, setPhotoPump] = useState<File | null>(null);
@@ -943,44 +946,73 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
       const recordDate = now.toLocaleDateString('pt-BR');
       const recordTime = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
-      // Save to database first
+      // Prepare record data
+      const recordData = {
+        user_id: user.id,
+        record_type: recordType,
+        vehicle_code: recordType === 'entrada' ? 'ENTRADA' : vehicleCode,
+        vehicle_description: recordType === 'entrada' ? supplier : vehicleDescription,
+        category: recordType === 'entrada' ? 'ENTRADA' : category,
+        operator_name: recordType === 'entrada' ? '' : (operatorName || user.name),
+        company,
+        work_site: workSite,
+        horimeter_previous: parseBrazilianNumber(horimeterPrevious),
+        horimeter_current: parseBrazilianNumber(horimeterCurrent),
+        fuel_quantity: parseFloat(fuelQuantity) || 0,
+        fuel_type: fuelType,
+        arla_quantity: parseFloat(arlaQuantity) || 0,
+        location: recordType === 'entrada' ? entryLocation : location,
+        observations: recordType === 'entrada' && photoInvoiceUrl 
+          ? `${observations} | FOTO NF: ${photoInvoiceUrl}`.trim() 
+          : observations,
+        photo_pump_url: photoPumpUrl,
+        photo_horimeter_url: photoHorimeterUrl,
+        record_date: now.toISOString().split('T')[0],
+        record_time: recordTime,
+        synced_to_sheet: false,
+        // Equipment fields
+        oil_type: oilType || null,
+        oil_quantity: parseFloat(oilQuantity) || null,
+        filter_blow: filterBlow || false,
+        filter_blow_quantity: parseFloat(filterBlowQuantity) || null,
+        lubricant: lubricant || null,
+        // Entry fields
+        supplier: supplier || null,
+        invoice_number: invoiceNumber || null,
+        unit_price: parseCurrencyInput(unitPrice) || null,
+        entry_location: entryLocation || null,
+      };
+
+      // Check if we're online
+      if (!navigator.onLine && offlineStorage.isSupported) {
+        // Save to IndexedDB for offline storage
+        await offlineStorage.saveOfflineRecord(recordData);
+        setSavedOffline(true);
+        
+        // Haptic feedback
+        vibrateDevice(settings.vibrationEnabled);
+        playSuccessSound(settings.soundEnabled);
+        
+        setShowSuccess(true);
+        
+        toast.success('Registro salvo localmente! Será sincronizado quando houver conexão.', {
+          duration: 4000,
+        });
+        
+        setTimeout(() => {
+          setShowSuccess(false);
+          setSavedOffline(false);
+          resetForm();
+          if (onBack) onBack();
+        }, 2000);
+        
+        return;
+      }
+
+      // Save to database (online mode)
       const { data: savedRecord, error } = await supabase
         .from('field_fuel_records')
-        .insert({
-          user_id: user.id,
-          record_type: recordType,
-          vehicle_code: recordType === 'entrada' ? 'ENTRADA' : vehicleCode,
-          vehicle_description: recordType === 'entrada' ? supplier : vehicleDescription,
-          category: recordType === 'entrada' ? 'ENTRADA' : category,
-          operator_name: recordType === 'entrada' ? '' : (operatorName || user.name),
-          company,
-          work_site: workSite,
-          horimeter_previous: parseBrazilianNumber(horimeterPrevious),
-          horimeter_current: parseBrazilianNumber(horimeterCurrent),
-          fuel_quantity: parseFloat(fuelQuantity) || 0,
-          fuel_type: fuelType,
-          arla_quantity: parseFloat(arlaQuantity) || 0,
-          location: recordType === 'entrada' ? entryLocation : location,
-          observations: recordType === 'entrada' && photoInvoiceUrl 
-            ? `${observations} | FOTO NF: ${photoInvoiceUrl}`.trim() 
-            : observations,
-          photo_pump_url: photoPumpUrl,
-          photo_horimeter_url: photoHorimeterUrl,
-          record_date: now.toISOString().split('T')[0],
-          record_time: recordTime,
-          synced_to_sheet: false,
-          // Equipment fields
-          oil_type: oilType || null,
-          oil_quantity: parseFloat(oilQuantity) || null,
-          filter_blow: filterBlow || false,
-          filter_blow_quantity: parseFloat(filterBlowQuantity) || null,
-          lubricant: lubricant || null,
-          // Entry fields
-          supplier: supplier || null,
-          invoice_number: invoiceNumber || null,
-          unit_price: parseCurrencyInput(unitPrice) || null,
-          entry_location: entryLocation || null,
-        } as any)
+        .insert(recordData as any)
         .select()
         .single();
 
@@ -1055,7 +1087,64 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
       
     } catch (err) {
       console.error('Save error:', err);
-      toast.error('Erro ao salvar');
+      
+      // If save failed and we have offline support, save locally
+      if (offlineStorage.isSupported) {
+        try {
+          const now = new Date();
+          const fallbackData = {
+            user_id: user.id,
+            record_type: recordType,
+            vehicle_code: recordType === 'entrada' ? 'ENTRADA' : vehicleCode,
+            vehicle_description: recordType === 'entrada' ? supplier : vehicleDescription,
+            category: recordType === 'entrada' ? 'ENTRADA' : category,
+            operator_name: recordType === 'entrada' ? '' : (operatorName || user.name),
+            company,
+            work_site: workSite,
+            horimeter_previous: parseBrazilianNumber(horimeterPrevious),
+            horimeter_current: parseBrazilianNumber(horimeterCurrent),
+            fuel_quantity: parseFloat(fuelQuantity) || 0,
+            fuel_type: fuelType,
+            arla_quantity: parseFloat(arlaQuantity) || 0,
+            location: recordType === 'entrada' ? entryLocation : location,
+            observations,
+            record_date: now.toISOString().split('T')[0],
+            record_time: now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+            synced_to_sheet: false,
+            oil_type: oilType || null,
+            oil_quantity: parseFloat(oilQuantity) || null,
+            filter_blow: filterBlow || false,
+            filter_blow_quantity: parseFloat(filterBlowQuantity) || null,
+            lubricant: lubricant || null,
+            supplier: supplier || null,
+            invoice_number: invoiceNumber || null,
+            unit_price: parseCurrencyInput(unitPrice) || null,
+            entry_location: entryLocation || null,
+          };
+          
+          await offlineStorage.saveOfflineRecord(fallbackData);
+          
+          vibrateDevice(settings.vibrationEnabled);
+          playSuccessSound(settings.soundEnabled);
+          setShowSuccess(true);
+          
+          toast.warning('Registro salvo localmente! Será sincronizado quando possível.', {
+            duration: 4000,
+          });
+          
+          setTimeout(() => {
+            setShowSuccess(false);
+            resetForm();
+            if (onBack) onBack();
+          }, 2000);
+          
+          return;
+        } catch (offlineErr) {
+          console.error('Offline save also failed:', offlineErr);
+        }
+      }
+      
+      toast.error('Erro ao salvar. Verifique sua conexão.');
     } finally {
       setIsSaving(false);
       setIsUploadingPhotos(false);
