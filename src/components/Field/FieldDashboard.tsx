@@ -85,9 +85,36 @@ interface DeleteRequest {
   reason: string;
 }
 
+// Helper function to get the stock sheet name for a location
+function getStockSheetName(location: string): string {
+  const normalized = location.toLowerCase().trim();
+  
+  if (normalized.includes('comboio 01') || normalized.includes('comboio01') || normalized === 'cb-01') {
+    return 'EstoqueComboio01';
+  }
+  if (normalized.includes('comboio 02') || normalized.includes('comboio02') || normalized === 'cb-02') {
+    return 'EstoqueComboio02';
+  }
+  if (normalized.includes('comboio 03') || normalized.includes('comboio03') || normalized === 'cb-03') {
+    return 'EstoqueComboio03';
+  }
+  if (normalized.includes('tanque canteiro 01') || normalized.includes('canteiro01') || normalized.includes('canteiro 01')) {
+    return 'EstoqueCanteiro01';
+  }
+  if (normalized.includes('tanque canteiro 02') || normalized.includes('canteiro02') || normalized.includes('canteiro 02')) {
+    return 'EstoqueCanteiro02';
+  }
+  
+  // Default fallback
+  return 'GERAL';
+}
+
 export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) {
-  const { data: abastecimentoData } = useSheetData('AbastecimentoCanteiro01');
-  const { data: geralData } = useSheetData('GERAL');
+  // Get the first assigned location to determine which stock sheet to use
+  const primaryLocation = user.assigned_locations?.[0] || '';
+  const stockSheetName = getStockSheetName(primaryLocation);
+  
+  const { data: stockSheetData } = useSheetData(stockSheetName);
   const [userRecords, setUserRecords] = useState<RecentRecord[]>([]);
   const [stockByLocation, setStockByLocation] = useState<StockData[]>([]);
   const [todayStats, setTodayStats] = useState({
@@ -105,65 +132,59 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
   });
   const [isLoading, setIsLoading] = useState(true);
 
-  // Calculate stock KPIs based on user's assigned locations
+  // Calculate stock KPIs from location-specific sheet (column H for current stock)
   const stockKPIs = useMemo(() => {
-    if (!abastecimentoData.rows.length || !user.assigned_locations?.length) {
+    if (!stockSheetData.rows.length) {
       return { estoqueAnterior: 0, entradas: 0, saidas: 0, estoqueAtual: 0 };
     }
 
-    const userLocations = user.assigned_locations;
-    let totalEntradas = 0;
-    let totalSaidas = 0;
+    // Get the most recent row (last row with data)
+    const sortedRows = [...stockSheetData.rows].reverse();
     let estoqueAnterior = 0;
+    let entradas = 0;
+    let saidas = 0;
+    let estoqueAtual = 0;
 
-    // Try to get Estoque Anterior from GERAL sheet for user's locations
-    if (geralData.rows.length > 0) {
-      const today = new Date();
-      const todayStr = `${String(today.getDate()).padStart(2, '0')}/${String(today.getMonth() + 1).padStart(2, '0')}/${today.getFullYear()}`;
+    // Find the first row with valid data
+    for (const row of sortedRows) {
+      // Try various column name patterns
+      // Column H typically is "ESTOQUE ATUAL" or similar in comboio sheets
+      const rowEstoqueAtual = parseFloat(String(
+        row['ESTOQUE ATUAL'] || row['Estoque Atual'] || row['EST_ATUAL'] || 
+        row['ESTOQUE'] || row['Estoque'] || row['H'] || 0
+      ).replace(/\./g, '').replace(',', '.')) || 0;
       
-      // Look for today's or yesterday's row to get Estoque Anterior
-      const sortedRows = [...geralData.rows].reverse(); // Most recent first
-      for (const row of sortedRows) {
-        const rowDate = String(row['DATA'] || row['Data'] || '').trim();
-        const rowEstoqueAnterior = parseFloat(String(row['ESTOQUE ANTERIOR'] || row['Estoque Anterior'] || row['EST_ANTERIOR'] || 0).replace(/\./g, '').replace(',', '.')) || 0;
-        
-        if (rowEstoqueAnterior > 0) {
-          estoqueAnterior = rowEstoqueAnterior;
-          break;
-        }
+      const rowEstoqueAnterior = parseFloat(String(
+        row['ESTOQUE ANTERIOR'] || row['Estoque Anterior'] || row['EST_ANTERIOR'] || 
+        row['ANTERIOR'] || row['G'] || 0
+      ).replace(/\./g, '').replace(',', '.')) || 0;
+      
+      const rowEntradas = parseFloat(String(
+        row['ENTRADA'] || row['Entrada'] || row['ENTRADAS'] || row['E'] || 0
+      ).replace(/\./g, '').replace(',', '.')) || 0;
+      
+      const rowSaidas = parseFloat(String(
+        row['SAÍDA'] || row['Saída'] || row['SAIDA'] || row['Saida'] || 
+        row['SAIDAS'] || row['SAÍDAS'] || row['F'] || 0
+      ).replace(/\./g, '').replace(',', '.')) || 0;
+
+      // If we found valid data, use it
+      if (rowEstoqueAtual > 0 || rowEntradas > 0 || rowSaidas > 0) {
+        estoqueAtual = rowEstoqueAtual;
+        estoqueAnterior = rowEstoqueAnterior;
+        entradas = rowEntradas;
+        saidas = rowSaidas;
+        break;
       }
     }
 
-    // Calculate from AbastecimentoCanteiro01 data
-    abastecimentoData.rows.forEach(row => {
-      const rowLocation = String(row['LOCAL'] || row['Local'] || '').trim();
-      const tipo = String(row['TIPO'] || row['Tipo'] || '').toLowerCase();
-      const quantidade = parseFloat(String(row['QUANTIDADE'] || row['Quantidade'] || row['QTD'] || 0).replace(/\./g, '').replace(',', '.')) || 0;
-
-      // Check if this row belongs to user's locations
-      const belongsToUser = userLocations.some(loc => 
-        rowLocation.toLowerCase().includes(loc.toLowerCase()) ||
-        loc.toLowerCase().includes(rowLocation.toLowerCase())
-      );
-
-      if (belongsToUser || userLocations.length === 0) {
-        if (tipo.includes('entrada')) {
-          totalEntradas += quantidade;
-        } else if (tipo.includes('saída') || tipo.includes('saida')) {
-          totalSaidas += quantidade;
-        }
-      }
-    });
-
-    const estoqueAtual = estoqueAnterior + totalEntradas - totalSaidas;
-
     return {
       estoqueAnterior,
-      entradas: totalEntradas,
-      saidas: totalSaidas,
+      entradas,
+      saidas,
       estoqueAtual: Math.max(0, estoqueAtual),
     };
-  }, [abastecimentoData.rows, geralData.rows, user.assigned_locations]);
+  }, [stockSheetData.rows]);
 
   // Fetch user's records from database
   useEffect(() => {
@@ -237,51 +258,8 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
     fetchUserRecords();
   }, [user.id]);
 
-  // Calculate stock by location from sheet data
-  useEffect(() => {
-    if (!abastecimentoData.rows.length || !user.assigned_locations?.length) return;
-
-    const userLocations = user.assigned_locations || [];
-    const stockData: StockData[] = [];
-
-    userLocations.forEach(location => {
-      // Filter records for this location
-      const locationRecords = abastecimentoData.rows.filter(row => {
-        const rowLocation = String(row['LOCAL'] || row['Local'] || '');
-        return rowLocation.toLowerCase().includes(location.toLowerCase()) ||
-               location.toLowerCase().includes(rowLocation.toLowerCase());
-      });
-
-      // Calculate entries (Entrada) and exits (Saída)
-      let entradas = 0;
-      let saidas = 0;
-
-      locationRecords.forEach(row => {
-        const tipo = String(row['TIPO'] || row['Tipo'] || '').toLowerCase();
-        const quantidade = parseFloat(String(row['QUANTIDADE'] || row['Quantidade'] || row['QTD'] || 0)) || 0;
-
-        if (tipo.includes('entrada')) {
-          entradas += quantidade;
-        } else {
-          saidas += quantidade;
-        }
-      });
-
-      // Simple stock calculation (this would need actual initial stock from somewhere)
-      const estoqueAnterior = 0; // Would need to be fetched from a stock table
-      const estoqueAtual = estoqueAnterior + entradas - saidas;
-
-      stockData.push({
-        location,
-        estoqueAnterior,
-        entradas,
-        saidas,
-        estoqueAtual: Math.max(0, estoqueAtual),
-      });
-    });
-
-    setStockByLocation(stockData);
-  }, [abastecimentoData.rows, user.assigned_locations]);
+  // Stock by location is now calculated from the location-specific sheet
+  // via the stockKPIs useMemo above
 
   const formatDate = (dateStr: string) => {
     try {
@@ -433,50 +411,50 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
         <ArrowRight className="w-5 h-5" />
       </Button>
 
-      {/* Stock KPIs - Main Dashboard */}
+      {/* Stock KPIs - Main Dashboard - Order: Est. Anterior, Entradas, Saídas, Est. Atual */}
       <Card className="bg-slate-800/50 border-slate-700">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm flex items-center gap-2 text-slate-200">
             <Database className="w-4 h-4 text-amber-400" />
-            Controle de Estoque
+            Controle de Estoque - {primaryLocation || 'Geral'}
           </CardTitle>
         </CardHeader>
         <CardContent className="pt-0">
-          <div className="grid grid-cols-2 gap-3">
-            {/* Estoque Anterior */}
-            <div className="bg-yellow-900/30 border border-yellow-700/50 rounded-lg p-3 text-center">
-              <LogOutIcon className="w-4 h-4 mx-auto mb-1 text-yellow-400" />
-              <p className="text-xl font-bold text-yellow-400">
+          <div className="grid grid-cols-4 gap-2">
+            {/* 1. Estoque Anterior */}
+            <div className="bg-yellow-900/30 border border-yellow-700/50 rounded-lg p-2 text-center">
+              <LogOutIcon className="w-3 h-3 mx-auto mb-1 text-yellow-400" />
+              <p className="text-lg font-bold text-yellow-400">
                 {stockKPIs.estoqueAnterior.toLocaleString('pt-BR')}
               </p>
-              <p className="text-xs text-yellow-300/70">Est. Anterior</p>
+              <p className="text-[10px] text-yellow-300/70">Est. Anterior</p>
             </div>
             
-            {/* Entradas */}
-            <div className="bg-green-900/30 border border-green-700/50 rounded-lg p-3 text-center">
-              <LogIn className="w-4 h-4 mx-auto mb-1 text-green-400" />
-              <p className="text-xl font-bold text-green-400">
+            {/* 2. Entradas */}
+            <div className="bg-green-900/30 border border-green-700/50 rounded-lg p-2 text-center">
+              <LogIn className="w-3 h-3 mx-auto mb-1 text-green-400" />
+              <p className="text-lg font-bold text-green-400">
                 +{stockKPIs.entradas.toLocaleString('pt-BR')}
               </p>
-              <p className="text-xs text-green-300/70">Entradas</p>
+              <p className="text-[10px] text-green-300/70">Entradas</p>
             </div>
             
-            {/* Saídas */}
-            <div className="bg-red-900/30 border border-red-700/50 rounded-lg p-3 text-center">
-              <TrendingDown className="w-4 h-4 mx-auto mb-1 text-red-400" />
-              <p className="text-xl font-bold text-red-400">
+            {/* 3. Saídas */}
+            <div className="bg-red-900/30 border border-red-700/50 rounded-lg p-2 text-center">
+              <TrendingDown className="w-3 h-3 mx-auto mb-1 text-red-400" />
+              <p className="text-lg font-bold text-red-400">
                 -{stockKPIs.saidas.toLocaleString('pt-BR')}
               </p>
-              <p className="text-xs text-red-300/70">Saídas</p>
+              <p className="text-[10px] text-red-300/70">Saídas</p>
             </div>
             
-            {/* Estoque Atual */}
-            <div className="bg-blue-900/30 border border-blue-700/50 rounded-lg p-3 text-center">
-              <Fuel className="w-4 h-4 mx-auto mb-1 text-blue-400" />
-              <p className="text-xl font-bold text-blue-400">
+            {/* 4. Estoque Atual */}
+            <div className="bg-blue-900/30 border border-blue-700/50 rounded-lg p-2 text-center">
+              <Fuel className="w-3 h-3 mx-auto mb-1 text-blue-400" />
+              <p className="text-lg font-bold text-blue-400">
                 {stockKPIs.estoqueAtual.toLocaleString('pt-BR')}
               </p>
-              <p className="text-xs text-blue-300/70">Est. Atual</p>
+              <p className="text-[10px] text-blue-300/70">Est. Atual</p>
             </div>
           </div>
         </CardContent>
