@@ -25,8 +25,11 @@ import {
   Settings,
   CheckSquare,
   Square,
-  Layers
+  Layers,
+  LayoutGrid,
+  LayoutList
 } from 'lucide-react';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { MetricCard } from '@/components/Dashboard/MetricCard';
@@ -77,6 +80,7 @@ import { BatchHorimeterModal } from '@/components/Horimetros/BatchHorimeterModal
 import { ColumnConfigModal } from '@/components/Layout/ColumnConfigModal';
 import { useLayoutPreferences, ColumnConfig } from '@/hooks/useLayoutPreferences';
 import * as XLSX from 'xlsx';
+import { HorimeterCardView } from '@/components/Horimetros/HorimeterCardView';
 
 const DEFAULT_HORIMETER_COLUMNS: ColumnConfig[] = [
   { key: 'select', label: 'Seleção', visible: true, order: 0 },
@@ -95,6 +99,7 @@ const DEFAULT_HORIMETER_COLUMNS: ColumnConfig[] = [
 ];
 
 export function HorimetrosPageDB() {
+  const isMobile = useIsMobile();
   const { vehicles, loading: vehiclesLoading, refetch: refetchVehicles } = useVehicles();
   const { readings, loading: readingsLoading, refetch: refetchReadings, deleteReading } = useHorimeterReadings();
   const { toast } = useToast();
@@ -127,6 +132,16 @@ export function HorimetrosPageDB() {
   const [selectionModeActive, setSelectionModeActive] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
+  
+  // View mode - auto-detect based on device
+  const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
+  
+  // Auto-switch to cards on mobile
+  useEffect(() => {
+    if (isMobile) {
+      setViewMode('cards');
+    }
+  }, [isMobile]);
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -553,6 +568,26 @@ export function HorimetrosPageDB() {
             )}
             
             <div className="flex items-center gap-2 flex-wrap">
+              {/* View mode toggle */}
+              <div className="flex items-center border rounded-lg overflow-hidden">
+                <Button 
+                  variant={viewMode === 'table' ? 'secondary' : 'ghost'}
+                  size="sm"
+                  className="rounded-none h-8"
+                  onClick={() => setViewMode('table')}
+                >
+                  <LayoutList className="w-4 h-4" />
+                </Button>
+                <Button 
+                  variant={viewMode === 'cards' ? 'secondary' : 'ghost'}
+                  size="sm"
+                  className="rounded-none h-8"
+                  onClick={() => setViewMode('cards')}
+                >
+                  <LayoutGrid className="w-4 h-4" />
+                </Button>
+              </div>
+              
               <Button variant="outline" size="sm" onClick={() => setShowColumnConfig(true)} className="shrink-0">
                 <Settings className="w-4 h-4 sm:mr-2" />
                 <span className="hidden sm:inline">Colunas</span>
@@ -749,12 +784,94 @@ export function HorimetrosPageDB() {
           </div>
         </div>
 
-        {/* Details Table */}
+        {/* Details Table or Card View */}
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <RefreshCw className="w-6 h-6 animate-spin text-primary" />
             <span className="ml-2">Carregando dados...</span>
           </div>
+        ) : viewMode === 'cards' ? (
+          <>
+            <HorimeterCardView
+              readings={paginatedReadings}
+              selectedIds={selectedIds}
+              selectionModeActive={selectionModeActive}
+              onToggleSelection={toggleSelection}
+              onEdit={(reading) => setEditingRecord(reading as any)}
+              onDelete={(reading) => setDeleteConfirm(reading as any)}
+            />
+            
+            {/* Pagination Footer for Cards */}
+            {readingsWithInterval.length > 0 && (
+              <div className="bg-card border rounded-lg p-3 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 text-sm">
+                <div className="flex items-center gap-4">
+                  <span className="text-muted-foreground">
+                    Total: <strong>{readingsWithInterval.length}</strong> registros
+                    {selectedIds.size > 0 && (
+                      <span className="ml-2 text-primary">({selectedIds.size} selecionados)</span>
+                    )}
+                  </span>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">Exibir:</span>
+                  <Select value={rowsPerPage.toString()} onValueChange={(v) => { setRowsPerPage(Number(v)); setCurrentPage(1); }}>
+                    <SelectTrigger className="w-[70px] h-8">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-background">
+                      {ROWS_PER_PAGE_OPTIONS.map(opt => (
+                        <SelectItem key={opt} value={opt.toString()}>{opt}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  
+                  <span className="text-xs text-muted-foreground mx-2">
+                    Pág. {currentPage} de {totalPages || 1}
+                  </span>
+                  
+                  <div className="flex items-center gap-1">
+                    <Button 
+                      variant="outline" 
+                      size="icon" 
+                      className="h-8 w-8"
+                      onClick={() => setCurrentPage(1)}
+                      disabled={currentPage === 1}
+                    >
+                      <ChevronsLeft className="w-4 h-4" />
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="icon" 
+                      className="h-8 w-8"
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="icon" 
+                      className="h-8 w-8"
+                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                      disabled={currentPage === totalPages || totalPages === 0}
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="icon" 
+                      className="h-8 w-8"
+                      onClick={() => setCurrentPage(totalPages)}
+                      disabled={currentPage === totalPages || totalPages === 0}
+                    >
+                      <ChevronsRight className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
         ) : (
           <div className="rounded-lg border overflow-x-auto">
             <Table>
