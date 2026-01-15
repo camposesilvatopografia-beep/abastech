@@ -12,6 +12,8 @@ import {
   Trash2,
   AlertCircle,
   Loader2,
+  MapPin,
+  ChevronDown,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -30,6 +32,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { EditRequestModal } from './EditRequestModal';
 import { LocationStockCard } from './LocationStockCard';
 import logoAbastech from '@/assets/logo-abastech.png';
@@ -81,6 +90,12 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
   const [editRecord, setEditRecord] = useState<RecentRecord | null>(null);
   const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // Location selection for users with multiple locations
+  const hasMultipleLocations = (user.assigned_locations?.length || 0) > 1;
+  const [selectedLocation, setSelectedLocation] = useState<string>(
+    user.assigned_locations?.[0] || 'all'
+  );
 
   // Get today's date for display
   const todayStr = format(new Date(), "dd 'de' MMMM", { locale: ptBR });
@@ -324,42 +339,61 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
         onSuccess={refreshRecords}
       />
 
-      {/* Welcome Section with Logo */}
+      {/* Welcome Header */}
       <div className="bg-gradient-to-r from-amber-600 to-orange-600 rounded-xl p-4 text-white">
-        <div className="flex items-center gap-3 mb-2">
-          <img src={logoAbastech} alt="Abastech" className="h-10 w-auto" />
-        </div>
-        <h2 className="text-lg font-bold">Olá, {user.name}!</h2>
-        <div className="flex items-center justify-between">
-          <p className="text-sm opacity-90">
-            {user.assigned_locations?.length === 1 
-              ? `Local: ${user.assigned_locations[0]}`
-              : `${user.assigned_locations?.length || 0} locais atribuídos`
-            }
-          </p>
-          <div className="flex items-center gap-1 text-sm opacity-90 bg-white/20 px-2 py-1 rounded">
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="text-lg font-bold">Olá, {user.name}!</h2>
+          <div className="flex items-center gap-1 text-sm bg-white/20 px-2 py-1 rounded">
             <Calendar className="w-4 h-4" />
             {todayStr}
           </div>
         </div>
+        <p className="text-sm opacity-90">
+          {hasMultipleLocations 
+            ? `${user.assigned_locations?.length} locais atribuídos`
+            : user.assigned_locations?.[0] || 'Nenhum local atribuído'
+          }
+        </p>
       </div>
 
-      {/* Quick Action Button - Light Blue Fill */}
-      <Button 
-        onClick={onNavigateToForm}
-        className="w-full h-16 text-lg gap-3 bg-sky-400 hover:bg-sky-500 text-white shadow-lg"
-      >
-        <Fuel className="w-6 h-6" />
-        Novo Apontamento
-        <ArrowRight className="w-5 h-5" />
-      </Button>
+      {/* Location Selector for Multiple Locations */}
+      {hasMultipleLocations && (
+        <div className="bg-slate-800/80 rounded-xl p-4 border border-slate-700">
+          <div className="flex items-center gap-2 mb-3">
+            <MapPin className="w-4 h-4 text-amber-400" />
+            <span className="text-sm font-medium text-slate-200">Visualizar Estoque por Local</span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {user.assigned_locations?.map((loc) => (
+              <Button
+                key={loc}
+                variant={selectedLocation === loc ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setSelectedLocation(loc)}
+                className={cn(
+                  "text-xs",
+                  selectedLocation === loc 
+                    ? "bg-amber-500 hover:bg-amber-600 text-white border-amber-500"
+                    : "border-slate-600 text-slate-300 hover:bg-slate-700"
+                )}
+              >
+                {loc}
+              </Button>
+            ))}
+          </div>
+        </div>
+      )}
 
-      {/* Stock KPIs per Location */}
+      {/* Stock KPIs - Show only selected location or all */}
       {user.assigned_locations && user.assigned_locations.length > 0 && (
         <div className="space-y-3">
-          {user.assigned_locations.map((location) => (
-            <LocationStockCard key={location} location={location} />
-          ))}
+          {hasMultipleLocations ? (
+            <LocationStockCard key={selectedLocation} location={selectedLocation} />
+          ) : (
+            user.assigned_locations.map((location) => (
+              <LocationStockCard key={location} location={location} />
+            ))
+          )}
         </div>
       )}
 
