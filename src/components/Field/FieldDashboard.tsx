@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { 
   Fuel, 
   TrendingUp, 
@@ -17,6 +17,9 @@ import {
   CheckCircle,
   X,
   Loader2,
+  Database,
+  LogIn,
+  LogOut as LogOutIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -84,6 +87,7 @@ interface DeleteRequest {
 
 export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) {
   const { data: abastecimentoData } = useSheetData('AbastecimentoCanteiro01');
+  const { data: geralData } = useSheetData('GERAL');
   const [userRecords, setUserRecords] = useState<RecentRecord[]>([]);
   const [stockByLocation, setStockByLocation] = useState<StockData[]>([]);
   const [todayStats, setTodayStats] = useState({
@@ -100,6 +104,66 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
     totalLiters: 0,
   });
   const [isLoading, setIsLoading] = useState(true);
+
+  // Calculate stock KPIs based on user's assigned locations
+  const stockKPIs = useMemo(() => {
+    if (!abastecimentoData.rows.length || !user.assigned_locations?.length) {
+      return { estoqueAnterior: 0, entradas: 0, saidas: 0, estoqueAtual: 0 };
+    }
+
+    const userLocations = user.assigned_locations;
+    let totalEntradas = 0;
+    let totalSaidas = 0;
+    let estoqueAnterior = 0;
+
+    // Try to get Estoque Anterior from GERAL sheet for user's locations
+    if (geralData.rows.length > 0) {
+      const today = new Date();
+      const todayStr = `${String(today.getDate()).padStart(2, '0')}/${String(today.getMonth() + 1).padStart(2, '0')}/${today.getFullYear()}`;
+      
+      // Look for today's or yesterday's row to get Estoque Anterior
+      const sortedRows = [...geralData.rows].reverse(); // Most recent first
+      for (const row of sortedRows) {
+        const rowDate = String(row['DATA'] || row['Data'] || '').trim();
+        const rowEstoqueAnterior = parseFloat(String(row['ESTOQUE ANTERIOR'] || row['Estoque Anterior'] || row['EST_ANTERIOR'] || 0).replace(/\./g, '').replace(',', '.')) || 0;
+        
+        if (rowEstoqueAnterior > 0) {
+          estoqueAnterior = rowEstoqueAnterior;
+          break;
+        }
+      }
+    }
+
+    // Calculate from AbastecimentoCanteiro01 data
+    abastecimentoData.rows.forEach(row => {
+      const rowLocation = String(row['LOCAL'] || row['Local'] || '').trim();
+      const tipo = String(row['TIPO'] || row['Tipo'] || '').toLowerCase();
+      const quantidade = parseFloat(String(row['QUANTIDADE'] || row['Quantidade'] || row['QTD'] || 0).replace(/\./g, '').replace(',', '.')) || 0;
+
+      // Check if this row belongs to user's locations
+      const belongsToUser = userLocations.some(loc => 
+        rowLocation.toLowerCase().includes(loc.toLowerCase()) ||
+        loc.toLowerCase().includes(rowLocation.toLowerCase())
+      );
+
+      if (belongsToUser || userLocations.length === 0) {
+        if (tipo.includes('entrada')) {
+          totalEntradas += quantidade;
+        } else if (tipo.includes('saída') || tipo.includes('saida')) {
+          totalSaidas += quantidade;
+        }
+      }
+    });
+
+    const estoqueAtual = estoqueAnterior + totalEntradas - totalSaidas;
+
+    return {
+      estoqueAnterior,
+      entradas: totalEntradas,
+      saidas: totalSaidas,
+      estoqueAtual: Math.max(0, estoqueAtual),
+    };
+  }, [abastecimentoData.rows, geralData.rows, user.assigned_locations]);
 
   // Fetch user's records from database
   useEffect(() => {
@@ -368,6 +432,55 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
         Novo Apontamento
         <ArrowRight className="w-5 h-5" />
       </Button>
+
+      {/* Stock KPIs - Main Dashboard */}
+      <Card className="bg-slate-800/50 border-slate-700">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2 text-slate-200">
+            <Database className="w-4 h-4 text-amber-400" />
+            Controle de Estoque
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <div className="grid grid-cols-2 gap-3">
+            {/* Estoque Anterior */}
+            <div className="bg-yellow-900/30 border border-yellow-700/50 rounded-lg p-3 text-center">
+              <LogOutIcon className="w-4 h-4 mx-auto mb-1 text-yellow-400" />
+              <p className="text-xl font-bold text-yellow-400">
+                {stockKPIs.estoqueAnterior.toLocaleString('pt-BR')}
+              </p>
+              <p className="text-xs text-yellow-300/70">Est. Anterior</p>
+            </div>
+            
+            {/* Entradas */}
+            <div className="bg-green-900/30 border border-green-700/50 rounded-lg p-3 text-center">
+              <LogIn className="w-4 h-4 mx-auto mb-1 text-green-400" />
+              <p className="text-xl font-bold text-green-400">
+                +{stockKPIs.entradas.toLocaleString('pt-BR')}
+              </p>
+              <p className="text-xs text-green-300/70">Entradas</p>
+            </div>
+            
+            {/* Saídas */}
+            <div className="bg-red-900/30 border border-red-700/50 rounded-lg p-3 text-center">
+              <TrendingDown className="w-4 h-4 mx-auto mb-1 text-red-400" />
+              <p className="text-xl font-bold text-red-400">
+                -{stockKPIs.saidas.toLocaleString('pt-BR')}
+              </p>
+              <p className="text-xs text-red-300/70">Saídas</p>
+            </div>
+            
+            {/* Estoque Atual */}
+            <div className="bg-blue-900/30 border border-blue-700/50 rounded-lg p-3 text-center">
+              <Fuel className="w-4 h-4 mx-auto mb-1 text-blue-400" />
+              <p className="text-xl font-bold text-blue-400">
+                {stockKPIs.estoqueAtual.toLocaleString('pt-BR')}
+              </p>
+              <p className="text-xs text-blue-300/70">Est. Atual</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Today Stats */}
       <div className="grid grid-cols-3 gap-3">
