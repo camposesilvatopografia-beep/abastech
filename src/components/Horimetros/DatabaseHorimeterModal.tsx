@@ -365,7 +365,7 @@ export function DatabaseHorimeterModal({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-xl max-h-[95vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Clock className="w-5 h-5 text-primary" />
@@ -445,23 +445,28 @@ export function DatabaseHorimeterModal({
                 </div>
               )}
 
-              {/* Date Selection */}
-              <div className="space-y-1">
-                <Label className="text-sm">Data *</Label>
+              {/* Date Selection - Expanded */}
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Data do Registro *</Label>
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button
                       variant="outline"
                       className={cn(
-                        'w-full justify-start text-left font-normal h-9',
+                        'w-full justify-start text-left font-normal h-11 text-base',
                         !selectedDate && 'text-muted-foreground'
                       )}
                     >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {format(selectedDate, 'dd/MM/yyyy', { locale: ptBR })}
+                      <CalendarIcon className="mr-3 h-5 w-5 text-primary" />
+                      <div className="flex flex-col items-start">
+                        <span className="font-semibold">{format(selectedDate, 'dd/MM/yyyy', { locale: ptBR })}</span>
+                        <span className="text-xs text-muted-foreground capitalize">
+                          {format(selectedDate, 'EEEE', { locale: ptBR })}
+                        </span>
+                      </div>
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0 pointer-events-auto bg-background" align="start">
+                  <PopoverContent className="w-auto p-0 pointer-events-auto bg-background" align="start" sideOffset={8}>
                     <CalendarComponent
                       mode="single"
                       selected={selectedDate}
@@ -469,11 +474,12 @@ export function DatabaseHorimeterModal({
                       disabled={(date) => date > new Date()}
                       initialFocus
                       locale={ptBR}
+                      className="p-3"
                     />
                   </PopoverContent>
                 </Popover>
                 {hasDuplicateRecord && (
-                  <p className="text-xs text-destructive flex items-center gap-1">
+                  <p className="text-xs text-destructive flex items-center gap-1 mt-1">
                     <AlertTriangle className="w-3 h-3" />
                     Já existe registro nesta data
                   </p>

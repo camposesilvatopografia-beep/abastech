@@ -197,7 +197,7 @@ export function BatchHorimeterModal({ open, onOpenChange, onSuccess }: BatchHori
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col">
+      <DialogContent className="max-w-4xl max-h-[95vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Plus className="w-5 h-5" />
@@ -289,11 +289,11 @@ export function BatchHorimeterModal({ open, onOpenChange, onSuccess }: BatchHori
             </Badge>
           </div>
 
-          {/* Entries List */}
-          <ScrollArea className="flex-1 border rounded-lg">
-            <div className="p-2 space-y-2">
+          {/* Entries List - Expanded View */}
+          <ScrollArea className="flex-1 min-h-[300px] max-h-[450px] border rounded-lg">
+            <div className="p-3 space-y-2">
               {entries.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
+                <div className="text-center py-12 text-muted-foreground">
                   Selecione um veículo e período para gerar os registros
                 </div>
               ) : (
@@ -301,15 +301,22 @@ export function BatchHorimeterModal({ open, onOpenChange, onSuccess }: BatchHori
                   <div 
                     key={entry.id}
                     className={cn(
-                      "grid grid-cols-[120px_1fr_1fr_40px] gap-2 p-2 rounded-lg border items-center",
+                      "grid grid-cols-[180px_1fr_1fr_50px] gap-3 p-3 rounded-lg border items-center transition-colors",
                       entry.saved && "bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800",
-                      entry.error && "bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800"
+                      entry.error && "bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800",
+                      !entry.saved && !entry.error && "hover:bg-muted/50"
                     )}
                   >
-                    <div className="flex items-center gap-2">
-                      <Calendar className="w-4 h-4 text-muted-foreground" />
-                      <span className="text-sm font-medium">
-                        {format(entry.date, 'dd/MM/yyyy')}
+                    {/* Date with expanded format */}
+                    <div className="flex flex-col">
+                      <div className="flex items-center gap-2">
+                        <Calendar className="w-4 h-4 text-primary" />
+                        <span className="font-semibold text-base">
+                          {format(entry.date, 'dd/MM/yyyy')}
+                        </span>
+                      </div>
+                      <span className="text-xs text-muted-foreground ml-6 capitalize">
+                        {format(entry.date, 'EEEE', { locale: ptBR })}
                       </span>
                     </div>
                     <div className="space-y-1">
@@ -319,7 +326,7 @@ export function BatchHorimeterModal({ open, onOpenChange, onSuccess }: BatchHori
                         onChange={(e) => updateEntry(index, 'horimeterValue', e.target.value)}
                         disabled={entry.saved}
                         className={cn(
-                          "h-8 text-sm",
+                          "h-9 text-sm",
                           entry.saved && "bg-green-100 dark:bg-green-900/50"
                         )}
                       />
@@ -331,16 +338,16 @@ export function BatchHorimeterModal({ open, onOpenChange, onSuccess }: BatchHori
                         onChange={(e) => updateEntry(index, 'kmValue', e.target.value)}
                         disabled={entry.saved}
                         className={cn(
-                          "h-8 text-sm",
+                          "h-9 text-sm",
                           entry.saved && "bg-green-100 dark:bg-green-900/50"
                         )}
                       />
                     </div>
                     <div className="flex justify-center" title={entry.error || undefined}>
                       {entry.saved ? (
-                        <Check className="w-4 h-4 text-green-600" />
+                        <Check className="w-5 h-5 text-green-600" />
                       ) : entry.error ? (
-                        <AlertTriangle className="w-4 h-4 text-red-600" />
+                        <AlertTriangle className="w-5 h-5 text-red-600" />
                       ) : null}
                     </div>
                   </div>
