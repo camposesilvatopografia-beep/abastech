@@ -123,37 +123,6 @@ export function AbastecimentoPage() {
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
 
-  // Get current stock from GERAL sheet - based on dateRange filter (daily data)
-  const estoqueAtual = useMemo(() => {
-    if (!geralData.rows.length) return 0;
-    
-    // For 'hoje' or single day filter, find the exact date row
-    const isSingleDay = periodFilter === 'hoje' || periodFilter === 'ontem' || 
-      (periodFilter === 'personalizado' && startDate && endDate && 
-        format(startDate, 'yyyy-MM-dd') === format(endDate, 'yyyy-MM-dd'));
-    
-    if (isSingleDay) {
-      const targetDate = periodFilter === 'ontem' 
-        ? format(subDays(new Date(), 1), 'dd/MM/yyyy')
-        : startDate 
-          ? format(startDate, 'dd/MM/yyyy')
-          : format(new Date(), 'dd/MM/yyyy');
-      
-      const matchingRow = geralData.rows.find(row => {
-        const rowDate = String(row['Data'] || row['DATA'] || '').trim();
-        return rowDate === targetDate;
-      });
-      
-      if (matchingRow) {
-        return parseNumber(matchingRow['EstoqueAtual'] || matchingRow['ESTOQUE ATUAL']);
-      }
-    }
-    
-    // Fallback to last row
-    const lastRow = geralData.rows[geralData.rows.length - 1];
-    return parseNumber(lastRow?.['EstoqueAtual'] || lastRow?.['ESTOQUE ATUAL'] || 0);
-  }, [geralData.rows, periodFilter, startDate, endDate]);
-
   // Get saneamento stock from estoqueobrasaneamento sheet (column H)
   const estoqueSaneamento = useMemo(() => {
     if (!saneamentoStockData.rows.length) return 0;
@@ -231,52 +200,98 @@ export function AbastecimentoPage() {
     });
   }, [data.rows, dateRange, search, localFilter, tipoFilter, combustivelFilter, empresaFilter]);
 
-  // Calculate metrics from filtered data - separating equipment exits from comboio exits
-  const metrics = useMemo(() => {
-    let saidaEquipamentos = 0;
-    let saidaComboios = 0;
+  // Calculate metrics from GERAL sheet based on date filter - read real values
+  const metricsFromGeral = useMemo(() => {
+    if (!geralData.rows.length) {
+      return {
+        estoqueAnterior: 0,
+        entrada: 0,
+        saidaComboios: 0,
+        saidaEquipamentos: 0,
+        estoqueAtual: 0
+      };
+    }
+    
+    // For single day filter, find the exact date row
+    const isSingleDay = periodFilter === 'hoje' || periodFilter === 'ontem' || 
+      (periodFilter === 'personalizado' && startDate && endDate && 
+        format(startDate, 'yyyy-MM-dd') === format(endDate, 'yyyy-MM-dd'));
+    
+    if (isSingleDay) {
+      const targetDate = periodFilter === 'ontem' 
+        ? format(subDays(new Date(), 1), 'dd/MM/yyyy')
+        : startDate 
+          ? format(startDate, 'dd/MM/yyyy')
+          : format(new Date(), 'dd/MM/yyyy');
+      
+      const matchingRow = geralData.rows.find(row => {
+        const rowDate = String(row['Data'] || row['DATA'] || '').trim();
+        return rowDate === targetDate;
+      });
+      
+      if (matchingRow) {
+        return {
+          estoqueAnterior: parseNumber(matchingRow['Estoque Anterior'] || matchingRow['ESTOQUE ANTERIOR'] || 0),
+          entrada: parseNumber(matchingRow['Entrada'] || matchingRow['ENTRADA'] || 0),
+          saidaComboios: parseNumber(matchingRow['Saida para Comboios'] || matchingRow['SAIDA PARA COMBOIOS'] || 0),
+          saidaEquipamentos: parseNumber(matchingRow['Saida para Equipamentos'] || matchingRow['SAIDA PARA EQUIPAMENTOS'] || 0),
+          estoqueAtual: parseNumber(matchingRow['Estoque Atual'] || matchingRow['ESTOQUE ATUAL'] || 0)
+        };
+      }
+    }
+    
+    // For period filters, sum values for all matching dates
+    let totalEntrada = 0;
+    let totalSaidaComboios = 0;
+    let totalSaidaEquipamentos = 0;
+    let firstEstoqueAnterior = 0;
+    let lastEstoqueAtual = 0;
+    let foundFirst = false;
+    
+    geralData.rows.forEach(row => {
+      const rowDateStr = String(row['Data'] || row['DATA'] || '').trim();
+      const rowDate = parseDate(rowDateStr);
+      
+      if (rowDate && isWithinInterval(rowDate, { start: dateRange.start, end: dateRange.end })) {
+        if (!foundFirst) {
+          firstEstoqueAnterior = parseNumber(row['Estoque Anterior'] || row['ESTOQUE ANTERIOR'] || 0);
+          foundFirst = true;
+        }
+        
+        totalEntrada += parseNumber(row['Entrada'] || row['ENTRADA'] || 0);
+        totalSaidaComboios += parseNumber(row['Saida para Comboios'] || row['SAIDA PARA COMBOIOS'] || 0);
+        totalSaidaEquipamentos += parseNumber(row['Saida para Equipamentos'] || row['SAIDA PARA EQUIPAMENTOS'] || 0);
+        lastEstoqueAtual = parseNumber(row['Estoque Atual'] || row['ESTOQUE ATUAL'] || 0);
+      }
+    });
+    
+    return {
+      estoqueAnterior: firstEstoqueAnterior,
+      entrada: totalEntrada,
+      saidaComboios: totalSaidaComboios,
+      saidaEquipamentos: totalSaidaEquipamentos,
+      estoqueAtual: lastEstoqueAtual
+    };
+  }, [geralData.rows, periodFilter, startDate, endDate, dateRange]);
+
+  // Calculate additional metrics from filtered rows (registros, arla, valor)
+  const additionalMetrics = useMemo(() => {
     let totalArla = 0;
     let totalValor = 0;
-    let registros = 0;
+    let registros = filteredRows.length;
 
     filteredRows.forEach(row => {
-      const quantidade = parseNumber(row['QUANTIDADE']);
       const arla = parseNumber(row['QUANTIDADE DE ARLA']);
       const valor = parseNumber(row['VALOR TOTAL']);
-      const fornecedor = String(row['FORNECEDOR'] || '').trim();
-      const tipo = String(row['TIPO'] || row['TIPO DE OPERACAO'] || '').toLowerCase();
-      const local = String(row['LOCAL'] || '').toLowerCase();
-      const veiculo = String(row['VEICULO'] || '').toLowerCase();
-      
-      // Skip entries from suppliers - only count exits
-      if (fornecedor || tipo.includes('entrada')) {
-        return;
-      }
-      
-      if (quantidade <= 0) return;
-      
-      // Check if destination is a comboio (internal transfers)
-      const isComboioDestination = local.includes('comboio') || veiculo.includes('comboio') || veiculo.startsWith('cb-');
-      
-      if (isComboioDestination) {
-        saidaComboios += quantidade;
-      } else {
-        // Count as equipment exit
-        saidaEquipamentos += quantidade;
-      }
       
       totalArla += arla;
       totalValor += valor;
-      registros++;
     });
 
     return {
       registros,
-      saidaEquipamentos,
-      saidaComboios,
       totalArla,
-      totalValor,
-      mediaConsumo: registros > 0 ? saidaEquipamentos / registros : 0
+      totalValor
     };
   }, [filteredRows]);
 
@@ -1058,35 +1073,35 @@ export function AbastecimentoPage() {
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3 md:gap-4">
           <MetricCard
             title="REGISTROS NO PERÍODO"
-            value={metrics.registros.toString()}
+            value={additionalMetrics.registros.toString()}
             subtitle={`${PERIOD_OPTIONS.find(p => p.value === periodFilter)?.label || 'Período'}`}
             variant="white"
             icon={Fuel}
           />
           <MetricCard
             title="SAÍDA P/ EQUIPAMENTOS"
-            value={`${metrics.saidaEquipamentos.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L`}
+            value={`${metricsFromGeral.saidaEquipamentos.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L`}
             subtitle="Diesel consumido"
             variant="red"
             icon={TrendingDown}
           />
           <MetricCard
             title="SAÍDA P/ COMBOIOS"
-            value={`${metrics.saidaComboios.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L`}
+            value={`${metricsFromGeral.saidaComboios.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L`}
             subtitle="Transferências internas"
             variant="yellow"
             icon={Truck}
           />
           <MetricCard
             title="ARLA TOTAL DE SAÍDAS"
-            value={`${metrics.totalArla.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L`}
+            value={`${additionalMetrics.totalArla.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L`}
             subtitle="Arla consumido"
             variant="blue"
             icon={Droplet}
           />
           <MetricCard
             title="ESTOQUE ATUAL"
-            value={`${estoqueAtual.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L`}
+            value={`${metricsFromGeral.estoqueAtual.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L`}
             subtitle="Combustível disponível"
             variant="navy"
             icon={TrendingUp}
