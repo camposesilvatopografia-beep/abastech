@@ -660,14 +660,6 @@ export function DatabaseHorimeterModal({
               {/* Actions */}
               <div className="flex gap-2 pt-2">
                 <Button
-                  variant="outline"
-                  onClick={() => onOpenChange(false)}
-                  className="flex-1"
-                  disabled={isSaving}
-                >
-                  Cancelar
-                </Button>
-                <Button
                   onClick={handleButtonClick}
                   className="flex-1"
                   disabled={isSaving || !selectedVehicleId || (!horimeterValue && !kmValue)}
@@ -683,6 +675,13 @@ export function DatabaseHorimeterModal({
                       {isEditMode ? 'Atualizar' : 'Salvar'}
                     </>
                   )}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => onOpenChange(false)}
+                  disabled={isSaving}
+                >
+                  Fechar
                 </Button>
               </div>
             </div>
