@@ -100,21 +100,20 @@ export function DashboardContent() {
     });
   }, [abastecimentoData.rows, selectedDate]);
 
-  // Calculate exits from abastecimento data (Saída records only)
-  // FIXED: Check if the destination LOCAL contains 'comboio' for comboio transfers
-  // OR if the refueled VEHICLE is a comboio
+  // Calculate exits from abastecimento data for the selected date (Saída records only)
   const calculatedExits = useMemo(() => {
     let saidaComboios = 0;
     let saidaEquipamentos = 0;
 
     filteredAbastecimentoData.forEach(row => {
-      const tipo = String(row['TIPO DE OPERACAO'] || row['TIPO_OPERACAO'] || row['Tipo'] || '').toLowerCase();
+      const tipo = String(row['TIPO DE OPERACAO'] || row['TIPO_OPERACAO'] || row['Tipo'] || row['TIPO'] || '').toLowerCase();
       const local = String(row['LOCAL'] || row['Local'] || '').toLowerCase();
       const veiculo = String(row['VEICULO'] || row['Veiculo'] || '').trim();
       const quantidade = parseNumber(row['QUANTIDADE'] || row['Quantidade']);
+      const fornecedor = String(row['FORNECEDOR'] || '').trim();
       
       // Only count outgoing/exit records (Saída) - exclude entries from suppliers
-      if (tipo.includes('entrada') || tipo.includes('fornecedor')) return;
+      if (tipo.includes('entrada') || fornecedor) return;
       if (quantidade <= 0) return;
       
       // Check if it's a transfer TO a comboio (local contains comboio)
@@ -132,17 +131,17 @@ export function DashboardContent() {
     return { saidaComboios, saidaEquipamentos };
   }, [filteredAbastecimentoData, isComboio]);
 
-  // Calculate entries from filtered data
+  // Calculate entries from filtered data (supplier deliveries on selected date)
   const calculatedEntries = useMemo(() => {
     let entradas = 0;
     
     filteredAbastecimentoData.forEach(row => {
-      const tipo = String(row['TIPO DE OPERACAO'] || row['TIPO_OPERACAO'] || row['Tipo'] || '').toLowerCase();
-      const local = String(row['LOCAL'] || row['Local'] || '').toLowerCase();
+      const tipo = String(row['TIPO DE OPERACAO'] || row['TIPO_OPERACAO'] || row['Tipo'] || row['TIPO'] || '').toLowerCase();
+      const fornecedor = String(row['FORNECEDOR'] || '').trim();
       const quantidade = parseNumber(row['QUANTIDADE'] || row['Quantidade']);
       
-      // Count entries from suppliers (FORNECEDOR type or entries at tanks)
-      if ((tipo.includes('entrada') || tipo.includes('fornecedor')) && quantidade > 0) {
+      // Count entries from suppliers (has FORNECEDOR or is entrada type)
+      if ((tipo.includes('entrada') || fornecedor) && quantidade > 0) {
         entradas += quantidade;
       }
     });
@@ -150,7 +149,7 @@ export function DashboardContent() {
     return entradas;
   }, [filteredAbastecimentoData]);
 
-  // Extract stock values from GERAL sheet - get row for selected date or last row
+  // Extract stock values from GERAL sheet - get EXACT row for selected date
   const stockData = useMemo(() => {
     const totalSaidas = calculatedExits.saidaComboios + calculatedExits.saidaEquipamentos;
     
@@ -165,23 +164,39 @@ export function DashboardContent() {
       };
     }
 
-    // Try to find row for selected date, otherwise use last row
-    let targetRow = geralData.rows[geralData.rows.length - 1];
+    // Get today's date formatted
+    const targetDateStr = selectedDate 
+      ? format(selectedDate, 'dd/MM/yyyy')
+      : format(new Date(), 'dd/MM/yyyy');
     
-    if (selectedDate) {
-      const selectedDateStr = format(selectedDate, 'dd/MM/yyyy');
-      const matchingRow = geralData.rows.find(row => {
-        const rowDate = String(row['Data'] || row['DATA'] || '');
-        return rowDate === selectedDateStr;
-      });
-      if (matchingRow) targetRow = matchingRow;
+    // Find exact row for the selected/today's date
+    const matchingRow = geralData.rows.find(row => {
+      const rowDate = String(row['Data'] || row['DATA'] || '').trim();
+      return rowDate === targetDateStr;
+    });
+
+    // If we found a matching row for the date, use its values
+    if (matchingRow) {
+      const estoqueAnterior = parseNumber(matchingRow['EstoqueAnterior'] || matchingRow['ESTOQUE ANTERIOR']);
+      const entradaGeral = parseNumber(matchingRow['Entrada'] || matchingRow['ENTRADA']);
+      const estoqueAtual = parseNumber(matchingRow['EstoqueAtual'] || matchingRow['ESTOQUE ATUAL']);
+      
+      return {
+        estoqueAnterior,
+        entrada: calculatedEntries > 0 ? calculatedEntries : entradaGeral,
+        saidaComboios: calculatedExits.saidaComboios,
+        saidaEquipamentos: calculatedExits.saidaEquipamentos,
+        estoqueAtual,
+        totalSaidas
+      };
     }
+
+    // Fallback: use last row if no matching date found
+    const lastRow = geralData.rows[geralData.rows.length - 1];
+    const estoqueAnterior = parseNumber(lastRow?.['EstoqueAnterior'] || lastRow?.['ESTOQUE ANTERIOR']);
+    const entradaGeral = parseNumber(lastRow?.['Entrada'] || lastRow?.['ENTRADA']);
+    const estoqueAtual = parseNumber(lastRow?.['EstoqueAtual'] || lastRow?.['ESTOQUE ATUAL']);
     
-    const estoqueAnterior = parseNumber(targetRow?.['EstoqueAnterior']);
-    const entradaGeral = parseNumber(targetRow?.['Entrada']);
-    const estoqueAtual = parseNumber(targetRow?.['EstoqueAtual']);
-    
-    // Use calculated values which are filtered by date
     return {
       estoqueAnterior,
       entrada: calculatedEntries > 0 ? calculatedEntries : entradaGeral,

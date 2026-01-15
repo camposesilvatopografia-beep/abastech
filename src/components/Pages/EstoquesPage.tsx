@@ -149,35 +149,53 @@ export function EstoquesPage() {
     });
   }, [abastecimentoData.rows, search, startDate, endDate]);
 
-  // Calculate metrics from real data
+  // Calculate metrics from real data - based on filter date (daily values)
   const metrics = useMemo(() => {
-    // Get stock from GERAL sheet - find today's row or use last row
+    // Determine the target date for GERAL sheet lookup
+    // Use startDate if single day selected, otherwise use today
+    const isSingleDay = startDate && endDate && 
+      format(startDate, 'yyyy-MM-dd') === format(endDate, 'yyyy-MM-dd');
+    
+    const targetDate = isSingleDay ? startDate : new Date();
+    const targetDateStr = format(targetDate, 'dd/MM/yyyy');
+    
+    // Get stock from GERAL sheet - find the exact row for target date
     let estoqueDiesel = 0;
     let estoqueAnterior = 0;
+    let entradaGeral = 0;
     
     if (geralData.rows.length > 0) {
-      const todayStr = format(new Date(), 'dd/MM/yyyy');
-      
-      // Try to find today's row
+      // Try to find exact row for target date
       let targetRow = geralData.rows.find(row => {
-        const rowDate = String(row['Data'] || row['DATA'] || '');
-        return rowDate === todayStr;
+        const rowDate = String(row['Data'] || row['DATA'] || '').trim();
+        return rowDate === targetDateStr;
       });
       
-      // If no row for today, use the last row
+      // If no row for target date, use the last row
       if (!targetRow) {
         targetRow = geralData.rows[geralData.rows.length - 1];
       }
       
       estoqueDiesel = parseNumber(targetRow?.['EstoqueAtual'] || targetRow?.['ESTOQUE ATUAL'] || targetRow?.['Estoque Atual']);
       estoqueAnterior = parseNumber(targetRow?.['EstoqueAnterior'] || targetRow?.['ESTOQUE ANTERIOR'] || targetRow?.['Estoque Anterior']);
+      entradaGeral = parseNumber(targetRow?.['Entrada'] || targetRow?.['ENTRADA']);
     }
 
-    // Get ARLA stock from EstoqueArla sheet
+    // Get ARLA stock from EstoqueArla sheet - also by date if possible
     let estoqueArla = 0;
     if (arlaData.rows.length > 0) {
-      const lastArlaRow = arlaData.rows[arlaData.rows.length - 1];
-      estoqueArla = parseNumber(lastArlaRow?.['EstoqueAtual'] || lastArlaRow?.['ESTOQUE ATUAL'] || lastArlaRow?.['Estoque Atual']);
+      // Try to find row for target date
+      let arlaRow = arlaData.rows.find(row => {
+        const rowDate = String(row['Data'] || row['DATA'] || '').trim();
+        return rowDate === targetDateStr;
+      });
+      
+      // Fallback to last row
+      if (!arlaRow) {
+        arlaRow = arlaData.rows[arlaData.rows.length - 1];
+      }
+      
+      estoqueArla = parseNumber(arlaRow?.['EstoqueAtual'] || arlaRow?.['ESTOQUE ATUAL'] || arlaRow?.['Estoque Atual']);
     }
 
     // Calculate saidas (exits) and entradas (entries) from filtered abastecimento data
@@ -190,21 +208,15 @@ export function EstoquesPage() {
       const arla = parseNumber(row['QUANTIDADE DE ARLA'] || row['Quantidade de Arla'] || row['ARLA']);
       const tipo = String(row['TIPO DE OPERACAO'] || row['TIPO'] || row['Tipo'] || '').toLowerCase();
       const fornecedor = String(row['FORNECEDOR'] || '').trim();
-      const local = String(row['LOCAL'] || '').toLowerCase();
 
-      // Count exits (Saída type, no supplier)
-      if (!fornecedor && quantidade > 0) {
-        if (!tipo.includes('entrada')) {
-          saidasPeriodo += quantidade;
-        }
+      // Count exits (Saída type, no supplier, not an entrada)
+      if (!fornecedor && quantidade > 0 && !tipo.includes('entrada')) {
+        saidasPeriodo += quantidade;
       }
       
-      // Count entries (from suppliers at tanks)
-      if (fornecedor && quantidade > 0) {
-        if (local.includes('tanque 01') || local.includes('tanque 02') || 
-            local.includes('tanque canteiro 01') || local.includes('tanque canteiro 02')) {
-          entradasPeriodo += quantidade;
-        }
+      // Count entries (from suppliers or entrada type)
+      if ((fornecedor || tipo.includes('entrada')) && quantidade > 0) {
+        entradasPeriodo += quantidade;
       }
 
       // ARLA exits
@@ -213,15 +225,18 @@ export function EstoquesPage() {
       }
     });
 
+    // Use calculated entries or fall back to GERAL sheet value
+    const finalEntradas = entradasPeriodo > 0 ? entradasPeriodo : entradaGeral;
+
     return {
       estoqueDiesel,
       estoqueAnterior,
       estoqueArla,
       saidasPeriodo,
-      entradasPeriodo,
+      entradasPeriodo: finalEntradas,
       saidasArla
     };
-  }, [geralData.rows, arlaData.rows, filteredRows]);
+  }, [geralData.rows, arlaData.rows, filteredRows, startDate, endDate]);
 
   // Stock alerts with push notifications
   const { checkNow, alertStatus, shareWhatsApp } = useStockAlerts({
