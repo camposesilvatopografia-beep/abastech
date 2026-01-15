@@ -619,10 +619,15 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Fuel className="h-5 w-5 text-primary" />
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto bg-background">
+        <DialogHeader className="border-b pb-4">
+          <DialogTitle className="flex items-center gap-3 text-xl">
+            <div className={cn(
+              "p-2.5 rounded-lg",
+              recordType === 'entrada' ? "bg-green-600 text-white" : "bg-red-600 text-white"
+            )}>
+              <Fuel className="h-5 w-5" />
+            </div>
             Novo Apontamento (Admin)
           </DialogTitle>
         </DialogHeader>
@@ -1141,42 +1146,48 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
 
           {/* Entrada Fields */}
           {quickEntryMode === 'normal' && recordType === 'entrada' && (
-            <>
+            <div className="space-y-4 p-4 bg-green-50/50 dark:bg-green-950/20 rounded-lg border-2 border-green-200 dark:border-green-800">
+              <div className="flex items-center gap-2 mb-2">
+                <Building2 className="h-5 w-5 text-green-600" />
+                <span className="font-semibold text-green-700 dark:text-green-400">Dados da Entrada</span>
+              </div>
+              
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <Building2 className="h-4 w-4" />
+                  <Label className="flex items-center gap-2 font-semibold text-foreground">
+                    <Building2 className="h-4 w-4 text-green-600" />
                     Fornecedor *
                   </Label>
                   <Select value={supplier} onValueChange={setSupplier}>
-                    <SelectTrigger>
+                    <SelectTrigger className="h-12 text-base border-2 border-green-300 dark:border-green-700 bg-background font-medium">
                       <SelectValue placeholder="Selecione o fornecedor" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="bg-popover border-2 border-border">
                       {suppliers.map(sup => (
-                        <SelectItem key={sup.id} value={sup.name}>{sup.name}</SelectItem>
+                        <SelectItem key={sup.id} value={sup.name} className="text-base py-3">{sup.name}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <Receipt className="h-4 w-4" />
+                  <Label className="flex items-center gap-2 font-semibold text-foreground">
+                    <Receipt className="h-4 w-4 text-amber-600" />
                     Nota Fiscal
                   </Label>
                   <Input
                     value={invoiceNumber}
                     onChange={(e) => setInvoiceNumber(e.target.value)}
                     placeholder="Número da NF"
+                    className="h-12 text-base border-2 border-input bg-background font-medium"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <Fuel className="h-4 w-4 text-green-500" />
-                    Quantidade (L)
+                  <Label className="flex items-center gap-2 font-semibold text-foreground">
+                    <Fuel className="h-4 w-4 text-green-600" />
+                    Quantidade (L) *
                   </Label>
                   <Input
                     type="number"
@@ -1184,45 +1195,47 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
                     onChange={(e) => setFuelQuantity(e.target.value)}
                     placeholder="0"
                     step="0.01"
+                    className="h-12 text-lg border-2 border-green-300 dark:border-green-700 bg-background font-bold"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Valor Unitário (R$)</Label>
+                  <Label className="font-semibold text-foreground">Valor Unitário (R$)</Label>
                   <Input
                     value={unitPrice}
                     onChange={(e) => setUnitPrice(e.target.value)}
                     placeholder="0,00"
+                    className="h-12 text-base border-2 border-input bg-background font-medium"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Tipo de Combustível</Label>
+                  <Label className="font-semibold text-foreground">Tipo de Combustível</Label>
                   <Select value={fuelType} onValueChange={setFuelType}>
-                    <SelectTrigger>
+                    <SelectTrigger className="h-12 text-base border-2 border-input bg-background font-medium">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Diesel">Diesel</SelectItem>
-                      <SelectItem value="Diesel S10">Diesel S10</SelectItem>
-                      <SelectItem value="Gasolina">Gasolina</SelectItem>
-                      <SelectItem value="ARLA">ARLA</SelectItem>
+                    <SelectContent className="bg-popover border-2 border-border">
+                      <SelectItem value="Diesel" className="text-base py-3">Diesel</SelectItem>
+                      <SelectItem value="Diesel S10" className="text-base py-3">Diesel S10</SelectItem>
+                      <SelectItem value="Gasolina" className="text-base py-3">Gasolina</SelectItem>
+                      <SelectItem value="ARLA" className="text-base py-3">ARLA</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <MapPin className="h-4 w-4" />
-                    Local de Entrada
+                  <Label className="flex items-center gap-2 font-semibold text-foreground">
+                    <MapPin className="h-4 w-4 text-blue-600" />
+                    Local de Entrada *
                   </Label>
                   <Select value={entryLocation} onValueChange={setEntryLocation}>
-                    <SelectTrigger>
+                    <SelectTrigger className="h-12 text-base border-2 border-blue-300 dark:border-blue-700 bg-background font-medium">
                       <SelectValue placeholder="Selecione o local" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="bg-popover border-2 border-border">
                       {locationOptions.map(loc => (
-                        <SelectItem key={loc} value={loc}>{loc}</SelectItem>
+                        <SelectItem key={loc} value={loc} className="text-base py-3">{loc}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -1230,7 +1243,7 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
               </div>
 
               <div className="space-y-2">
-                <Label className="flex items-center gap-2">
+                <Label className="flex items-center gap-2 font-semibold text-foreground">
                   <Droplet className="h-4 w-4 text-blue-500" />
                   Quantidade ARLA (L) - Opcional
                 </Label>
@@ -1240,9 +1253,10 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
                   onChange={(e) => setArlaQuantity(e.target.value)}
                   placeholder="0"
                   step="0.01"
+                  className="h-12 text-base border-2 border-blue-200 dark:border-blue-800 bg-background font-medium"
                 />
               </div>
-            </>
+            </div>
           )}
 
           {/* Observations */}

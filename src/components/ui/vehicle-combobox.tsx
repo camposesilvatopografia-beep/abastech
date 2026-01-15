@@ -57,8 +57,8 @@ export function VehicleCombobox({
 
   const displayText = React.useMemo(() => {
     if (!selectedVehicle) return placeholder;
-    const name = selectedVehicle.name || selectedVehicle.description || selectedVehicle.category || '';
-    return `${selectedVehicle.code}${name ? ` - ${name}` : ''}`;
+    // Only show the code (prefix) as requested
+    return selectedVehicle.code;
   }, [selectedVehicle, placeholder]);
 
   // Group vehicles by category
@@ -174,11 +174,10 @@ export function VehicleCombobox({
                         />
                         <div className="flex flex-col flex-1 min-w-0">
                           <span className={cn(
-                            "font-medium text-base truncate",
+                            "font-bold text-base truncate",
                             isSelected && "text-primary"
                           )}>
                             {vehicle.code}
-                            {name && <span className="font-normal text-foreground"> - {name}</span>}
                           </span>
                         </div>
                       </CommandItem>

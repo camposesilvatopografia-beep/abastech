@@ -1,7 +1,14 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { format, addDays, subDays, startOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Calendar, Clock, Plus, Trash2, Check, AlertTriangle, Save, Loader2, Maximize2, Minimize2, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { Calendar, Clock, Plus, Trash2, Check, AlertTriangle, Save, Loader2, Maximize2, Minimize2, TrendingUp, TrendingDown, Minus, Truck, User } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   Dialog,
   DialogContent,
@@ -327,10 +334,14 @@ export function BatchHorimeterModal({ open, onOpenChange, onSuccess }: BatchHori
           "flex-1 overflow-hidden flex flex-col p-4 gap-4",
           isExpanded && "p-6 gap-6"
         )}>
-          {/* Compact Configuration Section */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-3 p-3 bg-muted/30 rounded-lg border">
-            <div className="space-y-1">
-              <Label className="text-xs font-medium">Veículo *</Label>
+          {/* Enhanced Configuration Section */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-muted/50 rounded-xl border-2 border-border">
+            {/* Vehicle Selection */}
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold text-foreground flex items-center gap-2">
+                <Truck className="w-4 h-4 text-primary" />
+                Veículo *
+              </Label>
               <VehicleCombobox
                 vehicles={vehicles.map(v => ({
                   id: v.id,
@@ -341,35 +352,88 @@ export function BatchHorimeterModal({ open, onOpenChange, onSuccess }: BatchHori
                 }))}
                 value={selectedVehicleId}
                 onValueChange={setSelectedVehicleId}
-                placeholder="Selecionar..."
+                placeholder="Selecionar veículo..."
+                useIdAsValue
               />
             </div>
-            <div className="space-y-1">
-              <Label className="text-xs font-medium">Operador</Label>
+            
+            {/* Operator */}
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold text-foreground flex items-center gap-2">
+                <User className="w-4 h-4 text-muted-foreground" />
+                Operador
+              </Label>
               <Input
                 value={operador}
                 onChange={(e) => setOperador(e.target.value)}
-                placeholder="Nome"
-                className="h-9"
+                placeholder="Nome do operador"
+                className="h-12 text-base border-2 border-input bg-background font-medium"
               />
             </div>
-            <div className="space-y-1">
-              <Label className="text-xs font-medium">Data Início</Label>
-              <Input
-                type="date"
-                value={format(startDate, 'yyyy-MM-dd')}
-                onChange={(e) => setStartDate(new Date(e.target.value + 'T00:00:00'))}
-                className="h-9"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs font-medium">Data Fim</Label>
-              <Input
-                type="date"
-                value={format(endDate, 'yyyy-MM-dd')}
-                onChange={(e) => setEndDate(new Date(e.target.value + 'T00:00:00'))}
-                className="h-9"
-              />
+            
+            {/* Date Range - Full Width */}
+            <div className="md:col-span-2 grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold text-foreground flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-green-600" />
+                  Data Início
+                </Label>
+                <Select 
+                  value={format(startDate, 'yyyy-MM-dd')}
+                  onValueChange={(val) => setStartDate(new Date(val + 'T00:00:00'))}
+                >
+                  <SelectTrigger className="h-14 text-base border-2 border-green-300 dark:border-green-700 bg-background font-bold">
+                    <SelectValue>
+                      <span className="flex items-center gap-2">
+                        <Calendar className="w-4 h-4 text-green-600" />
+                        {format(startDate, "dd/MM/yyyy", { locale: ptBR })}
+                      </span>
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent className="bg-popover border-2 border-border max-h-[300px]">
+                    {Array.from({ length: 30 }, (_, i) => {
+                      const date = subDays(new Date(), i);
+                      const dateStr = format(date, 'yyyy-MM-dd');
+                      return (
+                        <SelectItem key={dateStr} value={dateStr} className="text-base py-3 font-medium">
+                          {format(date, "dd/MM/yyyy (EEEE)", { locale: ptBR })}
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold text-foreground flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-red-600" />
+                  Data Fim
+                </Label>
+                <Select 
+                  value={format(endDate, 'yyyy-MM-dd')}
+                  onValueChange={(val) => setEndDate(new Date(val + 'T00:00:00'))}
+                >
+                  <SelectTrigger className="h-14 text-base border-2 border-red-300 dark:border-red-700 bg-background font-bold">
+                    <SelectValue>
+                      <span className="flex items-center gap-2">
+                        <Calendar className="w-4 h-4 text-red-600" />
+                        {format(endDate, "dd/MM/yyyy", { locale: ptBR })}
+                      </span>
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent className="bg-popover border-2 border-border max-h-[300px]">
+                    {Array.from({ length: 30 }, (_, i) => {
+                      const date = subDays(new Date(), i);
+                      const dateStr = format(date, 'yyyy-MM-dd');
+                      return (
+                        <SelectItem key={dateStr} value={dateStr} className="text-base py-3 font-medium">
+                          {format(date, "dd/MM/yyyy (EEEE)", { locale: ptBR })}
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
 
