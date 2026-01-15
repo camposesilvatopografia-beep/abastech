@@ -80,7 +80,11 @@ export const LocationStockCard = forwardRef<LocationStockCardRef, LocationStockC
   function LocationStockCard({ location }, ref) {
   const { theme } = useTheme();
   const stockSheetName = getStockSheetName(location);
-  const { data: stockSheetData, loading, refetch } = useSheetData(stockSheetName);
+  
+  // Use polling every 10 seconds for real-time updates
+  const { data: stockSheetData, loading, refetch } = useSheetData(stockSheetName, { 
+    pollingInterval: 10000 
+  });
   
   // Expose refetch method to parent
   useImperativeHandle(ref, () => ({

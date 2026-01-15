@@ -13,6 +13,10 @@ import {
   Sun,
   Moon,
   Plus,
+  Settings,
+  Volume2,
+  VolumeX,
+  Smartphone,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
@@ -20,6 +24,14 @@ import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import logoAbastech from '@/assets/logo-abastech.png';
 import { useTheme } from '@/hooks/useTheme';
+import { useFieldSettings } from '@/hooks/useFieldSettings';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 
 interface FieldUser {
   id: string;
@@ -40,6 +52,7 @@ export function FieldPage() {
   const [pendingCount, setPendingCount] = useState(0);
   const [isSyncing, setIsSyncing] = useState(false);
   const { theme, toggleTheme } = useTheme();
+  const { settings, toggleSound, toggleVibration } = useFieldSettings();
 
   // Function to fetch and update user data from database
   const refreshUserData = useCallback(async (userId: string) => {
@@ -220,19 +233,62 @@ export function FieldPage() {
                 </span>
               )}
             </div>
-            {/* Theme Toggle */}
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              onClick={toggleTheme}
-              className="text-white hover:bg-white/20"
-            >
-              {theme === 'dark' ? (
-                <Sun className="w-5 h-5" />
-              ) : (
-                <Moon className="w-5 h-5" />
-              )}
-            </Button>
+            {/* Settings Popover */}
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="text-white hover:bg-white/20"
+                >
+                  <Settings className="w-5 h-5" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-56" align="end">
+                <div className="space-y-4">
+                  <h4 className="font-medium text-sm">Configurações</h4>
+                  
+                  {/* Theme Toggle */}
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="theme-toggle" className="text-sm flex items-center gap-2">
+                      {theme === 'dark' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
+                      Tema {theme === 'dark' ? 'Escuro' : 'Claro'}
+                    </Label>
+                    <Switch
+                      id="theme-toggle"
+                      checked={theme === 'dark'}
+                      onCheckedChange={toggleTheme}
+                    />
+                  </div>
+                  
+                  {/* Sound Toggle */}
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="sound-toggle" className="text-sm flex items-center gap-2">
+                      {settings.soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+                      Som
+                    </Label>
+                    <Switch
+                      id="sound-toggle"
+                      checked={settings.soundEnabled}
+                      onCheckedChange={toggleSound}
+                    />
+                  </div>
+                  
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="vibration-toggle" className="text-sm flex items-center gap-2">
+                      <Smartphone className="w-4 h-4" />
+                      Vibração
+                    </Label>
+                    <Switch
+                      id="vibration-toggle"
+                      checked={settings.vibrationEnabled}
+                      onCheckedChange={toggleVibration}
+                    />
+                  </div>
+                </div>
+              </PopoverContent>
+            </Popover>
+            
             <Button 
               variant="ghost" 
               size="icon" 
