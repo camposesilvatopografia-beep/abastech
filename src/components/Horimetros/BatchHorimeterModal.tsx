@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { format, addDays, subDays, startOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Calendar, Clock, Plus, Trash2, Check, AlertTriangle, Save, Loader2 } from 'lucide-react';
+import { Calendar, Clock, Plus, Trash2, Check, AlertTriangle, Save, Loader2, Maximize2, Minimize2 } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -218,6 +218,7 @@ export function BatchHorimeterModal({ open, onOpenChange, onSuccess }: BatchHori
   const totalDays = entries.length;
 
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isFieldsExpanded, setIsFieldsExpanded] = useState(false);
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -323,24 +324,54 @@ export function BatchHorimeterModal({ open, onOpenChange, onSuccess }: BatchHori
           )}
 
           {/* Status Summary - Compact */}
-          <div className="flex items-center gap-2">
-            <Badge variant="outline" className="h-6 px-2 gap-1 text-xs bg-green-50 text-green-700 border-green-200 dark:bg-green-950/30 dark:text-green-400">
-              <Check className="w-3 h-3" />
-              {savedCount}
-            </Badge>
-            <Badge variant="outline" className="h-6 px-2 gap-1 text-xs bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400">
-              <Clock className="w-3 h-3" />
-              {unsavedCount}
-            </Badge>
-            <Badge variant="outline" className="h-6 px-2 gap-1 text-xs">
-              <Calendar className="w-3 h-3" />
-              {totalDays} dias
-            </Badge>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="h-6 px-2 gap-1 text-xs bg-green-50 text-green-700 border-green-200 dark:bg-green-950/30 dark:text-green-400">
+                <Check className="w-3 h-3" />
+                {savedCount}
+              </Badge>
+              <Badge variant="outline" className="h-6 px-2 gap-1 text-xs bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400">
+                <Clock className="w-3 h-3" />
+                {unsavedCount}
+              </Badge>
+              <Badge variant="outline" className="h-6 px-2 gap-1 text-xs">
+                <Calendar className="w-3 h-3" />
+                {totalDays} dias
+              </Badge>
+            </div>
+            
+            {/* Toggle para expandir campos */}
+            <Button
+              variant={isFieldsExpanded ? "default" : "outline"}
+              size="sm"
+              onClick={() => setIsFieldsExpanded(!isFieldsExpanded)}
+              className={cn(
+                "gap-2 transition-all",
+                isFieldsExpanded && "bg-amber-500 hover:bg-amber-600 text-white"
+              )}
+            >
+              {isFieldsExpanded ? (
+                <>
+                  <Minimize2 className="w-4 h-4" />
+                  Reduzir Campos
+                </>
+              ) : (
+                <>
+                  <Maximize2 className="w-4 h-4" />
+                  Ampliar Campos
+                </>
+              )}
+            </Button>
           </div>
 
           {/* Entries Table */}
           <Card className="flex-1 overflow-hidden border-0 shadow-none">
-            <div className="grid grid-cols-[140px_1fr_1fr_60px] gap-3 py-2 px-3 bg-muted/50 border-b text-xs font-medium text-muted-foreground uppercase tracking-wide">
+            <div className={cn(
+              "grid gap-3 py-2 px-3 bg-muted/50 border-b text-xs font-medium text-muted-foreground uppercase tracking-wide",
+              isFieldsExpanded 
+                ? "grid-cols-[120px_1fr_1fr_80px]" 
+                : "grid-cols-[140px_1fr_1fr_60px]"
+            )}>
               <span>Data</span>
               <span className="flex items-center gap-1">
                 <Clock className="w-3 h-3 text-amber-500" />
@@ -353,9 +384,12 @@ export function BatchHorimeterModal({ open, onOpenChange, onSuccess }: BatchHori
               <span className="text-center">Status</span>
             </div>
             <ScrollArea className={cn(
-              isExpanded ? "h-[calc(100vh-380px)]" : "h-[280px]"
+              isExpanded ? "h-[calc(100vh-420px)]" : isFieldsExpanded ? "h-[350px]" : "h-[280px]"
             )}>
-              <div className="divide-y">
+              <div className={cn(
+                "divide-y",
+                isFieldsExpanded && "space-y-2 divide-y-0 p-2"
+              )}>
                 {entries.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
                     <Calendar className="w-10 h-10 mb-2 opacity-30" />
@@ -366,19 +400,31 @@ export function BatchHorimeterModal({ open, onOpenChange, onSuccess }: BatchHori
                     <div 
                       key={entry.id}
                       className={cn(
-                        "grid grid-cols-[140px_1fr_1fr_60px] gap-3 py-2 px-3 items-center transition-colors",
-                        entry.saved && "bg-green-50/50 dark:bg-green-950/20",
-                        entry.error && "bg-red-50/50 dark:bg-red-950/20",
-                        entry.saving && "bg-blue-50/50 dark:bg-blue-950/20",
-                        !entry.saved && !entry.error && !entry.saving && "hover:bg-muted/20"
+                        "grid gap-3 items-center transition-colors",
+                        isFieldsExpanded 
+                          ? "grid-cols-[120px_1fr_1fr_80px] py-3 px-4 rounded-xl border bg-card shadow-sm"
+                          : "grid-cols-[140px_1fr_1fr_60px] py-2 px-3",
+                        entry.saved && "bg-green-50/50 dark:bg-green-950/20 border-green-200",
+                        entry.error && "bg-red-50/50 dark:bg-red-950/20 border-red-200",
+                        entry.saving && "bg-blue-50/50 dark:bg-blue-950/20 border-blue-200",
+                        !entry.saved && !entry.error && !entry.saving && !isFieldsExpanded && "hover:bg-muted/20"
                       )}
                     >
                       {/* Date Column */}
-                      <div className="flex flex-col">
-                        <span className="font-medium text-sm">
+                      <div className={cn(
+                        "flex flex-col",
+                        isFieldsExpanded && "justify-center"
+                      )}>
+                        <span className={cn(
+                          "font-medium",
+                          isFieldsExpanded ? "text-lg font-bold" : "text-sm"
+                        )}>
                           {format(entry.date, 'dd/MM')}
                         </span>
-                        <span className="text-[10px] text-muted-foreground capitalize">
+                        <span className={cn(
+                          "text-muted-foreground capitalize",
+                          isFieldsExpanded ? "text-sm" : "text-[10px]"
+                        )}>
                           {format(entry.date, 'EEE', { locale: ptBR })}
                         </span>
                       </div>
@@ -391,12 +437,19 @@ export function BatchHorimeterModal({ open, onOpenChange, onSuccess }: BatchHori
                           onChange={(e) => updateEntry(index, 'horimeterValue', e.target.value)}
                           disabled={entry.saved || entry.saving}
                           className={cn(
-                            "h-9 font-mono",
-                            isExpanded && "h-10 text-lg",
+                            "font-mono transition-all",
+                            isFieldsExpanded 
+                              ? "h-14 text-2xl font-bold text-center border-2 border-amber-300 focus:border-amber-500 focus:ring-amber-500/20" 
+                              : isExpanded 
+                                ? "h-10 text-lg" 
+                                : "h-9",
                             entry.saved && "bg-green-100 dark:bg-green-900/50 border-green-300",
                             entry.saving && "bg-blue-50 dark:bg-blue-900/30"
                           )}
                         />
+                        {isFieldsExpanded && (
+                          <p className="text-[10px] text-amber-600 mt-1 text-center">Horímetro</p>
+                        )}
                       </div>
 
                       {/* KM Input */}
@@ -407,12 +460,19 @@ export function BatchHorimeterModal({ open, onOpenChange, onSuccess }: BatchHori
                           onChange={(e) => updateEntry(index, 'kmValue', e.target.value)}
                           disabled={entry.saved || entry.saving}
                           className={cn(
-                            "h-9 font-mono",
-                            isExpanded && "h-10 text-lg",
+                            "font-mono transition-all",
+                            isFieldsExpanded 
+                              ? "h-14 text-2xl font-bold text-center border-2 border-blue-300 focus:border-blue-500 focus:ring-blue-500/20" 
+                              : isExpanded 
+                                ? "h-10 text-lg" 
+                                : "h-9",
                             entry.saved && "bg-green-100 dark:bg-green-900/50 border-green-300",
                             entry.saving && "bg-blue-50 dark:bg-blue-900/30"
                           )}
                         />
+                        {isFieldsExpanded && (
+                          <p className="text-[10px] text-blue-600 mt-1 text-center">Quilômetros</p>
+                        )}
                       </div>
 
                       {/* Status Indicator */}
