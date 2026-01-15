@@ -1117,43 +1117,15 @@ export function AbastecimentoPage() {
             variant="blue"
             icon={Droplet}
           />
-          <div className="relative">
-            <MetricCard
-              title="ESTOQUE ATUAL"
-              value={`${metricsFromGeral.estoqueAtual.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L`}
-              subtitle={stockValidation.hasDivergence 
-                ? `Calculado: ${stockValidation.estoqueCalculado.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L` 
-                : "Combustível disponível"
-              }
-              variant={stockValidation.hasDivergence ? "red" : "navy"}
-              icon={stockValidation.hasDivergence ? AlertTriangle : TrendingUp}
-            />
-            {stockValidation.hasDivergence && (
-              <div className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground rounded-full p-1 animate-pulse" title={`Divergência: ${stockValidation.divergencia.toLocaleString('pt-BR', { minimumFractionDigits: 1 })} L (${stockValidation.percentDivergence.toFixed(1)}%)`}>
-                <AlertTriangle className="w-4 h-4" />
-              </div>
-            )}
-          </div>
+          <MetricCard
+            title="ESTOQUE ATUAL"
+            value={`${metricsFromGeral.estoqueAtual.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L`}
+            subtitle="Combustível disponível"
+            variant="navy"
+            icon={TrendingUp}
+          />
         </div>
 
-        {/* Stock Divergence Alert */}
-        {stockValidation.hasDivergence && (
-          <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-4 flex items-start gap-3">
-            <AlertTriangle className="w-5 h-5 text-destructive flex-shrink-0 mt-0.5" />
-            <div className="flex-1">
-              <h4 className="font-semibold text-destructive">Divergência no Estoque Detectada</h4>
-              <p className="text-sm text-muted-foreground mt-1">
-                O <strong>Estoque Atual na planilha GERAL</strong> ({metricsFromGeral.estoqueAtual.toLocaleString('pt-BR')} L) diverge do <strong>valor calculado</strong> ({stockValidation.estoqueCalculado.toLocaleString('pt-BR')} L).
-              </p>
-              <p className="text-sm text-muted-foreground mt-1">
-                <strong>Fórmula:</strong> (Estoque Anterior + Entrada) - (Saída Comboios + Saída Equipamentos) = ({metricsFromGeral.estoqueAnterior.toLocaleString('pt-BR')} + {metricsFromGeral.entrada.toLocaleString('pt-BR')}) - ({metricsFromGeral.saidaComboios.toLocaleString('pt-BR')} + {metricsFromGeral.saidaEquipamentos.toLocaleString('pt-BR')}) = <strong>{stockValidation.estoqueCalculado.toLocaleString('pt-BR')} L</strong>
-              </p>
-              <p className="text-sm font-medium mt-2">
-                Diferença: <span className={cn(stockValidation.divergencia > 0 ? "text-green-600" : "text-destructive")}>{stockValidation.divergencia > 0 ? '+' : ''}{stockValidation.divergencia.toLocaleString('pt-BR', { minimumFractionDigits: 1 })} L ({stockValidation.percentDivergence.toFixed(1)}%)</span>
-              </p>
-            </div>
-          </div>
-        )}
 
         {/* Tabs */}
         <div className="flex items-center gap-1 border-b border-border overflow-x-auto">
