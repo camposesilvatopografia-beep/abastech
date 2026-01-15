@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { 
   Clock,
   RefreshCw,
@@ -18,13 +18,17 @@ import {
   Users,
   ChevronDown,
   ChevronUp,
-  Settings
+  Settings,
+  CheckSquare,
+  Square,
+  Layers
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { MetricCard } from '@/components/Dashboard/MetricCard';
 import { useVehicles, useHorimeterReadings, HorimeterWithVehicle } from '@/hooks/useHorimeters';
 import { useToast } from '@/hooks/use-toast';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Table,
   TableBody,
@@ -65,22 +69,25 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { DatabaseHorimeterModal } from '@/components/Horimetros/DatabaseHorimeterModal';
 import { SyncModal } from '@/components/Horimetros/SyncModal';
+import { BatchHorimeterModal } from '@/components/Horimetros/BatchHorimeterModal';
 import { ColumnConfigModal } from '@/components/Layout/ColumnConfigModal';
 import { useLayoutPreferences, ColumnConfig } from '@/hooks/useLayoutPreferences';
 import * as XLSX from 'xlsx';
 
 const DEFAULT_HORIMETER_COLUMNS: ColumnConfig[] = [
-  { key: 'data', label: 'Data', visible: true, order: 0 },
-  { key: 'veiculo', label: 'Veículo', visible: true, order: 1 },
-  { key: 'empresa', label: 'Empresa', visible: true, order: 2 },
-  { key: 'categoria', label: 'Categoria', visible: true, order: 3 },
-  { key: 'anterior', label: 'Anterior', visible: true, order: 4 },
-  { key: 'atual', label: 'Atual', visible: true, order: 5 },
-  { key: 'intervalo', label: 'Intervalo', visible: true, order: 6 },
-  { key: 'km_anterior', label: 'KM Anterior', visible: false, order: 7 },
-  { key: 'km_atual', label: 'KM Atual', visible: false, order: 8 },
-  { key: 'operador', label: 'Operador', visible: true, order: 9 },
-  { key: 'observacoes', label: 'Observações', visible: false, order: 10 },
+  { key: 'select', label: 'Seleção', visible: true, order: 0 },
+  { key: 'data', label: 'Data', visible: true, order: 1 },
+  { key: 'veiculo', label: 'Veículo', visible: true, order: 2 },
+  { key: 'empresa', label: 'Empresa', visible: true, order: 3 },
+  { key: 'categoria', label: 'Categoria', visible: true, order: 4 },
+  { key: 'anterior', label: 'Hor. Anterior', visible: true, order: 5 },
+  { key: 'atual', label: 'Hor. Atual', visible: true, order: 6 },
+  { key: 'intervalo', label: 'Intervalo', visible: true, order: 7 },
+  { key: 'km_anterior', label: 'KM Anterior', visible: false, order: 8 },
+  { key: 'km_atual', label: 'KM Atual', visible: false, order: 9 },
+  { key: 'operador', label: 'Operador', visible: true, order: 10 },
+  { key: 'observacoes', label: 'Observações', visible: false, order: 11 },
+  { key: 'acoes', label: 'Ações', visible: true, order: 12 },
 ];
 
 export function HorimetrosPageDB() {
@@ -106,10 +113,15 @@ export function HorimetrosPageDB() {
   const [companyFilter, setCompanyFilter] = useState<string>('all');
   const [vehicleFilter, setVehicleFilter] = useState<string>('all');
   const [showNewModal, setShowNewModal] = useState(false);
+  const [showBatchModal, setShowBatchModal] = useState(false);
   const [showSyncModal, setShowSyncModal] = useState(false);
   const [editingRecord, setEditingRecord] = useState<HorimeterWithVehicle | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<HorimeterWithVehicle | null>(null);
   const [showMissingModal, setShowMissingModal] = useState(false);
+  
+  // Multi-selection state
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
 
   const loading = vehiclesLoading || readingsLoading;
   const isConnected = !loading && readings.length >= 0;
@@ -288,6 +300,52 @@ export function HorimetrosPageDB() {
     }
   };
 
+  // Bulk delete handler
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    
+    try {
+      for (const id of selectedIds) {
+        await deleteReading(id);
+      }
+      toast({
+        title: 'Registros excluídos',
+        description: `${selectedIds.size} registro(s) excluído(s) com sucesso`,
+      });
+      setSelectedIds(new Set());
+      setShowBulkDeleteConfirm(false);
+      await refetchReadings();
+    } catch (err) {
+      toast({
+        title: 'Erro ao excluir',
+        description: 'Alguns registros podem não ter sido excluídos',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  // Toggle selection
+  const toggleSelection = (id: string) => {
+    setSelectedIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
+    });
+  };
+
+  // Toggle all selections
+  const toggleSelectAll = () => {
+    if (selectedIds.size === readingsWithInterval.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(readingsWithInterval.map(r => r.id)));
+    }
+  };
+
   const exportToPDF = () => {
     const doc = new jsPDF('landscape');
     const pageWidth = doc.internal.pageSize.getWidth();
@@ -426,7 +484,32 @@ export function HorimetrosPageDB() {
               <span className="sm:hidden">Novo</span>
             </Button>
             
+            <Button 
+              variant="outline"
+              onClick={() => setShowBatchModal(true)}
+              className="order-first lg:order-last"
+            >
+              <Layers className="w-4 h-4 mr-2" />
+              <span className="hidden sm:inline">Cadastro em Lote</span>
+              <span className="sm:hidden">Lote</span>
+            </Button>
+            
+            {selectedIds.size > 0 && (
+              <Button 
+                variant="destructive"
+                size="sm"
+                onClick={() => setShowBulkDeleteConfirm(true)}
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                Excluir ({selectedIds.size})
+              </Button>
+            )}
+            
             <div className="flex items-center gap-2 flex-wrap">
+              <Button variant="outline" size="sm" onClick={() => setShowColumnConfig(true)} className="shrink-0">
+                <Settings className="w-4 h-4 sm:mr-2" />
+                <span className="hidden sm:inline">Colunas</span>
+              </Button>
               <Button variant="outline" size="sm" onClick={exportToPDF} className="shrink-0">
                 <FileText className="w-4 h-4 sm:mr-2" />
                 <span className="hidden sm:inline">PDF</span>
@@ -624,28 +707,47 @@ export function HorimetrosPageDB() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-10">
+                    <Checkbox
+                      checked={selectedIds.size === readingsWithInterval.length && readingsWithInterval.length > 0}
+                      onCheckedChange={toggleSelectAll}
+                    />
+                  </TableHead>
                   <TableHead>Data</TableHead>
                   <TableHead>Veículo</TableHead>
-                  <TableHead className="text-right">Anterior</TableHead>
-                  <TableHead className="text-right">Atual</TableHead>
+                  <TableHead>Empresa</TableHead>
+                  <TableHead>Categoria</TableHead>
+                  <TableHead className="text-right">Hor. Anterior</TableHead>
+                  <TableHead className="text-right">Hor. Atual</TableHead>
                   <TableHead className="text-right">Intervalo</TableHead>
+                  <TableHead className="text-right">KM Anterior</TableHead>
+                  <TableHead className="text-right">KM Atual</TableHead>
+                  <TableHead>Operador</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {readingsWithInterval.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={12} className="text-center py-8 text-muted-foreground">
                       Nenhum registro encontrado para o período selecionado
                     </TableCell>
                   </TableRow>
                 ) : (
                   readingsWithInterval.map(reading => (
-                    <TableRow key={reading.id}>
+                    <TableRow key={reading.id} className={cn(selectedIds.has(reading.id) && "bg-primary/5")}>
+                      <TableCell>
+                        <Checkbox
+                          checked={selectedIds.has(reading.id)}
+                          onCheckedChange={() => toggleSelection(reading.id)}
+                        />
+                      </TableCell>
                       <TableCell>
                         {format(new Date(reading.reading_date + 'T00:00:00'), 'dd/MM/yyyy')}
                       </TableCell>
                       <TableCell className="font-medium">{reading.vehicle?.code}</TableCell>
+                      <TableCell>{reading.vehicle?.company || '-'}</TableCell>
+                      <TableCell>{reading.vehicle?.category || '-'}</TableCell>
                       <TableCell className="text-right">
                         {reading.previous_value?.toLocaleString('pt-BR') || '-'}
                       </TableCell>
@@ -658,6 +760,13 @@ export function HorimetrosPageDB() {
                       )}>
                         {reading.interval > 0 ? '+' : ''}{reading.interval.toLocaleString('pt-BR')}
                       </TableCell>
+                      <TableCell className="text-right text-blue-600">
+                        {(reading as any).previous_km?.toLocaleString('pt-BR') || '-'}
+                      </TableCell>
+                      <TableCell className="text-right font-medium text-blue-600">
+                        {(reading as any).current_km?.toLocaleString('pt-BR') || '-'}
+                      </TableCell>
+                      <TableCell>{reading.operator || '-'}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
                           <Button
@@ -687,6 +796,9 @@ export function HorimetrosPageDB() {
               <div className="border-t bg-muted/30 p-3 flex justify-between items-center text-sm">
                 <span className="text-muted-foreground">
                   Total: <strong>{readingsWithInterval.length}</strong> registros
+                  {selectedIds.size > 0 && (
+                    <span className="ml-2 text-primary">({selectedIds.size} selecionados)</span>
+                  )}
                 </span>
                 <span className="text-muted-foreground">
                   Intervalo Total: <strong className="text-green-600">+{metrics.totalInterval.toLocaleString('pt-BR')}</strong>
@@ -718,6 +830,21 @@ export function HorimetrosPageDB() {
           refetchVehicles();
           refetchReadings();
         }}
+      />
+
+      <BatchHorimeterModal
+        open={showBatchModal}
+        onOpenChange={setShowBatchModal}
+        onSuccess={() => refetchReadings()}
+      />
+
+      <ColumnConfigModal
+        open={showColumnConfig}
+        onClose={() => setShowColumnConfig(false)}
+        columns={columnConfig}
+        onSave={saveColumnPrefs}
+        onReset={resetColumnPrefs}
+        moduleName="Horímetros"
       />
 
       {/* Missing Vehicles Modal */}
@@ -787,6 +914,25 @@ export function HorimetrosPageDB() {
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} className="bg-destructive hover:bg-destructive/90">
               Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Bulk Delete Confirmation */}
+      <AlertDialog open={showBulkDeleteConfirm} onOpenChange={setShowBulkDeleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar Exclusão em Lote</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir <strong>{selectedIds.size}</strong> registro(s)?
+              Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleBulkDelete} className="bg-destructive hover:bg-destructive/90">
+              Excluir {selectedIds.size} Registro(s)
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
