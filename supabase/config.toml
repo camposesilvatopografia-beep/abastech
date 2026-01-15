@@ -1,1 +1,4 @@
 project_id = "ffwherbuaetysbdqbqmk"
+
+[functions.analyze-kpi]
+verify_jwt = false
