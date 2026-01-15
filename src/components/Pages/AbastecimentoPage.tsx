@@ -65,8 +65,8 @@ import {
 } from '@/components/ui/dialog';
 
 const SHEET_NAME = 'AbastecimentoCanteiro01';
-const GERAL_SHEET = 'GERAL';
-const SANEAMENTO_STOCK_SHEET = 'estoqueobrasaneamento';
+const GERAL_SHEET = 'Geral';
+const SANEAMENTO_STOCK_SHEET = 'EstoqueObraSaneamento';
 
 const TABS = [
   { id: 'resumo', label: 'Resumo', icon: BarChart3 },
@@ -118,8 +118,8 @@ export function AbastecimentoPage() {
   const { data: estoqueComboio01Data } = useSheetData('EstoqueComboio01', { suppressErrors: true });
   const { data: estoqueComboio02Data } = useSheetData('EstoqueComboio02', { suppressErrors: true });
   const { data: estoqueComboio03Data } = useSheetData('EstoqueComboio03', { suppressErrors: true });
-  const { data: estoqueTanque01Data } = useSheetData('EstoqueTanque01', { suppressErrors: true });
-  const { data: estoqueTanque02Data } = useSheetData('EstoqueTanque02', { suppressErrors: true });
+  const { data: estoqueCanteiro01Data } = useSheetData('EstoqueCanteiro01', { suppressErrors: true });
+  const { data: estoqueCanteiro02Data } = useSheetData('EstoqueCanteiro02', { suppressErrors: true });
   
   const [activeTab, setActiveTab] = useState('resumo');
   const [search, setSearch] = useState('');
@@ -1157,16 +1157,16 @@ export function AbastecimentoPage() {
       currentY += 10;
       
       // Collect stock data for all locations
-      const tanque01 = getStockDataFromSheet(estoqueTanque01Data, targetDate);
-      const tanque02 = getStockDataFromSheet(estoqueTanque02Data, targetDate);
+      const canteiro01 = getStockDataFromSheet(estoqueCanteiro01Data, targetDate);
+      const canteiro02 = getStockDataFromSheet(estoqueCanteiro02Data, targetDate);
       const comboio01 = getStockDataFromSheet(estoqueComboio01Data, targetDate);
       const comboio02 = getStockDataFromSheet(estoqueComboio02Data, targetDate);
       const comboio03 = getStockDataFromSheet(estoqueComboio03Data, targetDate);
       
       // Summary table data
       const summaryData = [
-        ['Tanque Canteiro 01', tanque01.estoqueAnterior, tanque01.entrada, tanque01.saidaComboios, tanque01.saidaEquipamentos, tanque01.total, tanque01.estoqueAtual],
-        ['Tanque Canteiro 02', tanque02.estoqueAnterior, tanque02.entrada, tanque02.saidaComboios, tanque02.saidaEquipamentos, tanque02.total, tanque02.estoqueAtual],
+        ['Canteiro 01', canteiro01.estoqueAnterior, canteiro01.entrada, canteiro01.saidaComboios, canteiro01.saidaEquipamentos, canteiro01.total, canteiro01.estoqueAtual],
+        ['Canteiro 02', canteiro02.estoqueAnterior, canteiro02.entrada, canteiro02.saidaComboios, canteiro02.saidaEquipamentos, canteiro02.total, canteiro02.estoqueAtual],
         ['Comboio 01', comboio01.estoqueAnterior, comboio01.entrada, comboio01.saidaComboios, comboio01.saidaEquipamentos, comboio01.total, comboio01.estoqueAtual],
         ['Comboio 02', comboio02.estoqueAnterior, comboio02.entrada, comboio02.saidaComboios, comboio02.saidaEquipamentos, comboio02.total, comboio02.estoqueAtual],
         ['Comboio 03', comboio03.estoqueAnterior, comboio03.entrada, comboio03.saidaComboios, comboio03.saidaEquipamentos, comboio03.total, comboio03.estoqueAtual],
@@ -1355,7 +1355,7 @@ export function AbastecimentoPage() {
     } finally {
       setIsExporting(false);
     }
-  }, [getStockDataFromSheet, estoqueTanque01Data, estoqueTanque02Data, estoqueComboio01Data, estoqueComboio02Data, estoqueComboio03Data, resumoPorLocal]);
+  }, [getStockDataFromSheet, estoqueCanteiro01Data, estoqueCanteiro02Data, estoqueComboio01Data, estoqueComboio02Data, estoqueComboio03Data, resumoPorLocal]);
 
   // Print function
   const handlePrint = useCallback(() => {
