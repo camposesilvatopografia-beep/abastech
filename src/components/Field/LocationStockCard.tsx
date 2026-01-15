@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, forwardRef, useImperativeHandle } from 'react';
 import { 
   Fuel, 
   TrendingDown, 
@@ -13,6 +13,11 @@ import { ptBR } from 'date-fns/locale';
 
 interface LocationStockCardProps {
   location: string;
+}
+
+// Expose refetch method via ref
+export interface LocationStockCardRef {
+  refetch: () => void;
 }
 
 // Helper function to get the stock sheet name for a location
@@ -69,9 +74,17 @@ function isToday(dateStr: string): boolean {
   return false;
 }
 
-export function LocationStockCard({ location }: LocationStockCardProps) {
+export const LocationStockCard = forwardRef<LocationStockCardRef, LocationStockCardProps>(
+  function LocationStockCard({ location }, ref) {
   const stockSheetName = getStockSheetName(location);
-  const { data: stockSheetData, loading } = useSheetData(stockSheetName);
+  const { data: stockSheetData, loading, refetch } = useSheetData(stockSheetName);
+  
+  // Expose refetch method to parent
+  useImperativeHandle(ref, () => ({
+    refetch: () => {
+      refetch();
+    }
+  }), [refetch]);
   
   // Get today's date formatted
   const todayStr = format(new Date(), 'dd/MM/yyyy', { locale: ptBR });
@@ -229,4 +242,4 @@ export function LocationStockCard({ location }: LocationStockCardProps) {
       </CardContent>
     </Card>
   );
-}
+});

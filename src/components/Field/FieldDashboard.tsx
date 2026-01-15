@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   Fuel, 
   TrendingUp, 
@@ -14,6 +14,7 @@ import {
   Loader2,
   MapPin,
   ChevronDown,
+  RefreshCw,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -40,7 +41,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { EditRequestModal } from './EditRequestModal';
-import { LocationStockCard } from './LocationStockCard';
+import { LocationStockCard, LocationStockCardRef } from './LocationStockCard';
 import logoAbastech from '@/assets/logo-abastech.png';
 
 interface FieldUser {
@@ -90,6 +91,13 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
   const [editRecord, setEditRecord] = useState<RecentRecord | null>(null);
   const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // Visual indicator for admin updates
+  const [showUpdatePulse, setShowUpdatePulse] = useState(false);
+  const [updateMessage, setUpdateMessage] = useState('');
+  
+  // Refs for LocationStockCards to trigger refresh
+  const stockCardRefs = useRef<Map<string, LocationStockCardRef>>(new Map());
   
   // Location selection for users with multiple locations
   const hasMultipleLocations = (user.assigned_locations?.length || 0) > 1;
@@ -171,6 +179,25 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
     loadRecords();
   }, [fetchTodayRecords]);
 
+  // Function to trigger visual pulse indicator
+  const triggerUpdatePulse = useCallback((message: string) => {
+    setUpdateMessage(message);
+    setShowUpdatePulse(true);
+    
+    // Auto-hide after 4 seconds
+    setTimeout(() => {
+      setShowUpdatePulse(false);
+      setUpdateMessage('');
+    }, 4000);
+  }, []);
+
+  // Function to refresh all stock cards
+  const refreshStockCards = useCallback(() => {
+    stockCardRefs.current.forEach((ref) => {
+      ref?.refetch();
+    });
+  }, []);
+
   // Real-time subscription for request status changes and admin actions on records
   useEffect(() => {
     const channel = supabase
@@ -192,10 +219,13 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
           if (requestedBy === user.id) {
             if (newStatus === 'approved') {
               toast.success('Sua solicitação foi aprovada!');
+              triggerUpdatePulse('Solicitação aprovada pelo administrador');
             } else if (newStatus === 'rejected') {
               toast.info('Sua solicitação foi rejeitada');
+              triggerUpdatePulse('Solicitação rejeitada pelo administrador');
             }
             fetchTodayRecords();
+            refreshStockCards();
           }
         }
       )
@@ -207,11 +237,33 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
           table: 'field_fuel_records',
         },
         (payload) => {
-          // Refresh on any changes to fuel records for this user (including admin edits)
+          // Refresh on any changes to fuel records (including admin edits)
           const newRecord = payload.new as Record<string, any> | null;
           const oldRecord = payload.old as Record<string, any> | null;
-          if (newRecord?.user_id === user.id || oldRecord?.user_id === user.id) {
+          const eventType = payload.eventType;
+          
+          // Check if this affects current user
+          const affectsUser = newRecord?.user_id === user.id || oldRecord?.user_id === user.id;
+          
+          // Check if this affects any of user's assigned locations
+          const affectsLocation = user.assigned_locations?.some(loc => {
+            const normalizedLoc = loc.toLowerCase();
+            const recordLoc = (newRecord?.location || oldRecord?.location || '').toLowerCase();
+            return recordLoc.includes(normalizedLoc) || normalizedLoc.includes(recordLoc);
+          });
+          
+          if (affectsUser || affectsLocation) {
+            // Show visual indicator for admin updates
+            if (eventType === 'INSERT') {
+              triggerUpdatePulse('Novo registro adicionado');
+            } else if (eventType === 'UPDATE') {
+              triggerUpdatePulse('Registro atualizado');
+            } else if (eventType === 'DELETE') {
+              triggerUpdatePulse('Registro excluído');
+            }
+            
             fetchTodayRecords();
+            refreshStockCards();
           }
         }
       )
@@ -220,7 +272,7 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user.id, fetchTodayRecords]);
+  }, [user.id, user.assigned_locations, fetchTodayRecords, triggerUpdatePulse, refreshStockCards]);
 
   const formatTime = (timeStr: string) => {
     return timeStr?.substring(0, 5) || timeStr;
@@ -261,7 +313,19 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
   const refreshRecords = fetchTodayRecords;
 
   return (
-    <div className="space-y-4 p-4">
+    <div className="space-y-4 p-4 relative">
+      {/* Visual Update Indicator - Blinking Banner */}
+      {showUpdatePulse && (
+        <div className="fixed top-0 left-0 right-0 z-50 animate-pulse">
+          <div className="bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500 text-white py-3 px-4 shadow-lg">
+            <div className="flex items-center justify-center gap-2">
+              <RefreshCw className="w-4 h-4 animate-spin" />
+              <span className="text-sm font-medium">{updateMessage}</span>
+              <div className="absolute left-0 right-0 bottom-0 h-1 bg-white/30 animate-pulse" />
+            </div>
+          </div>
+        </div>
+      )}
       {/* Delete Request Dialog */}
       <AlertDialog open={!!deleteRequest} onOpenChange={() => {
         setDeleteRequest(null);
@@ -373,10 +437,22 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
       {user.assigned_locations && user.assigned_locations.length > 0 && (
         <div className="space-y-3">
           {hasMultipleLocations ? (
-            <LocationStockCard key={selectedLocation} location={selectedLocation} />
+            <LocationStockCard 
+              key={selectedLocation} 
+              location={selectedLocation}
+              ref={(el) => {
+                if (el) stockCardRefs.current.set(selectedLocation, el);
+              }}
+            />
           ) : (
             user.assigned_locations.map((location) => (
-              <LocationStockCard key={location} location={location} />
+              <LocationStockCard 
+                key={location} 
+                location={location}
+                ref={(el) => {
+                  if (el) stockCardRefs.current.set(location, el);
+                }}
+              />
             ))
           )}
         </div>
