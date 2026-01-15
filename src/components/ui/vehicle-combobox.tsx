@@ -61,6 +61,31 @@ export function VehicleCombobox({
     return `${selectedVehicle.code}${name ? ` - ${name}` : ''}`;
   }, [selectedVehicle, placeholder]);
 
+  // Group vehicles by category
+  const groupedVehicles = React.useMemo(() => {
+    const groups: Record<string, VehicleOption[]> = {};
+    
+    vehicles.forEach(vehicle => {
+      const category = vehicle.category?.trim() || 'Outros';
+      if (!groups[category]) {
+        groups[category] = [];
+      }
+      groups[category].push(vehicle);
+    });
+
+    // Sort categories alphabetically, but keep "Outros" at the end
+    const sortedCategories = Object.keys(groups).sort((a, b) => {
+      if (a === 'Outros') return 1;
+      if (b === 'Outros') return -1;
+      return a.localeCompare(b, 'pt-BR');
+    });
+
+    return sortedCategories.map(category => ({
+      category,
+      vehicles: groups[category].sort((a, b) => a.code.localeCompare(b.code))
+    }));
+  }, [vehicles]);
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -101,64 +126,67 @@ export function VehicleCombobox({
               className="h-12 text-base border-0 focus:ring-0 bg-transparent placeholder:text-muted-foreground"
             />
           </div>
-          <CommandList className="max-h-[350px] overflow-auto">
+          <CommandList className="max-h-[400px] overflow-auto">
             <CommandEmpty className="py-6 text-center">
               <div className="flex flex-col items-center gap-2 text-muted-foreground">
                 <Truck className="h-8 w-8 opacity-50" />
                 <span className="text-sm">{emptyMessage}</span>
               </div>
             </CommandEmpty>
-            <CommandGroup className="p-2">
-              {vehicles.map((vehicle) => {
-                const itemValue = useIdAsValue ? vehicle.id! : vehicle.code;
-                const name = vehicle.name || vehicle.description || '';
-                const category = vehicle.category || '';
-                const label = `${vehicle.code}${name ? ` - ${name}` : ''}`;
-                // Include code, name and category in search value
-                const searchValue = `${vehicle.code} ${name} ${category}`.toLowerCase();
-                const isSelected = value === itemValue;
-                
-                return (
-                  <CommandItem
-                    key={itemValue}
-                    value={searchValue}
-                    onSelect={() => {
-                      onValueChange(itemValue);
-                      setOpen(false);
-                    }}
-                    className={cn(
-                      "cursor-pointer py-3 px-3 rounded-lg mb-1 transition-colors",
-                      "hover:bg-accent hover:text-accent-foreground",
-                      isSelected && "bg-primary/10 border border-primary/30"
-                    )}
-                  >
-                    <Check
-                      className={cn(
-                        'mr-3 h-5 w-5 text-primary',
-                        isSelected ? 'opacity-100' : 'opacity-0'
-                      )}
-                    />
-                    <div className="flex flex-col flex-1 min-w-0">
-                      <span className={cn(
-                        "font-medium text-base truncate",
-                        isSelected && "text-primary"
-                      )}>
-                        {vehicle.code}
-                        {name && <span className="font-normal text-foreground"> - {name}</span>}
-                      </span>
-                      {category && (
-                        <span className={cn(
-                          "text-sm truncate mt-0.5",
-                          isSelected ? "text-primary/70" : "text-muted-foreground"
-                        )}>
-                          {category}
-                        </span>
-                      )}
-                    </div>
-                  </CommandItem>
-                );
-              })}
-            </CommandGroup>
+            
+            {groupedVehicles.map(({ category, vehicles: categoryVehicles }) => (
+              <CommandGroup 
+                key={category} 
+                heading={
+                  <div className="flex items-center gap-2 px-2 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground bg-muted/30 border-b border-border">
+                    <span className="w-2 h-2 rounded-full bg-primary/50" />
+                    {category} ({categoryVehicles.length})
+                  </div>
+                }
+                className="p-0"
+              >
+                <div className="p-2">
+                  {categoryVehicles.map((vehicle) => {
+                    const itemValue = useIdAsValue ? vehicle.id! : vehicle.code;
+                    const name = vehicle.name || vehicle.description || '';
+                    const searchValue = `${vehicle.code} ${name} ${category}`.toLowerCase();
+                    const isSelected = value === itemValue;
+                    
+                    return (
+                      <CommandItem
+                        key={itemValue}
+                        value={searchValue}
+                        onSelect={() => {
+                          onValueChange(itemValue);
+                          setOpen(false);
+                        }}
+                        className={cn(
+                          "cursor-pointer py-3 px-3 rounded-lg mb-1 transition-colors",
+                          "hover:bg-accent hover:text-accent-foreground",
+                          isSelected && "bg-primary/10 border border-primary/30"
+                        )}
+                      >
+                        <Check
+                          className={cn(
+                            'mr-3 h-5 w-5 text-primary',
+                            isSelected ? 'opacity-100' : 'opacity-0'
+                          )}
+                        />
+                        <div className="flex flex-col flex-1 min-w-0">
+                          <span className={cn(
+                            "font-medium text-base truncate",
+                            isSelected && "text-primary"
+                          )}>
+                            {vehicle.code}
+                            {name && <span className="font-normal text-foreground"> - {name}</span>}
+                          </span>
+                        </div>
+                      </CommandItem>
+                    );
+                  })}
+                </div>
+              </CommandGroup>
+            ))}
           </CommandList>
         </Command>
       </PopoverContent>
