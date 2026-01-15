@@ -1,31 +1,22 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   Fuel, 
   TrendingUp, 
   TrendingDown, 
   Package,
   Calendar,
-  MapPin,
-  Truck,
   Clock,
-  BarChart3,
   FileText,
   ArrowRight,
   Edit2,
   Trash2,
   AlertCircle,
-  CheckCircle,
-  X,
   Loader2,
-  Database,
-  LogIn,
-  LogOut as LogOutIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
-import { useSheetData } from '@/hooks/useGoogleSheets';
-import { format, startOfMonth, endOfMonth, startOfDay, endOfDay } from 'date-fns';
+import { format, startOfDay, endOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -40,6 +31,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { EditRequestModal } from './EditRequestModal';
+import { LocationStockCard } from './LocationStockCard';
 import logoAbastech from '@/assets/logo-abastech.png';
 
 interface FieldUser {
@@ -53,14 +45,6 @@ interface FieldUser {
 interface FieldDashboardProps {
   user: FieldUser;
   onNavigateToForm: () => void;
-}
-
-interface StockData {
-  location: string;
-  estoqueAnterior: number;
-  entradas: number;
-  saidas: number;
-  estoqueAtual: number;
 }
 
 interface RecentRecord {
@@ -85,38 +69,8 @@ interface DeleteRequest {
   reason: string;
 }
 
-// Helper function to get the stock sheet name for a location
-function getStockSheetName(location: string): string {
-  const normalized = location.toLowerCase().trim();
-  
-  if (normalized.includes('comboio 01') || normalized.includes('comboio01') || normalized === 'cb-01') {
-    return 'EstoqueComboio01';
-  }
-  if (normalized.includes('comboio 02') || normalized.includes('comboio02') || normalized === 'cb-02') {
-    return 'EstoqueComboio02';
-  }
-  if (normalized.includes('comboio 03') || normalized.includes('comboio03') || normalized === 'cb-03') {
-    return 'EstoqueComboio03';
-  }
-  if (normalized.includes('tanque canteiro 01') || normalized.includes('canteiro01') || normalized.includes('canteiro 01')) {
-    return 'EstoqueCanteiro01';
-  }
-  if (normalized.includes('tanque canteiro 02') || normalized.includes('canteiro02') || normalized.includes('canteiro 02')) {
-    return 'EstoqueCanteiro02';
-  }
-  
-  // Default fallback
-  return 'GERAL';
-}
-
 export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) {
-  // Get the first assigned location to determine which stock sheet to use
-  const primaryLocation = user.assigned_locations?.[0] || '';
-  const stockSheetName = getStockSheetName(primaryLocation);
-  
-  const { data: stockSheetData } = useSheetData(stockSheetName);
-  const [userRecords, setUserRecords] = useState<RecentRecord[]>([]);
-  const [stockByLocation, setStockByLocation] = useState<StockData[]>([]);
+  const [todayRecords, setTodayRecords] = useState<RecentRecord[]>([]);
   const [todayStats, setTodayStats] = useState({
     totalRecords: 0,
     totalLiters: 0,
@@ -126,89 +80,31 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
   const [deleteReason, setDeleteReason] = useState('');
   const [editRecord, setEditRecord] = useState<RecentRecord | null>(null);
   const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
-  const [monthStats, setMonthStats] = useState({
-    totalRecords: 0,
-    totalLiters: 0,
-  });
   const [isLoading, setIsLoading] = useState(true);
 
-  // Calculate stock KPIs from location-specific sheet (column H for current stock)
-  const stockKPIs = useMemo(() => {
-    if (!stockSheetData.rows.length) {
-      return { estoqueAnterior: 0, entradas: 0, saidas: 0, estoqueAtual: 0 };
-    }
+  // Get today's date for display
+  const todayStr = format(new Date(), "dd 'de' MMMM", { locale: ptBR });
+  const todayDateStr = format(new Date(), 'yyyy-MM-dd');
 
-    // Get the most recent row (last row with data)
-    const sortedRows = [...stockSheetData.rows].reverse();
-    let estoqueAnterior = 0;
-    let entradas = 0;
-    let saidas = 0;
-    let estoqueAtual = 0;
-
-    // Find the first row with valid data
-    for (const row of sortedRows) {
-      // Try various column name patterns
-      // Column H typically is "ESTOQUE ATUAL" or similar in comboio sheets
-      const rowEstoqueAtual = parseFloat(String(
-        row['ESTOQUE ATUAL'] || row['Estoque Atual'] || row['EST_ATUAL'] || 
-        row['ESTOQUE'] || row['Estoque'] || row['H'] || 0
-      ).replace(/\./g, '').replace(',', '.')) || 0;
-      
-      const rowEstoqueAnterior = parseFloat(String(
-        row['ESTOQUE ANTERIOR'] || row['Estoque Anterior'] || row['EST_ANTERIOR'] || 
-        row['ANTERIOR'] || row['G'] || 0
-      ).replace(/\./g, '').replace(',', '.')) || 0;
-      
-      const rowEntradas = parseFloat(String(
-        row['ENTRADA'] || row['Entrada'] || row['ENTRADAS'] || row['E'] || 0
-      ).replace(/\./g, '').replace(',', '.')) || 0;
-      
-      const rowSaidas = parseFloat(String(
-        row['SAÍDA'] || row['Saída'] || row['SAIDA'] || row['Saida'] || 
-        row['SAIDAS'] || row['SAÍDAS'] || row['F'] || 0
-      ).replace(/\./g, '').replace(',', '.')) || 0;
-
-      // If we found valid data, use it
-      if (rowEstoqueAtual > 0 || rowEntradas > 0 || rowSaidas > 0) {
-        estoqueAtual = rowEstoqueAtual;
-        estoqueAnterior = rowEstoqueAnterior;
-        entradas = rowEntradas;
-        saidas = rowSaidas;
-        break;
-      }
-    }
-
-    return {
-      estoqueAnterior,
-      entradas,
-      saidas,
-      estoqueAtual: Math.max(0, estoqueAtual),
-    };
-  }, [stockSheetData.rows]);
-
-  // Fetch user's records from database
+  // Fetch only today's records from database
   useEffect(() => {
-    const fetchUserRecords = async () => {
+    const fetchTodayRecords = async () => {
       setIsLoading(true);
       try {
         const today = new Date();
-        const startOfToday = startOfDay(today).toISOString();
-        const endOfToday = endOfDay(today).toISOString();
-        const startOfCurrentMonth = startOfMonth(today).toISOString();
-        const endOfCurrentMonth = endOfMonth(today).toISOString();
+        const todayDateOnly = format(today, 'yyyy-MM-dd');
 
-        // Fetch recent records
+        // Fetch only today's records for this user
         const { data: records, error } = await supabase
           .from('field_fuel_records')
           .select('*')
           .eq('user_id', user.id)
-          .order('record_date', { ascending: false })
-          .order('record_time', { ascending: false })
-          .limit(10);
+          .eq('record_date', todayDateOnly)
+          .order('record_time', { ascending: false });
 
         if (error) throw error;
 
-        setUserRecords(records?.map(r => ({
+        const mappedRecords = records?.map(r => ({
           id: r.id,
           record_date: r.record_date,
           record_time: r.record_time,
@@ -221,52 +117,29 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
           km_current: r.km_current || undefined,
           arla_quantity: r.arla_quantity || undefined,
           observations: r.observations || undefined,
-        })) || []);
+        })) || [];
+
+        setTodayRecords(mappedRecords);
 
         // Calculate today stats
-        const todayRecords = records?.filter(r => {
-          const recordDate = new Date(r.record_date);
-          return recordDate >= new Date(startOfToday) && recordDate <= new Date(endOfToday);
-        }) || [];
-
         setTodayStats({
-          totalRecords: todayRecords.length,
-          totalLiters: todayRecords.reduce((sum, r) => sum + (r.fuel_quantity || 0), 0),
-          totalArla: todayRecords.reduce((sum, r) => sum + (r.arla_quantity || 0), 0),
-        });
-
-        // Fetch month stats
-        const { data: monthRecords } = await supabase
-          .from('field_fuel_records')
-          .select('fuel_quantity')
-          .eq('user_id', user.id)
-          .gte('record_date', startOfCurrentMonth.split('T')[0])
-          .lte('record_date', endOfCurrentMonth.split('T')[0]);
-
-        setMonthStats({
-          totalRecords: monthRecords?.length || 0,
-          totalLiters: monthRecords?.reduce((sum, r) => sum + (r.fuel_quantity || 0), 0) || 0,
+          totalRecords: mappedRecords.length,
+          totalLiters: mappedRecords.reduce((sum, r) => sum + (r.fuel_quantity || 0), 0),
+          totalArla: mappedRecords.reduce((sum, r) => sum + (r.arla_quantity || 0), 0),
         });
 
       } catch (err) {
-        console.error('Error fetching user records:', err);
+        console.error('Error fetching today records:', err);
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchUserRecords();
+    fetchTodayRecords();
   }, [user.id]);
 
-  // Stock by location is now calculated from the location-specific sheet
-  // via the stockKPIs useMemo above
-
-  const formatDate = (dateStr: string) => {
-    try {
-      return format(new Date(dateStr), 'dd/MM', { locale: ptBR });
-    } catch {
-      return dateStr;
-    }
+  const formatTime = (timeStr: string) => {
+    return timeStr?.substring(0, 5) || timeStr;
   };
 
   // Handle delete request submission
@@ -302,16 +175,16 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
 
   // Refresh records after request
   const refreshRecords = async () => {
+    const todayDateOnly = format(new Date(), 'yyyy-MM-dd');
     const { data: records } = await supabase
       .from('field_fuel_records')
       .select('*')
       .eq('user_id', user.id)
-      .order('record_date', { ascending: false })
-      .order('record_time', { ascending: false })
-      .limit(10);
+      .eq('record_date', todayDateOnly)
+      .order('record_time', { ascending: false });
 
     if (records) {
-      setUserRecords(records.map(r => ({
+      setTodayRecords(records.map(r => ({
         id: r.id,
         record_date: r.record_date,
         record_time: r.record_time,
@@ -319,6 +192,11 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
         fuel_quantity: r.fuel_quantity,
         location: r.location || '',
         record_type: (r as any).record_type || 'saida',
+        operator_name: r.operator_name || undefined,
+        horimeter_current: r.horimeter_current || undefined,
+        km_current: r.km_current || undefined,
+        arla_quantity: r.arla_quantity || undefined,
+        observations: r.observations || undefined,
       })));
     }
   };
@@ -393,12 +271,18 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
           <img src={logoAbastech} alt="Abastech" className="h-10 w-auto" />
         </div>
         <h2 className="text-lg font-bold">Olá, {user.name}!</h2>
-        <p className="text-sm opacity-90">
-          {user.assigned_locations?.length === 1 
-            ? `Local: ${user.assigned_locations[0]}`
-            : `${user.assigned_locations?.length || 0} locais atribuídos`
-          }
-        </p>
+        <div className="flex items-center justify-between">
+          <p className="text-sm opacity-90">
+            {user.assigned_locations?.length === 1 
+              ? `Local: ${user.assigned_locations[0]}`
+              : `${user.assigned_locations?.length || 0} locais atribuídos`
+            }
+          </p>
+          <div className="flex items-center gap-1 text-sm opacity-90 bg-white/20 px-2 py-1 rounded">
+            <Calendar className="w-4 h-4" />
+            {todayStr}
+          </div>
+        </div>
       </div>
 
       {/* Quick Action Button */}
@@ -411,164 +295,67 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
         <ArrowRight className="w-5 h-5" />
       </Button>
 
-      {/* Stock KPIs - Main Dashboard - Order: Est. Anterior, Entradas, Saídas, Est. Atual */}
-      <Card className="bg-slate-800/50 border-slate-700">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm flex items-center gap-2 text-slate-200">
-            <Database className="w-4 h-4 text-amber-400" />
-            Controle de Estoque - {primaryLocation || 'Geral'}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="pt-0">
-          <div className="grid grid-cols-4 gap-2">
-            {/* 1. Estoque Anterior */}
-            <div className="bg-yellow-900/30 border border-yellow-700/50 rounded-lg p-2 text-center">
-              <LogOutIcon className="w-3 h-3 mx-auto mb-1 text-yellow-400" />
-              <p className="text-lg font-bold text-yellow-400">
-                {stockKPIs.estoqueAnterior.toLocaleString('pt-BR')}
-              </p>
-              <p className="text-[10px] text-yellow-300/70">Est. Anterior</p>
-            </div>
-            
-            {/* 2. Entradas */}
-            <div className="bg-green-900/30 border border-green-700/50 rounded-lg p-2 text-center">
-              <LogIn className="w-3 h-3 mx-auto mb-1 text-green-400" />
-              <p className="text-lg font-bold text-green-400">
-                +{stockKPIs.entradas.toLocaleString('pt-BR')}
-              </p>
-              <p className="text-[10px] text-green-300/70">Entradas</p>
-            </div>
-            
-            {/* 3. Saídas */}
-            <div className="bg-red-900/30 border border-red-700/50 rounded-lg p-2 text-center">
-              <TrendingDown className="w-3 h-3 mx-auto mb-1 text-red-400" />
-              <p className="text-lg font-bold text-red-400">
-                -{stockKPIs.saidas.toLocaleString('pt-BR')}
-              </p>
-              <p className="text-[10px] text-red-300/70">Saídas</p>
-            </div>
-            
-            {/* 4. Estoque Atual */}
-            <div className="bg-blue-900/30 border border-blue-700/50 rounded-lg p-2 text-center">
-              <Fuel className="w-3 h-3 mx-auto mb-1 text-blue-400" />
-              <p className="text-lg font-bold text-blue-400">
-                {stockKPIs.estoqueAtual.toLocaleString('pt-BR')}
-              </p>
-              <p className="text-[10px] text-blue-300/70">Est. Atual</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Today Stats */}
-      <div className="grid grid-cols-3 gap-3">
-        <Card className="bg-gradient-to-br from-amber-500 to-orange-500 text-white border-0 shadow-lg">
-          <CardContent className="p-3 text-center">
-            <FileText className="w-5 h-5 mx-auto mb-1 opacity-80" />
-            <p className="text-2xl font-bold">{todayStats.totalRecords}</p>
-            <p className="text-xs opacity-80">Hoje</p>
-          </CardContent>
-        </Card>
-        <Card className="bg-gradient-to-br from-green-500 to-green-600 text-white border-0 shadow-lg">
-          <CardContent className="p-3 text-center">
-            <Fuel className="w-5 h-5 mx-auto mb-1 opacity-80" />
-            <p className="text-2xl font-bold">{todayStats.totalLiters.toLocaleString('pt-BR')}</p>
-            <p className="text-xs opacity-80">Litros</p>
-          </CardContent>
-        </Card>
-        <Card className="bg-gradient-to-br from-slate-600 to-slate-700 text-white border-0 shadow-lg">
-          <CardContent className="p-3 text-center">
-            <Package className="w-5 h-5 mx-auto mb-1 opacity-80" />
-            <p className="text-2xl font-bold">{todayStats.totalArla.toLocaleString('pt-BR')}</p>
-            <p className="text-xs opacity-80">ARLA</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Month Summary */}
-      <Card className="bg-slate-800/50 border-slate-700">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm flex items-center gap-2 text-slate-200">
-            <Calendar className="w-4 h-4 text-amber-400" />
-            Resumo do Mês
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="pt-0">
-          <div className="flex justify-between items-center">
-            <div>
-              <p className="text-2xl font-bold text-amber-400">{monthStats.totalRecords}</p>
-              <p className="text-xs text-slate-400">Apontamentos</p>
-            </div>
-            <div className="text-right">
-              <p className="text-2xl font-bold text-amber-400">{monthStats.totalLiters.toLocaleString('pt-BR')}</p>
-              <p className="text-xs text-slate-400">Litros totais</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Stock by Location */}
-      {stockByLocation.length > 0 && (
-        <Card className="bg-slate-800/50 border-slate-700">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2 text-slate-200">
-              <BarChart3 className="w-4 h-4 text-amber-400" />
-              Movimentação por Local
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-0 space-y-3">
-            {stockByLocation.map((stock) => (
-              <div key={stock.location} className="bg-slate-700/50 rounded-lg p-3">
-                <div className="flex items-center gap-2 mb-2">
-                  <MapPin className="w-4 h-4 text-amber-400" />
-                  <span className="font-medium text-sm text-slate-200">{stock.location}</span>
-                </div>
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  <div className="flex items-center justify-between bg-green-900/30 rounded p-2">
-                    <span className="text-green-400 flex items-center gap-1">
-                      <TrendingUp className="w-3 h-3" />
-                      Entradas
-                    </span>
-                    <span className="font-bold text-green-400">
-                      {stock.entradas.toLocaleString('pt-BR')}L
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between bg-red-900/30 rounded p-2">
-                    <span className="text-red-400 flex items-center gap-1">
-                      <TrendingDown className="w-3 h-3" />
-                      Saídas
-                    </span>
-                    <span className="font-bold text-red-400">
-                      {stock.saidas.toLocaleString('pt-BR')}L
-                    </span>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
+      {/* Stock KPIs per Location */}
+      {user.assigned_locations && user.assigned_locations.length > 0 && (
+        <div className="space-y-3">
+          {user.assigned_locations.map((location) => (
+            <LocationStockCard key={location} location={location} />
+          ))}
+        </div>
       )}
 
-      {/* Recent Records with Edit/Delete options */}
+      {/* Today Stats */}
+      <Card className="bg-slate-800/50 border-slate-700">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2 text-slate-200">
+            <FileText className="w-4 h-4 text-amber-400" />
+            Meus Apontamentos de Hoje
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <div className="grid grid-cols-3 gap-3">
+            <div className="bg-amber-900/30 border border-amber-700/50 rounded-lg p-3 text-center">
+              <FileText className="w-5 h-5 mx-auto mb-1 text-amber-400" />
+              <p className="text-2xl font-bold text-amber-400">{todayStats.totalRecords}</p>
+              <p className="text-xs text-amber-300/70">Registros</p>
+            </div>
+            <div className="bg-green-900/30 border border-green-700/50 rounded-lg p-3 text-center">
+              <Fuel className="w-5 h-5 mx-auto mb-1 text-green-400" />
+              <p className="text-2xl font-bold text-green-400">{todayStats.totalLiters.toLocaleString('pt-BR')}</p>
+              <p className="text-xs text-green-300/70">Litros</p>
+            </div>
+            <div className="bg-slate-700/50 border border-slate-600/50 rounded-lg p-3 text-center">
+              <Package className="w-5 h-5 mx-auto mb-1 text-slate-400" />
+              <p className="text-2xl font-bold text-slate-300">{todayStats.totalArla.toLocaleString('pt-BR')}</p>
+              <p className="text-xs text-slate-400">ARLA</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Today's Records List */}
       <Card className="bg-slate-800/50 border-slate-700">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm flex items-center gap-2 text-slate-200">
             <Clock className="w-4 h-4 text-amber-400" />
-            Últimos Registros
+            Registros do Dia
           </CardTitle>
         </CardHeader>
         <CardContent className="pt-0">
           {isLoading ? (
-            <div className="text-center py-4 text-slate-400">
+            <div className="flex items-center justify-center py-6 text-slate-400">
+              <Loader2 className="w-5 h-5 animate-spin mr-2" />
               Carregando...
             </div>
-          ) : userRecords.length === 0 ? (
-            <div className="text-center py-4 text-slate-400">
-              Nenhum registro encontrado
+          ) : todayRecords.length === 0 ? (
+            <div className="text-center py-6 text-slate-400">
+              <FileText className="w-8 h-8 mx-auto mb-2 opacity-50" />
+              <p>Nenhum registro hoje</p>
+              <p className="text-xs mt-1">Clique em "Novo Apontamento" para começar</p>
             </div>
           ) : (
             <div className="space-y-2">
-              {userRecords.slice(0, 5).map((record) => (
+              {todayRecords.map((record) => (
                 <div 
                   key={record.id} 
                   className={cn(
@@ -587,7 +374,7 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
                     <div>
                       <p className="text-sm font-medium text-slate-200">{record.vehicle_code}</p>
                       <p className="text-xs text-slate-400">
-                        {formatDate(record.record_date)} {record.record_time}
+                        {formatTime(record.record_time)} • {record.location}
                       </p>
                     </div>
                   </div>
@@ -598,7 +385,9 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
                     )}>
                       {record.record_type === 'entrada' ? '+' : '-'}{record.fuel_quantity}L
                     </p>
-                    <p className="text-xs text-slate-400">{record.location}</p>
+                    {record.arla_quantity && record.arla_quantity > 0 && (
+                      <p className="text-xs text-slate-400">ARLA: {record.arla_quantity}L</p>
+                    )}
                   </div>
                   <div className="flex gap-1">
                     {/* Edit button - requires admin approval */}
