@@ -244,7 +244,7 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
   const refreshRecords = fetchTodayRecords;
 
   return (
-    <div className="space-y-4 p-4 pb-24">
+    <div className="space-y-4 p-4">
       {/* Delete Request Dialog */}
       <AlertDialog open={!!deleteRequest} onOpenChange={() => {
         setDeleteRequest(null);
@@ -327,10 +327,10 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
         </div>
       </div>
 
-      {/* Quick Action Button */}
+      {/* Quick Action Button - Light Blue Fill */}
       <Button 
         onClick={onNavigateToForm}
-        className="w-full h-16 text-lg gap-3 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-lg"
+        className="w-full h-16 text-lg gap-3 bg-sky-400 hover:bg-sky-500 text-white shadow-lg"
       >
         <Fuel className="w-6 h-6" />
         Novo Apontamento

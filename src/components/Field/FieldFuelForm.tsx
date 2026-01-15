@@ -2078,7 +2078,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
       </div>
 
       {/* Save Button */}
-      <div className="p-4 pb-20 max-w-2xl mx-auto">
+      <div className="p-4 pb-8 max-w-2xl mx-auto">
         <Button 
           onClick={handleSave} 
           disabled={isSaving || isUploadingPhotos || !fuelQuantity || (recordType === 'saida' ? !vehicleCode : !supplier)}
