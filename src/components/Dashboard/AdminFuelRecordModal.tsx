@@ -276,10 +276,10 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
   const vehicleOptions = useMemo(() => {
     return vehiclesData.rows.map((v, idx) => ({
       id: String(idx),
-      code: String(v['Codigo'] || ''),
-      name: String(v['Codigo'] || ''),
-      description: String(v['Descricao'] || ''),
-      category: String(v['Categoria'] || ''),
+      code: String(v['Codigo'] || v['CODIGO'] || v['Frota'] || v['FROTA'] || ''),
+      name: String(v['Descricao'] || v['DESCRICAO'] || v['DESCRIÇÃO'] || v['Nome'] || ''),
+      description: String(v['Descricao'] || v['DESCRICAO'] || v['DESCRIÇÃO'] || ''),
+      category: String(v['Categoria'] || v['CATEGORIA'] || ''),
     }));
   }, [vehiclesData.rows]);
 
