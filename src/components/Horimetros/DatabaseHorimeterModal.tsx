@@ -174,16 +174,23 @@ export function DatabaseHorimeterModal({
       setHorimeterValue('');
       setKmValue('');
       setObservacao('');
-      setSelectedDate(new Date());
       
-      // Auto-fill operator from last reading
+      // Auto-fill operator and recommend date from last reading
       const lastReading = readings
-        .filter(r => r.vehicle_id === selectedVehicleId && r.operator)
+        .filter(r => r.vehicle_id === selectedVehicleId)
         .sort((a, b) => b.reading_date.localeCompare(a.reading_date))[0];
       
-      if (lastReading?.operator) {
-        setOperador(lastReading.operator);
+      if (lastReading) {
+        // Recommend the date of the last reading
+        setSelectedDate(new Date(lastReading.reading_date + 'T00:00:00'));
+        
+        if (lastReading.operator) {
+          setOperador(lastReading.operator);
+        } else {
+          setOperador('');
+        }
       } else {
+        setSelectedDate(new Date());
         setOperador('');
       }
     } else if (!isEditMode && !selectedVehicleId) {
@@ -216,14 +223,15 @@ export function DatabaseHorimeterModal({
       } else {
         if (!initialVehicleId) {
           setSelectedVehicleId('');
+          setSelectedDate(new Date());
         } else {
           setSelectedVehicleId(initialVehicleId);
+          // Date will be set by the vehicle change effect
         }
         setHorimeterValue('');
         setKmValue('');
         setOperador('');
         setObservacao('');
-        setSelectedDate(new Date());
       }
     }
   }, [open, editRecord, initialVehicleId, vehicles]);
@@ -344,15 +352,24 @@ export function DatabaseHorimeterModal({
       // Refetch to ensure data is in sync
       await refetch();
 
-      setSelectedVehicleId('');
-      setHorimeterValue('');
-      setKmValue('');
-      setOperador('');
-      setObservacao('');
-      setSelectedDate(new Date());
-      
-      onOpenChange(false);
-      onSuccess?.();
+      if (isEditMode) {
+        // Close modal after editing
+        onOpenChange(false);
+        onSuccess?.();
+      } else {
+        // Keep form open for new entries - just reset for next entry
+        toast({
+          title: 'Registro salvo!',
+          description: 'Formulário pronto para novo apontamento.',
+        });
+        setHorimeterValue('');
+        setKmValue('');
+        setObservacao('');
+        // Keep vehicle and operator for convenience, update date to last reading
+        const updatedReadings = await refetch();
+        // Date will be updated via useEffect when readings change
+        onSuccess?.();
+      }
     } catch (error) {
       // Error handled in hook
     } finally {
