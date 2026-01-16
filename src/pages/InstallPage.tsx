@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Download, Smartphone, Monitor, CheckCircle, Share, PlusSquare, ArrowLeft } from 'lucide-react';
+import { Download, Smartphone, CheckCircle, Share, PlusSquare, ArrowLeft, Wifi, WifiOff, Zap } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import logoFull from '@/assets/logo-abastech-full.png';
 
@@ -21,7 +21,7 @@ export default function InstallPage() {
   const [isInstalled, setIsInstalled] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
-  const isFieldInstall = location.pathname === '/apontamento/instalar';
+  const isFieldInstall = location.pathname.includes('/apontamento');
 
   useEffect(() => {
     // Check if running as standalone (already installed)
@@ -65,26 +65,28 @@ export default function InstallPage() {
   };
 
   const handleBack = () => {
-    if (isFieldInstall) {
-      navigate('/apontamento');
-    } else {
-      navigate('/');
-    }
+    navigate('/apontamento');
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col items-center justify-center p-4">
       <div className="w-full max-w-md">
         {/* Logo */}
-        <div className="flex justify-center mb-8">
+        <div className="flex justify-center mb-6">
           <div className="bg-white/10 rounded-2xl p-4 backdrop-blur-sm">
-            <img src={logoFull} alt="Abastech" className="h-20 object-contain" />
+            <img src={logoFull} alt="Abastech" className="h-16 object-contain" />
           </div>
+        </div>
+
+        {/* App Name */}
+        <div className="text-center mb-6">
+          <h1 className="text-2xl font-bold text-white mb-1">Apontamento Campo</h1>
+          <p className="text-slate-400 text-sm">Sistema de Apropriação de Obras</p>
         </div>
 
         {isInstalled ? (
           <Card className="border-green-500/30 bg-green-500/10">
-            <CardHeader className="text-center">
+            <CardHeader className="text-center pb-4">
               <div className="mx-auto mb-4 p-4 bg-green-500/20 rounded-full w-fit">
                 <CheckCircle className="h-12 w-12 text-green-500" />
               </div>
@@ -96,21 +98,19 @@ export default function InstallPage() {
             <CardContent>
               <Button onClick={handleBack} className="w-full" variant="outline">
                 <ArrowLeft className="h-4 w-4 mr-2" />
-                Voltar ao Sistema
+                Abrir Apontamento Campo
               </Button>
             </CardContent>
           </Card>
         ) : isIOS ? (
           <Card className="border-primary/30 bg-slate-800/50">
-            <CardHeader className="text-center">
+            <CardHeader className="text-center pb-4">
               <div className="mx-auto mb-4 p-4 bg-primary/20 rounded-full w-fit">
                 <Smartphone className="h-12 w-12 text-primary" />
               </div>
-              <CardTitle className="text-white">
-                {isFieldInstall ? 'Instalar Apontamento Campo' : 'Instalar Abastech'}
-              </CardTitle>
+              <CardTitle className="text-white">Instalar no iPhone</CardTitle>
               <CardDescription className="text-slate-300">
-                Siga os passos abaixo para instalar no iOS
+                Siga os passos abaixo para instalar
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -121,7 +121,7 @@ export default function InstallPage() {
                   </div>
                   <div>
                     <p className="font-medium text-white text-sm">1. Toque no botão Compartilhar</p>
-                    <p className="text-xs text-slate-400">Ícone de compartilhar na barra do Safari</p>
+                    <p className="text-xs text-slate-400">Ícone na barra inferior do Safari</p>
                   </div>
                 </div>
                 
@@ -131,7 +131,7 @@ export default function InstallPage() {
                   </div>
                   <div>
                     <p className="font-medium text-white text-sm">2. Adicionar à Tela de Início</p>
-                    <p className="text-xs text-slate-400">Role para baixo e toque nesta opção</p>
+                    <p className="text-xs text-slate-400">Role e toque nesta opção</p>
                   </div>
                 </div>
                 
@@ -141,81 +141,80 @@ export default function InstallPage() {
                   </div>
                   <div>
                     <p className="font-medium text-white text-sm">3. Confirme "Adicionar"</p>
-                    <p className="text-xs text-slate-400">O app aparecerá na sua tela inicial</p>
+                    <p className="text-xs text-slate-400">O app aparecerá na tela inicial</p>
                   </div>
                 </div>
               </div>
               
               <Button onClick={handleBack} className="w-full" variant="outline">
                 <ArrowLeft className="h-4 w-4 mr-2" />
-                Voltar ao Sistema
+                Voltar
               </Button>
             </CardContent>
           </Card>
         ) : (
           <Card className="border-primary/30 bg-slate-800/50">
-            <CardHeader className="text-center">
+            <CardHeader className="text-center pb-4">
               <div className="mx-auto mb-4 p-4 bg-primary/20 rounded-full w-fit">
-                {isMobile ? (
-                  <Smartphone className="h-12 w-12 text-primary" />
-                ) : (
-                  <Monitor className="h-12 w-12 text-primary" />
-                )}
+                <Smartphone className="h-12 w-12 text-primary" />
               </div>
-              <CardTitle className="text-white">
-                {isFieldInstall ? 'Instalar Apontamento Campo' : 'Instalar Abastech'}
-              </CardTitle>
+              <CardTitle className="text-white">Instalar Aplicativo</CardTitle>
               <CardDescription className="text-slate-300">
-                {isMobile 
-                  ? 'Instale o aplicativo para acesso rápido e funcionamento offline'
-                  : 'Instale o sistema no seu computador para acesso direto'
-                }
+                Instale para acesso rápido e funcionamento offline
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {deferredPrompt ? (
-                <Button onClick={handleInstall} className="w-full" size="lg">
-                  <Download className="h-5 w-5 mr-2" />
+                <Button onClick={handleInstall} className="w-full h-14 text-lg" size="lg">
+                  <Download className="h-6 w-6 mr-2" />
                   Instalar Agora
                 </Button>
               ) : (
-                <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-4 text-center">
-                  <p className="text-amber-400 text-sm">
-                    O navegador não suporta instalação automática. 
-                    Use o menu do navegador para adicionar à tela inicial.
+                <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-4 space-y-3">
+                  <p className="text-amber-400 text-sm font-medium">
+                    Instalação via menu do navegador:
                   </p>
+                  <div className="text-slate-300 text-xs space-y-1">
+                    <p>• Toque nos 3 pontos do navegador (⋮)</p>
+                    <p>• Selecione "Instalar app" ou "Adicionar à tela inicial"</p>
+                  </div>
                 </div>
               )}
               
               <Button onClick={handleBack} className="w-full" variant="outline">
                 <ArrowLeft className="h-4 w-4 mr-2" />
-                Voltar ao Sistema
+                Voltar
               </Button>
             </CardContent>
           </Card>
         )}
 
         {/* Features */}
-        <div className="mt-8 grid grid-cols-3 gap-4 text-center">
-          <div className="text-slate-400">
-            <div className="mx-auto mb-2 p-2 bg-slate-800 rounded-lg w-fit">
-              <Download className="h-5 w-5" />
+        <div className="mt-8 grid grid-cols-3 gap-3 text-center">
+          <div className="bg-slate-800/50 rounded-xl p-3">
+            <div className="mx-auto mb-2 p-2 bg-green-500/20 rounded-lg w-fit">
+              <Zap className="h-5 w-5 text-green-400" />
             </div>
-            <p className="text-xs">Acesso Rápido</p>
+            <p className="text-xs text-slate-300 font-medium">Acesso Rápido</p>
           </div>
-          <div className="text-slate-400">
-            <div className="mx-auto mb-2 p-2 bg-slate-800 rounded-lg w-fit">
-              <Smartphone className="h-5 w-5" />
+          <div className="bg-slate-800/50 rounded-xl p-3">
+            <div className="mx-auto mb-2 p-2 bg-blue-500/20 rounded-lg w-fit">
+              <WifiOff className="h-5 w-5 text-blue-400" />
             </div>
-            <p className="text-xs">Funciona Offline</p>
+            <p className="text-xs text-slate-300 font-medium">Modo Offline</p>
           </div>
-          <div className="text-slate-400">
-            <div className="mx-auto mb-2 p-2 bg-slate-800 rounded-lg w-fit">
-              <CheckCircle className="h-5 w-5" />
+          <div className="bg-slate-800/50 rounded-xl p-3">
+            <div className="mx-auto mb-2 p-2 bg-amber-500/20 rounded-lg w-fit">
+              <Wifi className="h-5 w-5 text-amber-400" />
             </div>
-            <p className="text-xs">Atualizações Auto</p>
+            <p className="text-xs text-slate-300 font-medium">Sincronização</p>
           </div>
         </div>
+
+        {/* Footer */}
+        <p className="text-center text-slate-500 text-xs mt-6">
+          Versão Mobile • Abastech
+        </p>
       </div>
     </div>
   );
