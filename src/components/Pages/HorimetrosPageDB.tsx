@@ -652,44 +652,56 @@ export function HorimetrosPageDB() {
 
         {/* Filters */}
         <div className="bg-card rounded-lg border p-4 space-y-3">
-          {/* Date Filter Row - More prominent */}
+          {/* Date Filter Row - Simplified: Hoje, Data, Período */}
           <div className="flex flex-wrap gap-2 items-center pb-3 border-b">
             <Calendar className="w-4 h-4 text-primary" />
             <span className="text-sm font-medium">Data:</span>
             
-            {/* Quick date buttons */}
-            <div className="flex gap-1">
-              {[
-                { label: 'Hoje', value: 'hoje' },
-                { label: 'Ontem', value: 'ontem' },
-                { label: '7 dias', value: '7dias' },
-                { label: '30 dias', value: '30dias' },
-                { label: 'Mês', value: 'mes' },
-                { label: 'Todos', value: 'todos' },
-              ].map(opt => (
-                <Button
-                  key={opt.value}
-                  variant={periodFilter === opt.value ? 'default' : 'outline'}
-                  size="sm"
-                  className="h-7 px-2 text-xs"
-                  onClick={() => {
-                    setPeriodFilter(opt.value);
-                    setSelectedDate(undefined);
-                    setStartDate(undefined);
-                    setEndDate(undefined);
-                  }}
-                >
-                  {opt.label}
-                </Button>
-              ))}
-            </div>
+            {/* Hoje button */}
+            <Button
+              variant={periodFilter === 'hoje' && !selectedDate ? 'default' : 'outline'}
+              size="sm"
+              className="h-7 px-3 text-xs"
+              onClick={() => {
+                setPeriodFilter('hoje');
+                setSelectedDate(undefined);
+                setStartDate(undefined);
+                setEndDate(undefined);
+              }}
+            >
+              Hoje
+            </Button>
             
-            {/* Custom date pickers */}
-            <div className="flex items-center gap-2 ml-2">
+            {/* Single date picker */}
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button 
+                  variant={selectedDate ? 'default' : 'outline'} 
+                  size="sm" 
+                  className="h-7 text-xs"
+                >
+                  {selectedDate ? format(selectedDate, 'dd/MM/yyyy') : 'Data'}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0 bg-background" align="start">
+                <CalendarComponent
+                  mode="single"
+                  selected={selectedDate}
+                  onSelect={(date) => {
+                    setSelectedDate(date);
+                    setPeriodFilter('todos');
+                  }}
+                  locale={ptBR}
+                />
+              </PopoverContent>
+            </Popover>
+            
+            {/* Period range pickers */}
+            <div className="flex items-center gap-1">
               <Popover>
                 <PopoverTrigger asChild>
                   <Button 
-                    variant={startDate ? 'secondary' : 'outline'} 
+                    variant={startDate ? 'default' : 'outline'} 
                     size="sm" 
                     className="h-7 text-xs"
                   >
@@ -702,6 +714,7 @@ export function HorimetrosPageDB() {
                     selected={startDate}
                     onSelect={(date) => {
                       setStartDate(date);
+                      setSelectedDate(undefined);
                       setPeriodFilter('personalizado');
                     }}
                     locale={ptBR}
@@ -712,7 +725,7 @@ export function HorimetrosPageDB() {
               <Popover>
                 <PopoverTrigger asChild>
                   <Button 
-                    variant={endDate ? 'secondary' : 'outline'} 
+                    variant={endDate ? 'default' : 'outline'} 
                     size="sm" 
                     className="h-7 text-xs"
                   >
@@ -725,19 +738,20 @@ export function HorimetrosPageDB() {
                     selected={endDate}
                     onSelect={(date) => {
                       setEndDate(date);
+                      setSelectedDate(undefined);
                       setPeriodFilter('personalizado');
                     }}
                     locale={ptBR}
                   />
                 </PopoverContent>
               </Popover>
-              
-              {(startDate || endDate || periodFilter !== 'todos') && (
-                <Button variant="ghost" size="sm" className="h-7 px-2" onClick={clearDateFilter}>
-                  <X className="w-3 h-3" />
-                </Button>
-              )}
             </div>
+            
+            {(startDate || endDate || selectedDate || periodFilter !== 'hoje') && (
+              <Button variant="ghost" size="sm" className="h-7 px-2" onClick={clearDateFilter}>
+                <X className="w-3 h-3" />
+              </Button>
+            )}
           </div>
           
           <div className="flex flex-col md:flex-row gap-3 items-start md:items-center flex-wrap">
