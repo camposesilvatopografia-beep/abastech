@@ -146,3 +146,16 @@
     @apply inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-sm bg-primary/10 text-primary font-medium;
   }
 }
+
+/* Hide Lovable badge */
+a[href*="lovable.dev"],
+iframe[src*="lovable.dev"],
+div[style*="Edit with Lovable"],
+.lovable-badge {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  position: absolute !important;
+  z-index: -9999 !important;
+}
