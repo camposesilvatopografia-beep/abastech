@@ -73,6 +73,7 @@ import { useSheetData, useSheetData as useGoogleSheetData } from '@/hooks/useGoo
 import { createRow } from '@/lib/googleSheets';
 import { RecurringProblemsTab } from '@/components/Maintenance/RecurringProblemsTab';
 import { MaintenanceRankingTab } from '@/components/Maintenance/MaintenanceRankingTab';
+import { useObraSettings } from '@/hooks/useObraSettings';
 
 const ORDEM_SERVICO_SHEET = 'Ordem_Servico';
 
@@ -117,6 +118,7 @@ interface Mechanic {
 export function ManutencaoPage() {
   const { data: vehiclesData } = useSheetData('Veiculo');
   const { data: sheetOrdersData, refetch: refetchSheetOrders } = useGoogleSheetData(ORDEM_SERVICO_SHEET);
+  const { settings: obraSettings } = useObraSettings();
   const [orders, setOrders] = useState<ServiceOrder[]>([]);
   const [mechanics, setMechanics] = useState<Mechanic[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1182,11 +1184,12 @@ export function ManutencaoPage() {
         logoImg.src = '/src/assets/logo-consorcio.png';
       });
     } catch {
-      // Fallback header text
+      // Fallback header text - use obra_settings dynamically
       doc.setFontSize(16);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(...primaryColor);
-      doc.text('CONSÓRCIO AERO MARAGOGI', pageWidth / 2, y + 10, { align: 'center' });
+      const headerText = obraSettings?.nome || 'SISTEMA DE GESTÃO DE FROTAS';
+      doc.text(headerText.toUpperCase(), pageWidth / 2, y + 10, { align: 'center' });
     }
     
     y += 35;
@@ -1442,14 +1445,21 @@ export function ManutencaoPage() {
     const doc = new jsPDF('landscape');
     const pageWidth = doc.internal.pageSize.getWidth();
     
-    // Red header bar
-    doc.setFillColor(220, 53, 69);
+    // Navy header bar (matching system theme)
+    doc.setFillColor(30, 41, 59);
     doc.rect(0, 0, pageWidth, 25, 'F');
     
-    doc.setFontSize(16);
+    doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(255, 255, 255);
-    doc.text('RELATÓRIO DE ORDENS DE SERVIÇO', pageWidth / 2, 16, { align: 'center' });
+    const headerTitle = obraSettings?.nome ? `${obraSettings.nome} - ORDENS DE SERVIÇO` : 'RELATÓRIO DE ORDENS DE SERVIÇO';
+    doc.text(headerTitle.toUpperCase(), pageWidth / 2, 12, { align: 'center' });
+    
+    if (obraSettings?.cidade) {
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.text(obraSettings.cidade, pageWidth / 2, 20, { align: 'center' });
+    }
     
     let y = 35;
     
@@ -1512,7 +1522,7 @@ export function ManutencaoPage() {
       body: tableData,
       startY: y,
       styles: { fontSize: 7, cellPadding: 2 },
-      headStyles: { fillColor: [220, 53, 69], textColor: [255, 255, 255] },
+      headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255] },
       alternateRowStyles: { fillColor: [248, 249, 250] },
     });
 
