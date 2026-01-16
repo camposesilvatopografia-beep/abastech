@@ -235,6 +235,81 @@ export type Database = {
         }
         Relationships: []
       }
+      horimeter_inconsistency_alerts: {
+        Row: {
+          created_at: string
+          current_value: number
+          difference: number
+          id: string
+          operator: string | null
+          previous_value: number
+          reading_date: string
+          reading_id: string | null
+          resolution_notes: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          status: string
+          updated_at: string
+          value_type: string
+          vehicle_code: string
+          vehicle_id: string
+          vehicle_name: string | null
+        }
+        Insert: {
+          created_at?: string
+          current_value: number
+          difference: number
+          id?: string
+          operator?: string | null
+          previous_value: number
+          reading_date: string
+          reading_id?: string | null
+          resolution_notes?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+          updated_at?: string
+          value_type: string
+          vehicle_code: string
+          vehicle_id: string
+          vehicle_name?: string | null
+        }
+        Update: {
+          created_at?: string
+          current_value?: number
+          difference?: number
+          id?: string
+          operator?: string | null
+          previous_value?: number
+          reading_date?: string
+          reading_id?: string | null
+          resolution_notes?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+          updated_at?: string
+          value_type?: string
+          vehicle_code?: string
+          vehicle_id?: string
+          vehicle_name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "horimeter_inconsistency_alerts_reading_id_fkey"
+            columns: ["reading_id"]
+            isOneToOne: false
+            referencedRelation: "horimeter_readings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "horimeter_inconsistency_alerts_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       horimeter_readings: {
         Row: {
           created_at: string

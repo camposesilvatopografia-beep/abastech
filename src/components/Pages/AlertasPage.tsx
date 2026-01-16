@@ -8,6 +8,9 @@ import {
   Calendar,
   Timer,
   RefreshCw,
+  CheckCircle,
+  Edit,
+  TrendingDown,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -15,6 +18,17 @@ import { useSheetData } from '@/hooks/useGoogleSheets';
 import { supabase } from '@/integrations/supabase/client';
 import { format, differenceInDays, addDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { toast } from 'sonner';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const SHEET_NAME = 'Horimetros';
 
@@ -43,31 +57,123 @@ interface ServiceOrder {
   interval_days: number | null;
 }
 
+interface InconsistencyAlert {
+  id: string;
+  vehicle_id: string;
+  vehicle_code: string;
+  vehicle_name: string | null;
+  reading_id: string | null;
+  reading_date: string;
+  value_type: string;
+  current_value: number;
+  previous_value: number;
+  difference: number;
+  operator: string | null;
+  status: string;
+  created_at: string;
+  resolution_notes: string | null;
+  resolved_at: string | null;
+  resolved_by: string | null;
+}
+
 export function AlertasPage() {
   const { data, loading: sheetsLoading } = useSheetData(SHEET_NAME);
   const [serviceOrders, setServiceOrders] = useState<ServiceOrder[]>([]);
+  const [inconsistencyAlerts, setInconsistencyAlerts] = useState<InconsistencyAlert[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedInconsistency, setSelectedInconsistency] = useState<InconsistencyAlert | null>(null);
+  const [resolutionNotes, setResolutionNotes] = useState('');
+  const [isResolving, setIsResolving] = useState(false);
 
-  // Fetch service orders
+  // Fetch service orders and inconsistency alerts
   useEffect(() => {
-    const fetchOrders = async () => {
+    const fetchData = async () => {
       try {
-        const { data, error } = await supabase
-          .from('service_orders')
-          .select('id, order_number, vehicle_code, vehicle_description, order_date, order_type, priority, status, start_date, end_date, interval_days')
-          .order('order_date', { ascending: false });
+        const [ordersResult, alertsResult] = await Promise.all([
+          supabase
+            .from('service_orders')
+            .select('id, order_number, vehicle_code, vehicle_description, order_date, order_type, priority, status, start_date, end_date, interval_days')
+            .order('order_date', { ascending: false }),
+          supabase
+            .from('horimeter_inconsistency_alerts')
+            .select('*')
+            .order('created_at', { ascending: false }),
+        ]);
 
-        if (error) throw error;
-        setServiceOrders(data || []);
+        if (ordersResult.error) throw ordersResult.error;
+        if (alertsResult.error) throw alertsResult.error;
+        
+        setServiceOrders(ordersResult.data || []);
+        setInconsistencyAlerts(alertsResult.data || []);
       } catch (err) {
-        console.error('Error fetching orders:', err);
+        console.error('Error fetching data:', err);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchOrders();
+    fetchData();
+
+    // Subscribe to realtime updates for inconsistency alerts
+    const channel = supabase
+      .channel('inconsistency-alerts')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'horimeter_inconsistency_alerts',
+        },
+        () => {
+          fetchData();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
+
+  // Resolve inconsistency alert
+  const handleResolveInconsistency = async () => {
+    if (!selectedInconsistency) return;
+    
+    setIsResolving(true);
+    try {
+      const { error } = await supabase
+        .from('horimeter_inconsistency_alerts')
+        .update({
+          status: 'resolved',
+          resolution_notes: resolutionNotes || null,
+          resolved_at: new Date().toISOString(),
+          resolved_by: 'admin', // Could be enhanced with actual user info
+        })
+        .eq('id', selectedInconsistency.id);
+
+      if (error) throw error;
+
+      toast.success('Alerta resolvido com sucesso');
+      setSelectedInconsistency(null);
+      setResolutionNotes('');
+      
+      // Refresh alerts
+      const { data } = await supabase
+        .from('horimeter_inconsistency_alerts')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      setInconsistencyAlerts(data || []);
+    } catch (err) {
+      console.error('Error resolving alert:', err);
+      toast.error('Erro ao resolver alerta');
+    } finally {
+      setIsResolving(false);
+    }
+  };
+
+  const pendingInconsistencies = inconsistencyAlerts.filter(a => a.status === 'pending');
+  const resolvedInconsistencies = inconsistencyAlerts.filter(a => a.status === 'resolved');
 
   const alerts = useMemo(() => {
     const alertList: Alert[] = [];
@@ -311,7 +417,7 @@ export function AlertasPage() {
         </div>
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-4 gap-3">
           <div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg p-4 text-center">
             <p className="text-3xl font-bold text-red-600 dark:text-red-400">{urgentCount}</p>
             <p className="text-xs text-red-600/70 dark:text-red-400/70">Urgentes</p>
@@ -320,83 +426,200 @@ export function AlertasPage() {
             <p className="text-3xl font-bold text-amber-600 dark:text-amber-400">{warningCount}</p>
             <p className="text-xs text-amber-600/70 dark:text-amber-400/70">Atenção</p>
           </div>
+          <div className="bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800 rounded-lg p-4 text-center">
+            <p className="text-3xl font-bold text-orange-600 dark:text-orange-400">{pendingInconsistencies.length}</p>
+            <p className="text-xs text-orange-600/70 dark:text-orange-400/70">Inconsistências</p>
+          </div>
           <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-4 text-center">
             <p className="text-3xl font-bold text-blue-600 dark:text-blue-400">{infoCount}</p>
             <p className="text-xs text-blue-600/70 dark:text-blue-400/70">Informativo</p>
           </div>
         </div>
 
-        {/* Alerts List */}
-        <div className="bg-card rounded-lg border border-border overflow-hidden">
-          <div className="p-3 md:p-4 border-b border-border flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 md:w-5 md:h-5 text-warning" />
-              <h2 className="text-sm md:text-base font-semibold">Alertas Ativos</h2>
-            </div>
-            <span className="text-xs md:text-sm text-muted-foreground font-medium">
-              {alerts.length} alerta(s)
-            </span>
-          </div>
+        {/* Tabs for different alert types */}
+        <Tabs defaultValue="general" className="space-y-4">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="general" className="flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4" />
+              Alertas Gerais ({alerts.length})
+            </TabsTrigger>
+            <TabsTrigger value="inconsistencies" className="flex items-center gap-2">
+              <TrendingDown className="w-4 h-4" />
+              Inconsistências ({pendingInconsistencies.length})
+            </TabsTrigger>
+          </TabsList>
 
-          <div className="divide-y divide-border">
-            {isLoading ? (
-              <div className="p-6 md:p-8 text-center text-muted-foreground">
-                <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2" />
-                Carregando alertas...
+          {/* General Alerts Tab */}
+          <TabsContent value="general">
+            <div className="bg-card rounded-lg border border-border overflow-hidden">
+              <div className="p-3 md:p-4 border-b border-border flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 md:w-5 md:h-5 text-warning" />
+                  <h2 className="text-sm md:text-base font-semibold">Alertas Ativos</h2>
+                </div>
+                <span className="text-xs md:text-sm text-muted-foreground font-medium">
+                  {alerts.length} alerta(s)
+                </span>
               </div>
-            ) : alerts.length === 0 ? (
-              <div className="p-6 md:p-8 text-center text-muted-foreground">
-                <Bell className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                <p className="font-medium">Nenhum alerta encontrado</p>
-                <p className="text-sm">Todos os sistemas estão operando normalmente</p>
-              </div>
-            ) : (
-              alerts.map((alert) => {
-                const styles = getSeverityStyles(alert.severity);
-                return (
-                  <div
-                    key={alert.id}
-                    className={`flex items-center justify-between p-3 md:p-4 ${styles.bg} transition-colors`}
-                  >
-                    <div className="flex items-start sm:items-center gap-3 flex-col sm:flex-row min-w-0 flex-1">
-                      <div className="flex items-center gap-3 min-w-0 flex-1">
-                        <div className={`w-8 h-8 rounded-full ${styles.icon} flex items-center justify-center shrink-0`}>
-                          <span className={styles.text}>
-                            {getAlertIcon(alert.type)}
-                          </span>
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className={`font-medium text-sm md:text-base ${styles.text}`}>
-                            {alert.title}
-                          </p>
-                          <p className="text-xs md:text-sm text-muted-foreground truncate">
-                            {alert.description}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 ml-11 sm:ml-0">
-                        <Badge 
-                          variant="outline" 
-                          className={`shrink-0 ${styles.text} border-current`}
-                        >
-                          <Clock className="w-3 h-3 mr-1" />
-                          {alert.type === 'manutencao' ? 'Manutenção' : 
-                           alert.type === 'revisao' ? 'Revisão' : 'Horímetro'}
-                        </Badge>
-                        {alert.date && (
-                          <span className="text-xs text-muted-foreground hidden sm:inline">
-                            {format(new Date(alert.date), 'dd/MM', { locale: ptBR })}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <ChevronRight className="w-5 h-5 text-muted-foreground shrink-0 hidden sm:block ml-2" />
+
+              <div className="divide-y divide-border">
+                {isLoading ? (
+                  <div className="p-6 md:p-8 text-center text-muted-foreground">
+                    <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2" />
+                    Carregando alertas...
                   </div>
-                );
-              })
-            )}
-          </div>
-        </div>
+                ) : alerts.length === 0 ? (
+                  <div className="p-6 md:p-8 text-center text-muted-foreground">
+                    <Bell className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                    <p className="font-medium">Nenhum alerta encontrado</p>
+                    <p className="text-sm">Todos os sistemas estão operando normalmente</p>
+                  </div>
+                ) : (
+                  alerts.map((alert) => {
+                    const styles = getSeverityStyles(alert.severity);
+                    return (
+                      <div
+                        key={alert.id}
+                        className={`flex items-center justify-between p-3 md:p-4 ${styles.bg} transition-colors`}
+                      >
+                        <div className="flex items-start sm:items-center gap-3 flex-col sm:flex-row min-w-0 flex-1">
+                          <div className="flex items-center gap-3 min-w-0 flex-1">
+                            <div className={`w-8 h-8 rounded-full ${styles.icon} flex items-center justify-center shrink-0`}>
+                              <span className={styles.text}>
+                                {getAlertIcon(alert.type)}
+                              </span>
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className={`font-medium text-sm md:text-base ${styles.text}`}>
+                                {alert.title}
+                              </p>
+                              <p className="text-xs md:text-sm text-muted-foreground truncate">
+                                {alert.description}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 ml-11 sm:ml-0">
+                            <Badge 
+                              variant="outline" 
+                              className={`shrink-0 ${styles.text} border-current`}
+                            >
+                              <Clock className="w-3 h-3 mr-1" />
+                              {alert.type === 'manutencao' ? 'Manutenção' : 
+                               alert.type === 'revisao' ? 'Revisão' : 'Horímetro'}
+                            </Badge>
+                            {alert.date && (
+                              <span className="text-xs text-muted-foreground hidden sm:inline">
+                                {format(new Date(alert.date), 'dd/MM', { locale: ptBR })}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <ChevronRight className="w-5 h-5 text-muted-foreground shrink-0 hidden sm:block ml-2" />
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          </TabsContent>
+
+          {/* Inconsistencies Tab */}
+          <TabsContent value="inconsistencies">
+            <div className="bg-card rounded-lg border border-border overflow-hidden">
+              <div className="p-3 md:p-4 border-b border-border flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <TrendingDown className="w-4 h-4 md:w-5 md:h-5 text-orange-500" />
+                  <h2 className="text-sm md:text-base font-semibold">Inconsistências de Horímetro/KM</h2>
+                </div>
+                <span className="text-xs md:text-sm text-muted-foreground font-medium">
+                  {pendingInconsistencies.length} pendente(s)
+                </span>
+              </div>
+
+              <div className="divide-y divide-border">
+                {isLoading ? (
+                  <div className="p-6 md:p-8 text-center text-muted-foreground">
+                    <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2" />
+                    Carregando...
+                  </div>
+                ) : pendingInconsistencies.length === 0 ? (
+                  <div className="p-6 md:p-8 text-center text-muted-foreground">
+                    <CheckCircle className="w-12 h-12 mx-auto mb-3 opacity-30 text-green-500" />
+                    <p className="font-medium">Nenhuma inconsistência pendente</p>
+                    <p className="text-sm">Todos os registros estão consistentes</p>
+                  </div>
+                ) : (
+                  pendingInconsistencies.map((alert) => (
+                    <div
+                      key={alert.id}
+                      className="flex items-center justify-between p-3 md:p-4 bg-orange-500/10 transition-colors hover:bg-orange-500/15"
+                    >
+                      <div className="flex items-start sm:items-center gap-3 flex-col sm:flex-row min-w-0 flex-1">
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                          <div className="w-8 h-8 rounded-full bg-orange-500/20 flex items-center justify-center shrink-0">
+                            <TrendingDown className="w-4 h-4 text-orange-600 dark:text-orange-400" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="font-medium text-sm md:text-base text-orange-600 dark:text-orange-400">
+                              {alert.vehicle_code} - {alert.value_type === 'horimeter' ? 'Horímetro' : 'KM'}
+                            </p>
+                            <p className="text-xs md:text-sm text-muted-foreground">
+                              Anterior: <strong>{alert.previous_value.toLocaleString('pt-BR')}</strong> → 
+                              Atual: <strong className="text-red-500">{alert.current_value.toLocaleString('pt-BR')}</strong>
+                              {' '}({alert.difference > 0 ? '+' : ''}{alert.difference.toLocaleString('pt-BR')})
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {alert.operator && `Operador: ${alert.operator} • `}
+                              {format(new Date(alert.reading_date), "dd/MM/yyyy", { locale: ptBR })}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 ml-11 sm:ml-0">
+                          <Badge variant="outline" className="text-orange-600 dark:text-orange-400 border-orange-500/50">
+                            {alert.value_type === 'horimeter' ? 'Horímetro' : 'KM'}
+                          </Badge>
+                        </div>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="ml-2 shrink-0"
+                        onClick={() => setSelectedInconsistency(alert)}
+                      >
+                        <Edit className="w-4 h-4 mr-1" />
+                        Resolver
+                      </Button>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Resolved section */}
+              {resolvedInconsistencies.length > 0 && (
+                <div className="border-t border-border">
+                  <div className="p-3 md:p-4 bg-muted/30">
+                    <div className="flex items-center gap-2 mb-3">
+                      <CheckCircle className="w-4 h-4 text-green-500" />
+                      <h3 className="text-sm font-medium">Resolvidos Recentemente ({resolvedInconsistencies.length})</h3>
+                    </div>
+                    <div className="space-y-2">
+                      {resolvedInconsistencies.slice(0, 5).map((alert) => (
+                        <div key={alert.id} className="flex items-center justify-between text-sm p-2 bg-green-500/10 rounded">
+                          <span className="text-muted-foreground">
+                            {alert.vehicle_code} - {alert.value_type === 'horimeter' ? 'Horímetro' : 'KM'}
+                          </span>
+                          <span className="text-xs text-green-600 dark:text-green-400">
+                            Resolvido em {format(new Date(alert.resolved_at!), 'dd/MM HH:mm', { locale: ptBR })}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </TabsContent>
+        </Tabs>
 
         {/* Legend */}
         <div className="flex items-center gap-4 text-xs md:text-sm flex-wrap">
@@ -409,6 +632,10 @@ export function AlertasPage() {
             <span>Atenção</span>
           </div>
           <div className="flex items-center gap-2">
+            <span className="w-3 h-3 rounded-full bg-orange-500" />
+            <span>Inconsistência</span>
+          </div>
+          <div className="flex items-center gap-2">
             <span className="w-3 h-3 rounded-full bg-blue-500" />
             <span>Informativo</span>
           </div>
@@ -419,6 +646,73 @@ export function AlertasPage() {
           Desenvolvido por <span className="font-medium">Jean Campos</span> • Abastech © 2026
         </div>
       </div>
+
+      {/* Resolve Inconsistency Dialog */}
+      <Dialog open={!!selectedInconsistency} onOpenChange={() => setSelectedInconsistency(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <TrendingDown className="w-5 h-5 text-orange-500" />
+              Resolver Inconsistência
+            </DialogTitle>
+            <DialogDescription>
+              {selectedInconsistency && (
+                <>
+                  <strong>{selectedInconsistency.vehicle_code}</strong> - {selectedInconsistency.vehicle_name || 'Sem descrição'}
+                  <br />
+                  {selectedInconsistency.value_type === 'horimeter' ? 'Horímetro' : 'KM'}: {' '}
+                  {selectedInconsistency.previous_value.toLocaleString('pt-BR')} → {selectedInconsistency.current_value.toLocaleString('pt-BR')}
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="bg-orange-500/10 border border-orange-500/30 rounded-lg p-3">
+              <p className="text-sm">
+                <strong>Diferença:</strong> {selectedInconsistency?.difference.toLocaleString('pt-BR')} {selectedInconsistency?.value_type === 'horimeter' ? 'horas' : 'km'}
+              </p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Data: {selectedInconsistency && format(new Date(selectedInconsistency.reading_date), 'dd/MM/yyyy', { locale: ptBR })}
+                {selectedInconsistency?.operator && ` • Operador: ${selectedInconsistency.operator}`}
+              </p>
+            </div>
+            
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Notas de Resolução (opcional)</label>
+              <Textarea
+                value={resolutionNotes}
+                onChange={(e) => setResolutionNotes(e.target.value)}
+                placeholder="Descreva a correção realizada ou justificativa..."
+                className="min-h-[100px]"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSelectedInconsistency(null)}>
+              Cancelar
+            </Button>
+            <Button 
+              onClick={handleResolveInconsistency} 
+              disabled={isResolving}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              {isResolving ? (
+                <>
+                  <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                  Resolvendo...
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="w-4 h-4 mr-2" />
+                  Marcar como Resolvido
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
