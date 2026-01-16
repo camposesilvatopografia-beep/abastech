@@ -5,11 +5,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Eye, EyeOff, LogIn, Loader2, CheckCircle2, Sparkles } from 'lucide-react';
+import { Eye, EyeOff, LogIn, Loader2, CheckCircle2, Sparkles, Smartphone } from 'lucide-react';
 import logoAbastech from '@/assets/logo-abastech-full.png';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 export default function Login() {
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -204,6 +206,19 @@ export default function Login() {
                 </>
               )}
             </Button>
+
+            {/* Mobile: Button to Field App */}
+            {isMobile && (
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full h-12 border-green-500/50 text-green-400 hover:bg-green-500/10 hover:text-green-300 font-medium"
+                onClick={() => window.location.href = '/apontamento'}
+              >
+                <Smartphone className="w-5 h-5 mr-2" />
+                Abrir Apontamento Campo
+              </Button>
+            )}
           </form>
 
           {/* Footer */}
