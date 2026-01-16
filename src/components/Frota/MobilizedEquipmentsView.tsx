@@ -2,13 +2,14 @@ import { useState, useMemo } from 'react';
 import { 
   Truck, 
   ChevronDown, 
-  ChevronUp, 
+  ChevronRight, 
   Download, 
   Building2,
   Wrench,
   Users,
   Car,
-  X
+  Edit,
+  Eye
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -27,6 +28,11 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -59,26 +65,41 @@ interface CompanyGroup {
   equipamentos: EquipmentCount[];
 }
 
+interface StatusGroup {
+  status: string;
+  total: number;
+  companies: CompanyGroup[];
+}
+
 // Grouping order for special sections
 const SPECIAL_SECTIONS = ['Consórcio', 'Terceiros', 'Terceiro', 'Veículos Leves'];
+
+// Status labels and colors
+const STATUS_CONFIG: Record<string, { label: string; color: string; bgColor: string }> = {
+  'ativo': { label: 'ATIVOS', color: 'text-green-700', bgColor: 'bg-green-50' },
+  'inativo': { label: 'INATIVOS', color: 'text-gray-600', bgColor: 'bg-gray-100' },
+  'em manutenção': { label: 'EM MANUTENÇÃO', color: 'text-amber-700', bgColor: 'bg-amber-50' },
+  'manutencao': { label: 'EM MANUTENÇÃO', color: 'text-amber-700', bgColor: 'bg-amber-50' },
+  'desmobilizado': { label: 'DESMOBILIZADOS', color: 'text-red-600', bgColor: 'bg-red-50' },
+};
 
 export function MobilizedEquipmentsView({ 
   vehicles, 
   selectedDate,
   onVehicleClick 
 }: MobilizedEquipmentsViewProps) {
-  const [expandedCompany, setExpandedCompany] = useState<string | null>(null);
   const [detailModal, setDetailModal] = useState<{ 
     open: boolean; 
     empresa: string; 
     equipamentos: EquipmentCount[] 
   } | null>(null);
+  const [expandedDescricao, setExpandedDescricao] = useState<string | null>(null);
 
   // Group vehicles by empresa and then by descricao for counting
   const companyGroups = useMemo<CompanyGroup[]>(() => {
     const groups = new Map<string, Map<string, VehicleItem[]>>();
     
-    // Only active vehicles
+    // Only active vehicles for main view
     vehicles
       .filter(v => !v.status || v.status.toLowerCase() === 'ativo')
       .forEach(vehicle => {
@@ -129,6 +150,67 @@ export function MobilizedEquipmentsView({
     });
   }, [vehicles]);
 
+  // Group ALL vehicles by status for PDF export
+  const statusGroups = useMemo<StatusGroup[]>(() => {
+    const statusMap = new Map<string, Map<string, Map<string, VehicleItem[]>>>();
+    
+    vehicles.forEach(vehicle => {
+      const status = (vehicle.status || 'ativo').toLowerCase();
+      const empresa = vehicle.empresa || 'Não informada';
+      const descricao = vehicle.descricao || vehicle.categoria || 'Outros';
+      
+      if (!statusMap.has(status)) {
+        statusMap.set(status, new Map());
+      }
+      const statusGroup = statusMap.get(status)!;
+      
+      if (!statusGroup.has(empresa)) {
+        statusGroup.set(empresa, new Map());
+      }
+      const empresaGroup = statusGroup.get(empresa)!;
+      
+      if (!empresaGroup.has(descricao)) {
+        empresaGroup.set(descricao, []);
+      }
+      empresaGroup.get(descricao)!.push(vehicle);
+    });
+
+    const result: StatusGroup[] = [];
+    
+    statusMap.forEach((empresaMap, status) => {
+      const companies: CompanyGroup[] = [];
+      let statusTotal = 0;
+      
+      empresaMap.forEach((equipMap, empresa) => {
+        const equipamentos: EquipmentCount[] = [];
+        let companyTotal = 0;
+        
+        equipMap.forEach((items, descricao) => {
+          equipamentos.push({
+            descricao,
+            quantidade: items.length,
+            items
+          });
+          companyTotal += items.length;
+        });
+        
+        equipamentos.sort((a, b) => a.descricao.localeCompare(b.descricao));
+        companies.push({ empresa, total: companyTotal, equipamentos });
+        statusTotal += companyTotal;
+      });
+      
+      companies.sort((a, b) => a.empresa.localeCompare(b.empresa));
+      result.push({ status, total: statusTotal, companies });
+    });
+    
+    // Sort by status order: ativo first
+    return result.sort((a, b) => {
+      if (a.status === 'ativo') return -1;
+      if (b.status === 'ativo') return 1;
+      return a.status.localeCompare(b.status);
+    });
+  }, [vehicles]);
+
   // Regular companies (not special sections)
   const regularCompanies = companyGroups.filter(
     g => !SPECIAL_SECTIONS.some(s => g.empresa.toLowerCase().includes(s.toLowerCase()))
@@ -139,7 +221,7 @@ export function MobilizedEquipmentsView({
     g => SPECIAL_SECTIONS.some(s => g.empresa.toLowerCase().includes(s.toLowerCase()))
   );
 
-  // Total count
+  // Total count (active only for main view)
   const totalGeral = companyGroups.reduce((sum, g) => sum + g.total, 0);
 
   // Get company color based on name
@@ -168,163 +250,154 @@ export function MobilizedEquipmentsView({
       empresa: group.empresa,
       equipamentos: group.equipamentos
     });
+    setExpandedDescricao(null);
   };
 
-  // Export PDF in the same format as the uploaded document
+  // Toggle expand for equipment type
+  const toggleExpand = (descricao: string) => {
+    setExpandedDescricao(prev => prev === descricao ? null : descricao);
+  };
+
+  // Handle vehicle click for editing
+  const handleVehicleClick = (vehicle: VehicleItem) => {
+    setDetailModal(null);
+    onVehicleClick?.(vehicle);
+  };
+
+  // Export PDF with ALL vehicles grouped by status
   const exportToPDF = () => {
     const doc = new jsPDF('portrait');
     const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
     
-    // Header with red/burgundy theme
-    doc.setFillColor(139, 0, 0); // Dark red
-    doc.rect(0, 0, pageWidth, 30, 'F');
+    // Header with gray theme
+    doc.setFillColor(70, 70, 80);
+    doc.rect(0, 0, pageWidth, 25, 'F');
     
     // Title
     doc.setTextColor(255, 255, 255);
-    doc.setFontSize(14);
+    doc.setFontSize(12);
     doc.setFont('helvetica', 'bold');
-    doc.text('CONSTRUTORA CONSÓRCIO AERO MARAGOGI', pageWidth / 2, 12, { align: 'center' });
+    doc.text('CONSTRUTORA CONSÓRCIO AERO MARAGOGI', pageWidth / 2, 10, { align: 'center' });
     
-    doc.setFontSize(16);
-    doc.text('EQUIPAMENTOS MOBILIZADOS', pageWidth / 2, 22, { align: 'center' });
+    doc.setFontSize(14);
+    doc.text('EQUIPAMENTOS MOBILIZADOS', pageWidth / 2, 18, { align: 'center' });
     
-    // Date and generation info
+    // Date info
     doc.setTextColor(60, 60, 60);
-    doc.setFontSize(9);
+    doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');
-    doc.text(`Data de Referência: ${format(selectedDate, "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}`, 14, 40);
-    doc.text(`Gerado em: ${format(new Date(), 'dd/MM/yyyy HH:mm', { locale: ptBR })}`, pageWidth - 60, 40);
+    doc.text(`Data: ${format(selectedDate, 'dd/MM/yyyy', { locale: ptBR })}`, 14, 32);
+    doc.text(`Gerado: ${format(new Date(), 'dd/MM/yyyy HH:mm', { locale: ptBR })}`, pageWidth - 50, 32);
     
-    let currentY = 50;
+    let currentY = 38;
     
-    // Regular companies in a multi-column layout (up to 3 columns)
-    if (regularCompanies.length > 0) {
-      const colWidth = (pageWidth - 30) / Math.min(regularCompanies.length, 3);
+    // Export each status group
+    statusGroups.forEach((statusGroup, statusIdx) => {
+      const statusConfig = STATUS_CONFIG[statusGroup.status] || { 
+        label: statusGroup.status.toUpperCase(), 
+        color: 'text-gray-600',
+        bgColor: 'bg-gray-100'
+      };
       
-      // Draw headers for each company
-      regularCompanies.slice(0, 3).forEach((company, idx) => {
-        const colX = 14 + (idx * colWidth);
-        
-        // Company header
-        doc.setFillColor(139, 0, 0);
-        doc.rect(colX, currentY, colWidth - 2, 8, 'F');
-        doc.setTextColor(255, 255, 255);
-        doc.setFontSize(9);
-        doc.setFont('helvetica', 'bold');
-        doc.text(company.empresa, colX + 2, currentY + 5.5);
-        doc.text('Qtd', colX + colWidth - 14, currentY + 5.5);
-      });
-      
-      currentY += 10;
-      
-      // Find max rows needed
-      const maxRows = Math.max(...regularCompanies.slice(0, 3).map(c => c.equipamentos.length));
-      
-      // Draw equipment rows
-      for (let rowIdx = 0; rowIdx < maxRows; rowIdx++) {
-        regularCompanies.slice(0, 3).forEach((company, colIdx) => {
-          const colX = 14 + (colIdx * colWidth);
-          const equip = company.equipamentos[rowIdx];
-          
-          if (equip) {
-            // Alternating row colors
-            if (rowIdx % 2 === 0) {
-              doc.setFillColor(248, 248, 248);
-              doc.rect(colX, currentY, colWidth - 2, 6, 'F');
-            }
-            
-            doc.setTextColor(60, 60, 60);
-            doc.setFontSize(8);
-            doc.setFont('helvetica', 'normal');
-            
-            // Truncate long names
-            const displayName = equip.descricao.length > 22 
-              ? equip.descricao.substring(0, 20) + '...'
-              : equip.descricao;
-            doc.text(displayName, colX + 2, currentY + 4);
-            doc.text(equip.quantidade.toString(), colX + colWidth - 10, currentY + 4);
-          }
-        });
-        currentY += 6;
-      }
-      
-      // Totals row for each company
-      regularCompanies.slice(0, 3).forEach((company, colIdx) => {
-        const colX = 14 + (colIdx * colWidth);
-        doc.setFillColor(220, 220, 220);
-        doc.rect(colX, currentY, colWidth - 2, 7, 'F');
-        doc.setTextColor(0, 0, 0);
-        doc.setFontSize(9);
-        doc.setFont('helvetica', 'bold');
-        doc.text('Total', colX + 2, currentY + 5);
-        doc.text(company.total.toString(), colX + colWidth - 10, currentY + 5);
-      });
-      
-      currentY += 15;
-    }
-    
-    // Special sections (Consórcio, Terceiros, Veículos Leves)
-    specialCompanies.forEach(company => {
-      if (currentY > 250) {
+      // Add new page if needed
+      if (statusIdx > 0 && currentY > 40) {
         doc.addPage();
         currentY = 20;
       }
       
-      // Section header
-      doc.setFillColor(139, 0, 0);
+      // Status header
+      const statusColor = statusGroup.status === 'ativo' ? [46, 125, 50] : 
+                          statusGroup.status.includes('manut') ? [245, 158, 11] :
+                          statusGroup.status === 'desmobilizado' ? [220, 38, 38] :
+                          [100, 100, 100];
+      
+      doc.setFillColor(statusColor[0], statusColor[1], statusColor[2]);
       doc.rect(14, currentY, pageWidth - 28, 8, 'F');
       doc.setTextColor(255, 255, 255);
       doc.setFontSize(10);
       doc.setFont('helvetica', 'bold');
-      doc.text(company.empresa, 16, currentY + 5.5);
+      doc.text(`${statusConfig.label} (${statusGroup.total})`, 16, currentY + 5.5);
       
-      currentY += 10;
+      currentY += 12;
       
-      // Equipment table
-      const tableData = company.equipamentos.map(e => [e.descricao, e.quantidade.toString()]);
-      
-      autoTable(doc, {
-        startY: currentY,
-        head: [['Equipamentos', 'Qtd']],
-        body: tableData,
-        theme: 'grid',
-        styles: { fontSize: 8, cellPadding: 2 },
-        headStyles: { fillColor: [100, 100, 100], textColor: 255, fontStyle: 'bold' },
-        columnStyles: {
-          0: { cellWidth: 140 },
-          1: { cellWidth: 20, halign: 'center' }
-        },
-        foot: [['Total', company.total.toString()]],
-        footStyles: { fillColor: [220, 220, 220], textColor: [0, 0, 0], fontStyle: 'bold' },
-        margin: { left: 14, right: 14 }
+      // Companies in this status
+      statusGroup.companies.forEach(company => {
+        if (currentY > pageHeight - 40) {
+          doc.addPage();
+          currentY = 20;
+        }
+        
+        // Company header
+        doc.setFillColor(100, 100, 110);
+        doc.rect(14, currentY, pageWidth - 28, 6, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'bold');
+        doc.text(company.empresa, 16, currentY + 4);
+        doc.text(`Total: ${company.total}`, pageWidth - 35, currentY + 4);
+        
+        currentY += 7;
+        
+        // Equipment table for this company
+        const tableData = company.equipamentos.map(e => [
+          e.descricao,
+          e.quantidade.toString()
+        ]);
+        
+        autoTable(doc, {
+          startY: currentY,
+          head: [['Descrição', 'Qtd']],
+          body: tableData,
+          theme: 'grid',
+          styles: { fontSize: 7, cellPadding: 1.5 },
+          headStyles: { 
+            fillColor: [150, 150, 160], 
+            textColor: 255, 
+            fontStyle: 'bold',
+            fontSize: 7
+          },
+          columnStyles: {
+            0: { cellWidth: pageWidth - 50 },
+            1: { cellWidth: 15, halign: 'center' }
+          },
+          margin: { left: 14, right: 14 },
+          alternateRowStyles: { fillColor: [250, 250, 250] },
+        });
+        
+        currentY = (doc as any).lastAutoTable.finalY + 6;
       });
       
-      currentY = (doc as any).lastAutoTable.finalY + 10;
+      currentY += 4;
     });
     
-    // Total Geral
-    if (currentY > 260) {
+    // Total Geral at the end
+    if (currentY > pageHeight - 25) {
       doc.addPage();
       currentY = 20;
     }
     
-    doc.setFillColor(139, 0, 0);
-    doc.rect(14, currentY, pageWidth - 28, 12, 'F');
+    const totalAll = vehicles.length;
+    doc.setFillColor(70, 70, 80);
+    doc.rect(14, currentY, pageWidth - 28, 10, 'F');
     doc.setTextColor(255, 255, 255);
-    doc.setFontSize(14);
+    doc.setFontSize(11);
     doc.setFont('helvetica', 'bold');
-    doc.text('Total Geral', 16, currentY + 8);
-    doc.text(totalGeral.toString(), pageWidth - 30, currentY + 8);
+    doc.text('TOTAL GERAL', 16, currentY + 7);
+    doc.text(totalAll.toString(), pageWidth - 25, currentY + 7);
     
-    // Footer
-    const pageHeight = doc.internal.pageSize.getHeight();
-    doc.setTextColor(120, 120, 120);
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'normal');
-    doc.text('Sistema Abastech - Gestão de Frota', 14, pageHeight - 10);
-    doc.text(`Página 1`, pageWidth - 25, pageHeight - 10);
+    // Footer on all pages
+    const totalPages = doc.getNumberOfPages();
+    for (let i = 1; i <= totalPages; i++) {
+      doc.setPage(i);
+      doc.setTextColor(120, 120, 120);
+      doc.setFontSize(7);
+      doc.setFont('helvetica', 'normal');
+      doc.text('Sistema Abastech - Gestão de Frota', 14, pageHeight - 8);
+      doc.text(`Página ${i} de ${totalPages}`, pageWidth - 30, pageHeight - 8);
+    }
     
-    doc.save(`equipamentos-mobilizados-${format(selectedDate, 'yyyy-MM-dd')}.pdf`);
+    doc.save(`equipamentos-${format(selectedDate, 'yyyy-MM-dd')}.pdf`);
   };
 
   return (
@@ -339,9 +412,10 @@ export function MobilizedEquipmentsView({
         </div>
         <Button 
           onClick={exportToPDF}
-          className="bg-red-600 hover:bg-red-700 text-white"
+          variant="outline"
+          className="gap-2"
         >
-          <Download className="w-4 h-4 mr-2" />
+          <Download className="w-4 h-4" />
           Exportar PDF
         </Button>
       </div>
@@ -351,10 +425,7 @@ export function MobilizedEquipmentsView({
         {regularCompanies.map(company => (
           <Card 
             key={company.empresa}
-            className={cn(
-              "cursor-pointer transition-all hover:shadow-lg hover:scale-[1.02]",
-              expandedCompany === company.empresa && "ring-2 ring-primary"
-            )}
+            className="cursor-pointer transition-all hover:shadow-lg hover:scale-[1.02]"
             onClick={() => handleCardClick(company)}
           >
             <CardHeader className={cn(
@@ -443,27 +514,27 @@ export function MobilizedEquipmentsView({
       )}
 
       {/* Total Geral */}
-      <Card className="bg-gradient-to-r from-red-600 to-red-700 text-white">
+      <Card className="bg-gradient-to-r from-slate-700 to-slate-800 text-white">
         <CardContent className="py-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <Truck className="w-10 h-10" />
               <div>
-                <p className="text-red-200 text-sm font-medium">TOTAL GERAL</p>
-                <p className="text-sm text-red-100">Todos os equipamentos mobilizados</p>
+                <p className="text-slate-300 text-sm font-medium">TOTAL GERAL</p>
+                <p className="text-sm text-slate-400">Todos os equipamentos mobilizados</p>
               </div>
             </div>
             <div className="text-right">
               <p className="text-5xl font-bold">{totalGeral}</p>
-              <p className="text-red-200 text-sm">unidades</p>
+              <p className="text-slate-300 text-sm">unidades</p>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Detail Modal */}
+      {/* Detail Modal with Expandable Items */}
       <Dialog open={detailModal?.open} onOpenChange={(open) => !open && setDetailModal(null)}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Building2 className="w-5 h-5 text-primary" />
@@ -472,51 +543,96 @@ export function MobilizedEquipmentsView({
           </DialogHeader>
           
           <div className="flex-1 overflow-y-auto">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-muted">
-                  <TableHead>Equipamento / Descrição</TableHead>
-                  <TableHead className="text-center w-20">Qtd</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {detailModal?.equipamentos.map(equip => (
-                  <TableRow 
-                    key={equip.descricao}
-                    className="hover:bg-muted/50 cursor-pointer"
-                    onClick={() => {
-                      // Optionally expand to show individual items
-                    }}
-                  >
-                    <TableCell className="font-medium">{equip.descricao}</TableCell>
-                    <TableCell className="text-center">
-                      <Badge variant="secondary" className="font-bold">
+            <div className="space-y-1">
+              {/* Header row */}
+              <div className="flex items-center justify-between px-4 py-2 bg-muted rounded-t-lg font-semibold text-sm">
+                <span>Equipamento / Descrição</span>
+                <span className="w-16 text-center">Qtd</span>
+              </div>
+              
+              {detailModal?.equipamentos.map(equip => (
+                <Collapsible 
+                  key={equip.descricao}
+                  open={expandedDescricao === equip.descricao}
+                  onOpenChange={() => toggleExpand(equip.descricao)}
+                >
+                  <CollapsibleTrigger asChild>
+                    <div className="flex items-center justify-between px-4 py-2 hover:bg-muted/50 cursor-pointer border-b transition-colors">
+                      <div className="flex items-center gap-2 flex-1">
+                        {expandedDescricao === equip.descricao ? (
+                          <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
+                        ) : (
+                          <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+                        )}
+                        <span className="font-medium">{equip.descricao}</span>
+                      </div>
+                      <Badge variant="secondary" className="font-bold w-16 justify-center">
                         {equip.quantidade}
                       </Badge>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-            
-            {/* Show individual items if only one type selected */}
-            {detailModal?.equipamentos.length === 1 && (
-              <div className="mt-4 p-4 bg-muted/30 rounded-lg">
-                <h4 className="font-semibold mb-2">Detalhamento:</h4>
-                <div className="space-y-1">
-                  {detailModal.equipamentos[0].items.map(item => (
-                    <div 
-                      key={item.codigo}
-                      className="flex items-center justify-between py-1 px-2 rounded hover:bg-muted cursor-pointer"
-                      onClick={() => onVehicleClick?.(item)}
-                    >
-                      <span className="font-mono text-sm text-primary">{item.codigo}</span>
-                      <span className="text-sm text-muted-foreground">{item.categoria}</span>
                     </div>
-                  ))}
-                </div>
-              </div>
-            )}
+                  </CollapsibleTrigger>
+                  
+                  <CollapsibleContent>
+                    <div className="bg-muted/30 border-b">
+                      {equip.items.map(item => (
+                        <div 
+                          key={item.codigo}
+                          className="flex items-center justify-between py-2 px-6 hover:bg-muted/50 cursor-pointer transition-colors group"
+                          onClick={() => handleVehicleClick(item)}
+                        >
+                          <div className="flex items-center gap-3">
+                            <span className="font-mono text-sm text-primary font-semibold">
+                              {item.codigo}
+                            </span>
+                            <span className="text-sm text-muted-foreground">
+                              {item.categoria}
+                            </span>
+                            <Badge 
+                              variant="outline" 
+                              className={cn(
+                                "text-xs",
+                                item.status?.toLowerCase() === 'ativo' && "bg-green-50 text-green-700 border-green-200",
+                                item.status?.toLowerCase().includes('manut') && "bg-amber-50 text-amber-700 border-amber-200",
+                                item.status?.toLowerCase() === 'inativo' && "bg-gray-100 text-gray-600 border-gray-200",
+                                item.status?.toLowerCase() === 'desmobilizado' && "bg-red-50 text-red-600 border-red-200"
+                              )}
+                            >
+                              {item.status || 'Ativo'}
+                            </Badge>
+                          </div>
+                          <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Button 
+                              size="sm" 
+                              variant="ghost" 
+                              className="h-7 px-2"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleVehicleClick(item);
+                              }}
+                            >
+                              <Edit className="w-3.5 h-3.5 mr-1" />
+                              Editar
+                            </Button>
+                            <Button 
+                              size="sm" 
+                              variant="ghost" 
+                              className="h-7 px-2"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleVehicleClick(item);
+                              }}
+                            >
+                              <Eye className="w-3.5 h-3.5 mr-1" />
+                              Ver
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+              ))}
+            </div>
           </div>
           
           <div className="border-t pt-4 flex items-center justify-between">
