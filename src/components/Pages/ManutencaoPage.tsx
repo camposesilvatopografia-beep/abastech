@@ -178,6 +178,8 @@ export function ManutencaoPage() {
     km_current: '',
     entry_date: '',
     entry_time: '',
+    exit_date: '',
+    exit_time: '',
     interval_days: '90', // Default 90 days for preventive maintenance
     order_date: '', // Date of the order
   });
@@ -763,6 +765,8 @@ export function ManutencaoPage() {
       km_current: '',
       entry_date: format(now, 'yyyy-MM-dd'),
       entry_time: format(now, 'HH:mm'),
+      exit_date: '',
+      exit_time: '',
       interval_days: '90',
       order_date: format(now, 'yyyy-MM-dd'),
     });
@@ -783,6 +787,15 @@ export function ManutencaoPage() {
   // Open edit order modal
   const handleEditOrder = (order: ServiceOrder) => {
     setEditingOrder(order);
+    // Parse exit date and time from end_date if exists
+    let exitDateVal = '';
+    let exitTimeVal = '';
+    if (order.end_date) {
+      const endDateTime = new Date(order.end_date);
+      exitDateVal = format(endDateTime, 'yyyy-MM-dd');
+      exitTimeVal = format(endDateTime, 'HH:mm');
+    }
+    
     setFormData({
       vehicle_code: order.vehicle_code,
       vehicle_description: order.vehicle_description || '',
@@ -803,6 +816,8 @@ export function ManutencaoPage() {
       km_current: (order as any).km_current?.toString() || '',
       entry_date: (order as any).entry_date || '',
       entry_time: (order as any).entry_time || '',
+      exit_date: exitDateVal,
+      exit_time: exitTimeVal,
       interval_days: (order as any).interval_days?.toString() || '90',
       order_date: order.order_date || '',
     });
@@ -823,6 +838,15 @@ export function ManutencaoPage() {
       const partsCost = parseFloat(formData.parts_cost) || 0;
       const laborCost = parseFloat(formData.labor_cost) || 0;
       
+      // Build end_date from exit_date and exit_time if provided
+      let endDateValue: string | null = editingOrder?.end_date || null;
+      if (formData.exit_date) {
+        const exitTimeStr = formData.exit_time || '00:00';
+        endDateValue = new Date(`${formData.exit_date}T${exitTimeStr}`).toISOString();
+      } else if (formData.status.includes('Finalizada') && !editingOrder?.end_date) {
+        endDateValue = new Date().toISOString();
+      }
+      
       const orderData = {
         vehicle_code: formData.vehicle_code,
         vehicle_description: formData.vehicle_description || null,
@@ -841,7 +865,7 @@ export function ManutencaoPage() {
         total_cost: (partsCost + laborCost) || null,
         notes: formData.notes || null,
         start_date: formData.status === 'Em Andamento' && !editingOrder?.start_date ? new Date().toISOString() : editingOrder?.start_date,
-        end_date: formData.status.includes('Finalizada') && !editingOrder?.end_date ? new Date().toISOString() : editingOrder?.end_date,
+        end_date: endDateValue,
         horimeter_current: parseFloat(formData.horimeter_current) || null,
         km_current: parseFloat(formData.km_current) || null,
         entry_date: formData.entry_date || null,
@@ -2084,8 +2108,36 @@ export function ManutencaoPage() {
               </div>
             </div>
 
-            {/* Downtime display - show when finalized */}
-            {formData.status === 'Finalizada' && formData.entry_date && (
+            {/* Exit Date and Time - editable */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-green-600" />
+                  Data de Saída
+                </Label>
+                <Input
+                  type="date"
+                  value={formData.exit_date}
+                  onChange={(e) => setFormData({ ...formData, exit_date: e.target.value })}
+                  className="border-green-300 dark:border-green-700"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-green-600" />
+                  Hora de Saída
+                </Label>
+                <Input
+                  type="time"
+                  value={formData.exit_time}
+                  onChange={(e) => setFormData({ ...formData, exit_time: e.target.value })}
+                  className="border-green-300 dark:border-green-700"
+                />
+              </div>
+            </div>
+
+            {/* Downtime display - show when entry and exit dates exist */}
+            {formData.entry_date && formData.exit_date && (
               <div className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/50 dark:to-emerald-950/50 border border-green-200 dark:border-green-800 rounded-lg p-4">
                 <div className="flex items-center gap-2 text-green-700 dark:text-green-300 mb-2">
                   <Timer className="w-5 h-5" />
@@ -2096,11 +2148,11 @@ export function ManutencaoPage() {
                     const entryDateTime = formData.entry_time 
                       ? new Date(`${formData.entry_date}T${formData.entry_time}`)
                       : new Date(`${formData.entry_date}T00:00`);
-                    const endDateTime = editingOrder?.end_date 
-                      ? new Date(editingOrder.end_date) 
-                      : new Date();
+                    const exitDateTime = formData.exit_time 
+                      ? new Date(`${formData.exit_date}T${formData.exit_time}`)
+                      : new Date(`${formData.exit_date}T00:00`);
                     
-                    const diffMs = endDateTime.getTime() - entryDateTime.getTime();
+                    const diffMs = exitDateTime.getTime() - entryDateTime.getTime();
                     const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
                     const diffDays = Math.floor(diffHours / 24);
                     const remainingHours = diffHours % 24;
@@ -2128,12 +2180,11 @@ export function ManutencaoPage() {
                   })()}
                 </div>
                 <p className="text-xs text-green-600 dark:text-green-400 mt-2 text-center">
-                  De {formData.entry_date ? format(new Date(`${formData.entry_date}T00:00`), 'dd/MM/yyyy', { locale: ptBR }) : '-'}
+                  De {format(new Date(`${formData.entry_date}T00:00`), 'dd/MM/yyyy', { locale: ptBR })}
                   {formData.entry_time && ` às ${formData.entry_time}`}
                   {' até '}
-                  {editingOrder?.end_date 
-                    ? format(new Date(editingOrder.end_date), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })
-                    : format(new Date(), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                  {format(new Date(`${formData.exit_date}T00:00`), 'dd/MM/yyyy', { locale: ptBR })}
+                  {formData.exit_time && ` às ${formData.exit_time}`}
                 </p>
               </div>
             )}
