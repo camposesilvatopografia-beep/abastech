@@ -58,6 +58,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { ColumnConfigModal } from '@/components/Layout/ColumnConfigModal';
 import { useLayoutPreferences, ColumnConfig } from '@/hooks/useLayoutPreferences';
+import { useObraSettings } from '@/hooks/useObraSettings';
 
 interface VehicleHistoryModalProps {
   open: boolean;
@@ -163,6 +164,7 @@ export function VehicleHistoryModal({
   const [serviceOrders, setServiceOrders] = useState<ServiceOrder[]>([]);
   const [activeTab, setActiveTab] = useState('timeline');
   const [showColumnConfig, setShowColumnConfig] = useState(false);
+  const { settings: obraSettings } = useObraSettings();
   
   // Layout preferences for timeline columns
   const { 
@@ -395,14 +397,17 @@ export function VehicleHistoryModal({
     const doc = new jsPDF('landscape');
     const pageWidth = doc.internal.pageSize.getWidth();
     
-    // Red header bar - similar to Abastecimento por Local
-    doc.setFillColor(220, 38, 38);
+    // Navy header bar (matching system theme)
+    doc.setFillColor(30, 41, 59);
     doc.rect(0, 0, pageWidth, 28, 'F');
     
     doc.setTextColor(255, 255, 255);
-    doc.setFontSize(14);
+    doc.setFontSize(12);
     doc.setFont('helvetica', 'bold');
-    doc.text('HISTÓRICO DETALHADO DO EQUIPAMENTO', 14, 12);
+    const headerTitle = obraSettings?.nome 
+      ? `${obraSettings.nome} - HISTÓRICO DO EQUIPAMENTO`
+      : 'HISTÓRICO DETALHADO DO EQUIPAMENTO';
+    doc.text(headerTitle.toUpperCase(), 14, 12);
     doc.setFontSize(11);
     doc.text(`${vehicleCode} - ${vehicleDescription}`, 14, 22);
     
@@ -503,7 +508,7 @@ export function VehicleHistoryModal({
       body: tableData,
       startY: yPos + 5,
       styles: { fontSize: 7, cellPadding: 2 },
-      headStyles: { fillColor: [220, 38, 38], textColor: [255, 255, 255] },
+      headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255] },
       alternateRowStyles: { fillColor: [248, 249, 250] },
       margin: { left: 14, right: 14 }
     });

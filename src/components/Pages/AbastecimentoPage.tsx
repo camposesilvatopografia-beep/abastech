@@ -70,6 +70,7 @@ const GERAL_SHEET = 'Geral';
 const SANEAMENTO_STOCK_SHEET = 'EstoqueObraSaneamento';
 
 import { Package2 } from 'lucide-react';
+import { useObraSettings } from '@/hooks/useObraSettings';
 
 const TABS = [
   { id: 'painel', label: 'Painel de Estoque', icon: Package2 },
@@ -116,6 +117,7 @@ function parseNumber(value: any): number {
 export function AbastecimentoPage() {
   const { user } = useAuth();
   const { data, loading, refetch } = useSheetData(SHEET_NAME);
+  const { settings: obraSettings } = useObraSettings();
 
   const {
     data: geralData,
@@ -992,18 +994,29 @@ export function AbastecimentoPage() {
         
         let currentY = 20;
         
-        // Header with company name and date
-        doc.setFontSize(18);
-        doc.setFont('helvetica', 'bold');
-        doc.text(`Relatório Geral - ${empresa.toUpperCase()}`, pageWidth / 2, currentY, { align: 'center' });
+        // Header - Navy blue bar
+        doc.setFillColor(30, 41, 59);
+        doc.rect(0, 0, pageWidth, 18, 'F');
         
-        // Date range on the right
+        // Header with obra name and company
         doc.setFontSize(10);
         doc.setFont('helvetica', 'normal');
-        const dateRangeText = `${format(dateRange.start, 'dd/MM/yyyy')} a ${format(dateRange.end, 'dd/MM/yyyy')}`;
-        doc.text(dateRangeText, pageWidth - 20, currentY, { align: 'right' });
+        doc.setTextColor(255, 255, 255);
+        const obraInfo = obraSettings?.nome || 'Sistema de Gestão de Frotas';
+        doc.text(obraInfo, 14, 12);
         
-        currentY += 15;
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`Relatório - ${empresa.toUpperCase()}`, pageWidth / 2, 12, { align: 'center' });
+        
+        // Date range on the right
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'normal');
+        const dateRangeText = `${format(dateRange.start, 'dd/MM/yyyy')} a ${format(dateRange.end, 'dd/MM/yyyy')}`;
+        doc.text(dateRangeText, pageWidth - 14, 12, { align: 'right' });
+        
+        doc.setTextColor(0, 0, 0);
+        currentY = 28;
         
         // Iterate through each category (Equipamentos, Veículos, etc.)
         const categorias = Object.keys(empresaData.categorias).sort();
@@ -1018,10 +1031,10 @@ export function AbastecimentoPage() {
             currentY = 20;
           }
           
-          // Category title (red underline style)
+          // Category title (navy blue style)
           doc.setFontSize(12);
           doc.setFont('helvetica', 'bold');
-          doc.setTextColor(180, 0, 0);
+          doc.setTextColor(30, 41, 59);
           doc.text(categoria.charAt(0).toUpperCase() + categoria.slice(1), pageWidth / 2, currentY, { align: 'center' });
           doc.setTextColor(0, 0, 0);
           currentY += 6;
@@ -1098,7 +1111,7 @@ export function AbastecimentoPage() {
               cellPadding: 2,
             },
             headStyles: { 
-              fillColor: [180, 0, 0],
+              fillColor: [30, 41, 59],
               textColor: [255, 255, 255],
               fontStyle: 'bold',
               halign: 'center',
@@ -1188,19 +1201,23 @@ export function AbastecimentoPage() {
       const pageWidth = doc.internal.pageSize.getWidth();
       const targetDate = format(new Date(), 'dd/MM/yyyy');
       
-      let currentY = 20;
+      // Navy header bar
+      doc.setFillColor(30, 41, 59);
+      doc.rect(0, 0, pageWidth, 22, 'F');
       
-      // Title - Resumo Geral
-      doc.setFontSize(16);
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(14);
       doc.setFont('helvetica', 'bold');
-      doc.text('Resumo Geral', pageWidth / 2, currentY, { align: 'center' });
-      currentY += 10;
+      const headerTitle = obraSettings?.nome ? `${obraSettings.nome} - RESUMO GERAL` : 'RESUMO GERAL DE ESTOQUES';
+      doc.text(headerTitle.toUpperCase(), pageWidth / 2, 10, { align: 'center' });
       
-      // Date
-      doc.setFontSize(10);
+      doc.setFontSize(9);
       doc.setFont('helvetica', 'normal');
-      doc.text(`Data: ${targetDate}`, pageWidth / 2, currentY, { align: 'center' });
-      currentY += 10;
+      const subTitle = obraSettings?.cidade ? `${obraSettings.cidade} | ${targetDate}` : targetDate;
+      doc.text(subTitle, pageWidth / 2, 18, { align: 'center' });
+      
+      doc.setTextColor(0, 0, 0);
+      let currentY = 30;
       
       // Collect stock data for all locations
       const canteiro01 = getStockDataFromSheet(estoqueCanteiro01Data, targetDate);

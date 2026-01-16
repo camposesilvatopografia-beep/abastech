@@ -32,6 +32,7 @@ import { Vehicle, HorimeterWithVehicle } from '@/hooks/useHorimeters';
 import { useToast } from '@/hooks/use-toast';
 import { useLayoutPreferences, ColumnConfig } from '@/hooks/useLayoutPreferences';
 import { ColumnConfigModal } from '@/components/Layout/ColumnConfigModal';
+import { useObraSettings } from '@/hooks/useObraSettings';
 
 // Default column configuration for history
 const DEFAULT_HISTORY_COLUMNS: ColumnConfig[] = [
@@ -116,6 +117,7 @@ export function HorimeterHistoryTab({ vehicles, readings, loading }: HorimeterHi
   const [categoriaFilter, setCategoriaFilter] = useState<string>('all');
   const [columnConfigOpen, setColumnConfigOpen] = useState(false);
   const { toast } = useToast();
+  const { settings: obraSettings } = useObraSettings();
   
   // Layout preferences for column customization
   const {
@@ -416,9 +418,12 @@ export function HorimeterHistoryTab({ vehicles, readings, loading }: HorimeterHi
     doc.setFont('helvetica', 'normal');
     doc.text('RELATÓRIO DE HORÍMETROS', pageWidth / 2, 20, { align: 'center' });
 
-    // Company and project info
+    // Company and project info - DYNAMIC from obra_settings
     doc.setFontSize(8);
-    doc.text('CONSÓRCIO AERO MARAGOGI - Obra: Sistema de Abastecimento de Água', pageWidth / 2, 27, { align: 'center' });
+    const obraInfo = obraSettings?.nome 
+      ? `${obraSettings.nome}${obraSettings.subtitulo ? ` - ${obraSettings.subtitulo}` : ''}${obraSettings.cidade ? ` | ${obraSettings.cidade}` : ''}`
+      : 'Sistema de Gestão de Frotas';
+    doc.text(obraInfo, pageWidth / 2, 27, { align: 'center' });
 
     // Date - below header
     doc.setTextColor(60, 60, 60);
