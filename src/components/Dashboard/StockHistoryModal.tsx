@@ -1,6 +1,6 @@
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { X, Calendar, Package2, ArrowUp, ArrowDown, History } from 'lucide-react';
+import { X, Calendar, Package2, ArrowUp, ArrowDown, History, Table2 } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/table';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { SheetData } from '@/lib/googleSheets';
 
 interface StockHistoryModalProps {
@@ -111,15 +112,22 @@ function extractHistoryRows(sheetData: SheetData): HistoryRow[] {
 export function StockHistoryModal({ open, onClose, title, sheetData }: StockHistoryModalProps) {
   const historyRows = extractHistoryRows(sheetData);
 
-  // Calculate totals
-  const totals = historyRows.reduce((acc, row) => ({
-    entradas: acc.entradas + row.entrada,
-    saidas: acc.saidas + row.saida
-  }), { entradas: 0, saidas: 0 });
+  // Raw rows (most recent first)
+  const rawHeaders = (sheetData.headers || []).filter((h) => String(h).trim() && String(h) !== '_rowIndex');
+  const rawRows = (sheetData.rows || []).slice().reverse();
+
+  // Calculate totals (from resumo)
+  const totals = historyRows.reduce(
+    (acc, row) => ({
+      entradas: acc.entradas + row.entrada,
+      saidas: acc.saidas + row.saida,
+    }),
+    { entradas: 0, saidas: 0 }
+  );
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[85vh] p-0">
+      <DialogContent className="max-w-5xl max-h-[85vh] p-0">
         <DialogHeader className="px-6 py-4 border-b border-border bg-muted/30">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -127,109 +135,162 @@ export function StockHistoryModal({ open, onClose, title, sheetData }: StockHist
                 <History className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <DialogTitle className="text-lg font-semibold">
-                  Histórico de Movimentações
-                </DialogTitle>
+                <DialogTitle className="text-lg font-semibold">Detalhamento</DialogTitle>
                 <p className="text-sm text-muted-foreground mt-0.5">{title}</p>
               </div>
             </div>
           </div>
         </DialogHeader>
 
-        {/* Summary Cards */}
-        <div className="px-6 py-4 grid grid-cols-2 md:grid-cols-4 gap-3 border-b border-border">
-          <div className="bg-muted/30 rounded-lg p-3 text-center">
-            <span className="text-xs text-muted-foreground">Registros</span>
-            <div className="text-lg font-bold text-foreground">{historyRows.length}</div>
+        <Tabs defaultValue="tabela" className="w-full">
+          <div className="px-6 py-3 border-b border-border bg-background">
+            <TabsList>
+              <TabsTrigger value="tabela" className="gap-2">
+                <Table2 className="h-4 w-4" />
+                Tabela
+              </TabsTrigger>
+              <TabsTrigger value="resumo" className="gap-2">
+                <History className="h-4 w-4" />
+                Resumo
+              </TabsTrigger>
+            </TabsList>
           </div>
-          <div className="bg-emerald-500/10 rounded-lg p-3 text-center">
-            <span className="text-xs text-muted-foreground">Total Entradas</span>
-            <div className="flex items-center justify-center gap-1 text-lg font-bold text-emerald-600 dark:text-emerald-500">
-              <ArrowUp className="h-4 w-4" />
-              {formatNumber(totals.entradas)}
-            </div>
-          </div>
-          <div className="bg-rose-500/10 rounded-lg p-3 text-center">
-            <span className="text-xs text-muted-foreground">Total Saídas</span>
-            <div className="flex items-center justify-center gap-1 text-lg font-bold text-rose-600 dark:text-rose-500">
-              <ArrowDown className="h-4 w-4" />
-              {formatNumber(totals.saidas)}
-            </div>
-          </div>
-          <div className="bg-primary/10 rounded-lg p-3 text-center">
-            <span className="text-xs text-muted-foreground">Saldo</span>
-            <div className="flex items-center justify-center gap-1 text-lg font-bold text-primary">
-              <Package2 className="h-4 w-4" />
-              {formatNumber(totals.entradas - totals.saidas)}
-            </div>
-          </div>
-        </div>
 
-        {/* History Table */}
-        <ScrollArea className="h-[400px]">
-          {historyRows.length > 0 ? (
-            <Table>
-              <TableHeader className="sticky top-0 bg-background z-10">
-                <TableRow>
-                  <TableHead className="w-[120px]">
-                    <div className="flex items-center gap-1.5">
-                      <Calendar className="h-3.5 w-3.5" />
-                      Data
-                    </div>
-                  </TableHead>
-                  <TableHead className="text-right">Est. Anterior</TableHead>
-                  <TableHead className="text-right">
-                    <span className="text-emerald-600 dark:text-emerald-500">Entrada</span>
-                  </TableHead>
-                  <TableHead className="text-right">
-                    <span className="text-rose-600 dark:text-rose-500">Saída</span>
-                  </TableHead>
-                  <TableHead className="text-right">Est. Atual</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {historyRows.map((row, index) => (
-                  <TableRow key={index} className="hover:bg-muted/50">
-                    <TableCell className="font-medium">
-                      <Badge variant="outline" className="font-mono text-xs">
-                        {row.data}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right text-amber-600 dark:text-amber-500">
-                      {formatNumber(row.estoqueAnterior)}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {row.entrada > 0 ? (
-                        <span className="text-emerald-600 dark:text-emerald-500 font-medium">
-                          +{formatNumber(row.entrada)}
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground">-</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {row.saida > 0 ? (
-                        <span className="text-rose-600 dark:text-rose-500 font-medium">
-                          -{formatNumber(row.saida)}
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground">-</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right font-bold text-primary">
-                      {formatNumber(row.estoqueAtual)}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          ) : (
-            <div className="flex flex-col items-center justify-center h-full py-12 text-muted-foreground">
-              <Package2 className="h-12 w-12 mb-4 opacity-50" />
-              <p className="text-sm">Nenhum histórico disponível</p>
+          {/* TABELA (igual planilha) */}
+          <TabsContent value="tabela" className="m-0">
+            <ScrollArea className="h-[520px]">
+              {rawHeaders.length > 0 && rawRows.length > 0 ? (
+                <div className="w-full overflow-x-auto">
+                  <Table>
+                    <TableHeader className="sticky top-0 bg-background z-10">
+                      <TableRow>
+                        {rawHeaders.map((h) => (
+                          <TableHead key={String(h)} className="whitespace-nowrap">
+                            {String(h)}
+                          </TableHead>
+                        ))}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {rawRows.map((row: any, idx: number) => (
+                        <TableRow key={row?._rowIndex ?? idx} className="hover:bg-muted/50">
+                          {rawHeaders.map((h) => (
+                            <TableCell key={String(h)} className="whitespace-nowrap">
+                              {String(row?.[h] ?? '')}
+                            </TableCell>
+                          ))}
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center h-full py-12 text-muted-foreground">
+                  <Package2 className="h-12 w-12 mb-4 opacity-50" />
+                  <p className="text-sm">Nenhum dado disponível</p>
+                </div>
+              )}
+            </ScrollArea>
+          </TabsContent>
+
+          {/* RESUMO (movimentações) */}
+          <TabsContent value="resumo" className="m-0">
+            {/* Summary Cards */}
+            <div className="px-6 py-4 grid grid-cols-2 md:grid-cols-4 gap-3 border-b border-border">
+              <div className="bg-muted/30 rounded-lg p-3 text-center">
+                <span className="text-xs text-muted-foreground">Registros</span>
+                <div className="text-lg font-bold text-foreground">{historyRows.length}</div>
+              </div>
+              <div className="bg-emerald-500/10 rounded-lg p-3 text-center">
+                <span className="text-xs text-muted-foreground">Total Entradas</span>
+                <div className="flex items-center justify-center gap-1 text-lg font-bold text-emerald-600 dark:text-emerald-500">
+                  <ArrowUp className="h-4 w-4" />
+                  {formatNumber(totals.entradas)}
+                </div>
+              </div>
+              <div className="bg-rose-500/10 rounded-lg p-3 text-center">
+                <span className="text-xs text-muted-foreground">Total Saídas</span>
+                <div className="flex items-center justify-center gap-1 text-lg font-bold text-rose-600 dark:text-rose-500">
+                  <ArrowDown className="h-4 w-4" />
+                  {formatNumber(totals.saidas)}
+                </div>
+              </div>
+              <div className="bg-primary/10 rounded-lg p-3 text-center">
+                <span className="text-xs text-muted-foreground">Saldo</span>
+                <div className="flex items-center justify-center gap-1 text-lg font-bold text-primary">
+                  <Package2 className="h-4 w-4" />
+                  {formatNumber(totals.entradas - totals.saidas)}
+                </div>
+              </div>
             </div>
-          )}
-        </ScrollArea>
+
+            {/* History Table */}
+            <ScrollArea className="h-[400px]">
+              {historyRows.length > 0 ? (
+                <Table>
+                  <TableHeader className="sticky top-0 bg-background z-10">
+                    <TableRow>
+                      <TableHead className="w-[120px]">
+                        <div className="flex items-center gap-1.5">
+                          <Calendar className="h-3.5 w-3.5" />
+                          Data
+                        </div>
+                      </TableHead>
+                      <TableHead className="text-right">Est. Anterior</TableHead>
+                      <TableHead className="text-right">
+                        <span className="text-emerald-600 dark:text-emerald-500">Entrada</span>
+                      </TableHead>
+                      <TableHead className="text-right">
+                        <span className="text-rose-600 dark:text-rose-500">Saída</span>
+                      </TableHead>
+                      <TableHead className="text-right">Est. Atual</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {historyRows.map((row, index) => (
+                      <TableRow key={index} className="hover:bg-muted/50">
+                        <TableCell className="font-medium">
+                          <Badge variant="outline" className="font-mono text-xs">
+                            {row.data}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right text-amber-600 dark:text-amber-500">
+                          {formatNumber(row.estoqueAnterior)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {row.entrada > 0 ? (
+                            <span className="text-emerald-600 dark:text-emerald-500 font-medium">
+                              +{formatNumber(row.entrada)}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {row.saida > 0 ? (
+                            <span className="text-rose-600 dark:text-rose-500 font-medium">
+                              -{formatNumber(row.saida)}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right font-bold text-primary">
+                          {formatNumber(row.estoqueAtual)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              ) : (
+                <div className="flex flex-col items-center justify-center h-full py-12 text-muted-foreground">
+                  <Package2 className="h-12 w-12 mb-4 opacity-50" />
+                  <p className="text-sm">Nenhum histórico disponível</p>
+                </div>
+              )}
+            </ScrollArea>
+          </TabsContent>
+        </Tabs>
       </DialogContent>
     </Dialog>
   );

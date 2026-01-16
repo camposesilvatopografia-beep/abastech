@@ -40,10 +40,14 @@ export async function getSheetNames(): Promise<string[]> {
   return callGoogleSheetsFunction({ action: 'getSheetNames' });
 }
 
-export async function getSheetData(sheetName: string): Promise<SheetData> {
+export async function getSheetData(
+  sheetName: string,
+  options?: { noCache?: boolean }
+): Promise<SheetData> {
   const result = await callGoogleSheetsFunction({
     action: 'getData',
     sheetName,
+    noCache: options?.noCache ?? false,
   });
   
   return {

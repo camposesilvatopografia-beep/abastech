@@ -86,7 +86,8 @@ export function useSheetData(sheetName: string | null, options?: { pollingInterv
       lastFetchAtBySheet.set(sheetName, now);
 
       const promise = (async () => {
-        const sheetData = await getSheetData(sheetName);
+        // When doing silent refresh/polling, bypass backend cache for “immediate” updates.
+        const sheetData = await getSheetData(sheetName, { noCache: silent });
         return sheetData;
       })();
 

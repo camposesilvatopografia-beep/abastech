@@ -476,7 +476,7 @@ serve(async (req) => {
     }
 
     const body = await req.json();
-    const { action, sheetName, data, rowIndex, range } = body;
+    const { action, sheetName, data, rowIndex, range, noCache } = body;
 
     console.log(`Processing action: ${action} for sheet: ${sheetName || "N/A"}`);
 
@@ -491,7 +491,15 @@ serve(async (req) => {
 
       case "getData": {
         const sheetRange = range || formatRange(sheetName);
-        const rawData = await getSheetData(accessToken, sheetId, sheetRange);
+
+        // Optionally bypass in-memory cache to ensure “immediate” UI updates.
+        const rawData = noCache
+          ? await (async () => {
+              const values = await fetchSheetValues(accessToken, sheetId, sheetRange);
+              cacheSet(sheetDataCache, `${sheetId}:${sheetRange}`, values, SHEET_DATA_TTL_MS);
+              return values;
+            })()
+          : await getSheetData(accessToken, sheetId, sheetRange);
 
         if (rawData.length === 0) {
           result = { headers: [], rows: [] };
