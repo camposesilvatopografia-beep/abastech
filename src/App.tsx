@@ -26,17 +26,22 @@ function PwaEntryRedirect() {
 
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
-    // Field-only installed experience: if the installed mobile app opens outside the field module,
-    // force redirect into /apontamento (FieldPage shows login when needed).
-    if (isStandalone && isMobile) {
+    // Mobile-first experience: on mobile devices, always keep users inside the Field module
+    // (unless they are on install pages), so operators never land on the admin dashboard.
+    if (isMobile) {
+      const isInstallPage =
+        location.pathname === '/instalar' ||
+        location.pathname === '/apontamento/instalar';
+
       const isInField =
         location.pathname === '/apontamento' ||
         location.pathname.startsWith('/apontamento/') ||
         location.pathname === '/campo' ||
         location.pathname.startsWith('/campo/');
 
-      if (!isInField) {
-        // Use hard navigation to avoid any router/base quirks in installed contexts.
+      // If running as installed app OR user is simply browsing on mobile,
+      // force into /apontamento (FieldPage shows login when needed).
+      if (!isInstallPage && !isInField) {
         window.location.replace('/apontamento');
       }
     }
