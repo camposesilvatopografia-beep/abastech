@@ -12,7 +12,7 @@ serve(async (req) => {
   }
 
   try {
-    const { messages, context } = await req.json();
+    const { messages } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     
     if (!LOVABLE_API_KEY) {
@@ -39,67 +39,70 @@ serve(async (req) => {
     const fuelRecords = recordsResult.data || [];
     const obraSettings = obraResult.data;
 
-    // Calculate some summary stats
+    // Calculate summary stats
     const totalVehicles = vehicles.length;
-    const vehiclesByStatus = vehicles.reduce((acc: Record<string, number>, v: any) => {
-      const status = v.status || 'Ativo';
-      acc[status] = (acc[status] || 0) + 1;
-      return acc;
-    }, {});
+    const activeVehicles = vehicles.filter((v: any) => v.status === 'Ativo' || !v.status).length;
+    const inMaintenanceVehicles = vehicles.filter((v: any) => v.status === 'Em Manutenção').length;
     
-    const vehiclesByCompany = vehicles.reduce((acc: Record<string, number>, v: any) => {
+    const vehiclesByCompany: Record<string, number> = {};
+    vehicles.forEach((v: any) => {
       const company = v.company || 'Não informado';
-      acc[company] = (acc[company] || 0) + 1;
-      return acc;
-    }, {});
+      vehiclesByCompany[company] = (vehiclesByCompany[company] || 0) + 1;
+    });
 
-    const ordersInMaintenance = orders.filter((o: any) => o.status === 'Em Manutenção' || o.status === 'Em Andamento').length;
+    const ordersInMaintenance = orders.filter((o: any) => 
+      o.status === 'Em Manutenção' || o.status === 'Em Andamento' || o.status === 'Aberta'
+    ).length;
+    
     const totalFuelLiters = fuelRecords.reduce((sum: number, r: any) => sum + (r.fuel_quantity || 0), 0);
+    const totalArla = fuelRecords.reduce((sum: number, r: any) => sum + (r.arla_quantity || 0), 0);
 
-    // Build comprehensive system prompt
-    const systemPrompt = `Você é o Assistente IA do Sistema Abastech - uma plataforma completa de gestão de frotas, abastecimento e manutenção.
+    // Get today's data
+    const today = new Date().toISOString().split('T')[0];
+    const todayRecords = fuelRecords.filter((r: any) => r.record_date === today);
+    const todayFuel = todayRecords.reduce((sum: number, r: any) => sum + (r.fuel_quantity || 0), 0);
 
-## Informações da Obra/Projeto
-${obraSettings ? `
-- Nome: ${obraSettings.nome}
-- Subtítulo: ${obraSettings.subtitulo || 'Não definido'}
-- Cidade: ${obraSettings.cidade || 'Não definida'}
-` : 'Configurações da obra não encontradas.'}
+    // Build system prompt - NotebookLM style: concise, data-driven, direct
+    const systemPrompt = `Você é o Abastech Analytics - um assistente de análise de dados especializado em gestão de frotas.
 
-## Resumo do Sistema
-- **Total de Veículos/Equipamentos**: ${totalVehicles}
-- **Por Status**: ${JSON.stringify(vehiclesByStatus)}
-- **Por Empresa**: ${JSON.stringify(vehiclesByCompany)}
-- **Ordens de Serviço em Manutenção**: ${ordersInMaintenance}
-- **Total de Combustível Registrado**: ${totalFuelLiters.toLocaleString('pt-BR')} litros
+REGRAS IMPORTANTES:
+1. Respostas CURTAS e DIRETAS - máximo 2-3 frases quando possível
+2. Use NÚMEROS e DADOS concretos sempre
+3. Formate valores: 1.234,56 (padrão brasileiro)
+4. Sem introduções longas - vá direto ao ponto
+5. Se não souber, diga "Não tenho essa informação no momento"
 
-## Veículos/Equipamentos Cadastrados (últimos ${vehicles.length})
-${vehicles.slice(0, 50).map((v: any) => `- ${v.code}: ${v.name || v.description || 'Sem descrição'} | Empresa: ${v.company || 'N/I'} | Status: ${v.status || 'Ativo'}`).join('\n')}
+DADOS ATUAIS DO SISTEMA:
 
-## Últimas Ordens de Serviço (${orders.length} registros)
-${orders.slice(0, 20).map((o: any) => `- OS ${o.order_number}: ${o.vehicle_code} | ${o.status} | ${o.problem_description?.substring(0, 50) || 'Sem descrição'}`).join('\n')}
+📊 FROTA:
+- Total: ${totalVehicles} veículos/equipamentos
+- Ativos: ${activeVehicles}
+- Em manutenção: ${inMaintenanceVehicles}
+- Por empresa: ${Object.entries(vehiclesByCompany).map(([k, v]) => `${k}: ${v}`).join(', ')}
 
-## Últimos Registros de Horímetro (${readings.length} leituras)
-${readings.slice(0, 20).map((r: any) => `- ${r.reading_date}: Veículo ${r.vehicle_id?.substring(0, 8)} | ${r.current_value}h | Operador: ${r.operator || 'N/I'}`).join('\n')}
+🔧 MANUTENÇÃO:
+- Ordens abertas/em andamento: ${ordersInMaintenance}
+- Total de OS registradas: ${orders.length}
 
-## Últimos Abastecimentos (${fuelRecords.length} registros)
-${fuelRecords.slice(0, 20).map((r: any) => `- ${r.record_date}: ${r.vehicle_code} | ${r.fuel_quantity}L | Local: ${r.location || 'N/I'}`).join('\n')}
+⛽ ABASTECIMENTO:
+- Total diesel registrado: ${totalFuelLiters.toLocaleString('pt-BR')} litros
+- Total ARLA: ${totalArla.toLocaleString('pt-BR')} litros
+- Hoje (${today}): ${todayFuel.toLocaleString('pt-BR')} litros
 
-## Módulos do Sistema
-1. **Dashboard**: Visão geral de estoque e movimentações
-2. **Abastecimento**: Registro de entradas/saídas de combustível, gestão de estoques
-3. **Horímetros**: Controle de horas trabalhadas dos equipamentos
-4. **Manutenção**: Ordens de serviço, histórico de reparos
-5. **Frota**: Cadastro de veículos e equipamentos mobilizados
-6. **Alertas**: Notificações de inconsistências e manutenções pendentes
+📋 OBRA: ${obraSettings?.nome || 'Não configurada'} - ${obraSettings?.cidade || ''}
 
-## Instruções
-- Responda sempre em português brasileiro
-- Seja objetivo e preciso nas respostas
-- Use os dados reais do sistema quando relevante
-- Formate números no padrão brasileiro (1.234,56)
-- Sugira ações práticas quando apropriado
-- Se não tiver informação suficiente, diga claramente`;
+VEÍCULOS CADASTRADOS:
+${vehicles.slice(0, 30).map((v: any) => `• ${v.code}: ${v.name || v.description || '-'} (${v.company || 'N/I'}) [${v.status || 'Ativo'}]`).join('\n')}
+
+ÚLTIMAS OS:
+${orders.slice(0, 10).map((o: any) => `• OS ${o.order_number}: ${o.vehicle_code} - ${o.status} - ${o.problem_description?.substring(0, 40) || 'Sem desc.'}`).join('\n')}
+
+ÚLTIMOS ABASTECIMENTOS:
+${fuelRecords.slice(0, 10).map((r: any) => `• ${r.record_date}: ${r.vehicle_code} - ${r.fuel_quantity}L - ${r.location || 'N/I'}`).join('\n')}
+
+Responda como um analista experiente: objetivo, preciso, sem enrolação.`;
+
+    console.log("Sending request to AI Gateway with context data");
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -108,7 +111,7 @@ ${fuelRecords.slice(0, 20).map((r: any) => `- ${r.record_date}: ${r.vehicle_code
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+        model: "google/gemini-2.5-flash",
         messages: [
           { role: "system", content: systemPrompt },
           ...messages,
@@ -118,8 +121,11 @@ ${fuelRecords.slice(0, 20).map((r: any) => `- ${r.record_date}: ${r.vehicle_code
     });
 
     if (!response.ok) {
+      const errorText = await response.text();
+      console.error("AI gateway error:", response.status, errorText);
+      
       if (response.status === 429) {
-        return new Response(JSON.stringify({ error: "Limite de requisições excedido. Tente novamente em alguns segundos." }), {
+        return new Response(JSON.stringify({ error: "Limite de requisições excedido. Aguarde alguns segundos." }), {
           status: 429,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
@@ -130,13 +136,13 @@ ${fuelRecords.slice(0, 20).map((r: any) => `- ${r.record_date}: ${r.vehicle_code
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      const errorText = await response.text();
-      console.error("AI gateway error:", response.status, errorText);
-      return new Response(JSON.stringify({ error: "Erro no gateway de IA" }), {
+      return new Response(JSON.stringify({ error: `Erro no gateway de IA: ${response.status}` }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    console.log("AI Gateway response OK, streaming...");
 
     return new Response(response.body, {
       headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
