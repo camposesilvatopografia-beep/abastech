@@ -77,7 +77,9 @@ export default function InstallPage() {
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="flex justify-center mb-8">
-          <img src={logoFull} alt="Abastech" className="h-16 object-contain" />
+          <div className="bg-white/10 rounded-2xl p-4 backdrop-blur-sm">
+            <img src={logoFull} alt="Abastech" className="h-20 object-contain" />
+          </div>
         </div>
 
         {isInstalled ? (
