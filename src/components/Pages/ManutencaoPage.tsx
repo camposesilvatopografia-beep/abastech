@@ -832,6 +832,21 @@ export function ManutencaoPage() {
       return;
     }
 
+    // Validate exit date is after entry date
+    if (formData.entry_date && formData.exit_date) {
+      const entryDateTime = formData.entry_time 
+        ? new Date(`${formData.entry_date}T${formData.entry_time}`)
+        : new Date(`${formData.entry_date}T00:00`);
+      const exitDateTime = formData.exit_time 
+        ? new Date(`${formData.exit_date}T${formData.exit_time}`)
+        : new Date(`${formData.exit_date}T00:00`);
+      
+      if (exitDateTime <= entryDateTime) {
+        toast.error('Data/Hora de Saída deve ser posterior à Data/Hora de Entrada');
+        return;
+      }
+    }
+
     setIsSaving(true);
     try {
       const mechanic = mechanics.find(m => m.id === formData.mechanic_id);
