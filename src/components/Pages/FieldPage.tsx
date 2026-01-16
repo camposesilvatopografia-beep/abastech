@@ -63,8 +63,11 @@ export function FieldPage() {
     permission: notificationPermission, 
     requestPermission: requestNotificationPermission,
     notifySyncComplete,
+    notifyPendingSync,
+    notifySyncError,
     notifyOffline,
     notifyOnline,
+    notifyRecordSaved,
   } = usePushNotifications();
   
   // Offline storage hook - will be null until user is loaded
@@ -233,10 +236,11 @@ export function FieldPage() {
     } catch (err) {
       console.error('Error syncing pending records:', err);
       toast.error('Erro ao sincronizar registros pendentes');
+      notifySyncError();
     } finally {
       setIsSyncing(false);
     }
-  }, [user, isSyncing, notifySyncComplete, offlineStorage]);
+  }, [user, isSyncing, notifySyncComplete, notifySyncError, offlineStorage]);
 
   // Monitor online status and auto-sync when coming back online
   useEffect(() => {
@@ -269,9 +273,12 @@ export function FieldPage() {
     };
   }, [syncPendingRecords, notifyOnline, notifyOffline]);
 
-  // Check pending records (both Supabase and IndexedDB)
+  // Check pending records (both Supabase and IndexedDB) and notify
   useEffect(() => {
     if (!user) return;
+    
+    let previousPending = 0;
+    let notifiedAt: number | null = null;
 
     const checkPending = async () => {
       let totalPending = 0;
@@ -289,12 +296,27 @@ export function FieldPage() {
       totalPending += offlineStorage.pendingCount;
       
       setPendingCount(totalPending);
+      
+      // Notify if pending count increased and we're online but haven't synced
+      // Only notify once per session or every 5 minutes
+      const now = Date.now();
+      const shouldNotify = 
+        totalPending > 0 && 
+        isOnline && 
+        (totalPending > previousPending || (notifiedAt && now - notifiedAt > 5 * 60 * 1000));
+      
+      if (shouldNotify && (!notifiedAt || now - notifiedAt > 60 * 1000)) {
+        notifyPendingSync(totalPending);
+        notifiedAt = now;
+      }
+      
+      previousPending = totalPending;
     };
 
     checkPending();
     const interval = setInterval(checkPending, 15000);
     return () => clearInterval(interval);
-  }, [user, offlineStorage.pendingCount]);
+  }, [user, offlineStorage.pendingCount, isOnline, notifyPendingSync]);
 
   const handleLogin = async (loggedUser: FieldUser) => {
     setUser(loggedUser);
