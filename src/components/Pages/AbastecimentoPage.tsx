@@ -116,14 +116,14 @@ function parseNumber(value: any): number {
 export function AbastecimentoPage() {
   const { user } = useAuth();
   const { data, loading, refetch } = useSheetData(SHEET_NAME);
-  const { data: geralData } = useSheetData(GERAL_SHEET);
+  const { data: geralData, refetch: refetchGeral } = useSheetData(GERAL_SHEET, { pollingInterval: 10000 });
   const { data: saneamentoStockData } = useSheetData(SANEAMENTO_STOCK_SHEET, { suppressErrors: true });
-  // Fetch stock data for comboios - suppress errors for optional sheets that may not exist
-  const { data: estoqueComboio01Data } = useSheetData('EstoqueComboio01', { suppressErrors: true });
-  const { data: estoqueComboio02Data } = useSheetData('EstoqueComboio02', { suppressErrors: true });
-  const { data: estoqueComboio03Data } = useSheetData('EstoqueComboio03', { suppressErrors: true });
-  const { data: estoqueCanteiro01Data } = useSheetData('EstoqueCanteiro01', { suppressErrors: true });
-  const { data: estoqueCanteiro02Data } = useSheetData('EstoqueCanteiro02', { suppressErrors: true });
+  // Fetch stock data with 10-second polling for real-time updates
+  const { data: estoqueComboio01Data } = useSheetData('EstoqueComboio01', { suppressErrors: true, pollingInterval: 10000 });
+  const { data: estoqueComboio02Data } = useSheetData('EstoqueComboio02', { suppressErrors: true, pollingInterval: 10000 });
+  const { data: estoqueComboio03Data } = useSheetData('EstoqueComboio03', { suppressErrors: true, pollingInterval: 10000 });
+  const { data: estoqueCanteiro01Data } = useSheetData('EstoqueCanteiro01', { suppressErrors: true, pollingInterval: 10000 });
+  const { data: estoqueCanteiro02Data } = useSheetData('EstoqueCanteiro02', { suppressErrors: true, pollingInterval: 10000 });
   
   const [activeTab, setActiveTab] = useState('painel');
   const [search, setSearch] = useState('');
