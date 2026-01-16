@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { AdminFuelRecordModal } from '@/components/Dashboard/AdminFuelRecordModal';
+import { StockPanelTab } from '@/components/Dashboard/StockPanelTab';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { MetricCard } from '@/components/Dashboard/MetricCard';
@@ -68,7 +69,10 @@ const SHEET_NAME = 'AbastecimentoCanteiro01';
 const GERAL_SHEET = 'Geral';
 const SANEAMENTO_STOCK_SHEET = 'EstoqueObraSaneamento';
 
+import { Package2 } from 'lucide-react';
+
 const TABS = [
+  { id: 'painel', label: 'Painel de Estoque', icon: Package2 },
   { id: 'resumo', label: 'Resumo', icon: BarChart3 },
   { id: 'detalhamento', label: 'Detalhamento', icon: List },
   { id: 'saneamento', label: 'Saneamento', icon: Droplet },
@@ -121,7 +125,7 @@ export function AbastecimentoPage() {
   const { data: estoqueCanteiro01Data } = useSheetData('EstoqueCanteiro01', { suppressErrors: true });
   const { data: estoqueCanteiro02Data } = useSheetData('EstoqueCanteiro02', { suppressErrors: true });
   
-  const [activeTab, setActiveTab] = useState('resumo');
+  const [activeTab, setActiveTab] = useState('painel');
   const [search, setSearch] = useState('');
   const [localFilter, setLocalFilter] = useState('all');
   const [tipoFilter, setTipoFilter] = useState('all');
@@ -1597,6 +1601,18 @@ export function AbastecimentoPage() {
         </div>
 
         {/* Content based on active tab */}
+        {activeTab === 'painel' && (
+          <StockPanelTab 
+            geralData={geralData}
+            estoqueCanteiro01Data={estoqueCanteiro01Data}
+            estoqueCanteiro02Data={estoqueCanteiro02Data}
+            estoqueComboio01Data={estoqueComboio01Data}
+            estoqueComboio02Data={estoqueComboio02Data}
+            estoqueComboio03Data={estoqueComboio03Data}
+            dateRange={dateRange}
+          />
+        )}
+
         {activeTab === 'resumo' && (
           <div className="space-y-4">
             <div className="flex items-center gap-2">
