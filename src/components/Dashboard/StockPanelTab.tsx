@@ -35,6 +35,8 @@ interface StockCardData {
   estoqueAnterior: number;
   entradas: number;
   saidas?: number;
+  saidaParaComboios?: number;
+  saidaParaEquipamentos?: number;
   lastUpdatedAt?: number | null;
 }
 
@@ -108,6 +110,8 @@ function StockCard({
   const styles = cardStyles[variant];
   const IconComponent = styles.icon;
   const isGeral = variant === 'geral';
+  const isTanque = variant === 'tanque01' || variant === 'tanque02';
+  const hasSaidaDetails = isTanque && (data.saidaParaComboios !== undefined || data.saidaParaEquipamentos !== undefined);
 
   return (
     <Card className={cn(
@@ -227,7 +231,7 @@ function StockCard({
             </div>
           </div>
 
-          {/* Saídas */}
+          {/* Saídas - Total */}
           <div className={cn(
             "text-center py-2 rounded-md",
             isGeral ? "bg-rose-500/20" : "bg-rose-100 dark:bg-rose-900/30"
@@ -236,7 +240,7 @@ function StockCard({
               "text-[8px] font-semibold uppercase tracking-wider block",
               isGeral ? "text-rose-200" : "text-rose-700 dark:text-rose-400"
             )}>
-              Saída
+              {hasSaidaDetails ? 'Total Saída' : 'Saída'}
             </span>
             <div className="flex items-center justify-center gap-1 mt-0.5">
               <ArrowDown className={cn("h-3 w-3", isGeral ? "text-rose-300" : "text-rose-600 dark:text-rose-400")} />
@@ -249,6 +253,49 @@ function StockCard({
             </div>
           </div>
         </div>
+
+        {/* Detalhamento de Saídas para Tanques */}
+        {hasSaidaDetails && (
+          <div className="grid grid-cols-2 gap-2 pt-1">
+            {/* Saída para Comboios */}
+            <div className={cn(
+              "text-center py-1.5 rounded-md",
+              "bg-orange-100 dark:bg-orange-900/30"
+            )}>
+              <span className={cn(
+                "text-[7px] font-semibold uppercase tracking-wider block",
+                "text-orange-700 dark:text-orange-400"
+              )}>
+                → Comboios
+              </span>
+              <div className="flex items-center justify-center gap-1 mt-0.5">
+                <Truck className="h-2.5 w-2.5 text-orange-600 dark:text-orange-400" />
+                <span className="text-[10px] font-bold text-orange-800 dark:text-orange-300">
+                  {formatNumber(data.saidaParaComboios || 0)}
+                </span>
+              </div>
+            </div>
+
+            {/* Saída para Equipamentos */}
+            <div className={cn(
+              "text-center py-1.5 rounded-md",
+              "bg-purple-100 dark:bg-purple-900/30"
+            )}>
+              <span className={cn(
+                "text-[7px] font-semibold uppercase tracking-wider block",
+                "text-purple-700 dark:text-purple-400"
+              )}>
+                → Equipamentos
+              </span>
+              <div className="flex items-center justify-center gap-1 mt-0.5">
+                <Fuel className="h-2.5 w-2.5 text-purple-600 dark:text-purple-400" />
+                <span className="text-[10px] font-bold text-purple-800 dark:text-purple-300">
+                  {formatNumber(data.saidaParaEquipamentos || 0)}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
@@ -291,7 +338,9 @@ function extractComboioData(sheetData: SheetData, localName: string, sheetName: 
   };
 }
 
-// Extração de dados para TANQUES (mesma estrutura dos comboios)
+// Extração de dados para TANQUES - Headers variam por planilha
+// EstoqueCanteiro01: Estoque Anterior, EstoqueAtual, Saida_para_Comboios, Saida_para_Equipamentos
+// EstoqueCanteiro02: EstoqueAnterior, EstoqueAtual, Saida_Para_Comboio, Saida_Equipamentos
 function extractTanqueData(sheetData: SheetData, localName: string, sheetName: string): StockCardData {
   const today = format(new Date(), 'dd/MM/yyyy');
   
@@ -303,18 +352,52 @@ function extractTanqueData(sheetData: SheetData, localName: string, sheetName: s
       estoqueAtual: 0,
       estoqueAnterior: 0,
       entradas: 0,
-      saidas: 0
+      saidas: 0,
+      saidaParaComboios: 0,
+      saidaParaEquipamentos: 0,
     };
   }
 
   const lastRow = sheetData.rows[sheetData.rows.length - 1];
   
-  // Mesma estrutura: Data, Estoque Anterior, Saida, Entrada, Estoque Atual
+  // Data
   const dataRow = String(lastRow['Data'] || today);
-  const estoqueAnterior = parseNumber(lastRow['Estoque Anterior']);
-  const saidas = parseNumber(lastRow['Saida']);
-  const entradas = parseNumber(lastRow['Entrada']);
-  const estoqueAtual = parseNumber(lastRow['Estoque Atual']);
+  
+  // Estoque Anterior - multiple variations
+  const estoqueAnterior = parseNumber(
+    lastRow['Estoque Anterior'] || 
+    lastRow['EstoqueAnterior'] || 
+    0
+  );
+  
+  // Entradas
+  const entradas = parseNumber(lastRow['Entrada'] || 0);
+  
+  // Saída Total
+  const saidas = parseNumber(lastRow['Saida'] || 0);
+  
+  // Saída para Comboios - multiple header variations
+  const saidaParaComboios = parseNumber(
+    lastRow['Saida_para_Comboios'] ||
+    lastRow['Saida_Para_Comboio'] ||
+    lastRow['Saida para Comboios'] ||
+    0
+  );
+  
+  // Saída para Equipamentos - multiple header variations
+  const saidaParaEquipamentos = parseNumber(
+    lastRow['Saida_para_Equipamentos'] ||
+    lastRow['Saida_Equipamentos'] ||
+    lastRow['Saida para Equipamentos'] ||
+    0
+  );
+  
+  // Estoque Atual - multiple variations
+  const estoqueAtual = parseNumber(
+    lastRow['EstoqueAtual'] ||
+    lastRow['Estoque Atual'] ||
+    0
+  );
 
   return {
     title: localName,
@@ -323,7 +406,9 @@ function extractTanqueData(sheetData: SheetData, localName: string, sheetName: s
     estoqueAtual,
     estoqueAnterior,
     entradas,
-    saidas
+    saidas,
+    saidaParaComboios,
+    saidaParaEquipamentos,
   };
 }
 
