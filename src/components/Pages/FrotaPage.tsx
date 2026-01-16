@@ -327,13 +327,40 @@ export function FrotaPage() {
     );
   };
 
-  // PDF Report - Landscape with Red Theme
+  // PDF Report - Organized by Company then Description
   const exportToPDF = () => {
     const doc = new jsPDF('landscape');
     const pageWidth = doc.internal.pageSize.getWidth();
     
-    // Header with red theme
-    doc.setFillColor(220, 38, 38);
+    // Organize data by company, then by description
+    const dataByCompany: Record<string, Record<string, Array<{
+      codigo: string;
+      descricao: string;
+      categoria: string;
+      status: string;
+    }>>> = {};
+    
+    filteredRows.forEach(row => {
+      const empresa = getRowValue(row as any, ['EMPRESA', 'Empresa', 'empresa']) || 'Não informada';
+      const descricao = getRowValue(row as any, ['DESCRICAO', 'DESCRIÇÃO', 'Descricao', 'descrição', 'descricao']) || 'Sem descrição';
+      const codigo = getRowValue(row as any, ['CODIGO', 'Codigo', 'codigo', 'VEICULO', 'Veiculo', 'veiculo']);
+      const categoria = getRowValue(row as any, ['CATEGORIA', 'Categoria', 'categoria', 'TIPO', 'Tipo', 'tipo']) || 'Outros';
+      const status = getRowValue(row as any, ['STATUS', 'Status', 'status']) || 'ativo';
+      
+      if (!dataByCompany[empresa]) {
+        dataByCompany[empresa] = {};
+      }
+      if (!dataByCompany[empresa][descricao]) {
+        dataByCompany[empresa][descricao] = [];
+      }
+      dataByCompany[empresa][descricao].push({ codigo, descricao, categoria, status });
+    });
+    
+    // Sort companies and descriptions alphabetically
+    const sortedCompanies = Object.keys(dataByCompany).sort();
+    
+    // Header with navy blue theme
+    doc.setFillColor(30, 41, 59);
     doc.rect(0, 0, pageWidth, 25, 'F');
     
     doc.setTextColor(255, 255, 255);
@@ -350,13 +377,10 @@ export function FrotaPage() {
     if (empresaFilter !== 'all') {
       doc.text(`Empresa: ${empresaFilter}`, 14, 41);
     }
-    if (descricaoFilter !== 'all') {
-      doc.text(`Descrição: ${descricaoFilter}`, 14, empresaFilter !== 'all' ? 47 : 41);
-    }
     doc.text(`Gerado em: ${format(new Date(), 'dd/MM/yyyy HH:mm', { locale: ptBR })}`, pageWidth - 70, 35);
     
     // Summary
-    const summaryY = empresaFilter !== 'all' || descricaoFilter !== 'all' ? 55 : 47;
+    const summaryY = empresaFilter !== 'all' ? 50 : 45;
     doc.setFontSize(11);
     doc.setFont('helvetica', 'bold');
     doc.text('RESUMO:', 14, summaryY);
@@ -365,48 +389,78 @@ export function FrotaPage() {
     doc.text(`Total de Ativos: ${metrics.totalAtivos}`, 14, summaryY + 6);
     doc.text(`Equipamentos: ${metrics.equipamentos}`, 80, summaryY + 6);
     doc.text(`Veículos: ${metrics.veiculos}`, 140, summaryY + 6);
-    doc.text(`Empresas: ${metrics.empresas}`, 200, summaryY + 6);
+    doc.text(`Empresas: ${sortedCompanies.length}`, 200, summaryY + 6);
 
-    // Group by category/empresa
     let startY = summaryY + 16;
     
-    groupedVehicles.forEach((group, groupIndex) => {
-      // Check if need new page
-      if (startY > 180) {
+    // Iterate by company
+    sortedCompanies.forEach((empresa, empresaIndex) => {
+      const descricoes = dataByCompany[empresa];
+      const sortedDescricoes = Object.keys(descricoes).sort();
+      
+      // Count total vehicles for this company
+      const totalVehiclesInCompany = Object.values(descricoes).reduce((sum, arr) => sum + arr.length, 0);
+      
+      // Check if need new page for company header
+      if (startY > 170) {
         doc.addPage();
         startY = 20;
       }
 
-      // Group header with red background
-      doc.setFillColor(220, 38, 38);
-      doc.rect(14, startY - 5, pageWidth - 28, 8, 'F');
+      // Company header with navy blue background
+      doc.setFillColor(30, 41, 59);
+      doc.rect(14, startY - 5, pageWidth - 28, 10, 'F');
       doc.setTextColor(255, 255, 255);
-      doc.setFontSize(11);
+      doc.setFontSize(13);
       doc.setFont('helvetica', 'bold');
-      doc.text(`${group.name.toUpperCase()} (${group.veiculos} unidades)`, 16, startY);
+      doc.text(`${empresa.toUpperCase()} (${totalVehiclesInCompany} unidades)`, 16, startY + 1);
       doc.setTextColor(0, 0, 0);
       
-      startY += 5;
+      startY += 10;
+      
+      // Iterate by description within company
+      sortedDescricoes.forEach((descricao, descIndex) => {
+        const vehicles = descricoes[descricao];
+        
+        // Check if need new page
+        if (startY > 175) {
+          doc.addPage();
+          startY = 20;
+        }
 
-      const tableData = group.items.map(item => [
-        item.codigo,
-        item.descricao,
-        item.categoria,
-        item.empresa,
-        STATUS_LABELS[item.status?.toLowerCase() || 'ativo']?.label || 'Ativo'
-      ]);
+        // Description sub-header with gray background
+        doc.setFillColor(100, 116, 139);
+        doc.rect(14, startY - 3, pageWidth - 28, 7, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`${descricao} (${vehicles.length})`, 18, startY + 2);
+        doc.setTextColor(0, 0, 0);
+        
+        startY += 6;
 
-      autoTable(doc, {
-        head: [['Código', 'Descrição', 'Categoria', 'Empresa', 'Status']],
-        body: tableData,
-        startY: startY,
-        styles: { fontSize: 8, cellPadding: 2 },
-        headStyles: { fillColor: [75, 85, 99], textColor: 255 },
-        alternateRowStyles: { fillColor: [249, 250, 251] },
-        margin: { left: 14, right: 14 }
+        const tableData = vehicles
+          .sort((a, b) => a.codigo.localeCompare(b.codigo))
+          .map(item => [
+            item.codigo,
+            item.categoria,
+            STATUS_LABELS[item.status?.toLowerCase() || 'ativo']?.label || 'Ativo'
+          ]);
+
+        autoTable(doc, {
+          head: [['Código', 'Categoria', 'Status']],
+          body: tableData,
+          startY: startY,
+          styles: { fontSize: 8, cellPadding: 2 },
+          headStyles: { fillColor: [148, 163, 184], textColor: 0 },
+          alternateRowStyles: { fillColor: [249, 250, 251] },
+          margin: { left: 18, right: 18 }
+        });
+
+        startY = (doc as any).lastAutoTable.finalY + 6;
       });
-
-      startY = (doc as any).lastAutoTable.finalY + 10;
+      
+      startY += 4;
     });
 
     // Footer with totals
@@ -415,12 +469,12 @@ export function FrotaPage() {
       startY = 20;
     }
     
-    doc.setFillColor(220, 38, 38);
+    doc.setFillColor(30, 41, 59);
     doc.rect(14, startY, pageWidth - 28, 10, 'F');
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(11);
     doc.setFont('helvetica', 'bold');
-    doc.text(`TOTAL GERAL: ${metrics.totalAtivos} ativos`, 16, startY + 7);
+    doc.text(`TOTAL GERAL: ${metrics.totalAtivos} ativos | ${sortedCompanies.length} empresas`, 16, startY + 7);
 
     doc.save(`frota_${format(selectedDate, 'yyyy-MM-dd')}.pdf`);
   };
