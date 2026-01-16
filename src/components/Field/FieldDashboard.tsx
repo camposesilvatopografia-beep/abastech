@@ -73,7 +73,7 @@ interface RecentRecord {
   observations?: string;
 }
 
-interface DeleteRequest {
+interface DeleteConfirmation {
   recordId: string;
   vehicleCode: string;
   quantity: number;
@@ -88,10 +88,9 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
     totalLiters: 0,
     totalArla: 0,
   });
-  const [deleteRequest, setDeleteRequest] = useState<DeleteRequest | null>(null);
-  const [deleteReason, setDeleteReason] = useState('');
+  const [deleteConfirmation, setDeleteConfirmation] = useState<DeleteConfirmation | null>(null);
   const [editRecord, setEditRecord] = useState<RecentRecord | null>(null);
-  const [isSubmittingRequest, setIsSubmittingRequest] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   
   // Visual indicator for admin updates
@@ -289,34 +288,28 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
     return timeStr?.substring(0, 5) || timeStr;
   };
 
-  // Handle delete request submission
-  const handleDeleteRequest = async () => {
-    if (!deleteRequest || !deleteReason.trim()) {
-      toast.error('Por favor, informe o motivo da solicitação');
-      return;
-    }
+  // Handle direct delete
+  const handleDirectDelete = async () => {
+    if (!deleteConfirmation) return;
     
-    setIsSubmittingRequest(true);
+    setIsDeleting(true);
     try {
       const { error } = await supabase
-        .from('field_record_requests')
-        .insert({
-          record_id: deleteRequest.recordId,
-          request_type: 'delete',
-          requested_by: user.id,
-          request_reason: deleteReason.trim(),
-        });
+        .from('field_fuel_records')
+        .delete()
+        .eq('id', deleteConfirmation.recordId);
 
       if (error) throw error;
 
-      toast.success('Solicitação de exclusão enviada para aprovação do administrador');
-      setDeleteRequest(null);
-      setDeleteReason('');
+      toast.success('Registro excluído com sucesso');
+      setDeleteConfirmation(null);
+      fetchTodayRecords();
+      refreshStockCards();
     } catch (err) {
-      console.error('Error submitting delete request:', err);
-      toast.error('Erro ao enviar solicitação');
+      console.error('Error deleting record:', err);
+      toast.error('Erro ao excluir registro');
     } finally {
-      setIsSubmittingRequest(false);
+      setIsDeleting(false);
     }
   };
 
@@ -337,53 +330,39 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
           </div>
         </div>
       )}
-      {/* Delete Request Dialog */}
-      <AlertDialog open={!!deleteRequest} onOpenChange={() => {
-        setDeleteRequest(null);
-        setDeleteReason('');
-      }}>
-        <AlertDialogContent className="bg-card border-amber-600/30">
+      {/* Direct Delete Confirmation Dialog */}
+      <AlertDialog open={!!deleteConfirmation} onOpenChange={() => setDeleteConfirmation(null)}>
+        <AlertDialogContent className="bg-card border-red-600/30">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-foreground flex items-center gap-2">
-              <AlertCircle className="w-5 h-5 text-amber-500" />
-              Solicitar Exclusão
+              <AlertCircle className="w-5 h-5 text-red-500" />
+              Confirmar Exclusão
             </AlertDialogTitle>
             <AlertDialogDescription className="text-muted-foreground">
-              Esta ação requer aprovação de um administrador. O registro de <strong className="text-foreground">{deleteRequest?.vehicleCode}</strong> com <strong className="text-amber-500">{deleteRequest?.quantity}L</strong> será enviado para revisão.
+              Tem certeza que deseja excluir o registro de <strong className="text-foreground">{deleteConfirmation?.vehicleCode}</strong> com <strong className="text-red-500">{deleteConfirmation?.quantity}L</strong>?
+              <br /><br />
+              <span className="text-red-400 font-medium">Esta ação não pode ser desfeita.</span>
             </AlertDialogDescription>
           </AlertDialogHeader>
-          
-          {/* Reason field - required */}
-          <div className="py-2">
-            <label className="text-sm font-medium text-foreground mb-2 block">
-              Motivo da solicitação <span className="text-destructive">*</span>
-            </label>
-            <textarea
-              value={deleteReason}
-              onChange={(e) => setDeleteReason(e.target.value)}
-              placeholder="Informe o motivo pelo qual deseja excluir este registro..."
-              className="w-full min-h-[80px] rounded-lg bg-background border border-border text-foreground placeholder:text-muted-foreground p-3 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-colors"
-            />
-          </div>
           
           <AlertDialogFooter>
             <AlertDialogCancel className="bg-secondary text-secondary-foreground hover:bg-secondary/80 border-0">
               Cancelar
             </AlertDialogCancel>
             <AlertDialogAction 
-              onClick={handleDeleteRequest}
-              disabled={isSubmittingRequest || !deleteReason.trim()}
+              onClick={handleDirectDelete}
+              disabled={isDeleting}
               className="bg-red-600 hover:bg-red-700 disabled:opacity-50"
             >
-              {isSubmittingRequest ? (
+              {isDeleting ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Enviando...
+                  Excluindo...
                 </>
               ) : (
                 <>
                   <Trash2 className="w-4 h-4 mr-2" />
-                  Solicitar Exclusão
+                  Excluir
                 </>
               )}
             </AlertDialogAction>
@@ -643,7 +622,7 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
                     >
                       <Edit2 className="w-4 h-4" />
                     </Button>
-                    {/* Delete button - requires admin approval */}
+                    {/* Delete button - direct deletion */}
                     <Button
                       size="icon"
                       variant="ghost"
@@ -653,13 +632,13 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
                           ? "text-slate-400 hover:text-red-400 hover:bg-red-900/30"
                           : "text-slate-500 hover:text-red-500 hover:bg-red-50"
                       )}
-                      onClick={() => setDeleteRequest({
+                      onClick={() => setDeleteConfirmation({
                         recordId: record.id,
                         vehicleCode: record.vehicle_code,
                         quantity: record.fuel_quantity,
                         reason: '',
                       })}
-                      title="Solicitar exclusão"
+                      title="Excluir registro"
                     >
                       <Trash2 className="w-4 h-4" />
                     </Button>

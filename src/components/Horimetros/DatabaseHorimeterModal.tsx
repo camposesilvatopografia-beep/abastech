@@ -283,24 +283,22 @@ export function DatabaseHorimeterModal({
       return false;
     }
 
-    // Validate horimeter against previous horimeter value
+    // Show warning but allow saving if horimeter is <= previous
     if (horimeterNum > 0 && previousHorimeter > 0 && horimeterNum <= previousHorimeter) {
       toast({
-        title: 'Valor inválido',
-        description: `O horímetro atual (${horimeterNum.toLocaleString('pt-BR')}h) deve ser maior que o anterior (${previousHorimeter.toLocaleString('pt-BR')}h).`,
-        variant: 'destructive',
+        title: '⚠️ Atenção: Possível inconsistência',
+        description: `O horímetro atual (${horimeterNum.toLocaleString('pt-BR')}h) é menor ou igual ao anterior (${previousHorimeter.toLocaleString('pt-BR')}h). O registro será salvo e um alerta será enviado.`,
+        variant: 'default',
       });
-      return false;
     }
 
-    // Validate KM against previous KM value
+    // Show warning but allow saving if KM is <= previous
     if (kmNum > 0 && previousKm > 0 && kmNum <= previousKm) {
       toast({
-        title: 'Valor inválido',
-        description: `A quilometragem atual (${kmNum.toLocaleString('pt-BR')} km) deve ser maior que a anterior (${previousKm.toLocaleString('pt-BR')} km).`,
-        variant: 'destructive',
+        title: '⚠️ Atenção: Possível inconsistência',
+        description: `A quilometragem atual (${kmNum.toLocaleString('pt-BR')} km) é menor ou igual à anterior (${previousKm.toLocaleString('pt-BR')} km). O registro será salvo e um alerta será enviado.`,
+        variant: 'default',
       });
-      return false;
     }
 
     return true;
@@ -343,10 +341,58 @@ export function DatabaseHorimeterModal({
         _kmValue: kmNum,
       };
 
+      let savedReadingId: string | null = null;
+
       if (isEditMode && editRecord) {
         await updateReading(editRecord.id, data);
+        savedReadingId = editRecord.id;
       } else {
-        await createReading(data);
+        const result = await createReading(data);
+        savedReadingId = result?.id || null;
+      }
+
+      // Check for inconsistencies and create alerts
+      const hasHorimeterInconsistency = horimeterNum > 0 && previousHorimeter > 0 && horimeterNum <= previousHorimeter;
+      const hasKmInconsistency = kmNum > 0 && previousKm > 0 && kmNum <= previousKm;
+
+      if (hasHorimeterInconsistency || hasKmInconsistency) {
+        // Create inconsistency alerts
+        const { supabase } = await import('@/integrations/supabase/client');
+        
+        if (hasHorimeterInconsistency) {
+          await supabase.from('horimeter_inconsistency_alerts').insert({
+            vehicle_id: selectedVehicleId,
+            vehicle_code: selectedVehicle?.code || '',
+            vehicle_name: selectedVehicle?.name || selectedVehicle?.description || '',
+            reading_id: savedReadingId,
+            reading_date: readingDate,
+            value_type: 'horimeter',
+            current_value: horimeterNum,
+            previous_value: previousHorimeter,
+            difference: horimeterNum - previousHorimeter,
+            operator: operador || null,
+          });
+        }
+
+        if (hasKmInconsistency) {
+          await supabase.from('horimeter_inconsistency_alerts').insert({
+            vehicle_id: selectedVehicleId,
+            vehicle_code: selectedVehicle?.code || '',
+            vehicle_name: selectedVehicle?.name || selectedVehicle?.description || '',
+            reading_id: savedReadingId,
+            reading_date: readingDate,
+            value_type: 'km',
+            current_value: kmNum,
+            previous_value: previousKm,
+            difference: kmNum - previousKm,
+            operator: operador || null,
+          });
+        }
+
+        toast({
+          title: '⚠️ Alerta de Inconsistência Criado',
+          description: 'O administrador foi notificado sobre esta possível inconsistência.',
+        });
       }
 
       // Refetch to ensure data is in sync
