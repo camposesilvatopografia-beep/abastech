@@ -17,6 +17,7 @@ import SuppliersPage from '@/components/Pages/SuppliersPage';
 import MechanicsPage from '@/components/Pages/MechanicsPage';
 import { ApprovalRequestsPage } from '@/components/Pages/ApprovalRequestsPage';
 import { RequestHistoryPage } from '@/components/Pages/RequestHistoryPage';
+import { ObraSettingsPage } from '@/components/Pages/ObraSettingsPage';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import logoWatermark from '@/assets/logo-abastech-full.png';
@@ -83,6 +84,8 @@ const Index = () => {
         return <ApprovalRequestsPage />;
       case 'historico-solicitacoes':
         return <RequestHistoryPage />;
+      case 'obra':
+        return <ObraSettingsPage />;
       case 'suporte':
         return (
           <div className="flex-1 flex items-center justify-center">

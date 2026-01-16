@@ -486,6 +486,36 @@ export type Database = {
         }
         Relationships: []
       }
+      obra_settings: {
+        Row: {
+          cidade: string | null
+          created_at: string
+          id: string
+          logo_url: string | null
+          nome: string
+          subtitulo: string | null
+          updated_at: string
+        }
+        Insert: {
+          cidade?: string | null
+          created_at?: string
+          id?: string
+          logo_url?: string | null
+          nome?: string
+          subtitulo?: string | null
+          updated_at?: string
+        }
+        Update: {
+          cidade?: string | null
+          created_at?: string
+          id?: string
+          logo_url?: string | null
+          nome?: string
+          subtitulo?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       oil_types: {
         Row: {
           active: boolean | null

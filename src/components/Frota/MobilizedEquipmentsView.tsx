@@ -271,27 +271,31 @@ export function MobilizedEquipmentsView({
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
     
-    // Header with gray theme
-    doc.setFillColor(70, 70, 80);
-    doc.rect(0, 0, pageWidth, 25, 'F');
+    // Header with navy blue theme (matching system primary)
+    doc.setFillColor(30, 41, 59); // Navy/slate-800
+    doc.rect(0, 0, pageWidth, 28, 'F');
     
     // Title
     doc.setTextColor(255, 255, 255);
-    doc.setFontSize(12);
-    doc.setFont('helvetica', 'bold');
-    doc.text('CONSTRUTORA CONSÓRCIO AERO MARAGOGI', pageWidth / 2, 10, { align: 'center' });
-    
     doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text('CONSÓRCIO AERO MARAGOGI', pageWidth / 2, 10, { align: 'center' });
+    
+    doc.setFontSize(12);
     doc.text('EQUIPAMENTOS MOBILIZADOS', pageWidth / 2, 18, { align: 'center' });
+    
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Maragogi-AL', pageWidth / 2, 24, { align: 'center' });
     
     // Date info
     doc.setTextColor(60, 60, 60);
     doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');
-    doc.text(`Data: ${format(selectedDate, 'dd/MM/yyyy', { locale: ptBR })}`, 14, 32);
-    doc.text(`Gerado: ${format(new Date(), 'dd/MM/yyyy HH:mm', { locale: ptBR })}`, pageWidth - 50, 32);
+    doc.text(`Data: ${format(selectedDate, 'dd/MM/yyyy', { locale: ptBR })}`, 14, 35);
+    doc.text(`Gerado: ${format(new Date(), 'dd/MM/yyyy HH:mm', { locale: ptBR })}`, pageWidth - 50, 35);
     
-    let currentY = 38;
+    let currentY = 41;
     
     // Export each status group
     statusGroups.forEach((statusGroup, statusIdx) => {
@@ -329,8 +333,8 @@ export function MobilizedEquipmentsView({
           currentY = 20;
         }
         
-        // Company header
-        doc.setFillColor(100, 100, 110);
+        // Company header - navy blue
+        doc.setFillColor(51, 65, 85); // slate-700
         doc.rect(14, currentY, pageWidth - 28, 6, 'F');
         doc.setTextColor(255, 255, 255);
         doc.setFontSize(8);
@@ -353,7 +357,7 @@ export function MobilizedEquipmentsView({
           theme: 'grid',
           styles: { fontSize: 7, cellPadding: 1.5 },
           headStyles: { 
-            fillColor: [150, 150, 160], 
+            fillColor: [71, 85, 105], // slate-600
             textColor: 255, 
             fontStyle: 'bold',
             fontSize: 7
@@ -379,7 +383,7 @@ export function MobilizedEquipmentsView({
     }
     
     const totalAll = vehicles.length;
-    doc.setFillColor(70, 70, 80);
+    doc.setFillColor(30, 41, 59); // Navy/slate-800
     doc.rect(14, currentY, pageWidth - 28, 10, 'F');
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(11);
