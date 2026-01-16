@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Download, FileText, Search, Share2, Settings2 } from 'lucide-react';
+import { Download, FileText, Search, Share2, Settings2, Calendar, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -24,9 +24,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { format } from 'date-fns';
+import { format, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Vehicle, HorimeterWithVehicle } from '@/hooks/useHorimeters';
 import { useToast } from '@/hooks/use-toast';
@@ -116,6 +118,13 @@ export function HorimeterHistoryTab({ vehicles, readings, loading }: HorimeterHi
   const [empresaFilter, setEmpresaFilter] = useState<string>('all');
   const [categoriaFilter, setCategoriaFilter] = useState<string>('all');
   const [columnConfigOpen, setColumnConfigOpen] = useState(false);
+  
+  // Date filters - simplified: Hoje, Data, Período
+  const [periodFilter, setPeriodFilter] = useState<'hoje' | 'data' | 'periodo' | 'todos'>('todos');
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
+  const [startDate, setStartDate] = useState<Date | undefined>(undefined);
+  const [endDate, setEndDate] = useState<Date | undefined>(undefined);
+  
   const { toast } = useToast();
   const { settings: obraSettings } = useObraSettings();
   
@@ -146,8 +155,40 @@ export function HorimeterHistoryTab({ vehicles, readings, loading }: HorimeterHi
     return Array.from(unique).sort();
   }, [vehicles]);
 
+  // Helper to get date range based on filter
+  const getDateRange = useMemo(() => {
+    const today = startOfDay(new Date());
+    
+    if (periodFilter === 'hoje') {
+      return { start: today, end: endOfDay(today) };
+    }
+    if (periodFilter === 'data' && selectedDate) {
+      return { start: startOfDay(selectedDate), end: endOfDay(selectedDate) };
+    }
+    if (periodFilter === 'periodo' && startDate && endDate) {
+      return { start: startOfDay(startDate), end: endOfDay(endDate) };
+    }
+    return null; // 'todos' - no date filter
+  }, [periodFilter, selectedDate, startDate, endDate]);
+
+  // Clear date filters helper
+  const clearDateFilter = () => {
+    setPeriodFilter('todos');
+    setSelectedDate(undefined);
+    setStartDate(undefined);
+    setEndDate(undefined);
+  };
+
   // Calculate vehicle summary from readings
   const vehicleSummary = useMemo<VehicleSummary[]>(() => {
+    // First filter readings by date if applicable
+    const filteredReadings = getDateRange
+      ? readings.filter(reading => {
+          const readingDate = new Date(reading.reading_date + 'T00:00:00');
+          return isWithinInterval(readingDate, { start: getDateRange.start, end: getDateRange.end });
+        })
+      : readings;
+
     const summary = new Map<string, {
       veiculo: string;
       descricao: string;
@@ -163,7 +204,7 @@ export function HorimeterHistoryTab({ vehicles, readings, loading }: HorimeterHi
     }>();
 
     // Group readings by vehicle
-    readings.forEach(reading => {
+    filteredReadings.forEach(reading => {
       const vehicle = reading.vehicle;
       if (!vehicle) return;
 
@@ -274,7 +315,7 @@ export function HorimeterHistoryTab({ vehicles, readings, loading }: HorimeterHi
 
     // Re-index after filtering
     return result.map((item, idx) => ({ ...item, index: idx + 1 }));
-  }, [vehicles, readings, search, empresaFilter, categoriaFilter]);
+  }, [vehicles, readings, search, empresaFilter, categoriaFilter, getDateRange]);
 
   // Get all data (unfiltered) for company exports
   const getAllVehicleSummary = useMemo(() => {
@@ -827,7 +868,111 @@ export function HorimeterHistoryTab({ vehicles, readings, loading }: HorimeterHi
         </div>
       </div>
 
-      {/* Filters */}
+      {/* Date Filters - Simplified: Hoje, Data, Período */}
+      <div className="flex flex-wrap gap-2 items-center bg-card rounded-lg border p-3">
+        <Calendar className="w-4 h-4 text-primary" />
+        <span className="text-sm font-medium">Data:</span>
+        
+        {/* Hoje button */}
+        <Button
+          variant={periodFilter === 'hoje' ? 'default' : 'outline'}
+          size="sm"
+          className="h-7 px-3 text-xs"
+          onClick={() => {
+            setPeriodFilter('hoje');
+            setSelectedDate(undefined);
+            setStartDate(undefined);
+            setEndDate(undefined);
+          }}
+        >
+          Hoje
+        </Button>
+        
+        {/* Single date picker */}
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button 
+              variant={periodFilter === 'data' && selectedDate ? 'default' : 'outline'} 
+              size="sm" 
+              className="h-7 text-xs"
+            >
+              {periodFilter === 'data' && selectedDate ? format(selectedDate, 'dd/MM/yyyy') : 'Data'}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0 bg-background" align="start">
+            <CalendarComponent
+              mode="single"
+              selected={selectedDate}
+              onSelect={(date) => {
+                setSelectedDate(date);
+                setPeriodFilter('data');
+                setStartDate(undefined);
+                setEndDate(undefined);
+              }}
+              locale={ptBR}
+            />
+          </PopoverContent>
+        </Popover>
+        
+        {/* Period range pickers */}
+        <div className="flex items-center gap-1">
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button 
+                variant={periodFilter === 'periodo' && startDate ? 'default' : 'outline'} 
+                size="sm" 
+                className="h-7 text-xs"
+              >
+                {startDate ? format(startDate, 'dd/MM/yy') : 'De'}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0 bg-background" align="start">
+              <CalendarComponent
+                mode="single"
+                selected={startDate}
+                onSelect={(date) => {
+                  setStartDate(date);
+                  setSelectedDate(undefined);
+                  setPeriodFilter('periodo');
+                }}
+                locale={ptBR}
+              />
+            </PopoverContent>
+          </Popover>
+          <span className="text-xs text-muted-foreground">até</span>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button 
+                variant={periodFilter === 'periodo' && endDate ? 'default' : 'outline'} 
+                size="sm" 
+                className="h-7 text-xs"
+              >
+                {endDate ? format(endDate, 'dd/MM/yy') : 'Até'}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0 bg-background" align="start">
+              <CalendarComponent
+                mode="single"
+                selected={endDate}
+                onSelect={(date) => {
+                  setEndDate(date);
+                  setSelectedDate(undefined);
+                  setPeriodFilter('periodo');
+                }}
+                locale={ptBR}
+              />
+            </PopoverContent>
+          </Popover>
+        </div>
+        
+        {periodFilter !== 'todos' && (
+          <Button variant="ghost" size="sm" className="h-7 px-2" onClick={clearDateFilter}>
+            <X className="w-3 h-3" />
+          </Button>
+        )}
+      </div>
+
+      {/* Other Filters */}
       <div className="flex flex-col md:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
