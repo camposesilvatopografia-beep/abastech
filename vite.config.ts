@@ -15,21 +15,58 @@ export default defineConfig(({ mode }) => ({
     mode === "development" && componentTagger(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'robots.txt', 'placeholder.svg'],
+      includeAssets: ['favicon.ico', 'favicon.png', 'robots.txt', 'placeholder.svg', 'pwa-*.png'],
       manifest: {
-        name: 'Sistema Abastech - Gerenciamento de Dados',
-        short_name: 'Abastech',
-        description: 'Sistema de gerenciamento de dados integrado - Controle de Frota, Abastecimento e Manutenção',
+        name: 'Apontamento Campo - Abastech',
+        short_name: 'Campo',
+        description: 'Sistema de controle de apropriação de obras de terraplanagem',
         theme_color: '#1e3a5f',
         background_color: '#0f172a',
         display: 'standalone',
-        orientation: 'any',
-        start_url: '/',
+        orientation: 'portrait',
+        start_url: '/apontamento',
         scope: '/',
+        id: '/apontamento',
         icons: [
+          {
+            src: '/pwa-72x72.png',
+            sizes: '72x72',
+            type: 'image/png',
+            purpose: 'any'
+          },
+          {
+            src: '/pwa-96x96.png',
+            sizes: '96x96',
+            type: 'image/png',
+            purpose: 'any'
+          },
+          {
+            src: '/pwa-128x128.png',
+            sizes: '128x128',
+            type: 'image/png',
+            purpose: 'any'
+          },
+          {
+            src: '/pwa-144x144.png',
+            sizes: '144x144',
+            type: 'image/png',
+            purpose: 'any'
+          },
+          {
+            src: '/pwa-152x152.png',
+            sizes: '152x152',
+            type: 'image/png',
+            purpose: 'any'
+          },
           {
             src: '/pwa-192x192.png',
             sizes: '192x192',
+            type: 'image/png',
+            purpose: 'any'
+          },
+          {
+            src: '/pwa-384x384.png',
+            sizes: '384x384',
             type: 'image/png',
             purpose: 'any'
           },
@@ -46,23 +83,8 @@ export default defineConfig(({ mode }) => ({
             purpose: 'maskable'
           }
         ],
-        shortcuts: [
-          {
-            name: 'Apontamento Campo',
-            short_name: 'Campo',
-            description: 'Acesse o formulário de apontamento de campo',
-            url: '/apontamento',
-            icons: [{ src: '/pwa-field-192x192.png', sizes: '192x192', type: 'image/png' }]
-          },
-          {
-            name: 'Dashboard',
-            short_name: 'Dashboard',
-            description: 'Visualize o painel de controle',
-            url: '/',
-            icons: [{ src: '/pwa-192x192.png', sizes: '192x192', type: 'image/png' }]
-          }
-        ],
-        categories: ['business', 'productivity', 'utilities']
+        categories: ['business', 'productivity', 'utilities'],
+        prefer_related_applications: false
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],

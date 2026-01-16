@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Download, X, Smartphone, Monitor } from 'lucide-react';
+import { Download, X, Smartphone } from 'lucide-react';
 import { toast } from 'sonner';
+import { useLocation } from 'react-router-dom';
 
 interface BeforeInstallPromptEvent extends Event {
   readonly platforms: string[];
@@ -13,10 +14,14 @@ interface BeforeInstallPromptEvent extends Event {
 }
 
 export function InstallPrompt() {
+  const location = useLocation();
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [showPrompt, setShowPrompt] = useState(false);
   const [isInstalled, setIsInstalled] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+
+  // Only show on field routes
+  const isFieldRoute = location.pathname.startsWith('/apontamento') || location.pathname.startsWith('/campo');
 
   useEffect(() => {
     // Check if running as standalone (already installed)
@@ -33,10 +38,12 @@ export function InstallPrompt() {
       e.preventDefault();
       setDeferredPrompt(e as BeforeInstallPromptEvent);
       
-      // Show prompt after a short delay
-      setTimeout(() => {
-        setShowPrompt(true);
-      }, 3000);
+      // Show prompt after a short delay only on field routes
+      if (isFieldRoute) {
+        setTimeout(() => {
+          setShowPrompt(true);
+        }, 3000);
+      }
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
@@ -45,13 +52,13 @@ export function InstallPrompt() {
     window.addEventListener('appinstalled', () => {
       setIsInstalled(true);
       setShowPrompt(false);
-      toast.success('Aplicativo instalado com sucesso!');
+      toast.success('Apontamento Campo instalado com sucesso!');
     });
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     };
-  }, []);
+  }, [isFieldRoute]);
 
   const handleInstall = async () => {
     if (!deferredPrompt) {
@@ -95,26 +102,20 @@ export function InstallPrompt() {
     }
   }, []);
 
-  if (isInstalled || !showPrompt) return null;
+  // Only show on field routes and when not installed
+  if (isInstalled || !showPrompt || !isFieldRoute || !isMobile) return null;
 
   return (
-    <div className="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-80 z-50 animate-in slide-in-from-bottom-4 duration-300">
-      <div className="bg-gradient-to-r from-primary to-primary/90 text-primary-foreground rounded-lg shadow-2xl p-4">
+    <div className="fixed bottom-4 left-4 right-4 z-50 animate-in slide-in-from-bottom-4 duration-300">
+      <div className="bg-gradient-to-r from-primary to-primary/90 text-primary-foreground rounded-xl shadow-2xl p-4">
         <div className="flex items-start gap-3">
           <div className="p-2 bg-white/10 rounded-lg">
-            {isMobile ? (
-              <Smartphone className="h-6 w-6" />
-            ) : (
-              <Monitor className="h-6 w-6" />
-            )}
+            <Smartphone className="h-6 w-6" />
           </div>
           <div className="flex-1">
-            <h3 className="font-semibold text-sm">Instalar Abastech</h3>
+            <h3 className="font-semibold text-sm">Instalar Apontamento Campo</h3>
             <p className="text-xs opacity-90 mt-1">
-              {isMobile 
-                ? 'Instale o app para acesso rápido e funcionamento offline!'
-                : 'Instale o sistema no seu computador para acesso mais rápido!'
-              }
+              Instale o app para acesso rápido e funcionamento offline!
             </p>
           </div>
           <button 
@@ -146,3 +147,4 @@ export function InstallPrompt() {
     </div>
   );
 }
+
