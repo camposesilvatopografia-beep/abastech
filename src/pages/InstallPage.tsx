@@ -65,7 +65,8 @@ export default function InstallPage() {
   };
 
   const handleBack = () => {
-    navigate('/apontamento');
+    // Redirect to field app login
+    window.location.href = '/apontamento';
   };
 
   return (

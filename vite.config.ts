@@ -24,8 +24,8 @@ export default defineConfig(({ mode }) => ({
         background_color: '#0f172a',
         display: 'standalone',
         orientation: 'portrait',
-        start_url: '/apontamento',
-        scope: '/',
+        start_url: '/apontamento?source=pwa',
+        scope: '/apontamento',
         id: '/apontamento',
         icons: [
           {
