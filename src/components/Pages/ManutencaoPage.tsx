@@ -159,6 +159,54 @@ export function ManutencaoPage() {
   const [horimeterWarning, setHorimeterWarning] = useState<string | null>(null);
   const [kmWarning, setKmWarning] = useState<string | null>(null);
   
+  // Custom status options
+  const DEFAULT_STATUS_OPTIONS = [
+    { value: 'Aberta', icon: '📋' },
+    { value: 'Em Andamento', icon: '🔧' },
+    { value: 'Aguardando Peças', icon: '📦' },
+    { value: 'Aguardando Aprovação', icon: '⏳' },
+    { value: 'Em Orçamento', icon: '💰' },
+    { value: 'Pausada', icon: '⏸️' },
+    { value: 'Cancelada', icon: '❌' },
+    { value: 'Finalizada', icon: '✅' },
+  ];
+  
+  const [customStatuses, setCustomStatuses] = useState<Array<{ value: string; icon: string }>>(() => {
+    const saved = localStorage.getItem('os_custom_statuses');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [newStatusInput, setNewStatusInput] = useState('');
+  const [isAddingStatus, setIsAddingStatus] = useState(false);
+  
+  const allStatusOptions = [...DEFAULT_STATUS_OPTIONS, ...customStatuses];
+  
+  const handleAddCustomStatus = () => {
+    const trimmed = newStatusInput.trim();
+    if (!trimmed) return;
+    
+    // Check if already exists
+    if (allStatusOptions.some(s => s.value.toLowerCase() === trimmed.toLowerCase())) {
+      toast.error('Este status já existe');
+      return;
+    }
+    
+    const newStatus = { value: trimmed, icon: '🔹' };
+    const updated = [...customStatuses, newStatus];
+    setCustomStatuses(updated);
+    localStorage.setItem('os_custom_statuses', JSON.stringify(updated));
+    setNewStatusInput('');
+    setIsAddingStatus(false);
+    setFormData({ ...formData, status: trimmed });
+    toast.success(`Status "${trimmed}" adicionado`);
+  };
+  
+  const handleRemoveCustomStatus = (statusValue: string) => {
+    const updated = customStatuses.filter(s => s.value !== statusValue);
+    setCustomStatuses(updated);
+    localStorage.setItem('os_custom_statuses', JSON.stringify(updated));
+    toast.success(`Status "${statusValue}" removido`);
+  };
+  
   // Form state
   const [formData, setFormData] = useState({
     vehicle_code: '',
@@ -1662,6 +1710,18 @@ export function ManutencaoPage() {
                 <SelectItem value="pausada">⏸️ Pausada</SelectItem>
                 <SelectItem value="cancelada">❌ Cancelada</SelectItem>
                 <SelectItem value="finalizada">✅ Finalizada</SelectItem>
+                {customStatuses.length > 0 && (
+                  <>
+                    <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground border-t mt-1">
+                      Personalizados
+                    </div>
+                    {customStatuses.map(opt => (
+                      <SelectItem key={opt.value} value={opt.value.toLowerCase()}>
+                        {opt.icon} {opt.value}
+                      </SelectItem>
+                    ))}
+                  </>
+                )}
               </SelectContent>
             </Select>
 
@@ -2231,22 +2291,102 @@ export function ManutencaoPage() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Status</Label>
-                <Select value={formData.status} onValueChange={(v) => setFormData({ ...formData, status: v })}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Aberta">📋 Aberta</SelectItem>
-                    <SelectItem value="Em Andamento">🔧 Em Andamento</SelectItem>
-                    <SelectItem value="Aguardando Peças">📦 Aguardando Peças</SelectItem>
-                    <SelectItem value="Aguardando Aprovação">⏳ Aguardando Aprovação</SelectItem>
-                    <SelectItem value="Em Orçamento">💰 Em Orçamento</SelectItem>
-                    <SelectItem value="Pausada">⏸️ Pausada</SelectItem>
-                    <SelectItem value="Cancelada">❌ Cancelada</SelectItem>
-                    <SelectItem value="Finalizada">✅ Finalizada</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label className="flex items-center justify-between">
+                  <span>Status</span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 text-xs text-primary"
+                    onClick={() => setIsAddingStatus(true)}
+                  >
+                    <Plus className="w-3 h-3 mr-1" />
+                    Novo Status
+                  </Button>
+                </Label>
+                
+                {isAddingStatus ? (
+                  <div className="flex gap-2">
+                    <Input
+                      value={newStatusInput}
+                      onChange={(e) => setNewStatusInput(e.target.value)}
+                      placeholder="Nome do novo status..."
+                      className="flex-1"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddCustomStatus();
+                        }
+                        if (e.key === 'Escape') {
+                          setIsAddingStatus(false);
+                          setNewStatusInput('');
+                        }
+                      }}
+                      autoFocus
+                    />
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={handleAddCustomStatus}
+                      disabled={!newStatusInput.trim()}
+                    >
+                      <Check className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setIsAddingStatus(false);
+                        setNewStatusInput('');
+                      }}
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+                ) : (
+                  <Select value={formData.status} onValueChange={(v) => setFormData({ ...formData, status: v })}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {/* Default status options */}
+                      {DEFAULT_STATUS_OPTIONS.map(opt => (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          {opt.icon} {opt.value}
+                        </SelectItem>
+                      ))}
+                      
+                      {/* Custom status options */}
+                      {customStatuses.length > 0 && (
+                        <>
+                          <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground border-t mt-1">
+                            Status Personalizados
+                          </div>
+                          {customStatuses.map(opt => (
+                            <div key={opt.value} className="flex items-center justify-between group">
+                              <SelectItem value={opt.value} className="flex-1">
+                                {opt.icon} {opt.value}
+                              </SelectItem>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 text-destructive hover:text-destructive"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleRemoveCustomStatus(opt.value);
+                                }}
+                              >
+                                <X className="w-3 h-3" />
+                              </Button>
+                            </div>
+                          ))}
+                        </>
+                      )}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
             </div>
 

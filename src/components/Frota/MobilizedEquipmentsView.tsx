@@ -471,25 +471,43 @@ export function MobilizedEquipmentsView({
       
       currentY += 14;
       
-      // Match service orders with vehicle info
+      // Match service orders with vehicle info - calculate downtime
       const maintenanceData = serviceOrders.map(order => {
         const vehicle = vehicles.find(v => v.codigo === order.vehicle_code);
         const entryDateStr = order.entry_date 
           ? format(new Date(order.entry_date + 'T00:00:00'), 'dd/MM/yyyy')
           : '-';
         
+        // Calculate downtime (days since entry)
+        let tempoParado = '-';
+        if (order.entry_date) {
+          const entryDate = new Date(order.entry_date + 'T00:00:00');
+          const today = new Date();
+          const diffMs = today.getTime() - entryDate.getTime();
+          const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+          
+          if (diffDays === 0) {
+            tempoParado = 'Hoje';
+          } else if (diffDays === 1) {
+            tempoParado = '1 dia';
+          } else {
+            tempoParado = `${diffDays} dias`;
+          }
+        }
+        
         return [
           `${order.vehicle_code} - ${order.vehicle_description || vehicle?.descricao || '-'}`,
           vehicle?.empresa || '-',
-          (order.problem_description || '-').substring(0, 40),
+          (order.problem_description || '-').substring(0, 35),
           order.status,
-          entryDateStr
+          entryDateStr,
+          tempoParado
         ];
       });
       
       autoTable(doc, {
         startY: currentY,
-        head: [['Veículo/Equipamento', 'Empresa', 'Problema', 'Status', 'Entrada']],
+        head: [['Veículo/Equipamento', 'Empresa', 'Problema', 'Status', 'Entrada', 'Tempo Parado']],
         body: maintenanceData,
         theme: 'grid',
         styles: { fontSize: 7, cellPadding: 2 },
@@ -500,11 +518,12 @@ export function MobilizedEquipmentsView({
           fontSize: 7
         },
         columnStyles: {
-          0: { cellWidth: 50 },
-          1: { cellWidth: 28 },
-          2: { cellWidth: 55 },
-          3: { cellWidth: 28 },
-          4: { cellWidth: 20 }
+          0: { cellWidth: 45 },
+          1: { cellWidth: 22 },
+          2: { cellWidth: 50 },
+          3: { cellWidth: 25 },
+          4: { cellWidth: 18 },
+          5: { cellWidth: 22, halign: 'center', fontStyle: 'bold' }
         },
         margin: { left: 14, right: 14 },
         alternateRowStyles: { fillColor: [254, 252, 232] }, // amber-50
