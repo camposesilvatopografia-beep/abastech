@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Download, FileText, Search, Filter } from 'lucide-react';
+import { Download, FileText, Search, Share2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -17,15 +17,26 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Vehicle, HorimeterWithVehicle } from '@/hooks/useHorimeters';
+import { useToast } from '@/hooks/use-toast';
 
 // Company logos as base64
 const LOGO_CONSORCIO = '/logo-consorcio.png';
 const LOGO_ABASTECH = '/logo-abastech.png';
+
+// Predefined companies for quick export
+const PREDEFINED_COMPANIES = ['Engemat', 'L. Pereira', 'A. Barreto'];
 
 interface HorimeterHistoryTabProps {
   vehicles: Vehicle[];
@@ -45,6 +56,7 @@ interface VehicleSummary {
   kmAtual: number;
   intervaloHor: number;
   intervaloKm: number;
+  isEquipment: boolean;
 }
 
 function formatNumber(value: number): string {
@@ -55,10 +67,36 @@ function formatNumber(value: number): string {
   });
 }
 
+function formatInterval(value: number): string {
+  if (!value || value === 0) return '';
+  // Remove + symbol, just show the number
+  return value.toLocaleString('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+function isEquipmentCategory(category: string): boolean {
+  if (!category) return false;
+  const lowerCat = category.toLowerCase();
+  return lowerCat.includes('equipamento') || 
+         lowerCat.includes('máquina') ||
+         lowerCat.includes('maquina') ||
+         lowerCat.includes('trator') ||
+         lowerCat.includes('retroescavadeira') ||
+         lowerCat.includes('escavadeira') ||
+         lowerCat.includes('pá carregadeira') ||
+         lowerCat.includes('rolo') ||
+         lowerCat.includes('motoniveladora') ||
+         lowerCat.includes('compactador') ||
+         lowerCat.includes('gerador');
+}
+
 export function HorimeterHistoryTab({ vehicles, readings, loading }: HorimeterHistoryTabProps) {
   const [search, setSearch] = useState('');
   const [empresaFilter, setEmpresaFilter] = useState<string>('all');
   const [categoriaFilter, setCategoriaFilter] = useState<string>('all');
+  const { toast } = useToast();
 
   // Get unique companies
   const empresas = useMemo(() => {
@@ -172,6 +210,7 @@ export function HorimeterHistoryTab({ vehicles, readings, loading }: HorimeterHi
         kmAtual: item.kmAtual,
         intervaloHor: item.horAtual - item.horAnterior,
         intervaloKm: item.kmAtual - item.kmAnterior,
+        isEquipment: isEquipmentCategory(item.categoria),
       }))
       .filter(item => {
         // Search filter
@@ -199,23 +238,115 @@ export function HorimeterHistoryTab({ vehicles, readings, loading }: HorimeterHi
     return result.map((item, idx) => ({ ...item, index: idx + 1 }));
   }, [vehicles, readings, search, empresaFilter, categoriaFilter]);
 
-  const exportToPDF = async () => {
-    const doc = new jsPDF({
-      orientation: 'landscape',
-      unit: 'mm',
-      format: 'a4',
+  // Get all data (unfiltered) for company exports
+  const getAllVehicleSummary = useMemo(() => {
+    const summary = new Map<string, {
+      veiculo: string;
+      descricao: string;
+      empresa: string;
+      categoria: string;
+      horAnterior: number;
+      horAtual: number;
+      kmAnterior: number;
+      kmAtual: number;
+      oldestDate: Date | null;
+      newestDate: Date | null;
+    }>();
+
+    readings.forEach(reading => {
+      const vehicle = reading.vehicle;
+      if (!vehicle) return;
+
+      const veiculo = vehicle.code;
+      const existing = summary.get(veiculo);
+      const readingDate = new Date(reading.reading_date);
+
+      if (existing) {
+        if (!existing.oldestDate || readingDate < existing.oldestDate) {
+          existing.oldestDate = readingDate;
+          if (reading.previous_value && reading.previous_value > 0) {
+            existing.horAnterior = reading.previous_value;
+          }
+          if (reading.previous_km && reading.previous_km > 0) {
+            existing.kmAnterior = reading.previous_km;
+          }
+        }
+        if (!existing.newestDate || readingDate > existing.newestDate) {
+          existing.newestDate = readingDate;
+          if (reading.current_value > existing.horAtual) {
+            existing.horAtual = reading.current_value;
+          }
+          if (reading.current_km && reading.current_km > existing.kmAtual) {
+            existing.kmAtual = reading.current_km;
+          }
+        }
+      } else {
+        summary.set(veiculo, {
+          veiculo,
+          descricao: vehicle.name || vehicle.description || '',
+          empresa: vehicle.company || '',
+          categoria: vehicle.category || '',
+          horAnterior: reading.previous_value || 0,
+          horAtual: reading.current_value || 0,
+          kmAnterior: reading.previous_km || 0,
+          kmAtual: reading.current_km || 0,
+          oldestDate: readingDate,
+          newestDate: readingDate,
+        });
+      }
     });
 
+    vehicles.forEach(vehicle => {
+      if (!summary.has(vehicle.code)) {
+        summary.set(vehicle.code, {
+          veiculo: vehicle.code,
+          descricao: vehicle.name || vehicle.description || '',
+          empresa: vehicle.company || '',
+          categoria: vehicle.category || '',
+          horAnterior: 0,
+          horAtual: 0,
+          kmAnterior: 0,
+          kmAtual: 0,
+          oldestDate: null,
+          newestDate: null,
+        });
+      }
+    });
+
+    return Array.from(summary.values()).map(item => ({
+      veiculo: item.veiculo,
+      descricao: item.descricao,
+      empresa: item.empresa,
+      categoria: item.categoria,
+      horAnterior: item.horAnterior,
+      horAtual: item.horAtual,
+      kmAnterior: item.kmAnterior,
+      kmAtual: item.kmAtual,
+      intervaloHor: item.horAtual - item.horAnterior,
+      intervaloKm: item.kmAtual - item.kmAnterior,
+      isEquipment: isEquipmentCategory(item.categoria),
+    }));
+  }, [vehicles, readings]);
+
+  const generateCompanyPage = (
+    doc: jsPDF,
+    companyName: string,
+    data: VehicleSummary[],
+    isFirstPage: boolean
+  ) => {
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
 
+    if (!isFirstPage) {
+      doc.addPage();
+    }
+
     // Header with red background
     doc.setFillColor(180, 30, 30);
-    doc.rect(0, 0, pageWidth, 30, 'F');
+    doc.rect(0, 0, pageWidth, 35, 'F');
 
     // Try to add logos
     try {
-      // Left logo - Consórcio
       const img1 = new Image();
       img1.src = LOGO_CONSORCIO;
       doc.addImage(img1, 'PNG', 10, 5, 25, 20);
@@ -224,7 +355,6 @@ export function HorimeterHistoryTab({ vehicles, readings, loading }: HorimeterHi
     }
 
     try {
-      // Right logo - Abastech
       const img2 = new Image();
       img2.src = LOGO_ABASTECH;
       doc.addImage(img2, 'PNG', pageWidth - 35, 5, 25, 20);
@@ -232,131 +362,347 @@ export function HorimeterHistoryTab({ vehicles, readings, loading }: HorimeterHi
       console.log('Logo abastech não encontrado');
     }
 
-    // Title
+    // Company name prominently
     doc.setTextColor(255, 255, 255);
-    doc.setFontSize(18);
+    doc.setFontSize(22);
     doc.setFont('helvetica', 'bold');
-    doc.text('Histórico de Horímetros', pageWidth / 2, 15, { align: 'center' });
+    doc.text(companyName.toUpperCase(), pageWidth / 2, 14, { align: 'center' });
+
+    // Subtitle
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Histórico de Horímetros', pageWidth / 2, 22, { align: 'center' });
 
     // Company and project info
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    doc.text('CONSÓRCIO AERO MARAGOGI', pageWidth / 2, 22, { align: 'center' });
-    doc.text('Obra: Sistema de Abastecimento de Água', pageWidth / 2, 27, { align: 'center' });
+    doc.setFontSize(9);
+    doc.text('CONSÓRCIO AERO MARAGOGI - Obra: Sistema de Abastecimento de Água', pageWidth / 2, 30, { align: 'center' });
 
-    // Subtitle with date and filters
+    // Date
     doc.setTextColor(80, 80, 80);
     doc.setFontSize(9);
     const dateStr = format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: ptBR });
-    let filterInfo = `Gerado em: ${dateStr}`;
-    if (empresaFilter !== 'all') {
-      filterInfo += ` | Empresa: ${empresaFilter}`;
-    }
-    if (categoriaFilter !== 'all') {
-      filterInfo += ` | Categoria: ${categoriaFilter}`;
-    }
-    doc.text(filterInfo, pageWidth / 2, 37, { align: 'center' });
+    doc.text(`Gerado em: ${dateStr}`, pageWidth / 2, 42, { align: 'center' });
 
-    // Table
-    const tableData = vehicleSummary.map(item => [
-      item.index.toString() + '.',
-      item.veiculo,
-      item.descricao,
-      item.empresa,
-      formatNumber(item.horAnterior),
-      formatNumber(item.horAtual),
-      formatNumber(item.intervaloHor),
-      formatNumber(item.kmAnterior),
-      formatNumber(item.kmAtual),
-      formatNumber(item.intervaloKm),
-    ]);
+    // Separate equipment and vehicles
+    const equipments = data.filter(item => item.isEquipment).sort((a, b) => a.veiculo.localeCompare(b.veiculo));
+    const vehiclesList = data.filter(item => !item.isEquipment).sort((a, b) => a.veiculo.localeCompare(b.veiculo));
 
-    autoTable(doc, {
-      startY: 42,
-      head: [[
-        '#',
-        'Veículo',
-        'Descrição',
-        'Empresa',
-        'Hor. Anterior',
-        'Hor. Atual',
-        'Intervalo (h)',
-        'Km Anterior',
-        'Km Atual',
-        'Intervalo (km)',
-      ]],
-      body: tableData,
-      theme: 'grid',
-      styles: {
-        fontSize: 8,
-        cellPadding: 2,
-        halign: 'center',
-        valign: 'middle',
-      },
-      headStyles: {
-        fillColor: [180, 30, 30],
-        textColor: [255, 255, 255],
-        fontStyle: 'bold',
-        halign: 'center',
-      },
-      columnStyles: {
-        0: { cellWidth: 10, halign: 'center' },
-        1: { cellWidth: 22, halign: 'left' },
-        2: { cellWidth: 40, halign: 'left' },
-        3: { cellWidth: 25, halign: 'left' },
-        4: { cellWidth: 22, halign: 'right' },
-        5: { cellWidth: 22, halign: 'right' },
-        6: { cellWidth: 22, halign: 'right' },
-        7: { cellWidth: 25, halign: 'right' },
-        8: { cellWidth: 25, halign: 'right' },
-        9: { cellWidth: 25, halign: 'right' },
-      },
-      alternateRowStyles: {
-        fillColor: [248, 248, 248],
-      },
-      didDrawPage: (data) => {
-        // Footer on each page
-        const pageNumber = data.pageNumber;
-        doc.setFontSize(8);
-        doc.setTextColor(120, 120, 120);
-        doc.text(
-          `Página ${pageNumber}`,
-          pageWidth / 2,
-          pageHeight - 8,
-          { align: 'center' }
-        );
-        doc.text(
-          'Sistema Abastech - Gestão de Frota',
-          10,
-          pageHeight - 8
-        );
-      },
+    let currentY = 48;
+
+    // Equipments section
+    if (equipments.length > 0) {
+      doc.setFontSize(11);
+      doc.setTextColor(180, 30, 30);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`EQUIPAMENTOS (${equipments.length})`, 14, currentY);
+      currentY += 2;
+
+      const equipmentData = equipments.map((item, idx) => [
+        (idx + 1).toString() + '.',
+        item.veiculo,
+        item.descricao,
+        formatNumber(item.horAnterior),
+        formatNumber(item.horAtual),
+        formatInterval(item.intervaloHor),
+        formatNumber(item.kmAnterior),
+        formatNumber(item.kmAtual),
+        formatInterval(item.intervaloKm),
+      ]);
+
+      autoTable(doc, {
+        startY: currentY,
+        head: [[
+          '#',
+          'Código',
+          'Descrição',
+          'Hor. Anterior',
+          'Hor. Atual',
+          'Intervalo (h)',
+          'Km Anterior',
+          'Km Atual',
+          'Intervalo (km)',
+        ]],
+        body: equipmentData,
+        theme: 'grid',
+        styles: {
+          fontSize: 8,
+          cellPadding: 2,
+          halign: 'center',
+          valign: 'middle',
+        },
+        headStyles: {
+          fillColor: [180, 30, 30],
+          textColor: [255, 255, 255],
+          fontStyle: 'bold',
+          halign: 'center',
+        },
+        columnStyles: {
+          0: { cellWidth: 10, halign: 'center' },
+          1: { cellWidth: 25, halign: 'left' },
+          2: { cellWidth: 50, halign: 'left' },
+          3: { cellWidth: 25, halign: 'right' },
+          4: { cellWidth: 25, halign: 'right' },
+          5: { cellWidth: 25, halign: 'right' },
+          6: { cellWidth: 25, halign: 'right' },
+          7: { cellWidth: 25, halign: 'right' },
+          8: { cellWidth: 25, halign: 'right' },
+        },
+        alternateRowStyles: {
+          fillColor: [248, 248, 248],
+        },
+      });
+
+      currentY = (doc as any).lastAutoTable.finalY + 10;
+    }
+
+    // Vehicles section
+    if (vehiclesList.length > 0) {
+      // Check if we need a new page
+      if (currentY > pageHeight - 60) {
+        doc.addPage();
+        currentY = 20;
+      }
+
+      doc.setFontSize(11);
+      doc.setTextColor(180, 30, 30);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`VEÍCULOS (${vehiclesList.length})`, 14, currentY);
+      currentY += 2;
+
+      const vehicleData = vehiclesList.map((item, idx) => [
+        (idx + 1).toString() + '.',
+        item.veiculo,
+        item.descricao,
+        formatNumber(item.horAnterior),
+        formatNumber(item.horAtual),
+        formatInterval(item.intervaloHor),
+        formatNumber(item.kmAnterior),
+        formatNumber(item.kmAtual),
+        formatInterval(item.intervaloKm),
+      ]);
+
+      autoTable(doc, {
+        startY: currentY,
+        head: [[
+          '#',
+          'Código',
+          'Descrição',
+          'Hor. Anterior',
+          'Hor. Atual',
+          'Intervalo (h)',
+          'Km Anterior',
+          'Km Atual',
+          'Intervalo (km)',
+        ]],
+        body: vehicleData,
+        theme: 'grid',
+        styles: {
+          fontSize: 8,
+          cellPadding: 2,
+          halign: 'center',
+          valign: 'middle',
+        },
+        headStyles: {
+          fillColor: [59, 130, 246],
+          textColor: [255, 255, 255],
+          fontStyle: 'bold',
+          halign: 'center',
+        },
+        columnStyles: {
+          0: { cellWidth: 10, halign: 'center' },
+          1: { cellWidth: 25, halign: 'left' },
+          2: { cellWidth: 50, halign: 'left' },
+          3: { cellWidth: 25, halign: 'right' },
+          4: { cellWidth: 25, halign: 'right' },
+          5: { cellWidth: 25, halign: 'right' },
+          6: { cellWidth: 25, halign: 'right' },
+          7: { cellWidth: 25, halign: 'right' },
+          8: { cellWidth: 25, halign: 'right' },
+        },
+        alternateRowStyles: {
+          fillColor: [248, 248, 248],
+        },
+      });
+    }
+
+    // Footer
+    const pageCount = doc.getNumberOfPages();
+    doc.setFontSize(8);
+    doc.setTextColor(120, 120, 120);
+    doc.text(
+      `${companyName} - Página ${pageCount}`,
+      pageWidth / 2,
+      pageHeight - 8,
+      { align: 'center' }
+    );
+    doc.text(
+      'Sistema Abastech - Gestão de Frota',
+      10,
+      pageHeight - 8
+    );
+  };
+
+  const exportToPDF = async (companyFilter?: string) => {
+    const doc = new jsPDF({
+      orientation: 'landscape',
+      unit: 'mm',
+      format: 'a4',
     });
 
-    // Summary section at the end
-    const finalY = (doc as any).lastAutoTable.finalY + 10;
-    if (finalY < pageHeight - 30) {
-      doc.setFontSize(9);
-      doc.setTextColor(60, 60, 60);
-      doc.setFont('helvetica', 'bold');
-      doc.text(`Total de Veículos/Equipamentos: ${vehicleSummary.length}`, 14, finalY);
-      
-      const totalIntervaloHor = vehicleSummary.reduce((sum, item) => sum + item.intervaloHor, 0);
-      const totalIntervaloKm = vehicleSummary.reduce((sum, item) => sum + item.intervaloKm, 0);
-      
-      doc.setFont('helvetica', 'normal');
-      doc.text(`Total Intervalo Horímetros: ${formatNumber(totalIntervaloHor)} h`, 14, finalY + 5);
-      doc.text(`Total Intervalo KM: ${formatNumber(totalIntervaloKm)} km`, 14, finalY + 10);
+    const dataToExport = companyFilter 
+      ? vehicleSummary 
+      : getAllVehicleSummary.filter(item => empresaFilter === 'all' || item.empresa === empresaFilter);
+
+    if (dataToExport.length === 0) {
+      toast({
+        title: 'Nenhum dado',
+        description: 'Não há dados para exportar com os filtros atuais.',
+        variant: 'destructive',
+      });
+      return null;
     }
 
+    const companyName = companyFilter || (empresaFilter !== 'all' ? empresaFilter : 'Todas as Empresas');
+    
+    generateCompanyPage(doc, companyName, dataToExport as VehicleSummary[], true);
+
     // Generate filename
-    let filename = `historico-horimetros-${format(new Date(), 'yyyy-MM-dd')}`;
-    if (empresaFilter !== 'all') {
-      filename += `-${empresaFilter.replace(/\s+/g, '-')}`;
+    let filename = `horimetros-${format(new Date(), 'yyyy-MM-dd')}`;
+    if (companyFilter || empresaFilter !== 'all') {
+      filename += `-${(companyFilter || empresaFilter).replace(/\s+/g, '-')}`;
     }
     filename += '.pdf';
 
+    return { doc, filename };
+  };
+
+  const exportAllCompanies = async () => {
+    const doc = new jsPDF({
+      orientation: 'landscape',
+      unit: 'mm',
+      format: 'a4',
+    });
+
+    let isFirst = true;
+
+    for (const company of PREDEFINED_COMPANIES) {
+      const companyData = getAllVehicleSummary.filter(item => 
+        item.empresa.toLowerCase().includes(company.toLowerCase())
+      );
+
+      if (companyData.length > 0) {
+        generateCompanyPage(doc, company, companyData as VehicleSummary[], isFirst);
+        isFirst = false;
+      }
+    }
+
+    if (isFirst) {
+      toast({
+        title: 'Nenhum dado',
+        description: 'Não há dados para as empresas selecionadas.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const filename = `horimetros-completo-${format(new Date(), 'yyyy-MM-dd')}.pdf`;
     doc.save(filename);
+    
+    toast({
+      title: 'PDF Exportado',
+      description: 'Relatório com todas as empresas gerado com sucesso.',
+    });
+  };
+
+  const exportSingleCompany = async (company: string) => {
+    const companyData = getAllVehicleSummary.filter(item => 
+      item.empresa.toLowerCase().includes(company.toLowerCase())
+    );
+
+    if (companyData.length === 0) {
+      toast({
+        title: 'Nenhum dado',
+        description: `Não há dados para ${company}.`,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const doc = new jsPDF({
+      orientation: 'landscape',
+      unit: 'mm',
+      format: 'a4',
+    });
+
+    generateCompanyPage(doc, company, companyData as VehicleSummary[], true);
+
+    const filename = `horimetros-${company.replace(/\s+/g, '-')}-${format(new Date(), 'yyyy-MM-dd')}.pdf`;
+    doc.save(filename);
+
+    toast({
+      title: 'PDF Exportado',
+      description: `Relatório de ${company} gerado com sucesso.`,
+    });
+  };
+
+  const exportCurrentFilter = async () => {
+    const result = await exportToPDF();
+    if (result) {
+      result.doc.save(result.filename);
+      toast({
+        title: 'PDF Exportado',
+        description: 'Relatório gerado com sucesso.',
+      });
+    }
+  };
+
+  const shareViaWhatsApp = async (company?: string) => {
+    const result = await exportToPDF(company);
+    if (!result) return;
+
+    // Generate blob
+    const pdfBlob = result.doc.output('blob');
+
+    // Check if Web Share API is supported
+    if (navigator.share && navigator.canShare) {
+      const file = new File([pdfBlob], result.filename, { type: 'application/pdf' });
+      
+      if (navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({
+            files: [file],
+            title: 'Relatório de Horímetros',
+            text: `Relatório de Horímetros - ${company || 'Geral'} - ${format(new Date(), 'dd/MM/yyyy')}`,
+          });
+          toast({
+            title: 'Compartilhado',
+            description: 'Relatório enviado com sucesso.',
+          });
+          return;
+        } catch (error) {
+          if ((error as Error).name !== 'AbortError') {
+            console.error('Erro ao compartilhar:', error);
+          }
+        }
+      }
+    }
+
+    // Fallback: download PDF and open WhatsApp with message
+    result.doc.save(result.filename);
+    
+    const message = encodeURIComponent(
+      `📊 *Relatório de Horímetros*\n` +
+      `📅 Data: ${format(new Date(), 'dd/MM/yyyy')}\n` +
+      `🏢 Empresa: ${company || 'Todas'}\n\n` +
+      `Segue em anexo o relatório de horímetros.`
+    );
+    
+    window.open(`https://wa.me/?text=${message}`, '_blank');
+    
+    toast({
+      title: 'PDF baixado',
+      description: 'Anexe o PDF baixado na conversa do WhatsApp.',
+    });
   };
 
   if (loading) {
@@ -366,6 +712,10 @@ export function HorimeterHistoryTab({ vehicles, readings, loading }: HorimeterHi
       </div>
     );
   }
+
+  // Separate for display
+  const equipmentsSummary = vehicleSummary.filter(item => item.isEquipment);
+  const vehiclesSummary = vehicleSummary.filter(item => !item.isEquipment);
 
   return (
     <div className="space-y-4">
@@ -380,13 +730,58 @@ export function HorimeterHistoryTab({ vehicles, readings, loading }: HorimeterHi
             Resumo consolidado por veículo/equipamento
           </p>
         </div>
-        <Button 
-          onClick={exportToPDF}
-          className="bg-red-600 hover:bg-red-700 text-white"
-        >
-          <Download className="w-4 h-4 mr-2" />
-          Exportar PDF
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          {/* Quick export buttons for predefined companies */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="gap-2">
+                <Download className="w-4 h-4" />
+                Exportar PDF
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuItem onClick={exportCurrentFilter}>
+                <Download className="w-4 h-4 mr-2" />
+                Filtro Atual
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={exportAllCompanies}>
+                <FileText className="w-4 h-4 mr-2" />
+                Todas Empresas (Separado)
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              {PREDEFINED_COMPANIES.map(company => (
+                <DropdownMenuItem key={company} onClick={() => exportSingleCompany(company)}>
+                  <Download className="w-4 h-4 mr-2" />
+                  {company}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* WhatsApp share */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="gap-2 text-green-600 hover:text-green-700 hover:bg-green-50">
+                <Share2 className="w-4 h-4" />
+                WhatsApp
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuItem onClick={() => shareViaWhatsApp()}>
+                <Share2 className="w-4 h-4 mr-2" />
+                Enviar Filtro Atual
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              {PREDEFINED_COMPANIES.map(company => (
+                <DropdownMenuItem key={company} onClick={() => shareViaWhatsApp(company)}>
+                  <Share2 className="w-4 h-4 mr-2" />
+                  {company}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
 
       {/* Filters */}
@@ -424,70 +819,120 @@ export function HorimeterHistoryTab({ vehicles, readings, loading }: HorimeterHi
         </Select>
       </div>
 
-      {/* Table */}
-      <div className="rounded-lg border border-border bg-card overflow-hidden">
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-red-600 hover:bg-red-600">
-                <TableHead className="text-white font-bold text-center w-12">#</TableHead>
-                <TableHead className="text-white font-bold">Veículo</TableHead>
-                <TableHead className="text-white font-bold">Descrição</TableHead>
-                <TableHead className="text-white font-bold">Empresa</TableHead>
-                <TableHead className="text-white font-bold text-right">Hor. Anterior</TableHead>
-                <TableHead className="text-white font-bold text-right">Hor. Atual</TableHead>
-                <TableHead className="text-white font-bold text-right">Intervalo (h)</TableHead>
-                <TableHead className="text-white font-bold text-right">Km Anterior</TableHead>
-                <TableHead className="text-white font-bold text-right">Km Atual</TableHead>
-                <TableHead className="text-white font-bold text-right">Intervalo (km)</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {vehicleSummary.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
-                    Nenhum registro encontrado
-                  </TableCell>
-                </TableRow>
-              ) : (
-                vehicleSummary.map((item, idx) => (
-                  <TableRow key={item.veiculo} className={idx % 2 === 0 ? 'bg-background' : 'bg-muted/30'}>
-                    <TableCell className="text-center font-medium">{item.index}.</TableCell>
-                    <TableCell className="font-semibold text-primary">{item.veiculo}</TableCell>
-                    <TableCell>{item.descricao}</TableCell>
-                    <TableCell>{item.empresa}</TableCell>
-                    <TableCell className="text-right font-mono">{formatNumber(item.horAnterior)}</TableCell>
-                    <TableCell className="text-right font-mono">{formatNumber(item.horAtual)}</TableCell>
-                    <TableCell className="text-right font-mono font-semibold text-amber-600">
-                      {formatNumber(item.intervaloHor)}
-                    </TableCell>
-                    <TableCell className="text-right font-mono">{formatNumber(item.kmAnterior)}</TableCell>
-                    <TableCell className="text-right font-mono">{formatNumber(item.kmAtual)}</TableCell>
-                    <TableCell className="text-right font-mono font-semibold text-blue-600">
-                      {formatNumber(item.intervaloKm)}
-                    </TableCell>
+      {/* Equipments Table */}
+      {equipmentsSummary.length > 0 && (
+        <div className="space-y-2">
+          <h4 className="text-sm font-semibold text-red-600 flex items-center gap-2">
+            EQUIPAMENTOS ({equipmentsSummary.length})
+          </h4>
+          <div className="rounded-lg border border-border bg-card overflow-hidden">
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-red-600 hover:bg-red-600">
+                    <TableHead className="text-white font-bold text-center w-12">#</TableHead>
+                    <TableHead className="text-white font-bold">Código</TableHead>
+                    <TableHead className="text-white font-bold">Descrição</TableHead>
+                    <TableHead className="text-white font-bold">Empresa</TableHead>
+                    <TableHead className="text-white font-bold text-right">Hor. Anterior</TableHead>
+                    <TableHead className="text-white font-bold text-right">Hor. Atual</TableHead>
+                    <TableHead className="text-white font-bold text-right">Intervalo (h)</TableHead>
+                    <TableHead className="text-white font-bold text-right">Km Anterior</TableHead>
+                    <TableHead className="text-white font-bold text-right">Km Atual</TableHead>
+                    <TableHead className="text-white font-bold text-right">Intervalo (km)</TableHead>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+                </TableHeader>
+                <TableBody>
+                  {equipmentsSummary.map((item, idx) => (
+                    <TableRow key={item.veiculo} className={idx % 2 === 0 ? 'bg-background' : 'bg-muted/30'}>
+                      <TableCell className="text-center font-medium">{idx + 1}.</TableCell>
+                      <TableCell className="font-semibold text-primary">{item.veiculo}</TableCell>
+                      <TableCell>{item.descricao}</TableCell>
+                      <TableCell className="font-medium">{item.empresa}</TableCell>
+                      <TableCell className="text-right font-mono">{formatNumber(item.horAnterior)}</TableCell>
+                      <TableCell className="text-right font-mono">{formatNumber(item.horAtual)}</TableCell>
+                      <TableCell className="text-right font-mono font-semibold text-amber-600">
+                        {formatInterval(item.intervaloHor)}
+                      </TableCell>
+                      <TableCell className="text-right font-mono">{formatNumber(item.kmAnterior)}</TableCell>
+                      <TableCell className="text-right font-mono">{formatNumber(item.kmAtual)}</TableCell>
+                      <TableCell className="text-right font-mono font-semibold text-blue-600">
+                        {formatInterval(item.intervaloKm)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* Summary */}
+      {/* Vehicles Table */}
+      {vehiclesSummary.length > 0 && (
+        <div className="space-y-2">
+          <h4 className="text-sm font-semibold text-blue-600 flex items-center gap-2">
+            VEÍCULOS ({vehiclesSummary.length})
+          </h4>
+          <div className="rounded-lg border border-border bg-card overflow-hidden">
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-blue-600 hover:bg-blue-600">
+                    <TableHead className="text-white font-bold text-center w-12">#</TableHead>
+                    <TableHead className="text-white font-bold">Código</TableHead>
+                    <TableHead className="text-white font-bold">Descrição</TableHead>
+                    <TableHead className="text-white font-bold">Empresa</TableHead>
+                    <TableHead className="text-white font-bold text-right">Hor. Anterior</TableHead>
+                    <TableHead className="text-white font-bold text-right">Hor. Atual</TableHead>
+                    <TableHead className="text-white font-bold text-right">Intervalo (h)</TableHead>
+                    <TableHead className="text-white font-bold text-right">Km Anterior</TableHead>
+                    <TableHead className="text-white font-bold text-right">Km Atual</TableHead>
+                    <TableHead className="text-white font-bold text-right">Intervalo (km)</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {vehiclesSummary.map((item, idx) => (
+                    <TableRow key={item.veiculo} className={idx % 2 === 0 ? 'bg-background' : 'bg-muted/30'}>
+                      <TableCell className="text-center font-medium">{idx + 1}.</TableCell>
+                      <TableCell className="font-semibold text-primary">{item.veiculo}</TableCell>
+                      <TableCell>{item.descricao}</TableCell>
+                      <TableCell className="font-medium">{item.empresa}</TableCell>
+                      <TableCell className="text-right font-mono">{formatNumber(item.horAnterior)}</TableCell>
+                      <TableCell className="text-right font-mono">{formatNumber(item.horAtual)}</TableCell>
+                      <TableCell className="text-right font-mono font-semibold text-amber-600">
+                        {formatInterval(item.intervaloHor)}
+                      </TableCell>
+                      <TableCell className="text-right font-mono">{formatNumber(item.kmAnterior)}</TableCell>
+                      <TableCell className="text-right font-mono">{formatNumber(item.kmAtual)}</TableCell>
+                      <TableCell className="text-right font-mono font-semibold text-blue-600">
+                        {formatInterval(item.intervaloKm)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {vehicleSummary.length === 0 && (
+        <div className="text-center py-8 text-muted-foreground">
+          Nenhum registro encontrado
+        </div>
+      )}
+
+      {/* Summary - only count, no totals */}
       <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
         <span>
-          <strong className="text-foreground">{vehicleSummary.length}</strong> veículos/equipamentos
+          <strong className="text-foreground">{vehicleSummary.length}</strong> itens no total
         </span>
         <span>
-          Total Intervalo Hor.: <strong className="text-amber-600">
-            {formatNumber(vehicleSummary.reduce((sum, item) => sum + item.intervaloHor, 0))} h
-          </strong>
+          <strong className="text-red-600">{equipmentsSummary.length}</strong> equipamentos
         </span>
         <span>
-          Total Intervalo Km: <strong className="text-blue-600">
-            {formatNumber(vehicleSummary.reduce((sum, item) => sum + item.intervaloKm, 0))} km
-          </strong>
+          <strong className="text-blue-600">{vehiclesSummary.length}</strong> veículos
         </span>
       </div>
     </div>
