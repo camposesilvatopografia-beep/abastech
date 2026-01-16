@@ -54,16 +54,20 @@ export function useSheetNames() {
   return { sheetNames, loading, error, refetch: fetchSheetNames };
 }
 
-export function useSheetData(sheetName: string | null, options?: { pollingInterval?: number; suppressErrors?: boolean }) {
+export function useSheetData(
+  sheetName: string | null,
+  options?: { pollingInterval?: number; suppressErrors?: boolean }
+) {
   const [data, setData] = useState<SheetData>({ headers: [], rows: [] });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<number | null>(null);
   const { toast } = useToast();
   const pollingInterval = options?.pollingInterval || 0; // 0 = no polling
   const suppressErrors = options?.suppressErrors || false; // Don't show toast for optional sheets
 
   const fetchData = useCallback(
-    async (silent = false) => {
+    async (silent = false, forceNoCache = false) => {
       if (!sheetName) return;
 
       // Throttle ultra-bursty refreshes (double-clicks, multi-components mounting at once)
@@ -86,8 +90,9 @@ export function useSheetData(sheetName: string | null, options?: { pollingInterv
       lastFetchAtBySheet.set(sheetName, now);
 
       const promise = (async () => {
-        // When doing silent refresh/polling, bypass backend cache for “immediate” updates.
-        const sheetData = await getSheetData(sheetName, { noCache: silent });
+        // Polling (silent) always bypasses cache; manual refresh can request bypass too.
+        const noCache = silent || forceNoCache;
+        const sheetData = await getSheetData(sheetName, { noCache });
         return sheetData;
       })();
 
@@ -98,6 +103,7 @@ export function useSheetData(sheetName: string | null, options?: { pollingInterv
         setError(null);
         const sheetData = await promise;
         setData(sheetData);
+        setLastUpdatedAt(Date.now());
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to fetch data';
         setError(message);
@@ -231,6 +237,7 @@ export function useSheetData(sheetName: string | null, options?: { pollingInterv
     data,
     loading,
     error,
+    lastUpdatedAt,
     refetch: fetchData,
     create,
     update,

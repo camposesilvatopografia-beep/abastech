@@ -16,6 +16,9 @@ interface StockPanelTabProps {
   estoqueComboio02Data: SheetData;
   estoqueComboio03Data: SheetData;
   dateRange: { start: Date; end: Date };
+  onRefreshNow?: () => Promise<void> | void;
+  refreshing?: boolean;
+  lastUpdatedAt?: Partial<Record<CardVariant, number | null>>;
 }
 
 function parseNumber(value: any): number {
@@ -32,6 +35,7 @@ interface StockCardData {
   estoqueAnterior: number;
   entradas: number;
   saidas?: number;
+  lastUpdatedAt?: number | null;
 }
 
 type CardVariant = 'geral' | 'tanque01' | 'tanque02' | 'comboio01' | 'comboio02' | 'comboio03';
@@ -146,6 +150,9 @@ function StockCard({
           <div className={cn("flex items-center gap-1", styles.subtext)}>
             <Calendar className="h-3 w-3" />
             <span className="text-[10px]">{data.data}</span>
+          </div>
+          <div className={cn("text-[10px]", styles.subtext)}>
+            Atualizado: {data.lastUpdatedAt ? format(new Date(data.lastUpdatedAt), 'HH:mm:ss') : '--:--:--'}
           </div>
         </div>
       </CardHeader>
@@ -329,7 +336,10 @@ export function StockPanelTab({
   estoqueComboio01Data,
   estoqueComboio02Data,
   estoqueComboio03Data,
-  dateRange
+  dateRange,
+  onRefreshNow,
+  refreshing = false,
+  lastUpdatedAt,
 }: StockPanelTabProps) {
   const today = format(new Date(), 'd/M/yyyy');
   const [expandedCard, setExpandedCard] = useState<ExpandedCard>(null);
@@ -344,7 +354,8 @@ export function StockPanelTab({
         estoqueAtual: 0,
         estoqueAnterior: 0,
         entradas: 0,
-        saidas: 0
+        saidas: 0,
+        lastUpdatedAt: lastUpdatedAt?.geral ?? null,
       };
     }
 
@@ -366,7 +377,8 @@ export function StockPanelTab({
         estoqueAtual: 0,
         estoqueAnterior: 0,
         entradas: 0,
-        saidas: 0
+        saidas: 0,
+        lastUpdatedAt: lastUpdatedAt?.geral ?? null,
       };
     }
 
@@ -375,12 +387,12 @@ export function StockPanelTab({
     const saidaComboios = parseNumber(targetRow['Saida para Comboios'] || targetRow['SAIDA PARA COMBOIOS'] || 0);
     const saidaEquipamentos = parseNumber(targetRow['Saida para Equipamentos'] || targetRow['SAIDA PARA EQUIPAMENTOS'] || 0);
     const saidaTotal = saidaComboios + saidaEquipamentos || parseNumber(targetRow['D'] || 0);
-    
+
     let estoqueAtual = parseNumber(targetRow['Estoque Atual'] || targetRow['ESTOQUE ATUAL'] || targetRow['G'] || targetRow['H'] || 0);
     if (estoqueAtual === 0) {
       estoqueAtual = (estoqueAnterior + entrada) - saidaTotal;
     }
-    
+
     const dataRow = String(targetRow['Data'] || targetRow['DATA'] || targetRow['B'] || today);
 
     return {
@@ -390,35 +402,50 @@ export function StockPanelTab({
       estoqueAtual,
       estoqueAnterior,
       entradas: entrada,
-      saidas: saidaTotal
+      saidas: saidaTotal,
+      lastUpdatedAt: lastUpdatedAt?.geral ?? null,
     };
-  }, [geralData.rows, today]);
+  }, [geralData.rows, today, lastUpdatedAt?.geral]);
 
-  // Extract stock data - CORRETAMENTE MAPEADO
-  const estoqueTanque01 = useMemo(() => 
-    extractTanqueData(estoqueCanteiro01Data, 'Tanque Canteiro 01', 'EstoqueCanteiro01'),
-    [estoqueCanteiro01Data]
+  // Extract stock data
+  const estoqueTanque01 = useMemo<StockCardData>(
+    () => ({
+      ...extractTanqueData(estoqueCanteiro01Data, 'Tanque Canteiro 01', 'EstoqueCanteiro01'),
+      lastUpdatedAt: lastUpdatedAt?.tanque01 ?? null,
+    }),
+    [estoqueCanteiro01Data, lastUpdatedAt?.tanque01]
   );
 
-  const estoqueTanque02 = useMemo(() => 
-    extractTanqueData(estoqueCanteiro02Data, 'Tanque Canteiro 02', 'EstoqueCanteiro02'),
-    [estoqueCanteiro02Data]
+  const estoqueTanque02 = useMemo<StockCardData>(
+    () => ({
+      ...extractTanqueData(estoqueCanteiro02Data, 'Tanque Canteiro 02', 'EstoqueCanteiro02'),
+      lastUpdatedAt: lastUpdatedAt?.tanque02 ?? null,
+    }),
+    [estoqueCanteiro02Data, lastUpdatedAt?.tanque02]
   );
 
-  // COMBOIOS - Usando mapeamento correto: B=Data, C=Est.Anterior, D=Saida, E=Entrada, H=Est.Atual
-  const estoqueComboio01 = useMemo(() => 
-    extractComboioData(estoqueComboio01Data, 'Comboio 01', 'EstoqueComboio01'),
-    [estoqueComboio01Data]
+  const estoqueComboio01 = useMemo<StockCardData>(
+    () => ({
+      ...extractComboioData(estoqueComboio01Data, 'Comboio 01', 'EstoqueComboio01'),
+      lastUpdatedAt: lastUpdatedAt?.comboio01 ?? null,
+    }),
+    [estoqueComboio01Data, lastUpdatedAt?.comboio01]
   );
 
-  const estoqueComboio02 = useMemo(() => 
-    extractComboioData(estoqueComboio02Data, 'Comboio 02', 'EstoqueComboio02'),
-    [estoqueComboio02Data]
+  const estoqueComboio02 = useMemo<StockCardData>(
+    () => ({
+      ...extractComboioData(estoqueComboio02Data, 'Comboio 02', 'EstoqueComboio02'),
+      lastUpdatedAt: lastUpdatedAt?.comboio02 ?? null,
+    }),
+    [estoqueComboio02Data, lastUpdatedAt?.comboio02]
   );
 
-  const estoqueComboio03 = useMemo(() => 
-    extractComboioData(estoqueComboio03Data, 'Comboio 03', 'EstoqueComboio03'),
-    [estoqueComboio03Data]
+  const estoqueComboio03 = useMemo<StockCardData>(
+    () => ({
+      ...extractComboioData(estoqueComboio03Data, 'Comboio 03', 'EstoqueComboio03'),
+      lastUpdatedAt: lastUpdatedAt?.comboio03 ?? null,
+    }),
+    [estoqueComboio03Data, lastUpdatedAt?.comboio03]
   );
 
   const getExpandedSheetData = (): { title: string; data: SheetData } => {
@@ -442,11 +469,10 @@ export function StockPanelTab({
 
   const expandedData = getExpandedSheetData();
 
-  return (
     <div className="space-y-4">
       {/* Header com destaque */}
       <div className="bg-gradient-to-r from-[#1a365d] to-[#2d4a7c] rounded-xl p-4 shadow-lg">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
             <div className="p-2.5 bg-white/20 rounded-lg">
               <Package2 className="w-6 h-6 text-white" />
@@ -456,9 +482,23 @@ export function StockPanelTab({
               <p className="text-sm text-white/70">Visão consolidada de todos os estoques</p>
             </div>
           </div>
-          <div className="flex items-center gap-2 bg-white/10 rounded-full px-3 py-1.5">
-            <RefreshCw className="w-3.5 h-3.5 text-white/70 animate-spin" />
-            <span className="text-xs text-white/80 font-medium">Atualizando a cada 10s</span>
+
+          <div className="flex items-center gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              className="gap-2"
+              disabled={!onRefreshNow || refreshing}
+              onClick={onRefreshNow}
+            >
+              <RefreshCw className={cn("w-4 h-4", refreshing && "animate-spin")} />
+              Atualizar agora
+            </Button>
+
+            <div className="flex items-center gap-2 bg-white/10 rounded-full px-3 py-1.5">
+              <RefreshCw className={cn("w-3.5 h-3.5 text-white/70", refreshing && "animate-spin")} />
+              <span className="text-xs text-white/80 font-medium">Atualizando a cada 10s</span>
+            </div>
           </div>
         </div>
       </div>
