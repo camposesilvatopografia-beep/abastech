@@ -17,7 +17,8 @@ import {
   WifiOff,
   Database,
   Pencil,
-  FileSpreadsheet
+  FileSpreadsheet,
+  History
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -41,7 +42,9 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { HorimeterModal } from '@/components/Horimetros/HorimeterModal';
 import { ImportModal } from '@/components/Horimetros/ImportModal';
+import { HorimeterHistoryTab } from '@/components/Horimetros/HorimeterHistoryTab';
 import { supabase } from '@/integrations/supabase/client';
+import { useVehicles, useHorimeterReadings } from '@/hooks/useHorimeters';
 import * as XLSX from 'xlsx';
 
 const SHEET_NAME = 'Horimetros';
@@ -91,9 +94,11 @@ function findColumnKey(row: Record<string, any>, candidates: string[]): string |
 export function HorimetrosPage() {
   const { data, loading, refetch, update } = useSheetData(SHEET_NAME);
   const { data: vehicleData } = useSheetData('Veiculo');
+  const { vehicles, loading: vehiclesLoading } = useVehicles();
+  const { readings, loading: readingsLoading } = useHorimeterReadings();
   const { toast } = useToast();
   const [search, setSearch] = useState('');
-  const [activeTab, setActiveTab] = useState<'resumo' | 'detalhes'>('resumo');
+  const [activeTab, setActiveTab] = useState<'resumo' | 'detalhes' | 'historico'>('resumo');
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
   const [quickFilter, setQuickFilter] = useState<string | null>('mes');
@@ -917,11 +922,11 @@ export function HorimetrosPage() {
         )}
 
         {/* Tabs */}
-        <div className="flex gap-2 border-b border-border">
+        <div className="flex gap-2 border-b border-border overflow-x-auto">
           <button
             onClick={() => setActiveTab('resumo')}
             className={cn(
-              "flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
+              "flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap",
               activeTab === 'resumo'
                 ? "border-primary text-primary"
                 : "border-transparent text-muted-foreground"
@@ -932,13 +937,25 @@ export function HorimetrosPage() {
           <button
             onClick={() => setActiveTab('detalhes')}
             className={cn(
-              "flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
+              "flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap",
               activeTab === 'detalhes'
                 ? "border-primary text-primary"
                 : "border-transparent text-muted-foreground"
             )}
           >
             Detalhamento
+          </button>
+          <button
+            onClick={() => setActiveTab('historico')}
+            className={cn(
+              "flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap",
+              activeTab === 'historico'
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground"
+            )}
+          >
+            <History className="w-4 h-4" />
+            Histórico
           </button>
         </div>
 
@@ -1353,6 +1370,15 @@ export function HorimetrosPage() {
               </div>
             </div>
           </>
+        )}
+
+        {/* Historico Tab - Consolidated History */}
+        {activeTab === 'historico' && (
+          <HorimeterHistoryTab
+            vehicles={vehicles}
+            readings={readings}
+            loading={vehiclesLoading || readingsLoading}
+          />
         )}
       </div>
 
