@@ -341,15 +341,15 @@ export function HorimeterHistoryTab({ vehicles, readings, loading }: HorimeterHi
       doc.addPage();
     }
 
-    // Header with red background
-    doc.setFillColor(180, 30, 30);
-    doc.rect(0, 0, pageWidth, 35, 'F');
+    // Header with soft gray background
+    doc.setFillColor(70, 70, 80);
+    doc.rect(0, 0, pageWidth, 28, 'F');
 
     // Try to add logos
     try {
       const img1 = new Image();
       img1.src = LOGO_CONSORCIO;
-      doc.addImage(img1, 'PNG', 10, 5, 25, 20);
+      doc.addImage(img1, 'PNG', 8, 4, 20, 16);
     } catch (e) {
       console.log('Logo consórcio não encontrado');
     }
@@ -357,50 +357,61 @@ export function HorimeterHistoryTab({ vehicles, readings, loading }: HorimeterHi
     try {
       const img2 = new Image();
       img2.src = LOGO_ABASTECH;
-      doc.addImage(img2, 'PNG', pageWidth - 35, 5, 25, 20);
+      doc.addImage(img2, 'PNG', pageWidth - 28, 4, 20, 16);
     } catch (e) {
       console.log('Logo abastech não encontrado');
     }
 
     // Company name prominently
     doc.setTextColor(255, 255, 255);
-    doc.setFontSize(22);
+    doc.setFontSize(16);
     doc.setFont('helvetica', 'bold');
-    doc.text(companyName.toUpperCase(), pageWidth / 2, 14, { align: 'center' });
+    doc.text(companyName.toUpperCase(), pageWidth / 2, 10, { align: 'center' });
 
     // Subtitle
-    doc.setFontSize(12);
+    doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
-    doc.text('Histórico de Horímetros', pageWidth / 2, 22, { align: 'center' });
+    doc.text('Histórico de Horímetros', pageWidth / 2, 17, { align: 'center' });
 
     // Company and project info
-    doc.setFontSize(9);
-    doc.text('CONSÓRCIO AERO MARAGOGI - Obra: Sistema de Abastecimento de Água', pageWidth / 2, 30, { align: 'center' });
+    doc.setFontSize(8);
+    doc.text('CONSÓRCIO AERO MARAGOGI - Obra: Sistema de Abastecimento de Água', pageWidth / 2, 24, { align: 'center' });
 
-    // Date
+    // Date - below header
     doc.setTextColor(80, 80, 80);
-    doc.setFontSize(9);
-    const dateStr = format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: ptBR });
-    doc.text(`Gerado em: ${dateStr}`, pageWidth / 2, 42, { align: 'center' });
+    doc.setFontSize(8);
+    const dateStr = format(new Date(), "dd/MM/yyyy", { locale: ptBR });
+    doc.text(`Data: ${dateStr}`, pageWidth - 10, 34, { align: 'right' });
 
     // Separate equipment and vehicles
     const equipments = data.filter(item => item.isEquipment).sort((a, b) => a.veiculo.localeCompare(b.veiculo));
     const vehiclesList = data.filter(item => !item.isEquipment).sort((a, b) => a.veiculo.localeCompare(b.veiculo));
 
-    let currentY = 48;
+    let currentY = 36;
+    const tableMargin = 6;
+    
+    // Calculate available height for tables
+    const availableHeight = pageHeight - currentY - 15; // 15mm for footer
+    const hasEquipments = equipments.length > 0;
+    const hasVehicles = vehiclesList.length > 0;
+    
+    // Dynamic font size based on data volume
+    const totalItems = equipments.length + vehiclesList.length;
+    const fontSize = totalItems > 40 ? 6 : totalItems > 25 ? 7 : 8;
+    const cellPadding = totalItems > 40 ? 1 : 1.5;
 
     // Equipments section
-    if (equipments.length > 0) {
-      doc.setFontSize(11);
-      doc.setTextColor(180, 30, 30);
+    if (hasEquipments) {
+      doc.setFontSize(9);
+      doc.setTextColor(100, 100, 100);
       doc.setFont('helvetica', 'bold');
-      doc.text(`EQUIPAMENTOS (${equipments.length})`, 14, currentY);
-      currentY += 2;
+      doc.text(`EQUIPAMENTOS (${equipments.length})`, tableMargin, currentY);
+      currentY += 3;
 
       const equipmentData = equipments.map((item, idx) => [
-        (idx + 1).toString() + '.',
+        (idx + 1).toString(),
         item.veiculo,
-        item.descricao,
+        item.descricao.substring(0, 30),
         formatNumber(item.horAnterior),
         formatNumber(item.horAtual),
         formatInterval(item.intervaloHor),
@@ -415,64 +426,66 @@ export function HorimeterHistoryTab({ vehicles, readings, loading }: HorimeterHi
           '#',
           'Código',
           'Descrição',
-          'Hor. Anterior',
+          'Hor. Ant.',
           'Hor. Atual',
-          'Intervalo (h)',
-          'Km Anterior',
+          'Int. (h)',
+          'Km Ant.',
           'Km Atual',
-          'Intervalo (km)',
+          'Int. (km)',
         ]],
         body: equipmentData,
         theme: 'grid',
+        tableWidth: pageWidth - (tableMargin * 2),
+        margin: { left: tableMargin, right: tableMargin },
         styles: {
-          fontSize: 8,
-          cellPadding: 2,
+          fontSize: fontSize,
+          cellPadding: cellPadding,
           halign: 'center',
           valign: 'middle',
+          lineColor: [200, 200, 200],
+          lineWidth: 0.2,
         },
         headStyles: {
-          fillColor: [180, 30, 30],
+          fillColor: [100, 100, 110],
           textColor: [255, 255, 255],
           fontStyle: 'bold',
           halign: 'center',
+          fontSize: fontSize,
         },
         columnStyles: {
-          0: { cellWidth: 10, halign: 'center' },
-          1: { cellWidth: 25, halign: 'left' },
-          2: { cellWidth: 50, halign: 'left' },
-          3: { cellWidth: 25, halign: 'right' },
-          4: { cellWidth: 25, halign: 'right' },
-          5: { cellWidth: 25, halign: 'right' },
-          6: { cellWidth: 25, halign: 'right' },
-          7: { cellWidth: 25, halign: 'right' },
-          8: { cellWidth: 25, halign: 'right' },
+          0: { cellWidth: 8, halign: 'center' },
+          1: { cellWidth: 22, halign: 'left' },
+          2: { cellWidth: 'auto', halign: 'left' },
+          3: { cellWidth: 22, halign: 'right' },
+          4: { cellWidth: 22, halign: 'right' },
+          5: { cellWidth: 18, halign: 'right', fontStyle: 'bold' },
+          6: { cellWidth: 22, halign: 'right' },
+          7: { cellWidth: 22, halign: 'right' },
+          8: { cellWidth: 18, halign: 'right', fontStyle: 'bold' },
         },
         alternateRowStyles: {
-          fillColor: [248, 248, 248],
+          fillColor: [250, 250, 250],
+        },
+        bodyStyles: {
+          fillColor: [255, 255, 255],
         },
       });
 
-      currentY = (doc as any).lastAutoTable.finalY + 10;
+      currentY = (doc as any).lastAutoTable.finalY + 4;
     }
 
     // Vehicles section
-    if (vehiclesList.length > 0) {
-      // Check if we need a new page
-      if (currentY > pageHeight - 60) {
-        doc.addPage();
-        currentY = 20;
-      }
-
-      doc.setFontSize(11);
-      doc.setTextColor(180, 30, 30);
+    if (hasVehicles) {
+      doc.setFontSize(9);
+      doc.setTextColor(100, 100, 100);
       doc.setFont('helvetica', 'bold');
-      doc.text(`VEÍCULOS (${vehiclesList.length})`, 14, currentY);
-      currentY += 2;
+      doc.text(`VEÍCULOS (${vehiclesList.length})`, tableMargin, currentY);
+      currentY += 3;
 
       const vehicleData = vehiclesList.map((item, idx) => [
-        (idx + 1).toString() + '.',
+        (idx + 1).toString(),
         item.veiculo,
-        item.descricao,
+        item.descricao.substring(0, 30),
         formatNumber(item.horAnterior),
         formatNumber(item.horAtual),
         formatInterval(item.intervaloHor),
@@ -487,58 +500,68 @@ export function HorimeterHistoryTab({ vehicles, readings, loading }: HorimeterHi
           '#',
           'Código',
           'Descrição',
-          'Hor. Anterior',
+          'Hor. Ant.',
           'Hor. Atual',
-          'Intervalo (h)',
-          'Km Anterior',
+          'Int. (h)',
+          'Km Ant.',
           'Km Atual',
-          'Intervalo (km)',
+          'Int. (km)',
         ]],
         body: vehicleData,
         theme: 'grid',
+        tableWidth: pageWidth - (tableMargin * 2),
+        margin: { left: tableMargin, right: tableMargin },
         styles: {
-          fontSize: 8,
-          cellPadding: 2,
+          fontSize: fontSize,
+          cellPadding: cellPadding,
           halign: 'center',
           valign: 'middle',
+          lineColor: [200, 200, 200],
+          lineWidth: 0.2,
         },
         headStyles: {
-          fillColor: [59, 130, 246],
+          fillColor: [120, 140, 160],
           textColor: [255, 255, 255],
           fontStyle: 'bold',
           halign: 'center',
+          fontSize: fontSize,
         },
         columnStyles: {
-          0: { cellWidth: 10, halign: 'center' },
-          1: { cellWidth: 25, halign: 'left' },
-          2: { cellWidth: 50, halign: 'left' },
-          3: { cellWidth: 25, halign: 'right' },
-          4: { cellWidth: 25, halign: 'right' },
-          5: { cellWidth: 25, halign: 'right' },
-          6: { cellWidth: 25, halign: 'right' },
-          7: { cellWidth: 25, halign: 'right' },
-          8: { cellWidth: 25, halign: 'right' },
+          0: { cellWidth: 8, halign: 'center' },
+          1: { cellWidth: 22, halign: 'left' },
+          2: { cellWidth: 'auto', halign: 'left' },
+          3: { cellWidth: 22, halign: 'right' },
+          4: { cellWidth: 22, halign: 'right' },
+          5: { cellWidth: 18, halign: 'right', fontStyle: 'bold' },
+          6: { cellWidth: 22, halign: 'right' },
+          7: { cellWidth: 22, halign: 'right' },
+          8: { cellWidth: 18, halign: 'right', fontStyle: 'bold' },
         },
         alternateRowStyles: {
-          fillColor: [248, 248, 248],
+          fillColor: [250, 250, 250],
+        },
+        bodyStyles: {
+          fillColor: [255, 255, 255],
         },
       });
     }
 
-    // Footer
-    const pageCount = doc.getNumberOfPages();
-    doc.setFontSize(8);
-    doc.setTextColor(120, 120, 120);
+    // Footer - subtle line
+    doc.setDrawColor(180, 180, 180);
+    doc.line(tableMargin, pageHeight - 10, pageWidth - tableMargin, pageHeight - 10);
+    
+    doc.setFontSize(7);
+    doc.setTextColor(140, 140, 140);
     doc.text(
-      `${companyName} - Página ${pageCount}`,
-      pageWidth / 2,
-      pageHeight - 8,
-      { align: 'center' }
+      `${companyName} | Total: ${data.length} itens`,
+      tableMargin,
+      pageHeight - 6
     );
     doc.text(
-      'Sistema Abastech - Gestão de Frota',
-      10,
-      pageHeight - 8
+      'Sistema Abastech',
+      pageWidth - tableMargin,
+      pageHeight - 6,
+      { align: 'right' }
     );
   };
 
@@ -822,30 +845,30 @@ export function HorimeterHistoryTab({ vehicles, readings, loading }: HorimeterHi
       {/* Equipments Table */}
       {equipmentsSummary.length > 0 && (
         <div className="space-y-2">
-          <h4 className="text-sm font-semibold text-red-600 flex items-center gap-2">
+          <h4 className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
             EQUIPAMENTOS ({equipmentsSummary.length})
           </h4>
           <div className="rounded-lg border border-border bg-card overflow-hidden">
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
-                  <TableRow className="bg-red-600 hover:bg-red-600">
+                  <TableRow className="bg-slate-600 hover:bg-slate-600">
                     <TableHead className="text-white font-bold text-center w-12">#</TableHead>
                     <TableHead className="text-white font-bold">Código</TableHead>
                     <TableHead className="text-white font-bold">Descrição</TableHead>
                     <TableHead className="text-white font-bold">Empresa</TableHead>
-                    <TableHead className="text-white font-bold text-right">Hor. Anterior</TableHead>
+                    <TableHead className="text-white font-bold text-right">Hor. Ant.</TableHead>
                     <TableHead className="text-white font-bold text-right">Hor. Atual</TableHead>
-                    <TableHead className="text-white font-bold text-right">Intervalo (h)</TableHead>
-                    <TableHead className="text-white font-bold text-right">Km Anterior</TableHead>
+                    <TableHead className="text-white font-bold text-right">Int. (h)</TableHead>
+                    <TableHead className="text-white font-bold text-right">Km Ant.</TableHead>
                     <TableHead className="text-white font-bold text-right">Km Atual</TableHead>
-                    <TableHead className="text-white font-bold text-right">Intervalo (km)</TableHead>
+                    <TableHead className="text-white font-bold text-right">Int. (km)</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {equipmentsSummary.map((item, idx) => (
                     <TableRow key={item.veiculo} className={idx % 2 === 0 ? 'bg-background' : 'bg-muted/30'}>
-                      <TableCell className="text-center font-medium">{idx + 1}.</TableCell>
+                      <TableCell className="text-center font-medium text-muted-foreground">{idx + 1}</TableCell>
                       <TableCell className="font-semibold text-primary">{item.veiculo}</TableCell>
                       <TableCell>{item.descricao}</TableCell>
                       <TableCell className="font-medium">{item.empresa}</TableCell>
@@ -871,30 +894,30 @@ export function HorimeterHistoryTab({ vehicles, readings, loading }: HorimeterHi
       {/* Vehicles Table */}
       {vehiclesSummary.length > 0 && (
         <div className="space-y-2">
-          <h4 className="text-sm font-semibold text-blue-600 flex items-center gap-2">
+          <h4 className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
             VEÍCULOS ({vehiclesSummary.length})
           </h4>
           <div className="rounded-lg border border-border bg-card overflow-hidden">
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
-                  <TableRow className="bg-blue-600 hover:bg-blue-600">
+                  <TableRow className="bg-slate-500 hover:bg-slate-500">
                     <TableHead className="text-white font-bold text-center w-12">#</TableHead>
                     <TableHead className="text-white font-bold">Código</TableHead>
                     <TableHead className="text-white font-bold">Descrição</TableHead>
                     <TableHead className="text-white font-bold">Empresa</TableHead>
-                    <TableHead className="text-white font-bold text-right">Hor. Anterior</TableHead>
+                    <TableHead className="text-white font-bold text-right">Hor. Ant.</TableHead>
                     <TableHead className="text-white font-bold text-right">Hor. Atual</TableHead>
-                    <TableHead className="text-white font-bold text-right">Intervalo (h)</TableHead>
-                    <TableHead className="text-white font-bold text-right">Km Anterior</TableHead>
+                    <TableHead className="text-white font-bold text-right">Int. (h)</TableHead>
+                    <TableHead className="text-white font-bold text-right">Km Ant.</TableHead>
                     <TableHead className="text-white font-bold text-right">Km Atual</TableHead>
-                    <TableHead className="text-white font-bold text-right">Intervalo (km)</TableHead>
+                    <TableHead className="text-white font-bold text-right">Int. (km)</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {vehiclesSummary.map((item, idx) => (
                     <TableRow key={item.veiculo} className={idx % 2 === 0 ? 'bg-background' : 'bg-muted/30'}>
-                      <TableCell className="text-center font-medium">{idx + 1}.</TableCell>
+                      <TableCell className="text-center font-medium text-muted-foreground">{idx + 1}</TableCell>
                       <TableCell className="font-semibold text-primary">{item.veiculo}</TableCell>
                       <TableCell>{item.descricao}</TableCell>
                       <TableCell className="font-medium">{item.empresa}</TableCell>
