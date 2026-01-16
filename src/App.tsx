@@ -22,10 +22,16 @@ function PwaEntryRedirect() {
     const isStandalone = window.matchMedia?.('(display-mode: standalone)')?.matches;
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
-    // If the user opened the installed app and it landed on the main dashboard,
-    // redirect to the Field (Apontamento Campo) entry (login/dashboard depending on session).
-    if (isStandalone && isMobile && location.pathname === '/') {
-      navigate('/apontamento', { replace: true });
+    // For Field users: if the installed mobile app opens outside the field module,
+    // always redirect into /apontamento (which shows the Field login when needed).
+    if (isStandalone && isMobile) {
+      const isInField =
+        location.pathname.startsWith('/apontamento') ||
+        location.pathname.startsWith('/campo');
+
+      if (!isInField) {
+        navigate('/apontamento', { replace: true });
+      }
     }
   }, [location.pathname, navigate]);
 
