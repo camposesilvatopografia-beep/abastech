@@ -150,11 +150,14 @@ export function AIAssistantModal({ open, onClose }: AIAssistantModalProps) {
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl h-[80vh] flex flex-col p-0 gap-0">
         <DialogHeader className="p-4 border-b bg-gradient-to-r from-primary to-primary/80">
-          <DialogTitle className="flex items-center gap-2 text-white">
+        <DialogTitle className="flex items-center gap-2 text-white">
             <div className="p-2 bg-white/20 rounded-full">
               <Bot className="w-5 h-5" />
             </div>
-            Assistente IA - Sistema Abastech
+            <div>
+              <span className="font-bold">Abastech Analytics</span>
+              <span className="text-xs opacity-80 ml-2">Assistente IA</span>
+            </div>
           </DialogTitle>
         </DialogHeader>
 
@@ -165,9 +168,9 @@ export function AIAssistantModal({ open, onClose }: AIAssistantModalProps) {
                 <div className="inline-flex p-4 bg-primary/10 rounded-full mb-4">
                   <Sparkles className="w-8 h-8 text-primary" />
                 </div>
-                <h3 className="text-lg font-semibold">Como posso ajudar?</h3>
+                <h3 className="text-lg font-semibold">Olá! Sou o Abastech Analytics</h3>
                 <p className="text-muted-foreground text-sm mt-1">
-                  Pergunte sobre veículos, estoque, manutenção ou qualquer informação do sistema.
+                  Seu assistente inteligente para análises de frota, estoque e manutenção.
                 </p>
               </div>
               
@@ -249,7 +252,7 @@ export function AIAssistantModal({ open, onClose }: AIAssistantModalProps) {
             </Button>
           </div>
           <p className="text-xs text-muted-foreground text-center mt-2">
-            O assistente tem acesso aos dados do sistema em tempo real.
+            Abastech Analytics - Acesso em tempo real aos dados do sistema
           </p>
         </div>
       </DialogContent>
