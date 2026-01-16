@@ -15,7 +15,21 @@ export default defineConfig(({ mode }) => ({
     mode === "development" && componentTagger(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'favicon.png', 'robots.txt', 'placeholder.svg', 'pwa-*.png'],
+      includeAssets: [
+        'favicon.ico',
+        'favicon.png',
+        'robots.txt',
+        'placeholder.svg',
+        'pwa-72x72.png',
+        'pwa-96x96.png',
+        'pwa-128x128.png',
+        'pwa-144x144.png',
+        'pwa-152x152.png',
+        'pwa-192x192.png',
+        'pwa-384x384.png',
+        'pwa-512x512.png',
+        'pwa-maskable-512x512.png'
+      ],
       manifest: {
         name: 'Apontamento Campo - Abastech',
         short_name: 'Campo',
@@ -25,8 +39,8 @@ export default defineConfig(({ mode }) => ({
         display: 'standalone',
         orientation: 'portrait',
         start_url: '/apontamento?source=pwa',
-        scope: '/',
-        id: '/apontamento',
+        scope: '/apontamento/',
+        id: '/apontamento/',
         icons: [
           {
             src: '/pwa-72x72.png',
