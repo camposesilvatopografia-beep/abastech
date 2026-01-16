@@ -458,8 +458,11 @@ export function MobilizedEquipmentsView({
     
     currentY = (doc as any).lastAutoTable.finalY + 10;
     
-    // ============ RESUMO DE MANUTENÇÃO ============
-    if (serviceOrders.length > 0) {
+    // ============ RESUMO DE MANUTENÇÃO - APENAS ENTRADAS DO DIA ============
+    const today = new Date().toISOString().split('T')[0];
+    const todaysOrders = serviceOrders.filter(order => order.entry_date === today);
+    
+    if (todaysOrders.length > 0) {
       if (currentY > pageHeight - 60) {
         doc.addPage();
         currentY = 20;
@@ -471,65 +474,41 @@ export function MobilizedEquipmentsView({
       doc.setTextColor(255, 255, 255);
       doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
-      doc.text(`RESUMO DE MANUTENÇÃO (${serviceOrders.length})`, 16, currentY + 7);
+      doc.text(`ENTRADAS EM MANUTENÇÃO HOJE - ${format(new Date(), 'dd/MM/yyyy')} (${todaysOrders.length})`, 16, currentY + 7);
       
       currentY += 14;
       
-      // Match service orders with vehicle info - calculate downtime
-      const maintenanceData = serviceOrders.map(order => {
+      // Match service orders with vehicle info
+      const maintenanceData = todaysOrders.map(order => {
         const vehicle = vehicles.find(v => v.codigo === order.vehicle_code);
-        const entryDateStr = order.entry_date 
-          ? format(new Date(order.entry_date + 'T00:00:00'), 'dd/MM/yyyy')
-          : '-';
-        
-        // Calculate downtime (days since entry)
-        let tempoParado = '-';
-        if (order.entry_date) {
-          const entryDate = new Date(order.entry_date + 'T00:00:00');
-          const today = new Date();
-          const diffMs = today.getTime() - entryDate.getTime();
-          const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-          
-          if (diffDays === 0) {
-            tempoParado = 'Hoje';
-          } else if (diffDays === 1) {
-            tempoParado = '1 dia';
-          } else {
-            tempoParado = `${diffDays} dias`;
-          }
-        }
         
         return [
           `${order.vehicle_code} - ${order.vehicle_description || vehicle?.descricao || '-'}`,
           vehicle?.empresa || '-',
           order.mechanic_name || '-',
-          (order.problem_description || '-').substring(0, 30),
-          order.status,
-          entryDateStr,
-          tempoParado
+          (order.problem_description || '-').substring(0, 40),
+          order.status
         ];
       });
       
       autoTable(doc, {
         startY: currentY,
-        head: [['Veículo/Equipamento', 'Empresa', 'Motorista/Operador', 'Problema', 'Status', 'Entrada', 'Tempo Parado']],
+        head: [['Veículo/Equipamento', 'Empresa', 'Motorista/Operador', 'Problema', 'Status']],
         body: maintenanceData,
         theme: 'grid',
-        styles: { fontSize: 6.5, cellPadding: 2 },
+        styles: { fontSize: 7, cellPadding: 2 },
         headStyles: { 
           fillColor: [217, 119, 6], // amber-600
           textColor: 255, 
           fontStyle: 'bold',
-          fontSize: 6.5
+          fontSize: 7
         },
         columnStyles: {
-          0: { cellWidth: 38 },
-          1: { cellWidth: 20 },
-          2: { cellWidth: 28 },
-          3: { cellWidth: 35 },
-          4: { cellWidth: 22 },
-          5: { cellWidth: 16 },
-          6: { cellWidth: 18, halign: 'center', fontStyle: 'bold' }
+          0: { cellWidth: 45 },
+          1: { cellWidth: 25 },
+          2: { cellWidth: 35 },
+          3: { cellWidth: 50 },
+          4: { cellWidth: 27 }
         },
         margin: { left: 14, right: 14 },
         alternateRowStyles: { fillColor: [254, 252, 232] }, // amber-50
