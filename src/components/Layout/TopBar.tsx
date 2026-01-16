@@ -1,12 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
-import { Search, Bell, Menu, Sun, Moon, Bot, Truck, ClipboardList, Fuel, FileText, ChevronRight, X } from 'lucide-react';
+import { Search, Bell, Menu, Sun, Moon, Truck, ClipboardList, Fuel, FileText, ChevronRight } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useTheme } from '@/hooks/useTheme';
 import { useGlobalSearch, SearchResult } from '@/hooks/useGlobalSearch';
-import { AIAssistantModal } from '@/components/AIAssistant/AIAssistantModal';
 import { supabase } from '@/integrations/supabase/client';
-import { useSheetData } from '@/hooks/useGoogleSheets';
 import { cn } from '@/lib/utils';
 import {
   DropdownMenu,
@@ -38,7 +36,6 @@ const categoryIcons: Record<string, any> = {
   order: ClipboardList,
   record: Fuel,
   page: FileText,
-  action: Bot,
 };
 
 const categoryLabels: Record<string, string> = {
@@ -46,14 +43,12 @@ const categoryLabels: Record<string, string> = {
   order: 'Ordens de Serviço',
   record: 'Abastecimentos',
   page: 'Páginas',
-  action: 'Ações',
 };
 
 export function TopBar({ onMenuClick, showMenuButton, userName = 'Jean Campos', userRole = 'Sistema' }: TopBarProps) {
   const { theme, toggleTheme } = useTheme();
   const { search, setSearch, searchInItems, navigateToResult } = useGlobalSearch();
   const [showCommandDialog, setShowCommandDialog] = useState(false);
-  const [showAIAssistant, setShowAIAssistant] = useState(false);
   const [results, setResults] = useState<SearchResult[]>([]);
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
@@ -95,11 +90,7 @@ export function TopBar({ onMenuClick, showMenuButton, userName = 'Jean Campos', 
   }, []);
 
   const handleResultClick = (result: SearchResult) => {
-    if (result.category === 'action' && result.id === 'action-ai') {
-      setShowAIAssistant(true);
-    } else {
-      navigateToResult(result);
-    }
+    navigateToResult(result);
     setShowCommandDialog(false);
     setSearch('');
   };
@@ -149,18 +140,6 @@ export function TopBar({ onMenuClick, showMenuButton, userName = 'Jean Campos', 
 
         {/* Right side */}
         <div className="flex items-center gap-2 md:gap-4 shrink-0">
-          {/* AI Assistant Button */}
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setShowAIAssistant(true)}
-            className="hover:bg-primary/10 relative"
-            title="Assistente IA"
-          >
-            <Bot className="w-5 h-5 text-primary" />
-            <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-          </Button>
-
           {/* Theme Toggle */}
           <Button 
             variant="ghost" 
@@ -197,10 +176,6 @@ export function TopBar({ onMenuClick, showMenuButton, userName = 'Jean Campos', 
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuLabel>Minha Conta</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => setShowAIAssistant(true)} className="cursor-pointer">
-                <Bot className="w-4 h-4 mr-2 text-primary" />
-                Assistente IA
-              </DropdownMenuItem>
               <DropdownMenuItem onClick={toggleTheme} className="cursor-pointer">
                 {theme === 'light' ? (
                   <>
@@ -252,33 +227,8 @@ export function TopBar({ onMenuClick, showMenuButton, userName = 'Jean Campos', 
               </CommandGroup>
             );
           })}
-
-          {/* Quick actions when no search */}
-          {!search && (
-            <CommandGroup heading="Ações Rápidas">
-              <CommandItem
-                onSelect={() => {
-                  setShowAIAssistant(true);
-                  setShowCommandDialog(false);
-                }}
-                className="flex items-center gap-3 cursor-pointer"
-              >
-                <Bot className="w-4 h-4 text-primary" />
-                <div className="flex-1">
-                  <div className="font-medium">Assistente IA</div>
-                  <div className="text-xs text-muted-foreground">Pergunte qualquer coisa sobre o sistema</div>
-                </div>
-              </CommandItem>
-            </CommandGroup>
-          )}
         </CommandList>
       </CommandDialog>
-
-      {/* AI Assistant Modal */}
-      <AIAssistantModal 
-        open={showAIAssistant} 
-        onClose={() => setShowAIAssistant(false)} 
-      />
     </>
   );
 }
