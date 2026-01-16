@@ -58,6 +58,7 @@ interface ServiceOrder {
   status: string;
   entry_date: string | null;
   entry_time: string | null;
+  mechanic_name: string | null;
 }
 
 interface MobilizedEquipmentsViewProps {
@@ -115,7 +116,7 @@ export function MobilizedEquipmentsView({
     const fetchOrders = async () => {
       const { data } = await supabase
         .from('service_orders')
-        .select('order_number, vehicle_code, vehicle_description, problem_description, status, entry_date, entry_time')
+        .select('order_number, vehicle_code, vehicle_description, problem_description, status, entry_date, entry_time, mechanic_name')
         .in('status', ['Em Manutenção', 'Em Andamento', 'Aberta', 'Aguardando Peças'])
         .order('entry_date', { ascending: false });
       
@@ -363,16 +364,19 @@ export function MobilizedEquipmentsView({
           currentY = 20;
         }
         
-        // Company header - navy blue
-        doc.setFillColor(51, 65, 85); // slate-700
-        doc.rect(14, currentY, pageWidth - 28, 6, 'F');
-        doc.setTextColor(255, 255, 255);
-        doc.setFontSize(8);
+        // Company header - highlighted with light blue background for better visibility
+        doc.setFillColor(226, 232, 240); // slate-200 - lighter fill for more contrast
+        doc.rect(14, currentY, pageWidth - 28, 8, 'F');
+        doc.setDrawColor(30, 41, 59); // navy border
+        doc.setLineWidth(0.5);
+        doc.rect(14, currentY, pageWidth - 28, 8, 'S');
+        doc.setTextColor(30, 41, 59); // slate-800 text for better readability
+        doc.setFontSize(10);
         doc.setFont('helvetica', 'bold');
-        doc.text(company.empresa, 16, currentY + 4);
-        doc.text(`Total: ${company.total}`, pageWidth - 35, currentY + 4);
+        doc.text(company.empresa.toUpperCase(), 16, currentY + 5.5);
+        doc.text(`Total: ${company.total}`, pageWidth - 35, currentY + 5.5);
         
-        currentY += 7;
+        currentY += 10;
         
         // Equipment table for this company
         const tableData = company.equipamentos.map(e => [
@@ -498,7 +502,8 @@ export function MobilizedEquipmentsView({
         return [
           `${order.vehicle_code} - ${order.vehicle_description || vehicle?.descricao || '-'}`,
           vehicle?.empresa || '-',
-          (order.problem_description || '-').substring(0, 35),
+          order.mechanic_name || '-',
+          (order.problem_description || '-').substring(0, 30),
           order.status,
           entryDateStr,
           tempoParado
@@ -507,23 +512,24 @@ export function MobilizedEquipmentsView({
       
       autoTable(doc, {
         startY: currentY,
-        head: [['Veículo/Equipamento', 'Empresa', 'Problema', 'Status', 'Entrada', 'Tempo Parado']],
+        head: [['Veículo/Equipamento', 'Empresa', 'Motorista/Operador', 'Problema', 'Status', 'Entrada', 'Tempo Parado']],
         body: maintenanceData,
         theme: 'grid',
-        styles: { fontSize: 7, cellPadding: 2 },
+        styles: { fontSize: 6.5, cellPadding: 2 },
         headStyles: { 
           fillColor: [217, 119, 6], // amber-600
           textColor: 255, 
           fontStyle: 'bold',
-          fontSize: 7
+          fontSize: 6.5
         },
         columnStyles: {
-          0: { cellWidth: 45 },
-          1: { cellWidth: 22 },
-          2: { cellWidth: 50 },
-          3: { cellWidth: 25 },
-          4: { cellWidth: 18 },
-          5: { cellWidth: 22, halign: 'center', fontStyle: 'bold' }
+          0: { cellWidth: 38 },
+          1: { cellWidth: 20 },
+          2: { cellWidth: 28 },
+          3: { cellWidth: 35 },
+          4: { cellWidth: 22 },
+          5: { cellWidth: 16 },
+          6: { cellWidth: 18, halign: 'center', fontStyle: 'bold' }
         },
         margin: { left: 14, right: 14 },
         alternateRowStyles: { fillColor: [254, 252, 232] }, // amber-50
