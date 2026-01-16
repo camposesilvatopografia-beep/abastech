@@ -116,15 +116,51 @@ function parseNumber(value: any): number {
 export function AbastecimentoPage() {
   const { user } = useAuth();
   const { data, loading, refetch } = useSheetData(SHEET_NAME);
-  const { data: geralData, refetch: refetchGeral } = useSheetData(GERAL_SHEET, { pollingInterval: 10000 });
+
+  const {
+    data: geralData,
+    refetch: refetchGeral,
+    loading: geralLoading,
+    lastUpdatedAt: geralUpdatedAt,
+  } = useSheetData(GERAL_SHEET, { pollingInterval: 10000 });
+
   const { data: saneamentoStockData } = useSheetData(SANEAMENTO_STOCK_SHEET, { suppressErrors: true });
+
   // Fetch stock data with 10-second polling for real-time updates
-  const { data: estoqueComboio01Data } = useSheetData('EstoqueComboio01', { suppressErrors: true, pollingInterval: 10000 });
-  const { data: estoqueComboio02Data } = useSheetData('EstoqueComboio02', { suppressErrors: true, pollingInterval: 10000 });
-  const { data: estoqueComboio03Data } = useSheetData('EstoqueComboio03', { suppressErrors: true, pollingInterval: 10000 });
-  const { data: estoqueCanteiro01Data } = useSheetData('EstoqueCanteiro01', { suppressErrors: true, pollingInterval: 10000 });
-  const { data: estoqueCanteiro02Data } = useSheetData('EstoqueCanteiro02', { suppressErrors: true, pollingInterval: 10000 });
-  
+  const {
+    data: estoqueComboio01Data,
+    refetch: refetchComboio01,
+    loading: comboio01Loading,
+    lastUpdatedAt: comboio01UpdatedAt,
+  } = useSheetData('EstoqueComboio01', { suppressErrors: true, pollingInterval: 10000 });
+
+  const {
+    data: estoqueComboio02Data,
+    refetch: refetchComboio02,
+    loading: comboio02Loading,
+    lastUpdatedAt: comboio02UpdatedAt,
+  } = useSheetData('EstoqueComboio02', { suppressErrors: true, pollingInterval: 10000 });
+
+  const {
+    data: estoqueComboio03Data,
+    refetch: refetchComboio03,
+    loading: comboio03Loading,
+    lastUpdatedAt: comboio03UpdatedAt,
+  } = useSheetData('EstoqueComboio03', { suppressErrors: true, pollingInterval: 10000 });
+
+  const {
+    data: estoqueCanteiro01Data,
+    refetch: refetchCanteiro01,
+    loading: canteiro01Loading,
+    lastUpdatedAt: canteiro01UpdatedAt,
+  } = useSheetData('EstoqueCanteiro01', { suppressErrors: true, pollingInterval: 10000 });
+
+  const {
+    data: estoqueCanteiro02Data,
+    refetch: refetchCanteiro02,
+    loading: canteiro02Loading,
+    lastUpdatedAt: canteiro02UpdatedAt,
+  } = useSheetData('EstoqueCanteiro02', { suppressErrors: true, pollingInterval: 10000 });
   const [activeTab, setActiveTab] = useState('painel');
   const [search, setSearch] = useState('');
   const [localFilter, setLocalFilter] = useState('all');
@@ -1610,6 +1646,32 @@ export function AbastecimentoPage() {
             estoqueComboio02Data={estoqueComboio02Data}
             estoqueComboio03Data={estoqueComboio03Data}
             dateRange={dateRange}
+            onRefreshNow={async () => {
+              await Promise.all([
+                refetchGeral(false, true),
+                refetchCanteiro01(false, true),
+                refetchCanteiro02(false, true),
+                refetchComboio01(false, true),
+                refetchComboio02(false, true),
+                refetchComboio03(false, true),
+              ]);
+            }}
+            refreshing={
+              geralLoading ||
+              canteiro01Loading ||
+              canteiro02Loading ||
+              comboio01Loading ||
+              comboio02Loading ||
+              comboio03Loading
+            }
+            lastUpdatedAt={{
+              geral: geralUpdatedAt,
+              tanque01: canteiro01UpdatedAt,
+              tanque02: canteiro02UpdatedAt,
+              comboio01: comboio01UpdatedAt,
+              comboio02: comboio02UpdatedAt,
+              comboio03: comboio03UpdatedAt,
+            }}
           />
         )}
 
