@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { 
   Truck, 
   ChevronDown, 
@@ -39,6 +39,8 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { supabase } from '@/integrations/supabase/client';
+import { useObraSettings } from '@/hooks/useObraSettings';
 
 interface VehicleItem {
   codigo: string;
@@ -46,6 +48,16 @@ interface VehicleItem {
   empresa: string;
   categoria: string;
   status: string;
+}
+
+interface ServiceOrder {
+  order_number: string;
+  vehicle_code: string;
+  vehicle_description: string;
+  problem_description: string;
+  status: string;
+  entry_date: string | null;
+  entry_time: string | null;
 }
 
 interface MobilizedEquipmentsViewProps {
@@ -95,6 +107,24 @@ export function MobilizedEquipmentsView({
     equipamentos: EquipmentCount[] 
   } | null>(null);
   const [expandedDescricao, setExpandedDescricao] = useState<string | null>(null);
+  const [serviceOrders, setServiceOrders] = useState<ServiceOrder[]>([]);
+  const { settings: obraSettings } = useObraSettings();
+
+  // Fetch service orders for maintenance section
+  useEffect(() => {
+    const fetchOrders = async () => {
+      const { data } = await supabase
+        .from('service_orders')
+        .select('order_number, vehicle_code, vehicle_description, problem_description, status, entry_date, entry_time')
+        .in('status', ['Em Manutenção', 'Em Andamento', 'Aberta', 'Aguardando Peças'])
+        .order('entry_date', { ascending: false });
+      
+      if (data) {
+        setServiceOrders(data);
+      }
+    };
+    fetchOrders();
+  }, []);
 
   // Group vehicles by empresa and then by descricao for counting
   const companyGroups = useMemo<CompanyGroup[]>(() => {
@@ -275,18 +305,18 @@ export function MobilizedEquipmentsView({
     doc.setFillColor(30, 41, 59); // Navy/slate-800
     doc.rect(0, 0, pageWidth, 28, 'F');
     
-    // Title
+    // Title - Dynamic from obra settings
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(14);
     doc.setFont('helvetica', 'bold');
-    doc.text('CONSÓRCIO AERO MARAGOGI', pageWidth / 2, 10, { align: 'center' });
+    doc.text(obraSettings?.nome?.toUpperCase() || 'EQUIPAMENTOS MOBILIZADOS', pageWidth / 2, 10, { align: 'center' });
     
     doc.setFontSize(12);
     doc.text('EQUIPAMENTOS MOBILIZADOS', pageWidth / 2, 18, { align: 'center' });
     
     doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');
-    doc.text('Maragogi-AL', pageWidth / 2, 24, { align: 'center' });
+    doc.text(obraSettings?.cidade || 'Gestão de Frota', pageWidth / 2, 24, { align: 'center' });
     
     // Date info
     doc.setTextColor(60, 60, 60);
@@ -376,20 +406,110 @@ export function MobilizedEquipmentsView({
       currentY += 4;
     });
     
-    // Total Geral at the end
-    if (currentY > pageHeight - 25) {
-      doc.addPage();
-      currentY = 20;
-    }
+    // ============ RESUMO GERAL ============
+    doc.addPage();
+    currentY = 20;
     
-    const totalAll = vehicles.length;
-    doc.setFillColor(30, 41, 59); // Navy/slate-800
+    // Summary header
+    doc.setFillColor(30, 41, 59);
     doc.rect(14, currentY, pageWidth - 28, 10, 'F');
     doc.setTextColor(255, 255, 255);
-    doc.setFontSize(11);
+    doc.setFontSize(12);
     doc.setFont('helvetica', 'bold');
-    doc.text('TOTAL GERAL', 16, currentY + 7);
-    doc.text(totalAll.toString(), pageWidth - 25, currentY + 7);
+    doc.text('RESUMO GERAL', 16, currentY + 7);
+    
+    currentY += 16;
+    
+    // Summary table by status
+    const summaryData = statusGroups.map(sg => {
+      const statusLabel = STATUS_CONFIG[sg.status]?.label || sg.status.toUpperCase();
+      return [statusLabel, sg.total.toString()];
+    });
+    
+    // Add total row
+    const totalAll = vehicles.length;
+    summaryData.push(['TOTAL GERAL', totalAll.toString()]);
+    
+    autoTable(doc, {
+      startY: currentY,
+      head: [['Status', 'Quantidade']],
+      body: summaryData,
+      theme: 'grid',
+      styles: { fontSize: 10, cellPadding: 4 },
+      headStyles: { fillColor: [30, 41, 59], textColor: 255, fontStyle: 'bold' },
+      columnStyles: {
+        0: { cellWidth: pageWidth - 60 },
+        1: { cellWidth: 30, halign: 'center', fontStyle: 'bold' }
+      },
+      margin: { left: 14, right: 14 },
+      didParseCell: (data) => {
+        // Highlight total row
+        if (data.row.index === summaryData.length - 1) {
+          data.cell.styles.fillColor = [30, 41, 59];
+          data.cell.styles.textColor = 255;
+          data.cell.styles.fontStyle = 'bold';
+        }
+      }
+    });
+    
+    currentY = (doc as any).lastAutoTable.finalY + 10;
+    
+    // ============ RESUMO DE MANUTENÇÃO ============
+    if (serviceOrders.length > 0) {
+      if (currentY > pageHeight - 60) {
+        doc.addPage();
+        currentY = 20;
+      }
+      
+      // Maintenance header
+      doc.setFillColor(245, 158, 11); // Amber
+      doc.rect(14, currentY, pageWidth - 28, 10, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`RESUMO DE MANUTENÇÃO (${serviceOrders.length})`, 16, currentY + 7);
+      
+      currentY += 14;
+      
+      // Match service orders with vehicle info
+      const maintenanceData = serviceOrders.map(order => {
+        const vehicle = vehicles.find(v => v.codigo === order.vehicle_code);
+        const entryDateStr = order.entry_date 
+          ? format(new Date(order.entry_date + 'T00:00:00'), 'dd/MM/yyyy')
+          : '-';
+        
+        return [
+          `${order.vehicle_code} - ${order.vehicle_description || vehicle?.descricao || '-'}`,
+          vehicle?.empresa || '-',
+          (order.problem_description || '-').substring(0, 40),
+          order.status,
+          entryDateStr
+        ];
+      });
+      
+      autoTable(doc, {
+        startY: currentY,
+        head: [['Veículo/Equipamento', 'Empresa', 'Problema', 'Status', 'Entrada']],
+        body: maintenanceData,
+        theme: 'grid',
+        styles: { fontSize: 7, cellPadding: 2 },
+        headStyles: { 
+          fillColor: [217, 119, 6], // amber-600
+          textColor: 255, 
+          fontStyle: 'bold',
+          fontSize: 7
+        },
+        columnStyles: {
+          0: { cellWidth: 50 },
+          1: { cellWidth: 28 },
+          2: { cellWidth: 55 },
+          3: { cellWidth: 28 },
+          4: { cellWidth: 20 }
+        },
+        margin: { left: 14, right: 14 },
+        alternateRowStyles: { fillColor: [254, 252, 232] }, // amber-50
+      });
+    }
     
     // Footer on all pages
     const totalPages = doc.getNumberOfPages();
