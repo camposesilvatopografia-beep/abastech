@@ -16,6 +16,7 @@ import {
   ChevronDown,
   RefreshCw,
   Download,
+  CheckCircle,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -307,13 +308,24 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
     return timeStr?.substring(0, 5) || timeStr;
   };
 
-  // Handle direct delete - also removes from Google Sheets
+  // Deletion step states for visual feedback
+  const [deletionStep, setDeletionStep] = useState<'idle' | 'db' | 'sheet' | 'done'>('idle');
+
+  // Handle direct delete - also removes from Google Sheets with step-by-step feedback
   const handleDirectDelete = async () => {
     if (!deleteConfirmation) return;
 
     setIsDeleting(true);
+    setDeletionStep('db');
 
     const recordToDelete = todayRecords.find(r => r.id === deleteConfirmation.recordId);
+    
+    console.log('[DELETE] Iniciando exclusão do registro:', {
+      recordId: deleteConfirmation.recordId,
+      vehicleCode: deleteConfirmation.vehicleCode,
+      quantity: deleteConfirmation.quantity,
+      record: recordToDelete,
+    });
 
     // Optimistic UI: remove immediately so it disappears from the user's dashboard right away
     if (recordToDelete) {
@@ -330,20 +342,37 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
     }
 
     try {
-      // Delete from database first
+      // STEP 1: Delete from database
+      console.log('[DELETE] Passo 1: Excluindo do banco de dados...');
       const { error } = await supabase
         .from('field_fuel_records')
         .delete()
         .eq('id', deleteConfirmation.recordId);
 
-      if (error) throw error;
+      if (error) {
+        console.error('[DELETE] ERRO ao excluir do banco:', error);
+        throw error;
+      }
+      
+      console.log('[DELETE] ✅ Excluído do banco de dados com sucesso');
+      toast.success('✅ Excluído do banco de dados', { duration: 2000 });
 
-      // Also delete from Google Sheets (matching by date+time+vehicle)
+      // STEP 2: Delete from Google Sheets
+      setDeletionStep('sheet');
+      
       if (recordToDelete) {
+        console.log('[DELETE] Passo 2: Excluindo da planilha Google Sheets...');
+        
         try {
           const recordDateBR = new Date(`${recordToDelete.record_date}T00:00:00`).toLocaleDateString('pt-BR');
           const recordTime = (recordToDelete.record_time || '').substring(0, 5);
           const vehicleCode = String(recordToDelete.vehicle_code || '').trim();
+
+          console.log('[DELETE] Buscando linha na planilha com:', {
+            data: recordDateBR,
+            hora: recordTime,
+            veiculo: vehicleCode,
+          });
 
           const { data: sheetResponse, error: sheetGetError } = await supabase.functions.invoke('google-sheets', {
             body: {
@@ -353,13 +382,18 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
             },
           });
 
-          if (sheetGetError) throw sheetGetError;
+          if (sheetGetError) {
+            console.error('[DELETE] ERRO ao buscar dados da planilha:', sheetGetError);
+            throw sheetGetError;
+          }
+
+          console.log('[DELETE] Planilha carregada, total de linhas:', sheetResponse?.rows?.length || 0);
 
           if (sheetResponse?.rows && Array.isArray(sheetResponse.rows)) {
             const normalize = (v: any) => String(v ?? '').trim();
             const normalizeTime = (v: any) => normalize(v).substring(0, 5);
 
-            const rowIndex = sheetResponse.rows.findIndex((row: any) => {
+            const rowIndex = sheetResponse.rows.findIndex((row: any, idx: number) => {
               const rowDate = normalize(row['DATA'] ?? row['Data']);
               const rowTime = normalizeTime(row['HORA'] ?? row['Hora']);
               const rowVehicle = normalize(row['VEICULO'] ?? row['Veiculo'] ?? row['VEÍCULO'] ?? row['Veículo']);
@@ -369,45 +403,80 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
                 ? new Date(`${rowDate}T00:00:00`).toLocaleDateString('pt-BR')
                 : rowDate;
 
-              return rowDateComparable === recordDateBR && rowTime === recordTime && rowVehicle === vehicleCode;
+              const match = rowDateComparable === recordDateBR && rowTime === recordTime && rowVehicle === vehicleCode;
+              
+              if (match) {
+                console.log(`[DELETE] Linha encontrada no índice ${idx}:`, {
+                  rowDate,
+                  rowDateComparable,
+                  rowTime,
+                  rowVehicle,
+                });
+              }
+              
+              return match;
             });
 
             if (rowIndex >= 0) {
+              const sheetRowNumber = rowIndex + 2; // +1 header row, +1 because rows[] is 0-based
+              console.log(`[DELETE] Excluindo linha ${sheetRowNumber} da planilha...`);
+              
               const { error: sheetDeleteError } = await supabase.functions.invoke('google-sheets', {
                 body: {
                   action: 'delete',
                   sheetName: 'AbastecimentoCanteiro01',
-                  rowIndex: rowIndex + 2, // +1 header row, +1 because rows[] is 0-based
+                  rowIndex: sheetRowNumber,
                 },
               });
 
-              if (sheetDeleteError) throw sheetDeleteError;
+              if (sheetDeleteError) {
+                console.error('[DELETE] ERRO ao excluir da planilha:', sheetDeleteError);
+                throw sheetDeleteError;
+              }
+              
+              console.log('[DELETE] ✅ Excluído da planilha com sucesso');
+              toast.success('✅ Excluído da planilha', { duration: 2000 });
             } else {
-              console.warn('Row not found in sheet for deletion', { recordDateBR, recordTime, vehicleCode });
+              console.warn('[DELETE] ⚠️ Linha não encontrada na planilha para exclusão:', {
+                recordDateBR,
+                recordTime,
+                vehicleCode,
+                totalRows: sheetResponse.rows.length,
+              });
+              toast.warning('⚠️ Registro não encontrado na planilha (pode já ter sido removido)', { duration: 3000 });
             }
+          } else {
+            console.warn('[DELETE] ⚠️ Planilha vazia ou formato inválido');
+            toast.warning('⚠️ Planilha vazia ou inacessível', { duration: 3000 });
           }
         } catch (sheetErr) {
-          console.error('Failed to delete from sheet (DB already deleted):', sheetErr);
+          console.error('[DELETE] ERRO na exclusão da planilha (banco já excluído):', sheetErr);
+          toast.error('❌ Erro ao excluir da planilha (verifique os logs)', { duration: 4000 });
         }
       }
 
-      toast.success('Registro excluído com sucesso');
+      setDeletionStep('done');
+      
+      // Small delay to show completion before closing
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
       setDeleteConfirmation(null);
 
       // Hard refresh to ensure absolute consistency
       fetchTodayRecords();
       refreshStockCards();
     } catch (err) {
-      console.error('Error deleting record:', err);
+      console.error('[DELETE] ERRO GERAL na exclusão:', err);
 
       // Revert optimistic UI on failure
       if (recordToDelete) {
         await fetchTodayRecords();
       }
 
-      toast.error('Erro ao excluir registro');
+      toast.error('❌ Erro ao excluir registro do banco de dados');
     } finally {
       setIsDeleting(false);
+      setDeletionStep('idle');
     }
   };
 
@@ -428,42 +497,95 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
           </div>
         </div>
       )}
-      {/* Direct Delete Confirmation Dialog */}
-      <AlertDialog open={!!deleteConfirmation} onOpenChange={() => setDeleteConfirmation(null)}>
+      {/* Direct Delete Confirmation Dialog with Step-by-Step Feedback */}
+      <AlertDialog open={!!deleteConfirmation} onOpenChange={() => !isDeleting && setDeleteConfirmation(null)}>
         <AlertDialogContent className="bg-card border-red-600/30">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-foreground flex items-center gap-2">
               <AlertCircle className="w-5 h-5 text-red-500" />
-              Confirmar Exclusão
+              {isDeleting ? 'Excluindo Registro...' : 'Confirmar Exclusão'}
             </AlertDialogTitle>
             <AlertDialogDescription className="text-muted-foreground">
-              Tem certeza que deseja excluir o registro de <strong className="text-foreground">{deleteConfirmation?.vehicleCode}</strong> com <strong className="text-red-500">{deleteConfirmation?.quantity}L</strong>?
-              <br /><br />
-              <span className="text-red-400 font-medium">Esta ação não pode ser desfeita.</span>
+              {!isDeleting ? (
+                <>
+                  Tem certeza que deseja excluir o registro de <strong className="text-foreground">{deleteConfirmation?.vehicleCode}</strong> com <strong className="text-red-500">{deleteConfirmation?.quantity}L</strong>?
+                  <br /><br />
+                  <span className="text-red-400 font-medium">Esta ação não pode ser desfeita.</span>
+                </>
+              ) : (
+                <div className="space-y-3 mt-2">
+                  {/* Step 1: Database */}
+                  <div className={`flex items-center gap-3 p-3 rounded-lg border transition-all ${
+                    deletionStep === 'db' 
+                      ? 'bg-amber-500/10 border-amber-500/50' 
+                      : deletionStep === 'sheet' || deletionStep === 'done'
+                        ? 'bg-green-500/10 border-green-500/50'
+                        : 'bg-muted/30 border-border'
+                  }`}>
+                    {deletionStep === 'db' ? (
+                      <Loader2 className="w-5 h-5 text-amber-500 animate-spin" />
+                    ) : deletionStep === 'sheet' || deletionStep === 'done' ? (
+                      <CheckCircle className="w-5 h-5 text-green-500" />
+                    ) : (
+                      <div className="w-5 h-5 rounded-full border-2 border-muted-foreground/50" />
+                    )}
+                    <span className={`font-medium ${
+                      deletionStep === 'db' ? 'text-amber-500' : 
+                      deletionStep === 'sheet' || deletionStep === 'done' ? 'text-green-500' : 
+                      'text-muted-foreground'
+                    }`}>
+                      {deletionStep === 'db' ? 'Excluindo do banco de dados...' : 
+                       deletionStep === 'sheet' || deletionStep === 'done' ? '✅ Excluído do banco de dados' : 
+                       'Excluir do banco de dados'}
+                    </span>
+                  </div>
+
+                  {/* Step 2: Google Sheets */}
+                  <div className={`flex items-center gap-3 p-3 rounded-lg border transition-all ${
+                    deletionStep === 'sheet'
+                      ? 'bg-amber-500/10 border-amber-500/50'
+                      : deletionStep === 'done'
+                        ? 'bg-green-500/10 border-green-500/50'
+                        : 'bg-muted/30 border-border'
+                  }`}>
+                    {deletionStep === 'sheet' ? (
+                      <Loader2 className="w-5 h-5 text-amber-500 animate-spin" />
+                    ) : deletionStep === 'done' ? (
+                      <CheckCircle className="w-5 h-5 text-green-500" />
+                    ) : (
+                      <div className="w-5 h-5 rounded-full border-2 border-muted-foreground/50" />
+                    )}
+                    <span className={`font-medium ${
+                      deletionStep === 'sheet' ? 'text-amber-500' : 
+                      deletionStep === 'done' ? 'text-green-500' : 
+                      'text-muted-foreground'
+                    }`}>
+                      {deletionStep === 'sheet' ? 'Excluindo da planilha...' : 
+                       deletionStep === 'done' ? '✅ Excluído da planilha' : 
+                       'Excluir da planilha'}
+                    </span>
+                  </div>
+                </div>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           
           <AlertDialogFooter>
-            <AlertDialogCancel className="bg-secondary text-secondary-foreground hover:bg-secondary/80 border-0">
-              Cancelar
-            </AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={handleDirectDelete}
-              disabled={isDeleting}
-              className="bg-red-600 hover:bg-red-700 disabled:opacity-50"
-            >
-              {isDeleting ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Excluindo...
-                </>
-              ) : (
-                <>
+            {!isDeleting && (
+              <>
+                <AlertDialogCancel className="bg-secondary text-secondary-foreground hover:bg-secondary/80 border-0">
+                  Cancelar
+                </AlertDialogCancel>
+                <AlertDialogAction 
+                  onClick={handleDirectDelete}
+                  disabled={isDeleting}
+                  className="bg-red-600 hover:bg-red-700 disabled:opacity-50"
+                >
                   <Trash2 className="w-4 h-4 mr-2" />
                   Excluir
-                </>
-              )}
-            </AlertDialogAction>
+                </AlertDialogAction>
+              </>
+            )}
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
