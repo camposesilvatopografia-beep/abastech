@@ -310,13 +310,27 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
   // Handle direct delete - also removes from Google Sheets
   const handleDirectDelete = async () => {
     if (!deleteConfirmation) return;
-    
+
     setIsDeleting(true);
+
+    const recordToDelete = todayRecords.find(r => r.id === deleteConfirmation.recordId);
+
+    // Optimistic UI: remove immediately so it disappears from the user's dashboard right away
+    if (recordToDelete) {
+      setTodayRecords(prev => prev.filter(r => r.id !== deleteConfirmation.recordId));
+      setTodayStats(prev => {
+        const liters = recordToDelete.fuel_quantity || 0;
+        const arla = recordToDelete.arla_quantity || 0;
+        return {
+          totalRecords: Math.max(0, prev.totalRecords - 1),
+          totalLiters: Math.max(0, prev.totalLiters - liters),
+          totalArla: Math.max(0, prev.totalArla - arla),
+        };
+      });
+    }
+
     try {
-      // First, get the record to find its date/time for sheet lookup
-      const recordToDelete = todayRecords.find(r => r.id === deleteConfirmation.recordId);
-      
-      // Delete from Supabase first
+      // Delete from database first
       const { error } = await supabase
         .from('field_fuel_records')
         .delete()
@@ -324,57 +338,73 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
 
       if (error) throw error;
 
-      // Try to delete from Google Sheets (find matching row by date, time, vehicle)
+      // Also delete from Google Sheets (matching by date+time+vehicle)
       if (recordToDelete) {
         try {
-          // Fetch sheet data to find matching row
-          const { data: sheetResponse } = await supabase.functions.invoke('google-sheets', {
+          const recordDateBR = new Date(`${recordToDelete.record_date}T00:00:00`).toLocaleDateString('pt-BR');
+          const recordTime = (recordToDelete.record_time || '').substring(0, 5);
+          const vehicleCode = String(recordToDelete.vehicle_code || '').trim();
+
+          const { data: sheetResponse, error: sheetGetError } = await supabase.functions.invoke('google-sheets', {
             body: {
               action: 'getData',
               sheetName: 'AbastecimentoCanteiro01',
               noCache: true,
             },
           });
-          
+
+          if (sheetGetError) throw sheetGetError;
+
           if (sheetResponse?.rows && Array.isArray(sheetResponse.rows)) {
-            // Find the row that matches this record (by date, time, vehicle code)
-            const recordDate = recordToDelete.record_date;
-            const recordTime = recordToDelete.record_time?.substring(0, 5);
-            const vehicleCode = recordToDelete.vehicle_code;
-            
+            const normalize = (v: any) => String(v ?? '').trim();
+            const normalizeTime = (v: any) => normalize(v).substring(0, 5);
+
             const rowIndex = sheetResponse.rows.findIndex((row: any) => {
-              const rowDate = row['DATA'] || row['Data'] || '';
-              const rowTime = (row['HORA'] || row['Hora'] || '').substring(0, 5);
-              const rowVehicle = row['VEICULO'] || row['Veiculo'] || '';
-              
-              // Match by date + time + vehicle
-              return rowDate === recordDate && rowTime === recordTime && rowVehicle === vehicleCode;
+              const rowDate = normalize(row['DATA'] ?? row['Data']);
+              const rowTime = normalizeTime(row['HORA'] ?? row['Hora']);
+              const rowVehicle = normalize(row['VEICULO'] ?? row['Veiculo'] ?? row['VEÍCULO'] ?? row['Veículo']);
+
+              // Some sheets may store date as yyyy-mm-dd; normalize to pt-BR when needed
+              const rowDateComparable = /^\d{4}-\d{2}-\d{2}$/.test(rowDate)
+                ? new Date(`${rowDate}T00:00:00`).toLocaleDateString('pt-BR')
+                : rowDate;
+
+              return rowDateComparable === recordDateBR && rowTime === recordTime && rowVehicle === vehicleCode;
             });
-            
+
             if (rowIndex >= 0) {
-              // Row found - delete it (add 2: +1 for header, +1 for 0-index)
-              await supabase.functions.invoke('google-sheets', {
+              const { error: sheetDeleteError } = await supabase.functions.invoke('google-sheets', {
                 body: {
                   action: 'delete',
                   sheetName: 'AbastecimentoCanteiro01',
-                  rowIndex: rowIndex + 2, // +1 header, +1 for 0-based index
+                  rowIndex: rowIndex + 2, // +1 header row, +1 because rows[] is 0-based
                 },
               });
-              console.log('Record also deleted from Google Sheets');
+
+              if (sheetDeleteError) throw sheetDeleteError;
+            } else {
+              console.warn('Row not found in sheet for deletion', { recordDateBR, recordTime, vehicleCode });
             }
           }
         } catch (sheetErr) {
-          console.error('Failed to delete from sheet (record already removed from DB):', sheetErr);
-          // Don't fail the whole operation - DB deletion succeeded
+          console.error('Failed to delete from sheet (DB already deleted):', sheetErr);
         }
       }
 
       toast.success('Registro excluído com sucesso');
       setDeleteConfirmation(null);
+
+      // Hard refresh to ensure absolute consistency
       fetchTodayRecords();
       refreshStockCards();
     } catch (err) {
       console.error('Error deleting record:', err);
+
+      // Revert optimistic UI on failure
+      if (recordToDelete) {
+        await fetchTodayRecords();
+      }
+
       toast.error('Erro ao excluir registro');
     } finally {
       setIsDeleting(false);
@@ -471,9 +501,26 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
       <div className="bg-gradient-to-r from-amber-600 to-orange-600 rounded-xl p-4 text-white">
         <div className="flex items-center justify-between mb-2">
           <h2 className="text-lg font-bold">Olá, {user.name}!</h2>
-          <div className="flex items-center gap-1 text-sm bg-white/20 px-2 py-1 rounded">
-            <Calendar className="w-4 h-4" />
-            {todayStr}
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              className="h-8 bg-white/20 text-white hover:bg-white/30 border-0"
+              onClick={async () => {
+                triggerUpdatePulse('Atualizando...');
+                await fetchTodayRecords();
+                refreshStockCards();
+                toast.success('Atualizado!');
+              }}
+              title="Atualizar agora"
+            >
+              <RefreshCw className="w-4 h-4" />
+            </Button>
+            <div className="flex items-center gap-1 text-sm bg-white/20 px-2 py-1 rounded">
+              <Calendar className="w-4 h-4" />
+              {todayStr}
+            </div>
           </div>
         </div>
         <p className="text-sm opacity-90">

@@ -1006,19 +1006,21 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         user_id: user.id,
         record_type: recordType,
         vehicle_code: recordType === 'entrada' ? 'ENTRADA' : vehicleCode,
-        vehicle_description: recordType === 'entrada' ? supplier : vehicleDescription,
+        vehicle_description: recordType === 'entrada' ? (supplier || '') : vehicleDescription,
         category: recordType === 'entrada' ? 'ENTRADA' : category,
         operator_name: recordType === 'entrada' ? '' : (operatorName || user.name),
         company,
         work_site: workSite,
         horimeter_previous: parseBrazilianNumber(horimeterPrevious),
         horimeter_current: parseBrazilianNumber(horimeterCurrent),
-        fuel_quantity: parseFloat(fuelQuantity) || 0,
+        // IMPORTANT: fuelQuantity is typed with BR formatting (e.g. 1.111)
+        // so we must parse it as a Brazilian number to avoid saving 1.111 instead of 1111.
+        fuel_quantity: parseBrazilianNumber(fuelQuantity) || 0,
         fuel_type: fuelType,
-        arla_quantity: parseFloat(arlaQuantity) || 0,
+        arla_quantity: parseBrazilianNumber(arlaQuantity) || 0,
         location: recordType === 'entrada' ? entryLocation : location,
-        observations: recordType === 'entrada' && photoInvoiceUrl 
-          ? `${observations} | FOTO NF: ${photoInvoiceUrl}`.trim() 
+        observations: recordType === 'entrada' && photoInvoiceUrl
+          ? `${observations} | FOTO NF: ${photoInvoiceUrl}`.trim()
           : observations,
         photo_pump_url: photoPumpUrl,
         photo_horimeter_url: photoHorimeterUrl,
@@ -1080,19 +1082,19 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         time: recordTime,
         recordType,
         vehicleCode: recordType === 'entrada' ? 'ENTRADA' : vehicleCode,
-        vehicleDescription: recordType === 'entrada' ? supplier : vehicleDescription,
+        vehicleDescription: recordType === 'entrada' ? (supplier || '') : vehicleDescription,
         category: recordType === 'entrada' ? 'ENTRADA' : category,
         operatorName: recordType === 'entrada' ? '' : (operatorName || user.name),
         company,
         workSite,
         horimeterPrevious: parseBrazilianNumber(horimeterPrevious),
         horimeterCurrent: parseBrazilianNumber(horimeterCurrent),
-        fuelQuantity: parseFloat(fuelQuantity) || 0,
+        fuelQuantity: parseBrazilianNumber(fuelQuantity) || 0,
         fuelType,
-        arlaQuantity: parseFloat(arlaQuantity) || 0,
+        arlaQuantity: parseBrazilianNumber(arlaQuantity) || 0,
         location: recordType === 'entrada' ? entryLocation : location,
-        observations: recordType === 'entrada' && photoInvoiceUrl 
-          ? `${observations} | FOTO NF: ${photoInvoiceUrl}`.trim() 
+        observations: recordType === 'entrada' && photoInvoiceUrl
+          ? `${observations} | FOTO NF: ${photoInvoiceUrl}`.trim()
           : observations,
         photoPumpUrl,
         photoHorimeterUrl,
@@ -1151,16 +1153,16 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
             user_id: user.id,
             record_type: recordType,
             vehicle_code: recordType === 'entrada' ? 'ENTRADA' : vehicleCode,
-            vehicle_description: recordType === 'entrada' ? supplier : vehicleDescription,
+            vehicle_description: recordType === 'entrada' ? (supplier || '') : vehicleDescription,
             category: recordType === 'entrada' ? 'ENTRADA' : category,
             operator_name: recordType === 'entrada' ? '' : (operatorName || user.name),
             company,
             work_site: workSite,
             horimeter_previous: parseBrazilianNumber(horimeterPrevious),
             horimeter_current: parseBrazilianNumber(horimeterCurrent),
-            fuel_quantity: parseFloat(fuelQuantity) || 0,
+            fuel_quantity: parseBrazilianNumber(fuelQuantity) || 0,
             fuel_type: fuelType,
-            arla_quantity: parseFloat(arlaQuantity) || 0,
+            arla_quantity: parseBrazilianNumber(arlaQuantity) || 0,
             location: recordType === 'entrada' ? entryLocation : location,
             observations,
             record_date: now.toISOString().split('T')[0],
@@ -2648,7 +2650,20 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
       <div className="p-4 pb-8 max-w-2xl mx-auto">
         <Button 
           onClick={handleSave} 
-          disabled={isSaving || isUploadingPhotos || !vehicleCode || (quickEntryMode === 'normal' && recordType === 'saida' && !fuelQuantity) || (quickEntryMode === 'normal' && recordType === 'entrada' && !supplier)}
+          disabled={
+            isSaving ||
+            isUploadingPhotos ||
+            (quickEntryMode !== 'normal'
+              ? !vehicleCode
+              : recordType === 'saida'
+                ? (!vehicleCode || !fuelQuantity)
+                : (userLocationInfo.isOnlyComboio
+                    ? (!entryLocation || !fuelQuantity)
+                    : userLocationInfo.isTanqueUser
+                      ? (!supplier || !fuelQuantity)
+                      : !fuelQuantity)
+            )
+          }
           className={cn(
             "w-full h-14 text-lg gap-2 shadow-lg",
             recordType === 'entrada' 
