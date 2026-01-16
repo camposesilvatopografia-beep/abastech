@@ -15,7 +15,9 @@ import {
   MapPin,
   ChevronDown,
   RefreshCw,
+  Download,
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
@@ -82,6 +84,7 @@ interface DeleteConfirmation {
 
 export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) {
   const { theme } = useTheme();
+  const navigate = useNavigate();
   const [todayRecords, setTodayRecords] = useState<RecentRecord[]>([]);
   const [todayStats, setTodayStats] = useState({
     totalRecords: 0,
@@ -92,6 +95,10 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
   const [editRecord, setEditRecord] = useState<RecentRecord | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // PWA Install state
+  const [showInstallButton, setShowInstallButton] = useState(false);
+  const [isStandalone, setIsStandalone] = useState(false);
   
   // Visual indicator for admin updates
   const [showUpdatePulse, setShowUpdatePulse] = useState(false);
@@ -109,6 +116,18 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
   // Get today's date for display
   const todayStr = format(new Date(), "dd 'de' MMMM", { locale: ptBR });
   const todayDateOnly = format(new Date(), 'yyyy-MM-dd');
+
+  // Check PWA install state
+  useEffect(() => {
+    // Check if running as standalone (already installed)
+    const standalone = window.matchMedia('(display-mode: standalone)').matches;
+    setIsStandalone(standalone);
+    
+    // Show install button if not installed and on mobile
+    if (!standalone && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+      setShowInstallButton(true);
+    }
+  }, []);
 
   // Fetch records function (reusable)
   const fetchTodayRecords = useCallback(async () => {
@@ -377,6 +396,27 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
         onClose={() => setEditRecord(null)}
         onSuccess={refreshRecords}
       />
+
+      {/* PWA Install Banner for Mobile */}
+      {showInstallButton && !isStandalone && (
+        <div 
+          className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl p-3 text-white cursor-pointer hover:opacity-90 transition-opacity"
+          onClick={() => navigate('/apontamento/instalar')}
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-white/20 rounded-lg">
+                <Download className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="font-semibold text-sm">Instalar App</p>
+                <p className="text-xs opacity-80">Acesso rápido e offline</p>
+              </div>
+            </div>
+            <ArrowRight className="w-5 h-5" />
+          </div>
+        </div>
+      )}
 
       {/* Welcome Header */}
       <div className="bg-gradient-to-r from-amber-600 to-orange-600 rounded-xl p-4 text-white">
