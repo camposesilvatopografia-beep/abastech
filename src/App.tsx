@@ -19,11 +19,15 @@ function PwaEntryRedirect() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const isStandalone = window.matchMedia?.('(display-mode: standalone)')?.matches;
+    const isStandalone =
+      window.matchMedia?.('(display-mode: standalone)')?.matches ||
+      // iOS Safari standalone mode
+      (navigator as any)?.standalone === true;
+
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
-    // For Field users: if the installed mobile app opens outside the field module,
-    // always redirect into /apontamento (which shows the Field login when needed).
+    // Field-only installed experience: if the installed mobile app opens outside the field module,
+    // force redirect into /apontamento (FieldPage shows login when needed).
     if (isStandalone && isMobile) {
       const isInField =
         location.pathname.startsWith('/apontamento') ||
