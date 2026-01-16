@@ -939,9 +939,33 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         }
       } else {
         // Entrada validation
-        if (!supplier || !fuelQuantity) {
-          toast.error('Preencha fornecedor e quantidade');
+        // For Comboio users: require entryLocation; for Tanque users: require supplier
+        const userLocations = user.assigned_locations || [];
+        const isComboioUser = userLocations.some(loc => 
+          loc.toLowerCase().includes('comboio') || loc.toLowerCase().startsWith('cb')
+        );
+        const isTanqueUser = userLocations.some(loc => 
+          loc.toLowerCase().includes('tanque') || loc.toLowerCase().includes('canteiro')
+        );
+        const isOnlyComboio = isComboioUser && !isTanqueUser;
+        
+        if (!fuelQuantity) {
+          toast.error('Preencha a quantidade');
           return;
+        }
+        
+        if (isOnlyComboio) {
+          // Comboio users need entry location (origin tank)
+          if (!entryLocation) {
+            toast.error('Selecione o local de origem');
+            return;
+          }
+        } else if (isTanqueUser) {
+          // Tanque users need supplier
+          if (!supplier) {
+            toast.error('Selecione o fornecedor');
+            return;
+          }
         }
       }
     }
