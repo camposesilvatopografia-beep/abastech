@@ -9,7 +9,8 @@ import {
   Users,
   Car,
   Edit,
-  Eye
+  Eye,
+  Share2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -397,7 +398,46 @@ export function MobilizedEquipmentsView({
       doc.text(`Página ${i} de ${totalPages}`, pageWidth - 30, pageHeight - 8);
     }
     
+    return doc;
+  };
+  
+  const downloadPDF = () => {
+    const doc = exportToPDF();
     doc.save(`equipamentos-${format(selectedDate, 'yyyy-MM-dd')}.pdf`);
+  };
+  
+  const shareViaWhatsApp = async () => {
+    const doc = exportToPDF();
+    const pdfBlob = doc.output('blob');
+    const filename = `equipamentos-${format(selectedDate, 'yyyy-MM-dd')}.pdf`;
+
+    if (navigator.share && navigator.canShare) {
+      const file = new File([pdfBlob], filename, { type: 'application/pdf' });
+      if (navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({
+            files: [file],
+            title: 'Equipamentos Mobilizados',
+            text: `Relatório de Equipamentos - ${format(selectedDate, 'dd/MM/yyyy')}`,
+          });
+          return;
+        } catch (error) {
+          if ((error as Error).name !== 'AbortError') {
+            console.error('Erro ao compartilhar:', error);
+          }
+        }
+      }
+    }
+
+    // Fallback: download PDF and open WhatsApp
+    doc.save(filename);
+    const message = encodeURIComponent(
+      `🚜 *Equipamentos Mobilizados*\n` +
+      `📅 Data: ${format(selectedDate, 'dd/MM/yyyy')}\n` +
+      `📊 Total: ${vehicles.length} equipamentos\n\n` +
+      `Segue em anexo o relatório de equipamentos.`
+    );
+    window.open(`https://wa.me/?text=${message}`, '_blank');
   };
 
   return (
@@ -410,14 +450,24 @@ export function MobilizedEquipmentsView({
             {format(selectedDate, "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
           </p>
         </div>
-        <Button 
-          onClick={exportToPDF}
-          variant="outline"
-          className="gap-2"
-        >
-          <Download className="w-4 h-4" />
-          Exportar PDF
-        </Button>
+        <div className="flex gap-2">
+          <Button 
+            onClick={downloadPDF}
+            variant="outline"
+            className="gap-2"
+          >
+            <Download className="w-4 h-4" />
+            Exportar PDF
+          </Button>
+          <Button 
+            onClick={shareViaWhatsApp}
+            variant="outline"
+            className="gap-2 text-green-600 hover:text-green-700 hover:bg-green-50"
+          >
+            <Share2 className="w-4 h-4" />
+            WhatsApp
+          </Button>
+        </div>
       </div>
 
       {/* All Companies Grid - Unified layout */}
