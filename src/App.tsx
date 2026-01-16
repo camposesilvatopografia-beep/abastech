@@ -1,8 +1,9 @@
+import { useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation, useNavigate } from "react-router-dom";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
@@ -13,12 +14,31 @@ import { InstallPrompt } from "./components/PWA/InstallPrompt";
 
 const queryClient = new QueryClient();
 
+function PwaEntryRedirect() {
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const isStandalone = window.matchMedia?.('(display-mode: standalone)')?.matches;
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+    // If the user opened the installed app and it landed on the main dashboard,
+    // redirect to the Field (Apontamento Campo) entry (login/dashboard depending on session).
+    if (isStandalone && isMobile && location.pathname === '/') {
+      navigate('/apontamento', { replace: true });
+    }
+  }, [location.pathname, navigate]);
+
+  return null;
+}
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <Toaster />
       <Sonner />
       <BrowserRouter>
+        <PwaEntryRedirect />
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/" element={<Index />} />
