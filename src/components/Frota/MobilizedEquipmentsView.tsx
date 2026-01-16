@@ -420,8 +420,9 @@ export function MobilizedEquipmentsView({
         </Button>
       </div>
 
-      {/* Main Companies Grid */}
+      {/* All Companies Grid - Unified layout */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {/* Regular companies first */}
         {regularCompanies.map(company => (
           <Card 
             key={company.empresa}
@@ -443,8 +444,8 @@ export function MobilizedEquipmentsView({
               </div>
             </CardHeader>
             <CardContent className="p-0">
-              <div className="divide-y divide-border">
-                {company.equipamentos.slice(0, 5).map(equip => (
+              <div className="divide-y divide-border max-h-48 overflow-y-auto">
+                {company.equipamentos.map(equip => (
                   <div 
                     key={equip.descricao}
                     className="flex items-center justify-between px-4 py-2 hover:bg-muted/50"
@@ -455,11 +456,49 @@ export function MobilizedEquipmentsView({
                     </Badge>
                   </div>
                 ))}
-                {company.equipamentos.length > 5 && (
-                  <div className="px-4 py-2 text-center text-sm text-muted-foreground">
-                    + {company.equipamentos.length - 5} mais...
+              </div>
+              <div className="px-4 py-3 bg-muted/30 border-t flex items-center justify-between">
+                <span className="font-semibold text-sm">Total</span>
+                <span className="font-bold text-lg text-primary">{company.total}</span>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+        
+        {/* Special sections in same grid */}
+        {specialCompanies.map(company => (
+          <Card 
+            key={company.empresa}
+            className="cursor-pointer transition-all hover:shadow-lg hover:scale-[1.02]"
+            onClick={() => handleCardClick(company)}
+          >
+            <CardHeader className={cn(
+              "bg-gradient-to-r text-white rounded-t-lg",
+              getCompanyColor(company.empresa)
+            )}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  {getCompanyIcon(company.empresa)}
+                  <CardTitle className="text-lg">{company.empresa}</CardTitle>
+                </div>
+                <Badge variant="secondary" className="bg-white/20 text-white text-lg font-bold px-3">
+                  {company.total}
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="divide-y divide-border max-h-48 overflow-y-auto">
+                {company.equipamentos.map(equip => (
+                  <div 
+                    key={equip.descricao}
+                    className="flex items-center justify-between px-4 py-2 hover:bg-muted/50"
+                  >
+                    <span className="text-sm truncate flex-1">{equip.descricao}</span>
+                    <Badge variant="outline" className="ml-2 shrink-0">
+                      {equip.quantidade}
+                    </Badge>
                   </div>
-                )}
+                ))}
               </div>
               <div className="px-4 py-3 bg-muted/30 border-t flex items-center justify-between">
                 <span className="font-semibold text-sm">Total</span>
@@ -469,49 +508,6 @@ export function MobilizedEquipmentsView({
           </Card>
         ))}
       </div>
-
-      {/* Special Sections */}
-      {specialCompanies.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {specialCompanies.map(company => (
-            <Card 
-              key={company.empresa}
-              className="cursor-pointer transition-all hover:shadow-lg hover:scale-[1.02]"
-              onClick={() => handleCardClick(company)}
-            >
-              <CardHeader className={cn(
-                "bg-gradient-to-r text-white rounded-t-lg py-3",
-                getCompanyColor(company.empresa)
-              )}>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    {getCompanyIcon(company.empresa)}
-                    <CardTitle className="text-base">{company.empresa}</CardTitle>
-                  </div>
-                  <Badge variant="secondary" className="bg-white/20 text-white font-bold">
-                    {company.total}
-                  </Badge>
-                </div>
-              </CardHeader>
-              <CardContent className="p-0">
-                <div className="divide-y divide-border max-h-40 overflow-y-auto">
-                  {company.equipamentos.map(equip => (
-                    <div 
-                      key={equip.descricao}
-                      className="flex items-center justify-between px-3 py-1.5 hover:bg-muted/50"
-                    >
-                      <span className="text-xs truncate flex-1">{equip.descricao}</span>
-                      <Badge variant="outline" className="ml-2 shrink-0 text-xs">
-                        {equip.quantidade}
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
 
       {/* Total Geral */}
       <Card className="bg-gradient-to-r from-slate-700 to-slate-800 text-white">
