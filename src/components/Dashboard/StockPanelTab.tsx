@@ -247,7 +247,7 @@ function StockCard({
   );
 }
 
-// Extração de dados para COMBOIOS - Colunas: B=Data, C=Estoque Anterior, D=Saida, E=Entradas, H=Estoque Atual
+// Extração de dados para COMBOIOS - Headers: Data, Estoque Anterior, Saida, Entrada, Estoque Atual
 function extractComboioData(sheetData: SheetData, localName: string, sheetName: string): StockCardData {
   const today = format(new Date(), 'dd/MM/yyyy');
   
@@ -263,47 +263,15 @@ function extractComboioData(sheetData: SheetData, localName: string, sheetName: 
     };
   }
 
+  // Pegar a última linha (dados mais recentes)
   const lastRow = sheetData.rows[sheetData.rows.length - 1];
   
-  // Mapeamento correto das colunas para Comboios:
-  // B - Data, C - Estoque Anterior, D - Saida, E - Entradas, H - Estoque Atual
-  const getColumnValue = (row: any, ...keys: string[]) => {
-    for (const key of keys) {
-      const val = row[key];
-      if (val !== undefined && val !== null && val !== '') return val;
-      // Try trimmed
-      const trimmedKey = key.trim();
-      if (row[trimmedKey] !== undefined && row[trimmedKey] !== null && row[trimmedKey] !== '') return row[trimmedKey];
-      // Try with space prefix
-      if (row[` ${key}`] !== undefined && row[` ${key}`] !== null && row[` ${key}`] !== '') return row[` ${key}`];
-    }
-    return null;
-  };
-
-  // Coluna B - Data
-  const dataRow = String(
-    getColumnValue(lastRow, 'B', 'Data', 'DATA', 'data') || today
-  );
-
-  // Coluna C - Estoque Anterior
-  const estoqueAnterior = parseNumber(
-    getColumnValue(lastRow, 'C', 'Estoque Anterior', 'EstoqueAnterior', 'ESTOQUE ANTERIOR', 'Estoque anterior')
-  );
-
-  // Coluna D - Saída
-  const saidas = parseNumber(
-    getColumnValue(lastRow, 'D', 'Saida', 'Saída', 'SAIDA', 'SAÍDA', 'saida')
-  );
-
-  // Coluna E - Entradas
-  const entradas = parseNumber(
-    getColumnValue(lastRow, 'E', 'Entrada', 'Entradas', 'ENTRADA', 'ENTRADAS', 'entrada', 'entradas')
-  );
-
-  // Coluna H - Estoque Atual
-  const estoqueAtual = parseNumber(
-    getColumnValue(lastRow, 'H', 'Estoque Atual', 'EstoqueAtual', 'ESTOQUE ATUAL', 'Estoque atual')
-  );
+  // Headers confirmados: Data, Estoque Anterior, Saida, Entrada, Estoque Atual
+  const dataRow = String(lastRow['Data'] || today);
+  const estoqueAnterior = parseNumber(lastRow['Estoque Anterior']);
+  const saidas = parseNumber(lastRow['Saida']);
+  const entradas = parseNumber(lastRow['Entrada']);
+  const estoqueAtual = parseNumber(lastRow['Estoque Atual']);
 
   return {
     title: localName,
@@ -316,7 +284,7 @@ function extractComboioData(sheetData: SheetData, localName: string, sheetName: 
   };
 }
 
-// Extração de dados para TANQUES (estrutura pode ser diferente)
+// Extração de dados para TANQUES (mesma estrutura dos comboios)
 function extractTanqueData(sheetData: SheetData, localName: string, sheetName: string): StockCardData {
   const today = format(new Date(), 'dd/MM/yyyy');
   
@@ -334,23 +302,12 @@ function extractTanqueData(sheetData: SheetData, localName: string, sheetName: s
 
   const lastRow = sheetData.rows[sheetData.rows.length - 1];
   
-  const getColumnValue = (row: any, ...keys: string[]) => {
-    for (const key of keys) {
-      const val = row[key];
-      if (val !== undefined && val !== null && val !== '') return val;
-      const trimmedKey = key.trim();
-      if (row[trimmedKey] !== undefined && row[trimmedKey] !== null && row[trimmedKey] !== '') return row[trimmedKey];
-      if (row[` ${key}`] !== undefined && row[` ${key}`] !== null && row[` ${key}`] !== '') return row[` ${key}`];
-    }
-    return null;
-  };
-
-  // Usando mesma estrutura dos comboios: B=Data, C=Est.Anterior, D=Saida, E=Entrada, H=Est.Atual
-  const dataRow = String(getColumnValue(lastRow, 'B', 'Data', 'DATA', 'data') || today);
-  const estoqueAnterior = parseNumber(getColumnValue(lastRow, 'C', 'Estoque Anterior', 'EstoqueAnterior', 'ESTOQUE ANTERIOR'));
-  const saidas = parseNumber(getColumnValue(lastRow, 'D', 'Saida', 'Saída', 'SAIDA', 'SAÍDA'));
-  const entradas = parseNumber(getColumnValue(lastRow, 'E', 'Entrada', 'Entradas', 'ENTRADA', 'ENTRADAS'));
-  const estoqueAtual = parseNumber(getColumnValue(lastRow, 'H', 'Estoque Atual', 'EstoqueAtual', 'ESTOQUE ATUAL'));
+  // Mesma estrutura: Data, Estoque Anterior, Saida, Entrada, Estoque Atual
+  const dataRow = String(lastRow['Data'] || today);
+  const estoqueAnterior = parseNumber(lastRow['Estoque Anterior']);
+  const saidas = parseNumber(lastRow['Saida']);
+  const entradas = parseNumber(lastRow['Entrada']);
+  const estoqueAtual = parseNumber(lastRow['Estoque Atual']);
 
   return {
     title: localName,
