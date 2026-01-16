@@ -469,6 +469,7 @@ export function StockPanelTab({
 
   const expandedData = getExpandedSheetData();
 
+  return (
     <div className="space-y-4">
       {/* Header com destaque */}
       <div className="bg-gradient-to-r from-[#1a365d] to-[#2d4a7c] rounded-xl p-4 shadow-lg">
