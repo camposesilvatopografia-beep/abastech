@@ -307,18 +307,67 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
     return timeStr?.substring(0, 5) || timeStr;
   };
 
-  // Handle direct delete
+  // Handle direct delete - also removes from Google Sheets
   const handleDirectDelete = async () => {
     if (!deleteConfirmation) return;
     
     setIsDeleting(true);
     try {
+      // First, get the record to find its date/time for sheet lookup
+      const recordToDelete = todayRecords.find(r => r.id === deleteConfirmation.recordId);
+      
+      // Delete from Supabase first
       const { error } = await supabase
         .from('field_fuel_records')
         .delete()
         .eq('id', deleteConfirmation.recordId);
 
       if (error) throw error;
+
+      // Try to delete from Google Sheets (find matching row by date, time, vehicle)
+      if (recordToDelete) {
+        try {
+          // Fetch sheet data to find matching row
+          const { data: sheetResponse } = await supabase.functions.invoke('google-sheets', {
+            body: {
+              action: 'getData',
+              sheetName: 'AbastecimentoCanteiro01',
+              noCache: true,
+            },
+          });
+          
+          if (sheetResponse?.rows && Array.isArray(sheetResponse.rows)) {
+            // Find the row that matches this record (by date, time, vehicle code)
+            const recordDate = recordToDelete.record_date;
+            const recordTime = recordToDelete.record_time?.substring(0, 5);
+            const vehicleCode = recordToDelete.vehicle_code;
+            
+            const rowIndex = sheetResponse.rows.findIndex((row: any) => {
+              const rowDate = row['DATA'] || row['Data'] || '';
+              const rowTime = (row['HORA'] || row['Hora'] || '').substring(0, 5);
+              const rowVehicle = row['VEICULO'] || row['Veiculo'] || '';
+              
+              // Match by date + time + vehicle
+              return rowDate === recordDate && rowTime === recordTime && rowVehicle === vehicleCode;
+            });
+            
+            if (rowIndex >= 0) {
+              // Row found - delete it (add 2: +1 for header, +1 for 0-index)
+              await supabase.functions.invoke('google-sheets', {
+                body: {
+                  action: 'delete',
+                  sheetName: 'AbastecimentoCanteiro01',
+                  rowIndex: rowIndex + 2, // +1 header, +1 for 0-based index
+                },
+              });
+              console.log('Record also deleted from Google Sheets');
+            }
+          }
+        } catch (sheetErr) {
+          console.error('Failed to delete from sheet (record already removed from DB):', sheetErr);
+          // Don't fail the whole operation - DB deletion succeeded
+        }
+      }
 
       toast.success('Registro excluído com sucesso');
       setDeleteConfirmation(null);
