@@ -1,9 +1,10 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { format } from 'date-fns';
 import { Package2, Calendar, ArrowUp, ArrowDown, Maximize2, LayoutGrid } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { SheetData } from '@/lib/googleSheets';
+import { StockHistoryModal } from './StockHistoryModal';
 
 interface StockPanelTabProps {
   geralData: SheetData;
@@ -34,10 +35,12 @@ interface StockCardData {
 
 function StockCard({ 
   data, 
-  showSaida = false 
+  showSaida = false,
+  onExpand
 }: { 
   data: StockCardData; 
   showSaida?: boolean;
+  onExpand?: () => void;
 }) {
   const formatNumber = (value: number) => {
     return value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -48,8 +51,14 @@ function StockCard({
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <CardTitle className="text-sm font-semibold text-foreground">{data.title}</CardTitle>
-          <Button variant="ghost" size="icon" className="h-6 w-6">
-            <Maximize2 className="h-3.5 w-3.5 text-muted-foreground" />
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="h-6 w-6 hover:bg-primary/10"
+            onClick={onExpand}
+            title="Ver histórico detalhado"
+          >
+            <Maximize2 className="h-3.5 w-3.5 text-muted-foreground hover:text-primary" />
           </Button>
         </div>
       </CardHeader>
@@ -191,6 +200,8 @@ function extractStockData(sheetData: SheetData, localName: string): StockCardDat
   };
 }
 
+type ExpandedCard = 'geral' | 'tanque01' | 'tanque02' | 'comboio01' | 'comboio02' | 'comboio03' | null;
+
 export function StockPanelTab({
   geralData,
   estoqueCanteiro01Data,
@@ -201,6 +212,7 @@ export function StockPanelTab({
   dateRange
 }: StockPanelTabProps) {
   const today = format(new Date(), 'd/M/yyyy');
+  const [expandedCard, setExpandedCard] = useState<ExpandedCard>(null);
 
   // Calculate daily summary from GERAL sheet
   const movimentoDiario = useMemo<StockCardData>(() => {
@@ -284,6 +296,28 @@ export function StockPanelTab({
     [estoqueComboio03Data]
   );
 
+  // Get the sheet data for the expanded card
+  const getExpandedSheetData = (): { title: string; data: SheetData } => {
+    switch (expandedCard) {
+      case 'geral':
+        return { title: 'Movimento Diário', data: geralData };
+      case 'tanque01':
+        return { title: 'Tanque Canteiro 01', data: estoqueCanteiro01Data };
+      case 'tanque02':
+        return { title: 'Tanque Canteiro 02', data: estoqueCanteiro02Data };
+      case 'comboio01':
+        return { title: 'Comboio 01', data: estoqueComboio01Data };
+      case 'comboio02':
+        return { title: 'Comboio 02', data: estoqueComboio02Data };
+      case 'comboio03':
+        return { title: 'Comboio 03', data: estoqueComboio03Data };
+      default:
+        return { title: '', data: { headers: [], rows: [] } };
+    }
+  };
+
+  const expandedData = getExpandedSheetData();
+
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -300,23 +334,51 @@ export function StockPanelTab({
       {/* Stock Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {/* Movimento Diário */}
-        <StockCard data={movimentoDiario} showSaida />
+        <StockCard 
+          data={movimentoDiario} 
+          showSaida 
+          onExpand={() => setExpandedCard('geral')}
+        />
 
         {/* Estoque Tanque 01 */}
-        <StockCard data={estoqueTanque01} />
+        <StockCard 
+          data={estoqueTanque01} 
+          onExpand={() => setExpandedCard('tanque01')}
+        />
 
         {/* Estoque Tanque 02 */}
-        <StockCard data={estoqueTanque02} showSaida />
+        <StockCard 
+          data={estoqueTanque02} 
+          showSaida 
+          onExpand={() => setExpandedCard('tanque02')}
+        />
 
         {/* Estoque Comboio 03 */}
-        <StockCard data={estoqueComboio03} />
+        <StockCard 
+          data={estoqueComboio03} 
+          onExpand={() => setExpandedCard('comboio03')}
+        />
 
         {/* Estoque Comboio 01 */}
-        <StockCard data={estoqueComboio01} />
+        <StockCard 
+          data={estoqueComboio01} 
+          onExpand={() => setExpandedCard('comboio01')}
+        />
 
         {/* Estoque Comboio 02 */}
-        <StockCard data={estoqueComboio02} />
+        <StockCard 
+          data={estoqueComboio02} 
+          onExpand={() => setExpandedCard('comboio02')}
+        />
       </div>
+
+      {/* History Modal */}
+      <StockHistoryModal
+        open={expandedCard !== null}
+        onClose={() => setExpandedCard(null)}
+        title={expandedData.title}
+        sheetData={expandedData.data}
+      />
     </div>
   );
 }
