@@ -19,6 +19,8 @@ import {
   Code2,
   AlertCircle,
   History,
+  Building2,
+  Settings,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Link, useNavigate } from 'react-router-dom';
@@ -57,6 +59,7 @@ const menuItems: MenuItem[] = [
       { id: 'mecanicos', label: 'Mecânicos' },
       { id: 'tiposoleos', label: 'Tipos de Óleo' },
       { id: 'usuarios', label: 'Usuários' },
+      { id: 'obra', label: 'Dados da Obra' },
     ]
   },
   { id: 'alertas', label: 'Alertas', icon: Bell },
