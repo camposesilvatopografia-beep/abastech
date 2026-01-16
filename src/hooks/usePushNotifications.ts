@@ -82,18 +82,41 @@ export function usePushNotifications() {
 
   const notifySyncComplete = useCallback((count: number) => {
     showNotification({
-      title: 'Sincronização Concluída',
+      title: 'Sincronização Concluída ✓',
       body: `${count} registro(s) sincronizado(s) com sucesso!`,
       tag: 'sync-complete',
-      icon: '/favicon.ico',
+      icon: '/pwa-192x192.png',
+    });
+  }, [showNotification]);
+
+  const notifyPendingSync = useCallback((count: number) => {
+    if (count === 0) return;
+    
+    showNotification({
+      title: 'Registros Pendentes',
+      body: `Você tem ${count} registro(s) aguardando sincronização.`,
+      tag: 'pending-sync',
+      icon: '/pwa-192x192.png',
+      requireInteraction: true,
+    });
+  }, [showNotification]);
+
+  const notifySyncError = useCallback((message?: string) => {
+    showNotification({
+      title: 'Erro na Sincronização',
+      body: message || 'Não foi possível sincronizar alguns registros. Tente novamente.',
+      tag: 'sync-error',
+      icon: '/pwa-192x192.png',
+      requireInteraction: true,
     });
   }, [showNotification]);
 
   const notifyOffline = useCallback(() => {
     showNotification({
-      title: 'Conexão Perdida',
-      body: 'Você está offline. Registros serão sincronizados ao reconectar.',
+      title: 'Sem Conexão',
+      body: 'Você está offline. Registros serão salvos localmente.',
       tag: 'offline',
+      icon: '/pwa-192x192.png',
       requireInteraction: true,
     });
   }, [showNotification]);
@@ -103,7 +126,26 @@ export function usePushNotifications() {
       title: 'Conexão Restabelecida',
       body: 'Sincronizando registros pendentes...',
       tag: 'online',
+      icon: '/pwa-192x192.png',
     });
+  }, [showNotification]);
+
+  const notifyRecordSaved = useCallback((isOffline: boolean = false) => {
+    if (isOffline) {
+      showNotification({
+        title: 'Registro Salvo Localmente',
+        body: 'Será sincronizado quando a conexão for restabelecida.',
+        tag: 'record-saved-offline',
+        icon: '/pwa-192x192.png',
+      });
+    } else {
+      showNotification({
+        title: 'Registro Enviado ✓',
+        body: 'Apontamento registrado com sucesso!',
+        tag: 'record-saved',
+        icon: '/pwa-192x192.png',
+      });
+    }
   }, [showNotification]);
 
   return {
@@ -112,7 +154,10 @@ export function usePushNotifications() {
     requestPermission,
     showNotification,
     notifySyncComplete,
+    notifyPendingSync,
+    notifySyncError,
     notifyOffline,
     notifyOnline,
+    notifyRecordSaved,
   };
 }
