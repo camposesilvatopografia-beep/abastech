@@ -30,14 +30,17 @@ function PwaEntryRedirect() {
     // force redirect into /apontamento (FieldPage shows login when needed).
     if (isStandalone && isMobile) {
       const isInField =
-        location.pathname.startsWith('/apontamento') ||
-        location.pathname.startsWith('/campo');
+        location.pathname === '/apontamento' ||
+        location.pathname.startsWith('/apontamento/') ||
+        location.pathname === '/campo' ||
+        location.pathname.startsWith('/campo/');
 
       if (!isInField) {
-        navigate('/apontamento', { replace: true });
+        // Use hard navigation to avoid any router/base quirks in installed contexts.
+        window.location.replace('/apontamento');
       }
     }
-  }, [location.pathname, navigate]);
+  }, [location.pathname]);
 
   return null;
 }
