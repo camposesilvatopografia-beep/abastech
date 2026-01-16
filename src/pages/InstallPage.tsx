@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Download, Smartphone, CheckCircle, Share, PlusSquare, ArrowLeft, Wifi, WifiOff, Zap } from 'lucide-react';
+import { Download, Smartphone, CheckCircle, Share, PlusSquare, ArrowLeft, Wifi, WifiOff, Zap, Monitor, MoreVertical } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import logoFull from '@/assets/logo-abastech-full.png';
 
@@ -21,6 +21,7 @@ export default function InstallPage() {
   const [isInstalled, setIsInstalled] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(false);
   const isFieldInstall = location.pathname.includes('/apontamento');
 
   useEffect(() => {
@@ -31,8 +32,10 @@ export default function InstallPage() {
 
     // Detect device
     const userAgent = navigator.userAgent;
+    const isMobileDevice = /iPhone|iPad|iPod|Android/i.test(userAgent);
     setIsIOS(/iPhone|iPad|iPod/i.test(userAgent));
-    setIsMobile(/iPhone|iPad|iPod|Android/i.test(userAgent));
+    setIsMobile(isMobileDevice);
+    setIsDesktop(!isMobileDevice);
 
     // Listen for beforeinstallprompt
     const handleBeforeInstallPrompt = (e: Event) => {
@@ -153,6 +156,67 @@ export default function InstallPage() {
               </Button>
             </CardContent>
           </Card>
+        ) : isDesktop ? (
+          <Card className="border-primary/30 bg-slate-800/50">
+            <CardHeader className="text-center pb-4">
+              <div className="mx-auto mb-4 p-4 bg-primary/20 rounded-full w-fit">
+                <Monitor className="h-12 w-12 text-primary" />
+              </div>
+              <CardTitle className="text-white">Instalar no Desktop</CardTitle>
+              <CardDescription className="text-slate-300">
+                Instale para acesso rápido direto da sua área de trabalho
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {deferredPrompt ? (
+                <Button onClick={handleInstall} className="w-full h-14 text-lg" size="lg">
+                  <Download className="h-6 w-6 mr-2" />
+                  Instalar Agora
+                </Button>
+              ) : (
+                <div className="bg-slate-700/50 rounded-lg p-4 space-y-4">
+                  <p className="text-amber-400 text-sm font-medium text-center mb-3">
+                    Instalação via Chrome ou Edge:
+                  </p>
+                  
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 bg-blue-500/20 rounded-lg shrink-0">
+                      <MoreVertical className="h-5 w-5 text-blue-400" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-white text-sm">1. Clique no menu do navegador</p>
+                      <p className="text-xs text-slate-400">Ícone ⋮ no canto superior direito</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 bg-green-500/20 rounded-lg shrink-0">
+                      <Download className="h-5 w-5 text-green-400" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-white text-sm">2. Selecione "Instalar app"</p>
+                      <p className="text-xs text-slate-400">Ou "Instalar Apontamento Campo..."</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 bg-amber-500/20 rounded-lg shrink-0">
+                      <CheckCircle className="h-5 w-5 text-amber-400" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-white text-sm">3. Confirme a instalação</p>
+                      <p className="text-xs text-slate-400">O ícone aparecerá na área de trabalho</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              <Button onClick={handleBack} className="w-full" variant="outline">
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Voltar para Apontamento
+              </Button>
+            </CardContent>
+          </Card>
         ) : (
           <Card className="border-primary/30 bg-slate-800/50">
             <CardHeader className="text-center pb-4">
@@ -214,7 +278,7 @@ export default function InstallPage() {
 
         {/* Footer */}
         <p className="text-center text-slate-500 text-xs mt-6">
-          Versão Mobile • Abastech
+          {isDesktop ? 'Versão Desktop' : 'Versão Mobile'} • Abastech
         </p>
       </div>
     </div>
