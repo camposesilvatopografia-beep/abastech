@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Download, FileText, Search, Share2 } from 'lucide-react';
+import { Download, FileText, Search, Share2, Settings2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -30,6 +30,23 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Vehicle, HorimeterWithVehicle } from '@/hooks/useHorimeters';
 import { useToast } from '@/hooks/use-toast';
+import { useLayoutPreferences, ColumnConfig } from '@/hooks/useLayoutPreferences';
+import { ColumnConfigModal } from '@/components/Layout/ColumnConfigModal';
+
+// Default column configuration for history
+const DEFAULT_HISTORY_COLUMNS: ColumnConfig[] = [
+  { key: 'index', label: '#', visible: true, order: 0 },
+  { key: 'veiculo', label: 'Código', visible: true, order: 1 },
+  { key: 'descricao', label: 'Descrição', visible: true, order: 2 },
+  { key: 'empresa', label: 'Empresa', visible: true, order: 3 },
+  { key: 'operador', label: 'Operador', visible: true, order: 4 },
+  { key: 'horAnterior', label: 'Hor. Anterior', visible: true, order: 5 },
+  { key: 'horAtual', label: 'Hor. Atual', visible: true, order: 6 },
+  { key: 'intervaloHor', label: 'Intervalo (h)', visible: true, order: 7 },
+  { key: 'kmAnterior', label: 'Km Anterior', visible: true, order: 8 },
+  { key: 'kmAtual', label: 'Km Atual', visible: true, order: 9 },
+  { key: 'intervaloKm', label: 'Intervalo (km)', visible: true, order: 10 },
+];
 
 // Company logos as base64
 const LOGO_CONSORCIO = '/logo-consorcio.png';
@@ -50,6 +67,7 @@ interface VehicleSummary {
   descricao: string;
   empresa: string;
   categoria: string;
+  operador: string;
   horAnterior: number;
   horAtual: number;
   kmAnterior: number;
@@ -96,7 +114,17 @@ export function HorimeterHistoryTab({ vehicles, readings, loading }: HorimeterHi
   const [search, setSearch] = useState('');
   const [empresaFilter, setEmpresaFilter] = useState<string>('all');
   const [categoriaFilter, setCategoriaFilter] = useState<string>('all');
+  const [columnConfigOpen, setColumnConfigOpen] = useState(false);
   const { toast } = useToast();
+  
+  // Layout preferences for column customization
+  const {
+    columnConfig,
+    visibleColumns,
+    saving: savingLayout,
+    savePreferences,
+    resetToDefaults,
+  } = useLayoutPreferences('horimetros-history', DEFAULT_HISTORY_COLUMNS);
 
   // Get unique companies
   const empresas = useMemo(() => {
@@ -123,6 +151,7 @@ export function HorimeterHistoryTab({ vehicles, readings, loading }: HorimeterHi
       descricao: string;
       empresa: string;
       categoria: string;
+      operador: string;
       horAnterior: number;
       horAtual: number;
       kmAnterior: number;
@@ -161,6 +190,10 @@ export function HorimeterHistoryTab({ vehicles, readings, loading }: HorimeterHi
           if (reading.current_km && reading.current_km > existing.kmAtual) {
             existing.kmAtual = reading.current_km;
           }
+          // Use the most recent operator
+          if (reading.operator) {
+            existing.operador = reading.operator;
+          }
         }
       } else {
         summary.set(veiculo, {
@@ -168,6 +201,7 @@ export function HorimeterHistoryTab({ vehicles, readings, loading }: HorimeterHi
           descricao: vehicle.name || vehicle.description || '',
           empresa: vehicle.company || '',
           categoria: vehicle.category || '',
+          operador: reading.operator || '',
           horAnterior: reading.previous_value || 0,
           horAtual: reading.current_value || 0,
           kmAnterior: reading.previous_km || 0,
@@ -186,6 +220,7 @@ export function HorimeterHistoryTab({ vehicles, readings, loading }: HorimeterHi
           descricao: vehicle.name || vehicle.description || '',
           empresa: vehicle.company || '',
           categoria: vehicle.category || '',
+          operador: '',
           horAnterior: 0,
           horAtual: 0,
           kmAnterior: 0,
@@ -204,6 +239,7 @@ export function HorimeterHistoryTab({ vehicles, readings, loading }: HorimeterHi
         descricao: item.descricao,
         empresa: item.empresa,
         categoria: item.categoria,
+        operador: item.operador,
         horAnterior: item.horAnterior,
         horAtual: item.horAtual,
         kmAnterior: item.kmAnterior,
@@ -245,6 +281,7 @@ export function HorimeterHistoryTab({ vehicles, readings, loading }: HorimeterHi
       descricao: string;
       empresa: string;
       categoria: string;
+      operador: string;
       horAnterior: number;
       horAtual: number;
       kmAnterior: number;
@@ -279,6 +316,9 @@ export function HorimeterHistoryTab({ vehicles, readings, loading }: HorimeterHi
           if (reading.current_km && reading.current_km > existing.kmAtual) {
             existing.kmAtual = reading.current_km;
           }
+          if (reading.operator) {
+            existing.operador = reading.operator;
+          }
         }
       } else {
         summary.set(veiculo, {
@@ -286,6 +326,7 @@ export function HorimeterHistoryTab({ vehicles, readings, loading }: HorimeterHi
           descricao: vehicle.name || vehicle.description || '',
           empresa: vehicle.company || '',
           categoria: vehicle.category || '',
+          operador: reading.operator || '',
           horAnterior: reading.previous_value || 0,
           horAtual: reading.current_value || 0,
           kmAnterior: reading.previous_km || 0,
@@ -303,6 +344,7 @@ export function HorimeterHistoryTab({ vehicles, readings, loading }: HorimeterHi
           descricao: vehicle.name || vehicle.description || '',
           empresa: vehicle.company || '',
           categoria: vehicle.category || '',
+          operador: '',
           horAnterior: 0,
           horAtual: 0,
           kmAnterior: 0,
@@ -318,6 +360,7 @@ export function HorimeterHistoryTab({ vehicles, readings, loading }: HorimeterHi
       descricao: item.descricao,
       empresa: item.empresa,
       categoria: item.categoria,
+      operador: item.operador,
       horAnterior: item.horAnterior,
       horAtual: item.horAtual,
       kmAnterior: item.kmAnterior,
@@ -341,15 +384,15 @@ export function HorimeterHistoryTab({ vehicles, readings, loading }: HorimeterHi
       doc.addPage();
     }
 
-    // Header with soft gray background
-    doc.setFillColor(70, 70, 80);
-    doc.rect(0, 0, pageWidth, 28, 'F');
+    // Header with navy blue background (matching system primary)
+    doc.setFillColor(30, 41, 59); // Navy/slate-800
+    doc.rect(0, 0, pageWidth, 32, 'F');
 
     // Try to add logos
     try {
       const img1 = new Image();
       img1.src = LOGO_CONSORCIO;
-      doc.addImage(img1, 'PNG', 8, 4, 20, 16);
+      doc.addImage(img1, 'PNG', 8, 5, 22, 18);
     } catch (e) {
       console.log('Logo consórcio não encontrado');
     }
@@ -357,37 +400,38 @@ export function HorimeterHistoryTab({ vehicles, readings, loading }: HorimeterHi
     try {
       const img2 = new Image();
       img2.src = LOGO_ABASTECH;
-      doc.addImage(img2, 'PNG', pageWidth - 28, 4, 20, 16);
+      doc.addImage(img2, 'PNG', pageWidth - 30, 5, 22, 18);
     } catch (e) {
       console.log('Logo abastech não encontrado');
     }
 
-    // Company name prominently
+    // Company name LARGE and prominent
     doc.setTextColor(255, 255, 255);
-    doc.setFontSize(16);
+    doc.setFontSize(18);
     doc.setFont('helvetica', 'bold');
-    doc.text(companyName.toUpperCase(), pageWidth / 2, 10, { align: 'center' });
+    doc.text(companyName.toUpperCase(), pageWidth / 2, 12, { align: 'center' });
 
     // Subtitle
-    doc.setFontSize(10);
+    doc.setFontSize(11);
     doc.setFont('helvetica', 'normal');
-    doc.text('Histórico de Horímetros', pageWidth / 2, 17, { align: 'center' });
+    doc.text('RELATÓRIO DE HORÍMETROS', pageWidth / 2, 20, { align: 'center' });
 
     // Company and project info
     doc.setFontSize(8);
-    doc.text('CONSÓRCIO AERO MARAGOGI - Obra: Sistema de Abastecimento de Água', pageWidth / 2, 24, { align: 'center' });
+    doc.text('CONSÓRCIO AERO MARAGOGI - Obra: Sistema de Abastecimento de Água', pageWidth / 2, 27, { align: 'center' });
 
     // Date - below header
-    doc.setTextColor(80, 80, 80);
+    doc.setTextColor(60, 60, 60);
     doc.setFontSize(8);
-    const dateStr = format(new Date(), "dd/MM/yyyy", { locale: ptBR });
-    doc.text(`Data: ${dateStr}`, pageWidth - 10, 34, { align: 'right' });
+    const dateStr = format(new Date(), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR });
+    doc.text(`Gerado em: ${dateStr}`, pageWidth - 10, 38, { align: 'right' });
+    doc.text(`Total: ${data.length} registros`, 10, 38);
 
     // Separate equipment and vehicles
     const equipments = data.filter(item => item.isEquipment).sort((a, b) => a.veiculo.localeCompare(b.veiculo));
     const vehiclesList = data.filter(item => !item.isEquipment).sort((a, b) => a.veiculo.localeCompare(b.veiculo));
 
-    let currentY = 36;
+    let currentY = 42;
     const tableMargin = 6;
     
     // Calculate available height for tables
@@ -399,40 +443,43 @@ export function HorimeterHistoryTab({ vehicles, readings, loading }: HorimeterHi
     const totalItems = equipments.length + vehiclesList.length;
     const fontSize = totalItems > 40 ? 6 : totalItems > 25 ? 7 : 8;
     const cellPadding = totalItems > 40 ? 1 : 1.5;
+    
+    // Get visible columns for PDF - build headers and data dynamically
+    const buildPdfRow = (item: VehicleSummary, idx: number) => {
+      const row: string[] = [];
+      visibleColumns.forEach(col => {
+        switch (col.key) {
+          case 'index': row.push((idx + 1).toString()); break;
+          case 'veiculo': row.push(item.veiculo); break;
+          case 'descricao': row.push(item.descricao.substring(0, 30)); break;
+          case 'empresa': row.push(item.empresa); break;
+          case 'operador': row.push(item.operador || '-'); break;
+          case 'horAnterior': row.push(formatNumber(item.horAnterior)); break;
+          case 'horAtual': row.push(formatNumber(item.horAtual)); break;
+          case 'intervaloHor': row.push(formatInterval(item.intervaloHor)); break;
+          case 'kmAnterior': row.push(formatNumber(item.kmAnterior)); break;
+          case 'kmAtual': row.push(formatNumber(item.kmAtual)); break;
+          case 'intervaloKm': row.push(formatInterval(item.intervaloKm)); break;
+        }
+      });
+      return row;
+    };
+    
+    const pdfHeaders = visibleColumns.map(col => col.label);
 
     // Equipments section
     if (hasEquipments) {
       doc.setFontSize(9);
-      doc.setTextColor(100, 100, 100);
+      doc.setTextColor(30, 41, 59);
       doc.setFont('helvetica', 'bold');
       doc.text(`EQUIPAMENTOS (${equipments.length})`, tableMargin, currentY);
       currentY += 3;
 
-      const equipmentData = equipments.map((item, idx) => [
-        (idx + 1).toString(),
-        item.veiculo,
-        item.descricao.substring(0, 30),
-        formatNumber(item.horAnterior),
-        formatNumber(item.horAtual),
-        formatInterval(item.intervaloHor),
-        formatNumber(item.kmAnterior),
-        formatNumber(item.kmAtual),
-        formatInterval(item.intervaloKm),
-      ]);
+      const equipmentData = equipments.map((item, idx) => buildPdfRow(item, idx));
 
       autoTable(doc, {
         startY: currentY,
-        head: [[
-          '#',
-          'Código',
-          'Descrição',
-          'Hor. Ant.',
-          'Hor. Atual',
-          'Int. (h)',
-          'Km Ant.',
-          'Km Atual',
-          'Int. (km)',
-        ]],
+        head: [pdfHeaders],
         body: equipmentData,
         theme: 'grid',
         tableWidth: pageWidth - (tableMargin * 2),
@@ -446,25 +493,14 @@ export function HorimeterHistoryTab({ vehicles, readings, loading }: HorimeterHi
           lineWidth: 0.2,
         },
         headStyles: {
-          fillColor: [100, 100, 110],
+          fillColor: [30, 41, 59], // Navy blue
           textColor: [255, 255, 255],
           fontStyle: 'bold',
           halign: 'center',
           fontSize: fontSize,
         },
-        columnStyles: {
-          0: { cellWidth: 8, halign: 'center' },
-          1: { cellWidth: 22, halign: 'left' },
-          2: { cellWidth: 'auto', halign: 'left' },
-          3: { cellWidth: 22, halign: 'right' },
-          4: { cellWidth: 22, halign: 'right' },
-          5: { cellWidth: 18, halign: 'right', fontStyle: 'bold' },
-          6: { cellWidth: 22, halign: 'right' },
-          7: { cellWidth: 22, halign: 'right' },
-          8: { cellWidth: 18, halign: 'right', fontStyle: 'bold' },
-        },
         alternateRowStyles: {
-          fillColor: [250, 250, 250],
+          fillColor: [248, 250, 252], // slate-50
         },
         bodyStyles: {
           fillColor: [255, 255, 255],
@@ -477,36 +513,16 @@ export function HorimeterHistoryTab({ vehicles, readings, loading }: HorimeterHi
     // Vehicles section
     if (hasVehicles) {
       doc.setFontSize(9);
-      doc.setTextColor(100, 100, 100);
+      doc.setTextColor(30, 41, 59);
       doc.setFont('helvetica', 'bold');
       doc.text(`VEÍCULOS (${vehiclesList.length})`, tableMargin, currentY);
       currentY += 3;
 
-      const vehicleData = vehiclesList.map((item, idx) => [
-        (idx + 1).toString(),
-        item.veiculo,
-        item.descricao.substring(0, 30),
-        formatNumber(item.horAnterior),
-        formatNumber(item.horAtual),
-        formatInterval(item.intervaloHor),
-        formatNumber(item.kmAnterior),
-        formatNumber(item.kmAtual),
-        formatInterval(item.intervaloKm),
-      ]);
+      const vehicleData = vehiclesList.map((item, idx) => buildPdfRow(item, idx));
 
       autoTable(doc, {
         startY: currentY,
-        head: [[
-          '#',
-          'Código',
-          'Descrição',
-          'Hor. Ant.',
-          'Hor. Atual',
-          'Int. (h)',
-          'Km Ant.',
-          'Km Atual',
-          'Int. (km)',
-        ]],
+        head: [pdfHeaders],
         body: vehicleData,
         theme: 'grid',
         tableWidth: pageWidth - (tableMargin * 2),
@@ -520,25 +536,14 @@ export function HorimeterHistoryTab({ vehicles, readings, loading }: HorimeterHi
           lineWidth: 0.2,
         },
         headStyles: {
-          fillColor: [120, 140, 160],
+          fillColor: [51, 65, 85], // slate-700 (slightly lighter navy)
           textColor: [255, 255, 255],
           fontStyle: 'bold',
           halign: 'center',
           fontSize: fontSize,
         },
-        columnStyles: {
-          0: { cellWidth: 8, halign: 'center' },
-          1: { cellWidth: 22, halign: 'left' },
-          2: { cellWidth: 'auto', halign: 'left' },
-          3: { cellWidth: 22, halign: 'right' },
-          4: { cellWidth: 22, halign: 'right' },
-          5: { cellWidth: 18, halign: 'right', fontStyle: 'bold' },
-          6: { cellWidth: 22, halign: 'right' },
-          7: { cellWidth: 22, halign: 'right' },
-          8: { cellWidth: 18, halign: 'right', fontStyle: 'bold' },
-        },
         alternateRowStyles: {
-          fillColor: [250, 250, 250],
+          fillColor: [248, 250, 252], // slate-50
         },
         bodyStyles: {
           fillColor: [255, 255, 255],
@@ -547,13 +552,13 @@ export function HorimeterHistoryTab({ vehicles, readings, loading }: HorimeterHi
     }
 
     // Footer - subtle line
-    doc.setDrawColor(180, 180, 180);
+    doc.setDrawColor(30, 41, 59);
     doc.line(tableMargin, pageHeight - 10, pageWidth - tableMargin, pageHeight - 10);
     
     doc.setFontSize(7);
-    doc.setTextColor(140, 140, 140);
+    doc.setTextColor(100, 100, 100);
     doc.text(
-      `${companyName} | Total: ${data.length} itens`,
+      `${companyName} | Total: ${data.length} registros`,
       tableMargin,
       pageHeight - 6
     );
@@ -804,6 +809,16 @@ export function HorimeterHistoryTab({ vehicles, readings, loading }: HorimeterHi
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
+          
+          {/* Column config button */}
+          <Button 
+            variant="outline" 
+            className="gap-2"
+            onClick={() => setColumnConfigOpen(true)}
+          >
+            <Settings2 className="w-4 h-4" />
+            Colunas
+          </Button>
         </div>
       </div>
 
@@ -841,6 +856,17 @@ export function HorimeterHistoryTab({ vehicles, readings, loading }: HorimeterHi
           </SelectContent>
         </Select>
       </div>
+
+      {/* Column Config Modal */}
+      <ColumnConfigModal
+        open={columnConfigOpen}
+        onClose={() => setColumnConfigOpen(false)}
+        columns={columnConfig}
+        onSave={savePreferences}
+        onReset={resetToDefaults}
+        saving={savingLayout}
+        moduleName="Histórico de Horímetros"
+      />
 
       {/* Equipments Table */}
       {equipmentsSummary.length > 0 && (
