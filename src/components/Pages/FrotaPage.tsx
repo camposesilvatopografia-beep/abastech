@@ -18,7 +18,9 @@ import {
   Plus,
   Edit,
   Trash2,
-  Settings2
+  Settings2,
+  LayoutGrid,
+  List
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -60,6 +62,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { VehicleHistoryModal } from '@/components/Frota/VehicleHistoryModal';
 import { VehicleFormModal } from '@/components/Frota/VehicleFormModal';
+import { MobilizedEquipmentsView } from '@/components/Frota/MobilizedEquipmentsView';
 import { ColumnConfigModal } from '@/components/Layout/ColumnConfigModal';
 import { useLayoutPreferences, ColumnConfig } from '@/hooks/useLayoutPreferences';
 
@@ -110,6 +113,7 @@ export function FrotaPage() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [groupBy, setGroupBy] = useState<'categoria' | 'empresa' | 'descricao'>('categoria');
   const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
+  const [viewMode, setViewMode] = useState<'list' | 'mobilized'>('list');
   
   // Layout preferences
   const { columnConfig, visibleColumns, savePreferences, resetToDefaults, saving: savingLayout } = 
@@ -456,6 +460,28 @@ export function FrotaPage() {
           </div>
           
           <div className="flex flex-wrap items-center gap-2">
+            {/* View Mode Toggle */}
+            <div className="flex rounded-md border border-border overflow-hidden">
+              <Button 
+                variant={viewMode === 'list' ? 'default' : 'ghost'} 
+                size="sm"
+                className="rounded-none"
+                onClick={() => setViewMode('list')}
+              >
+                <List className="w-4 h-4 sm:mr-1" />
+                <span className="hidden sm:inline">Lista</span>
+              </Button>
+              <Button 
+                variant={viewMode === 'mobilized' ? 'default' : 'ghost'} 
+                size="sm"
+                className="rounded-none"
+                onClick={() => setViewMode('mobilized')}
+              >
+                <LayoutGrid className="w-4 h-4 sm:mr-1" />
+                <span className="hidden sm:inline">Mobilizados</span>
+              </Button>
+            </div>
+            
             <Button onClick={openCreateVehicle} size="sm" className="gap-2 bg-emerald-600 hover:bg-emerald-700">
               <Plus className="w-4 h-4" />
               <span className="hidden sm:inline">Novo</span>
@@ -464,28 +490,32 @@ export function FrotaPage() {
               <RefreshCw className={cn("w-4 h-4 sm:mr-2", loading && "animate-spin")} />
               <span className="hidden sm:inline">Atualizar</span>
             </Button>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={exportToPDF}
-              className="bg-red-50 hover:bg-red-100 text-red-700 border-red-200"
-            >
-              <FileText className="w-4 h-4 sm:mr-2" />
-              <span className="hidden sm:inline">PDF</span>
-            </Button>
-            <Button variant="outline" size="sm" onClick={exportToExcel}>
-              <FileSpreadsheet className="w-4 h-4 sm:mr-2" />
-              <span className="hidden sm:inline">Excel</span>
-            </Button>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => setColumnConfigModalOpen(true)}
-              className="gap-2"
-            >
-              <Settings2 className="w-4 h-4" />
-              <span className="hidden sm:inline">Colunas</span>
-            </Button>
+            {viewMode === 'list' && (
+              <>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={exportToPDF}
+                  className="bg-red-50 hover:bg-red-100 text-red-700 border-red-200"
+                >
+                  <FileText className="w-4 h-4 sm:mr-2" />
+                  <span className="hidden sm:inline">PDF</span>
+                </Button>
+                <Button variant="outline" size="sm" onClick={exportToExcel}>
+                  <FileSpreadsheet className="w-4 h-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Excel</span>
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => setColumnConfigModalOpen(true)}
+                  className="gap-2"
+                >
+                  <Settings2 className="w-4 h-4" />
+                  <span className="hidden sm:inline">Colunas</span>
+                </Button>
+              </>
+            )}
           </div>
         </div>
 
@@ -582,158 +612,185 @@ export function FrotaPage() {
           </div>
         </div>
 
-        {/* Filters - Simplified */}
-        <div className="bg-card rounded-lg border border-border p-4 space-y-4">
-          <div className="flex flex-col md:flex-row gap-3 items-start md:items-center flex-wrap">
-            {/* Date Filter */}
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-muted-foreground">Data:</span>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" size="sm" className="gap-2">
-                    <Calendar className="w-4 h-4" />
-                    {format(selectedDate, 'dd/MM/yyyy')}
+        {/* Mobilized View Mode */}
+        {viewMode === 'mobilized' && (
+          <MobilizedEquipmentsView
+            vehicles={filteredRows.map(row => ({
+              codigo: getRowValue(row as any, ['CODIGO', 'Codigo', 'codigo', 'VEICULO', 'Veiculo', 'veiculo']),
+              descricao: getRowValue(row as any, ['DESCRICAO', 'DESCRIÇÃO', 'Descricao', 'descrição', 'descricao']),
+              empresa: getRowValue(row as any, ['EMPRESA', 'Empresa', 'empresa']),
+              categoria: getRowValue(row as any, ['CATEGORIA', 'Categoria', 'categoria', 'TIPO', 'Tipo', 'tipo']),
+              status: getRowValue(row as any, ['STATUS', 'Status', 'status']) || 'ativo',
+            }))}
+            selectedDate={selectedDate}
+            onVehicleClick={(vehicle) => {
+              setSelectedVehicle({
+                codigo: vehicle.codigo,
+                descricao: vehicle.descricao,
+                categoria: vehicle.categoria,
+                empresa: vehicle.empresa
+              });
+              setHistoryModalOpen(true);
+            }}
+          />
+        )}
+
+        {/* List View Mode - Filters */}
+        {viewMode === 'list' && (
+          <>
+            <div className="bg-card rounded-lg border border-border p-4 space-y-4">
+              <div className="flex flex-col md:flex-row gap-3 items-start md:items-center flex-wrap">
+                {/* Date Filter */}
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-muted-foreground">Data:</span>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" size="sm" className="gap-2">
+                        <Calendar className="w-4 h-4" />
+                        {format(selectedDate, 'dd/MM/yyyy')}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0 bg-background" align="start">
+                      <CalendarComponent
+                        mode="single"
+                        selected={selectedDate}
+                        onSelect={(date) => date && setSelectedDate(date)}
+                        locale={ptBR}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  <Button
+                    variant={format(selectedDate, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd') ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setSelectedDate(new Date())}
+                  >
+                    Hoje
                   </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0 bg-background" align="start">
-                  <CalendarComponent
-                    mode="single"
-                    selected={selectedDate}
-                    onSelect={(date) => date && setSelectedDate(date)}
-                    locale={ptBR}
-                  />
-                </PopoverContent>
-              </Popover>
-              <Button
-                variant={format(selectedDate, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd') ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setSelectedDate(new Date())}
-              >
-                Hoje
-              </Button>
-            </div>
+                </div>
 
-            {/* Empresa Filter */}
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-muted-foreground">Empresa:</span>
-              <Select value={empresaFilter} onValueChange={setEmpresaFilter}>
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="Todas Empresas" />
-                </SelectTrigger>
-                <SelectContent className="bg-background">
-                  <SelectItem value="all">Todas Empresas</SelectItem>
-                  {empresas.map(empresa => (
-                    <SelectItem key={empresa} value={empresa}>{empresa}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+                {/* Empresa Filter */}
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-muted-foreground">Empresa:</span>
+                  <Select value={empresaFilter} onValueChange={setEmpresaFilter}>
+                    <SelectTrigger className="w-[180px]">
+                      <SelectValue placeholder="Todas Empresas" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-background">
+                      <SelectItem value="all">Todas Empresas</SelectItem>
+                      {empresas.map(empresa => (
+                        <SelectItem key={empresa} value={empresa}>{empresa}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-            {/* Descrição Filter */}
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-muted-foreground">Descrição:</span>
-              <Select value={descricaoFilter} onValueChange={setDescricaoFilter}>
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="Todas Descrições" />
-                </SelectTrigger>
-                <SelectContent className="bg-background">
-                  <SelectItem value="all">Todas Descrições</SelectItem>
-                  {descricoes.map(desc => (
-                    <SelectItem key={desc} value={desc}>{desc}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+                {/* Descrição Filter */}
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-muted-foreground">Descrição:</span>
+                  <Select value={descricaoFilter} onValueChange={setDescricaoFilter}>
+                    <SelectTrigger className="w-[180px]">
+                      <SelectValue placeholder="Todas Descrições" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-background">
+                      <SelectItem value="all">Todas Descrições</SelectItem>
+                      {descricoes.map(desc => (
+                        <SelectItem key={desc} value={desc}>{desc}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-            {/* Status Filter */}
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-muted-foreground">Status:</span>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-[150px]">
-                  <SelectValue placeholder="Todos Status" />
-                </SelectTrigger>
-                <SelectContent className="bg-background">
-                  <SelectItem value="all">Todos Status</SelectItem>
-                  <SelectItem value="ativo">Ativo</SelectItem>
-                  <SelectItem value="inativo">Inativo</SelectItem>
-                  <SelectItem value="manutencao">Manutenção</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+                {/* Status Filter */}
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-muted-foreground">Status:</span>
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger className="w-[150px]">
+                      <SelectValue placeholder="Todos Status" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-background">
+                      <SelectItem value="all">Todos Status</SelectItem>
+                      <SelectItem value="ativo">Ativo</SelectItem>
+                      <SelectItem value="inativo">Inativo</SelectItem>
+                      <SelectItem value="manutencao">Manutenção</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
-            {(empresaFilter !== 'all' || descricaoFilter !== 'all' || statusFilter !== 'all') && (
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={() => {
-                  setEmpresaFilter('all');
-                  setDescricaoFilter('all');
-                  setStatusFilter('all');
-                }}
-              >
-                <X className="w-4 h-4 mr-1" />
-                Limpar
-              </Button>
-            )}
-          </div>
-
-          {/* Search */}
-          <div className="relative max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar código ou descrição..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-
-          {/* Group By and Actions */}
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-muted-foreground">Agrupar por:</span>
-              <div className="flex gap-1">
-                <Button 
-                  variant={groupBy === 'categoria' ? 'default' : 'outline'} 
-                  size="sm"
-                  onClick={() => setGroupBy('categoria')}
-                >
-                  Categoria
-                </Button>
-                <Button 
-                  variant={groupBy === 'empresa' ? 'default' : 'outline'} 
-                  size="sm"
-                  onClick={() => setGroupBy('empresa')}
-                >
-                  Empresa
-                </Button>
-                <Button 
-                  variant={groupBy === 'descricao' ? 'default' : 'outline'} 
-                  size="sm"
-                  onClick={() => setGroupBy('descricao')}
-                >
-                  Descrição
-                </Button>
+                {(empresaFilter !== 'all' || descricaoFilter !== 'all' || statusFilter !== 'all') && (
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => {
+                      setEmpresaFilter('all');
+                      setDescricaoFilter('all');
+                      setStatusFilter('all');
+                    }}
+                  >
+                    <X className="w-4 h-4 mr-1" />
+                    Limpar
+                  </Button>
+                )}
               </div>
+
+              {/* Search */}
+              <div className="relative max-w-md">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar código ou descrição..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+
+              {/* Group By and Actions */}
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-muted-foreground">Agrupar por:</span>
+                  <div className="flex gap-1">
+                    <Button 
+                      variant={groupBy === 'categoria' ? 'default' : 'outline'} 
+                      size="sm"
+                      onClick={() => setGroupBy('categoria')}
+                    >
+                      Categoria
+                    </Button>
+                    <Button 
+                      variant={groupBy === 'empresa' ? 'default' : 'outline'} 
+                      size="sm"
+                      onClick={() => setGroupBy('empresa')}
+                    >
+                      Empresa
+                    </Button>
+                    <Button 
+                      variant={groupBy === 'descricao' ? 'default' : 'outline'} 
+                      size="sm"
+                      onClick={() => setGroupBy('descricao')}
+                    >
+                      Descrição
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setExpandedGroups(groupedVehicles.map(g => g.name))}>
+                    Expandir
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => setExpandedGroups([])}>
+                    Recolher
+                  </Button>
+                </div>
+              </div>
+
+              <p className="text-sm text-muted-foreground">
+                Exibindo <span className="font-semibold text-foreground">{filteredRows.length}</span> de {data.rows.length} ativos
+              </p>
             </div>
+          </>
+        )}
 
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={() => setExpandedGroups(groupedVehicles.map(g => g.name))}>
-                Expandir
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => setExpandedGroups([])}>
-                Recolher
-              </Button>
-            </div>
-          </div>
-
-          <p className="text-sm text-muted-foreground">
-            Exibindo <span className="font-semibold text-foreground">{filteredRows.length}</span> de {data.rows.length} ativos
-          </p>
-        </div>
-
-        {/* Content - Grouped View */}
-        {loading ? (
+        {/* Content - Grouped View (List Mode Only) */}
+        {viewMode === 'list' && (loading ? (
           <div className="flex items-center justify-center py-12">
             <RefreshCw className="w-8 h-8 animate-spin text-muted-foreground" />
           </div>
@@ -858,7 +915,7 @@ export function FrotaPage() {
               ))
             )}
           </div>
-        )}
+        ))}
       </div>
 
       {/* Vehicle History Modal */}
