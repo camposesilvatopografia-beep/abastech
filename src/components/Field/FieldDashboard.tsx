@@ -459,36 +459,64 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
 
           console.log('[DELETE] Planilha carregada, total de linhas:', sheetResponse?.rows?.length || 0);
 
-          if (sheetResponse?.rows && Array.isArray(sheetResponse.rows)) {
-            const normalize = (v: any) => String(v ?? '').trim();
-            const normalizeTime = (v: any) => normalize(v).substring(0, 5);
+          // Log first few rows for debugging
+          if (sheetResponse?.rows?.length > 0) {
+            console.log('[DELETE] Primeiras 3 linhas da planilha:', sheetResponse.rows.slice(0, 3).map((r: any, i: number) => ({
+              idx: i,
+              _rowIndex: r._rowIndex,
+              DATA: r['DATA'] ?? r['Data'],
+              HORA: r['HORA'] ?? r['Hora'],
+              VEICULO: r['VEICULO'] ?? r['Veiculo'] ?? r['VEÍCULO'],
+            })));
+          }
 
-            const rowIndex = sheetResponse.rows.findIndex((row: any, idx: number) => {
-              const rowDate = normalize(row['DATA'] ?? row['Data']);
-              const rowTime = normalizeTime(row['HORA'] ?? row['Hora']);
-              const rowVehicle = normalize(row['VEICULO'] ?? row['Veiculo'] ?? row['VEÍCULO'] ?? row['Veículo']);
+          if (sheetResponse?.rows && Array.isArray(sheetResponse.rows)) {
+            const normalize = (v: any) => String(v ?? '').trim().toUpperCase();
+            const normalizeTime = (v: any) => String(v ?? '').trim().substring(0, 5);
+            const normalizeVehicle = (v: any) => String(v ?? '').trim().toUpperCase().replace(/\s+/g, '');
+
+            console.log('[DELETE] Procurando registro:', {
+              recordDateBR,
+              recordTime,
+              vehicleCode: normalizeVehicle(vehicleCode),
+            });
+
+            let matchedRow: any = null;
+            let matchedRowIndex = -1;
+
+            for (let idx = 0; idx < sheetResponse.rows.length; idx++) {
+              const row = sheetResponse.rows[idx];
+              const rowDate = normalize(row['DATA'] ?? row['Data'] ?? row['data'] ?? '');
+              const rowTime = normalizeTime(row['HORA'] ?? row['Hora'] ?? row['hora'] ?? '');
+              const rowVehicle = normalizeVehicle(row['VEICULO'] ?? row['Veiculo'] ?? row['VEÍCULO'] ?? row['Veículo'] ?? row['veiculo'] ?? '');
 
               // Some sheets may store date as yyyy-mm-dd; normalize to pt-BR when needed
-              const rowDateComparable = /^\d{4}-\d{2}-\d{2}$/.test(rowDate)
-                ? new Date(`${rowDate}T00:00:00`).toLocaleDateString('pt-BR')
-                : rowDate;
+              let rowDateComparable = rowDate;
+              if (/^\d{4}-\d{2}-\d{2}$/.test(rowDate.toLowerCase())) {
+                rowDateComparable = new Date(`${rowDate}T00:00:00`).toLocaleDateString('pt-BR').toUpperCase();
+              }
 
-              const match = rowDateComparable === recordDateBR && rowTime === recordTime && rowVehicle === vehicleCode;
-              
-              if (match) {
-                console.log(`[DELETE] Linha encontrada no índice ${idx}:`, {
+              const dateMatch = rowDateComparable === recordDateBR.toUpperCase();
+              const timeMatch = rowTime === recordTime;
+              const vehicleMatch = rowVehicle === normalizeVehicle(vehicleCode);
+
+              if (dateMatch && timeMatch && vehicleMatch) {
+                console.log(`[DELETE] ✅ Linha encontrada no índice ${idx}:`, {
                   rowDate,
                   rowDateComparable,
                   rowTime,
                   rowVehicle,
+                  _rowIndex: row._rowIndex,
                 });
+                matchedRow = row;
+                matchedRowIndex = idx;
+                break;
               }
-              
-              return match;
-            });
+            }
 
-            if (rowIndex >= 0) {
-              const sheetRowNumber = rowIndex + 2; // +1 header row, +1 because rows[] is 0-based
+            if (matchedRow && matchedRowIndex >= 0) {
+              // Use the _rowIndex from the backend if available, otherwise calculate
+              const sheetRowNumber = matchedRow._rowIndex || (matchedRowIndex + 2);
               console.log(`[DELETE] Excluindo linha ${sheetRowNumber} da planilha...`);
               
               const { error: sheetDeleteError } = await supabase.functions.invoke('google-sheets', {
