@@ -26,8 +26,11 @@ import {
   Image,
   Truck,
   Plus,
+  Edit2,
+  PenLine,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
 import { AdminFuelRecordModal } from '@/components/Dashboard/AdminFuelRecordModal';
 import { StockPanelTab } from '@/components/Dashboard/StockPanelTab';
 import { Button } from '@/components/ui/button';
@@ -177,6 +180,9 @@ export function AbastecimentoPage() {
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
   const [showAdminRecordModal, setShowAdminRecordModal] = useState(false);
+  const [editingRecord, setEditingRecord] = useState<any>(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
 
   // Check if user can create records (admin or samarakelle)
   const canCreateRecords = useMemo(() => {
@@ -683,13 +689,14 @@ export function AbastecimentoPage() {
     setEndDate(new Date());
   }, []);
 
-  // Export detailed PDF with filters - grouped by location (Tanques)
+  // Export detailed PDF with filters - grouped by location (Tanques) WITH SIGNATURE
   const exportDetailedPDF = useCallback(() => {
     setIsExporting(true);
     
     try {
       const doc = new jsPDF('landscape');
       const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
       
       let currentY = 15;
       
@@ -706,18 +713,30 @@ export function AbastecimentoPage() {
           currentY = 15;
         }
         
-        // Title for this location with date range
+        // Header - Navy blue bar
+        doc.setFillColor(30, 41, 59);
+        doc.rect(0, 0, pageWidth, 18, 'F');
+        
+        // Header with obra name
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(255, 255, 255);
+        const obraInfo = obraSettings?.nome || 'Sistema de Gestão de Frotas';
+        doc.text(obraInfo, 14, 12);
+        
+        // Title for this location
         doc.setFontSize(14);
         doc.setFont('helvetica', 'bold');
-        doc.text(local, pageWidth / 2, currentY, { align: 'center' });
-        currentY += 6;
+        doc.text(local.toUpperCase(), pageWidth / 2, 12, { align: 'center' });
         
-        // Date range subtitle
+        // Date range on the right
         doc.setFontSize(9);
         doc.setFont('helvetica', 'normal');
-        const dateRangeText = `Período: ${format(dateRange.start, 'dd/MM/yyyy')} a ${format(dateRange.end, 'dd/MM/yyyy')}`;
-        doc.text(dateRangeText, pageWidth / 2, currentY, { align: 'center' });
-        currentY += 8;
+        const dateRangeText = `${format(dateRange.start, 'dd/MM/yyyy')} a ${format(dateRange.end, 'dd/MM/yyyy')}`;
+        doc.text(dateRangeText, pageWidth - 14, 12, { align: 'right' });
+        
+        doc.setTextColor(0, 0, 0);
+        currentY = 28;
         
         // Prepare table data with consumption calculation
         let totalDiesel = 0;
@@ -793,8 +812,8 @@ export function AbastecimentoPage() {
             cellPadding: 2,
           },
           headStyles: { 
-            fillColor: [200, 200, 200],
-            textColor: [0, 0, 0],
+            fillColor: [30, 41, 59],
+            textColor: [255, 255, 255],
             fontStyle: 'bold',
             halign: 'center',
             valign: 'middle',
@@ -822,6 +841,28 @@ export function AbastecimentoPage() {
           },
           theme: 'grid',
         });
+        
+        // Get final Y position after table
+        const finalY = (doc as any).lastAutoTable?.finalY || currentY + 100;
+        
+        // Add signature section at bottom of each location page
+        const signatureY = Math.max(finalY + 20, pageHeight - 40);
+        
+        // Signature line
+        doc.setDrawColor(30, 41, 59);
+        doc.setLineWidth(0.5);
+        doc.line(pageWidth / 2 - 60, signatureY, pageWidth / 2 + 60, signatureY);
+        
+        // Signature label
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(30, 41, 59);
+        doc.text(`Responsável: ${local}`, pageWidth / 2, signatureY + 6, { align: 'center' });
+        
+        // Date field
+        doc.setFontSize(8);
+        doc.setTextColor(100, 100, 100);
+        doc.text(`Data: ____/____/________`, pageWidth / 2, signatureY + 12, { align: 'center' });
       });
       
       doc.save(`relatorio_abastecimento_${format(new Date(), 'yyyyMMdd_HHmmss')}.pdf`);
@@ -832,13 +873,14 @@ export function AbastecimentoPage() {
     }
   }, [resumoPorLocal, dateRange]);
 
-  // Export to PDF (simple) - same format as detailed, grouped by location
+  // Export to PDF (simple) - same format as detailed, grouped by location WITH SIGNATURE
   const exportPDF = useCallback(() => {
     setIsExporting(true);
     
     try {
       const doc = new jsPDF('landscape');
       const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
       
       let currentY = 15;
       
@@ -855,11 +897,30 @@ export function AbastecimentoPage() {
           currentY = 15;
         }
         
+        // Header - Navy blue bar
+        doc.setFillColor(30, 41, 59);
+        doc.rect(0, 0, pageWidth, 18, 'F');
+        
+        // Header with obra name
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(255, 255, 255);
+        const obraInfo = obraSettings?.nome || 'Sistema de Gestão de Frotas';
+        doc.text(obraInfo, 14, 12);
+        
         // Title for this location
         doc.setFontSize(14);
         doc.setFont('helvetica', 'bold');
-        doc.text(local, pageWidth / 2, currentY, { align: 'center' });
-        currentY += 8;
+        doc.text(local.toUpperCase(), pageWidth / 2, 12, { align: 'center' });
+        
+        // Date range on the right
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'normal');
+        const dateRangeText = `${format(dateRange.start, 'dd/MM/yyyy')} a ${format(dateRange.end, 'dd/MM/yyyy')}`;
+        doc.text(dateRangeText, pageWidth - 14, 12, { align: 'right' });
+        
+        doc.setTextColor(0, 0, 0);
+        currentY = 28;
         
         // Prepare table data with consumption calculation
         let totalDiesel = 0;
@@ -935,8 +996,8 @@ export function AbastecimentoPage() {
             cellPadding: 2,
           },
           headStyles: { 
-            fillColor: [200, 200, 200],
-            textColor: [0, 0, 0],
+            fillColor: [30, 41, 59],
+            textColor: [255, 255, 255],
             fontStyle: 'bold',
             halign: 'center',
             valign: 'middle',
@@ -964,6 +1025,28 @@ export function AbastecimentoPage() {
           },
           theme: 'grid',
         });
+        
+        // Get final Y position after table
+        const finalY = (doc as any).lastAutoTable?.finalY || currentY + 100;
+        
+        // Add signature section at bottom of each location page
+        const signatureY = Math.max(finalY + 20, pageHeight - 40);
+        
+        // Signature line
+        doc.setDrawColor(30, 41, 59);
+        doc.setLineWidth(0.5);
+        doc.line(pageWidth / 2 - 60, signatureY, pageWidth / 2 + 60, signatureY);
+        
+        // Signature label
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(30, 41, 59);
+        doc.text(`Responsável: ${local}`, pageWidth / 2, signatureY + 6, { align: 'center' });
+        
+        // Date field
+        doc.setFontSize(8);
+        doc.setTextColor(100, 100, 100);
+        doc.text(`Data: ____/____/________`, pageWidth / 2, signatureY + 12, { align: 'center' });
       });
       
       doc.save(`relatorio_abastecimento_${format(new Date(), 'yyyyMMdd_HHmmss')}.pdf`);
@@ -972,7 +1055,7 @@ export function AbastecimentoPage() {
     } finally {
       setIsExporting(false);
     }
-  }, [resumoPorLocal]);
+  }, [resumoPorLocal, dateRange, obraSettings]);
 
   // Export PDF by Company (Empresa) - formatted like the reference image
   const exportPDFPorEmpresa = useCallback(() => {
@@ -1710,20 +1793,20 @@ export function AbastecimentoPage() {
                     <TableHead className="text-right">Quantidade (L)</TableHead>
                     <TableHead className="text-right">Intervalo</TableHead>
                     <TableHead className="text-right">Consumo Médio</TableHead>
-                    <TableHead className="text-center w-16">Detalhes</TableHead>
+                    <TableHead className="text-center w-24">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {loading ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center py-8">
+                      <TableCell colSpan={9} className="text-center py-8">
                         <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-muted-foreground" />
                         Carregando dados...
                       </TableCell>
                     </TableRow>
                   ) : filteredRows.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                         Nenhum dado encontrado para o período selecionado
                       </TableCell>
                     </TableRow>
@@ -1790,25 +1873,43 @@ export function AbastecimentoPage() {
                               </span>
                             </TableCell>
                             <TableCell className="text-center">
-                              <Button 
-                                variant="ghost" 
-                                size="icon"
-                                className="h-8 w-8"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setSelectedRecord(row);
-                                  setShowDetailModal(true);
-                                }}
-                              >
-                                <Eye className="h-4 w-4 text-muted-foreground" />
-                              </Button>
+                              <div className="flex items-center justify-center gap-1">
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  title="Visualizar"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedRecord(row);
+                                    setShowDetailModal(true);
+                                  }}
+                                >
+                                  <Eye className="h-4 w-4 text-muted-foreground" />
+                                </Button>
+                                {canCreateRecords && (
+                                  <Button 
+                                    variant="ghost" 
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    title="Editar"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setEditingRecord(row);
+                                      setShowEditModal(true);
+                                    }}
+                                  >
+                                    <Edit2 className="h-4 w-4 text-blue-500" />
+                                  </Button>
+                                )}
+                              </div>
                             </TableCell>
                           </TableRow>
                         );
                       })}
                       {filteredRows.length > 50 && (
                         <TableRow>
-                          <TableCell colSpan={8} className="text-center py-4 text-muted-foreground">
+                          <TableCell colSpan={9} className="text-center py-4 text-muted-foreground">
                             Mostrando 50 de {filteredRows.length} registros
                           </TableCell>
                         </TableRow>
@@ -2406,6 +2507,249 @@ export function AbastecimentoPage() {
           onSuccess={() => refetch()}
         />
       )}
+
+      {/* Edit Record Modal */}
+      <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Edit2 className="w-5 h-5 text-blue-500" />
+              Editar Registro de Abastecimento
+            </DialogTitle>
+          </DialogHeader>
+          
+          {editingRecord && (
+            <div className="space-y-6">
+              {/* Vehicle Info - Read Only */}
+              <div className="bg-muted/30 rounded-lg p-4 space-y-3">
+                <h4 className="font-semibold text-sm">Veículo (somente leitura)</h4>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  <div className="space-y-1">
+                    <span className="text-xs text-muted-foreground">Data</span>
+                    <p className="font-medium">{String(editingRecord['DATA'] || '-')}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-xs text-muted-foreground">Código</span>
+                    <p className="font-medium">{String(editingRecord['VEICULO'] || '-')}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-xs text-muted-foreground">Descrição</span>
+                    <p className="font-medium">{String(editingRecord['DESCRICAO'] || editingRecord['DESCRIÇÃO'] || '-')}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Editable Fields */}
+              <div className="bg-blue-50 dark:bg-blue-950/30 rounded-lg p-4 space-y-4 border border-blue-200 dark:border-blue-800">
+                <h4 className="font-semibold text-sm flex items-center gap-2">
+                  <PenLine className="w-4 h-4 text-blue-500" />
+                  Campos Editáveis
+                </h4>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-xs text-muted-foreground">Quantidade (L)</label>
+                    <Input
+                      type="text"
+                      value={String(editingRecord['QUANTIDADE'] || '')}
+                      onChange={(e) => setEditingRecord({
+                        ...editingRecord,
+                        'QUANTIDADE': e.target.value
+                      })}
+                      className="h-10"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs text-muted-foreground">Horímetro Anterior</label>
+                    <Input
+                      type="text"
+                      value={String(editingRecord['HORIMETRO ANTERIOR'] || '')}
+                      onChange={(e) => setEditingRecord({
+                        ...editingRecord,
+                        'HORIMETRO ANTERIOR': e.target.value
+                      })}
+                      className="h-10"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs text-muted-foreground">Horímetro Atual</label>
+                    <Input
+                      type="text"
+                      value={String(editingRecord['HORIMETRO ATUAL'] || '')}
+                      onChange={(e) => setEditingRecord({
+                        ...editingRecord,
+                        'HORIMETRO ATUAL': e.target.value
+                      })}
+                      className="h-10"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs text-muted-foreground">Motorista</label>
+                    <Input
+                      type="text"
+                      value={String(editingRecord['MOTORISTA'] || '')}
+                      onChange={(e) => setEditingRecord({
+                        ...editingRecord,
+                        'MOTORISTA': e.target.value
+                      })}
+                      className="h-10"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs text-muted-foreground">KM Anterior</label>
+                    <Input
+                      type="text"
+                      value={String(editingRecord['KM ANTERIOR'] || '')}
+                      onChange={(e) => setEditingRecord({
+                        ...editingRecord,
+                        'KM ANTERIOR': e.target.value
+                      })}
+                      className="h-10"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs text-muted-foreground">KM Atual</label>
+                    <Input
+                      type="text"
+                      value={String(editingRecord['KM ATUAL'] || '')}
+                      onChange={(e) => setEditingRecord({
+                        ...editingRecord,
+                        'KM ATUAL': e.target.value
+                      })}
+                      className="h-10"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs text-muted-foreground">Quantidade ARLA</label>
+                    <Input
+                      type="text"
+                      value={String(editingRecord['QUANTIDADE DE ARLA'] || '')}
+                      onChange={(e) => setEditingRecord({
+                        ...editingRecord,
+                        'QUANTIDADE DE ARLA': e.target.value
+                      })}
+                      className="h-10"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs text-muted-foreground">Local</label>
+                    <Select
+                      value={String(editingRecord['LOCAL'] || '')}
+                      onValueChange={(value) => setEditingRecord({
+                        ...editingRecord,
+                        'LOCAL': value
+                      })}
+                    >
+                      <SelectTrigger className="h-10">
+                        <SelectValue placeholder="Selecione" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {locais.map(local => (
+                          <SelectItem key={local} value={local}>{local}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Observation field */}
+              <div className="space-y-2">
+                <label className="text-xs text-muted-foreground">Observações</label>
+                <Input
+                  type="text"
+                  value={String(editingRecord['OBSERVAÇÃO'] || '')}
+                  onChange={(e) => setEditingRecord({
+                    ...editingRecord,
+                    'OBSERVAÇÃO': e.target.value
+                  })}
+                  placeholder="Adicionar observação..."
+                />
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex justify-end gap-3 pt-4 border-t">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowEditModal(false);
+                    setEditingRecord(null);
+                  }}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  disabled={isSavingEdit}
+                  onClick={async () => {
+                    if (!editingRecord || !editingRecord._rowIndex) {
+                      toast.error('Não foi possível identificar o registro para edição');
+                      return;
+                    }
+                    
+                    setIsSavingEdit(true);
+                    
+                    try {
+                      // Prepare the row data for update
+                      const rowData: Record<string, any> = {};
+                      
+                      // Map the editable fields
+                      rowData['QUANTIDADE'] = editingRecord['QUANTIDADE'];
+                      rowData['HORIMETRO ANTERIOR'] = editingRecord['HORIMETRO ANTERIOR'];
+                      rowData['HORIMETRO ATUAL'] = editingRecord['HORIMETRO ATUAL'];
+                      rowData['MOTORISTA'] = editingRecord['MOTORISTA'];
+                      rowData['KM ANTERIOR'] = editingRecord['KM ANTERIOR'];
+                      rowData['KM ATUAL'] = editingRecord['KM ATUAL'];
+                      rowData['QUANTIDADE DE ARLA'] = editingRecord['QUANTIDADE DE ARLA'];
+                      rowData['LOCAL'] = editingRecord['LOCAL'];
+                      rowData['OBSERVAÇÃO'] = editingRecord['OBSERVAÇÃO'];
+                      
+                      // Copy all original fields to maintain data integrity
+                      Object.keys(editingRecord).forEach(key => {
+                        if (key !== '_rowIndex' && !(key in rowData)) {
+                          rowData[key] = editingRecord[key];
+                        }
+                      });
+                      
+                      const { error } = await supabase.functions.invoke('google-sheets', {
+                        body: {
+                          action: 'update',
+                          sheetName: SHEET_NAME,
+                          rowIndex: editingRecord._rowIndex,
+                          rowData
+                        }
+                      });
+                      
+                      if (error) throw error;
+                      
+                      toast.success('Registro atualizado com sucesso!');
+                      setShowEditModal(false);
+                      setEditingRecord(null);
+                      refetch();
+                    } catch (err) {
+                      console.error('Error updating record:', err);
+                      toast.error('Erro ao atualizar registro');
+                    } finally {
+                      setIsSavingEdit(false);
+                    }
+                  }}
+                  className="gap-2"
+                >
+                  {isSavingEdit ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      Salvando...
+                    </>
+                  ) : (
+                    <>
+                      <Edit2 className="w-4 h-4" />
+                      Salvar Alterações
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
