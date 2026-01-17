@@ -168,27 +168,14 @@ export function DashboardContent() {
   }, [filteredAbastecimentoData]);
 
   // Extract stock values from GERAL sheet - get EXACT row for selected date
-  // IMPORTANT: Estoque Atual comes DIRECTLY from column G of the Geral sheet (not calculated)
+  // IMPORTANT: If no data for the selected date, show zeros (not fallback to last row)
   const stockData = useMemo(() => {
-    const totalSaidas = calculatedExits.saidaComboios + calculatedExits.saidaEquipamentos;
-    
-    if (!geralData.rows.length) {
-      return {
-        estoqueAnterior: 0,
-        entrada: calculatedEntries,
-        saidaComboios: calculatedExits.saidaComboios,
-        saidaEquipamentos: calculatedExits.saidaEquipamentos,
-        estoqueAtual: 0,
-        totalSaidas
-      };
-    }
-
-    // Get today's date formatted
+    // Get target date formatted
     const targetDateStr = selectedDate 
       ? format(selectedDate, 'dd/MM/yyyy')
       : format(new Date(), 'dd/MM/yyyy');
     
-    // Find exact row for the selected/today's date
+    // Find exact row for the selected date
     const matchingRow = geralData.rows.find(row => {
       const rowDate = String(row['Data'] || row['DATA'] || '').trim();
       return rowDate === targetDateStr;
@@ -202,10 +189,11 @@ export function DashboardContent() {
       const saidaComboiosGeral = parseNumber(matchingRow['Saida para Comboios'] || matchingRow['SAIDA PARA COMBOIOS'] || matchingRow['Saída para Comboios']);
       const saidaEquipamentosGeral = parseNumber(matchingRow['Saida para Equipamentos'] || matchingRow['SAIDA PARA EQUIPAMENTOS'] || matchingRow['Saída para Equipamentos']);
       
-      // READ Estoque Atual DIRECTLY from column G of Geral sheet (not calculated)
+      // READ Estoque Atual DIRECTLY from column G of Geral sheet
       const estoqueAtualGeral = parseNumber(matchingRow['Estoque Atual'] || matchingRow['EstoqueAtual'] || matchingRow['ESTOQUE ATUAL']);
       
       // Use values from GERAL sheet (which is the source of truth)
+      // Only fallback to calculated values if sheet value is 0
       const finalSaidaComboios = saidaComboiosGeral > 0 ? saidaComboiosGeral : calculatedExits.saidaComboios;
       const finalSaidaEquipamentos = saidaEquipamentosGeral > 0 ? saidaEquipamentosGeral : calculatedExits.saidaEquipamentos;
       const finalEntrada = entradaGeral > 0 ? entradaGeral : calculatedEntries;
@@ -216,33 +204,43 @@ export function DashboardContent() {
         entrada: finalEntrada,
         saidaComboios: finalSaidaComboios,
         saidaEquipamentos: finalSaidaEquipamentos,
-        estoqueAtual: estoqueAtualGeral, // Use value directly from sheet
+        estoqueAtual: estoqueAtualGeral,
         totalSaidas: finalTotalSaidas
       };
     }
 
-    // Fallback: use last row if no matching date found
-    const lastRow = geralData.rows[geralData.rows.length - 1];
-    const estoqueAnterior = parseNumber(lastRow?.['Estoque Anterior'] || lastRow?.['EstoqueAnterior'] || lastRow?.['ESTOQUE ANTERIOR']);
-    const entradaGeral = parseNumber(lastRow?.['Entrada'] || lastRow?.['ENTRADA']);
-    const saidaComboiosGeral = parseNumber(lastRow?.['Saida para Comboios'] || lastRow?.['SAIDA PARA COMBOIOS'] || lastRow?.['Saída para Comboios']);
-    const saidaEquipamentosGeral = parseNumber(lastRow?.['Saida para Equipamentos'] || lastRow?.['SAIDA PARA EQUIPAMENTOS'] || lastRow?.['Saída para Equipamentos']);
+    // No matching row found for the selected date
+    // Use calculated values from abastecimento data for exits/entries
+    // For estoque anterior/atual, we need to find the previous day's data or show 0
+    const totalSaidas = calculatedExits.saidaComboios + calculatedExits.saidaEquipamentos;
     
-    // READ Estoque Atual DIRECTLY from column G of Geral sheet (not calculated)
-    const estoqueAtualGeral = parseNumber(lastRow?.['Estoque Atual'] || lastRow?.['EstoqueAtual'] || lastRow?.['ESTOQUE ATUAL']);
-    
-    const finalSaidaComboios = saidaComboiosGeral > 0 ? saidaComboiosGeral : calculatedExits.saidaComboios;
-    const finalSaidaEquipamentos = saidaEquipamentosGeral > 0 ? saidaEquipamentosGeral : calculatedExits.saidaEquipamentos;
-    const finalEntrada = entradaGeral > 0 ? entradaGeral : calculatedEntries;
-    const finalTotalSaidas = finalSaidaComboios + finalSaidaEquipamentos;
+    // Find the most recent row before the selected date to get the stock value
+    let lastKnownStock = 0;
+    if (geralData.rows.length > 0 && selectedDate) {
+      // Sort rows by date and find the most recent one before selected date
+      const sortedRows = [...geralData.rows].filter(row => {
+        const rowDateStr = String(row['Data'] || row['DATA'] || '').trim();
+        const rowDate = parseBrazilianDate(rowDateStr);
+        if (!rowDate) return false;
+        return rowDate < selectedDate;
+      }).sort((a, b) => {
+        const dateA = parseBrazilianDate(String(a['Data'] || a['DATA'] || ''));
+        const dateB = parseBrazilianDate(String(b['Data'] || b['DATA'] || ''));
+        return (dateB?.getTime() || 0) - (dateA?.getTime() || 0);
+      });
+      
+      if (sortedRows.length > 0) {
+        lastKnownStock = parseNumber(sortedRows[0]['Estoque Atual'] || sortedRows[0]['EstoqueAtual'] || sortedRows[0]['ESTOQUE ATUAL']);
+      }
+    }
     
     return {
-      estoqueAnterior,
-      entrada: finalEntrada,
-      saidaComboios: finalSaidaComboios,
-      saidaEquipamentos: finalSaidaEquipamentos,
-      estoqueAtual: estoqueAtualGeral, // Use value directly from sheet
-      totalSaidas: finalTotalSaidas
+      estoqueAnterior: lastKnownStock, // Use last known stock as "anterior"
+      entrada: calculatedEntries,
+      saidaComboios: calculatedExits.saidaComboios,
+      saidaEquipamentos: calculatedExits.saidaEquipamentos,
+      estoqueAtual: lastKnownStock > 0 ? lastKnownStock - totalSaidas + calculatedEntries : 0,
+      totalSaidas
     };
   }, [geralData.rows, calculatedExits, calculatedEntries, selectedDate]);
 
