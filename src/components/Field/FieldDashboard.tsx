@@ -21,6 +21,7 @@ import {
   BellOff,
 } from 'lucide-react';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
+import { useRealtimeSync } from '@/hooks/useRealtimeSync';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -119,6 +120,9 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
   const isDeletingRef = useRef(false);
   const deletingRecordIdsRef = useRef<Set<string>>(new Set());
   const stockCardRefs = useRef<Map<string, LocationStockCardRef>>(new Map());
+  
+  // Pending realtime refresh flag
+  const pendingRealtimeRefreshRef = useRef(false);
   
   // Location selection for users with multiple locations
   const hasMultipleLocations = (user.assigned_locations?.length || 0) > 1;
@@ -275,6 +279,19 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
       ref?.refetch();
     });
   }, []);
+
+  // Realtime sync for cross-device updates (broadcast channel)
+  const { broadcast } = useRealtimeSync({
+    onSyncEvent: (event) => {
+      // Refresh when receiving sync events from other clients
+      if (['fuel_record_created', 'fuel_record_updated', 'fuel_record_deleted', 'stock_updated', 'manual_refresh'].includes(event.type)) {
+        console.log('[FieldDashboard] Received broadcast sync event:', event.type);
+        triggerUpdatePulse('Atualização recebida de outro dispositivo');
+        fetchTodayRecords();
+        refreshStockCards();
+      }
+    },
+  });
 
   // Real-time subscription for request status changes and admin actions on records
   useEffect(() => {
@@ -517,6 +534,9 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
       deletingRecordIdsRef.current.delete(recordId);
       
       setDeleteConfirmation(null);
+
+      // Broadcast to all clients that a record was deleted
+      broadcast('fuel_record_deleted', { recordId, vehicleCode: deleteConfirmation.vehicleCode });
 
       // Hard refresh to ensure absolute consistency
       fetchTodayRecords();
