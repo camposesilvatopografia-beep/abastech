@@ -105,7 +105,8 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
   const [showUpdatePulse, setShowUpdatePulse] = useState(false);
   const [updateMessage, setUpdateMessage] = useState('');
   
-  // Refs for LocationStockCards to trigger refresh
+  // Refs
+  const isDeletingRef = useRef(false);
   const stockCardRefs = useRef<Map<string, LocationStockCardRef>>(new Map());
   
   // Location selection for users with multiple locations
@@ -190,6 +191,11 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
     }
   }, [user.id, todayDateOnly]);
 
+  // Keep deleting state in a ref to avoid polling re-adding a record mid-delete
+  useEffect(() => {
+    isDeletingRef.current = isDeleting;
+  }, [isDeleting]);
+
   // Initial fetch
   useEffect(() => {
     const loadRecords = async () => {
@@ -201,7 +207,7 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
 
     // Poll every 10 seconds to ensure data is fresh
     const pollInterval = setInterval(() => {
-      if (document.visibilityState === 'visible') {
+      if (document.visibilityState === 'visible' && !isDeletingRef.current) {
         fetchTodayRecords();
       }
     }, 10000);
