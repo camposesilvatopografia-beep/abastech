@@ -31,6 +31,8 @@ interface TestResult {
 export function SyncTestPage() {
   const [tests, setTests] = useState<TestResult[]>([]);
   const [isRunning, setIsRunning] = useState(false);
+  const [isCleaning, setIsCleaning] = useState(false);
+  const [cleanupResult, setCleanupResult] = useState<{ dbCount: number; sheetCount: number } | null>(null);
   const abortRef = useRef(false);
 
   const updateTest = useCallback((testId: string, update: Partial<TestResult>) => {
@@ -38,6 +40,123 @@ export function SyncTestPage() {
   }, []);
 
   const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+  // Cleanup orphaned test records
+  const cleanupOrphanedRecords = async () => {
+    setIsCleaning(true);
+    setCleanupResult(null);
+    
+    let dbDeletedCount = 0;
+    let sheetDeletedCount = 0;
+
+    try {
+      // 1. Clean up from database - records with vehicle_code starting with "TEST-"
+      toast.info('🔍 Buscando registros de teste no banco de dados...');
+      
+      const { data: testRecords, error: fetchError } = await supabase
+        .from('field_fuel_records')
+        .select('id, vehicle_code')
+        .like('vehicle_code', 'TEST-%');
+
+      if (fetchError) {
+        console.error('Error fetching test records:', fetchError);
+        toast.error('Erro ao buscar registros de teste no banco');
+      } else if (testRecords && testRecords.length > 0) {
+        console.log(`Found ${testRecords.length} test records in database`);
+        
+        const { error: deleteError } = await supabase
+          .from('field_fuel_records')
+          .delete()
+          .like('vehicle_code', 'TEST-%');
+
+        if (deleteError) {
+          console.error('Error deleting test records:', deleteError);
+          toast.error('Erro ao excluir registros de teste do banco');
+        } else {
+          dbDeletedCount = testRecords.length;
+          toast.success(`✅ ${dbDeletedCount} registros removidos do banco de dados`);
+        }
+      } else {
+        toast.info('Nenhum registro de teste encontrado no banco');
+      }
+
+      // 2. Clean up from Google Sheets
+      toast.info('🔍 Buscando registros de teste na planilha...');
+      
+      const { data: sheetResponse, error: sheetError } = await supabase.functions.invoke('google-sheets', {
+        body: {
+          action: 'getData',
+          sheetName: 'AbastecimentoCanteiro01',
+          noCache: true,
+        },
+      });
+
+      if (sheetError) {
+        console.error('Error fetching sheet data:', sheetError);
+        toast.error('Erro ao buscar dados da planilha');
+      } else if (sheetResponse?.rows) {
+        // Find all test rows (vehicle code starts with TEST-)
+        const testRows: number[] = [];
+        
+        for (let i = 0; i < sheetResponse.rows.length; i++) {
+          const row = sheetResponse.rows[i];
+          const vehicleCode = String(row['VEICULO'] ?? row['Veiculo'] ?? '').trim().toUpperCase();
+          
+          if (vehicleCode.startsWith('TEST-')) {
+            const rowIndex = row._rowIndex || (i + 2);
+            testRows.push(rowIndex);
+          }
+        }
+
+        if (testRows.length > 0) {
+          console.log(`Found ${testRows.length} test rows in sheet:`, testRows);
+          
+          // Delete rows in reverse order to maintain correct indices
+          const sortedRows = testRows.sort((a, b) => b - a);
+          
+          for (const rowIndex of sortedRows) {
+            try {
+              const { error: deleteError } = await supabase.functions.invoke('google-sheets', {
+                body: {
+                  action: 'delete',
+                  sheetName: 'AbastecimentoCanteiro01',
+                  rowIndex: rowIndex,
+                },
+              });
+
+              if (deleteError) {
+                console.error(`Error deleting row ${rowIndex}:`, deleteError);
+              } else {
+                sheetDeletedCount++;
+              }
+            } catch (err) {
+              console.error(`Failed to delete row ${rowIndex}:`, err);
+            }
+            
+            // Small delay to avoid rate limiting
+            await sleep(300);
+          }
+          
+          toast.success(`✅ ${sheetDeletedCount} linhas removidas da planilha`);
+        } else {
+          toast.info('Nenhum registro de teste encontrado na planilha');
+        }
+      }
+
+      setCleanupResult({ dbCount: dbDeletedCount, sheetCount: sheetDeletedCount });
+      
+      if (dbDeletedCount > 0 || sheetDeletedCount > 0) {
+        toast.success(`🧹 Limpeza concluída: ${dbDeletedCount} do DB, ${sheetDeletedCount} da planilha`);
+      } else {
+        toast.info('Nenhum registro órfão encontrado para limpar');
+      }
+    } catch (err: any) {
+      console.error('Cleanup error:', err);
+      toast.error('Erro durante a limpeza: ' + err.message);
+    } finally {
+      setIsCleaning(false);
+    }
+  };
 
   const runTests = async () => {
     abortRef.current = false;
@@ -385,7 +504,7 @@ export function SyncTestPage() {
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
             <ArrowRightLeft className="w-6 h-6 text-primary" />
@@ -395,25 +514,64 @@ export function SyncTestPage() {
             Verifica a integridade da sincronização entre Supabase e Google Sheets
           </p>
         </div>
-        <Button 
-          onClick={runTests} 
-          disabled={isRunning}
-          size="lg"
-          className="gap-2"
-        >
-          {isRunning ? (
-            <>
-              <Loader2 className="w-4 h-4 animate-spin" />
-              Executando...
-            </>
-          ) : (
-            <>
-              <Play className="w-4 h-4" />
-              Executar Testes
-            </>
-          )}
-        </Button>
+        <div className="flex gap-2">
+          <Button 
+            onClick={cleanupOrphanedRecords} 
+            disabled={isRunning || isCleaning}
+            variant="outline"
+            className="gap-2 border-amber-500/50 text-amber-600 hover:bg-amber-500/10"
+          >
+            {isCleaning ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Limpando...
+              </>
+            ) : (
+              <>
+                <Trash2 className="w-4 h-4" />
+                Limpar Órfãos
+              </>
+            )}
+          </Button>
+          <Button 
+            onClick={runTests} 
+            disabled={isRunning || isCleaning}
+            size="lg"
+            className="gap-2"
+          >
+            {isRunning ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Executando...
+              </>
+            ) : (
+              <>
+                <Play className="w-4 h-4" />
+                Executar Testes
+              </>
+            )}
+          </Button>
+        </div>
       </div>
+
+      {/* Cleanup Result */}
+      {cleanupResult && (
+        <Card className="bg-amber-500/10 border-amber-500/30">
+          <CardContent className="py-4">
+            <div className="flex items-center gap-4">
+              <Trash2 className="w-8 h-8 text-amber-500" />
+              <div>
+                <div className="font-medium text-amber-600 dark:text-amber-400">
+                  Limpeza Concluída
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  Removidos: <strong>{cleanupResult.dbCount}</strong> do banco de dados, <strong>{cleanupResult.sheetCount}</strong> da planilha
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Summary */}
       {totalTests > 0 && (
