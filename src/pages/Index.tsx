@@ -101,7 +101,7 @@ const Index = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background flex">
+    <div className="h-screen bg-background flex overflow-hidden">
       {/* Desktop Sidebar */}
       {!isMobile && (
         <Sidebar activeItem={activeItem} onItemClick={setActiveItem} />
@@ -120,7 +120,7 @@ const Index = () => {
         </Sheet>
       )}
       
-      <div className="flex-1 flex flex-col min-w-0 relative">
+      <div className="flex-1 flex flex-col min-w-0 relative overflow-hidden">
         {/* Watermark Background */}
         <div 
           className="absolute inset-0 pointer-events-none flex items-center justify-center opacity-[0.03] z-0"
@@ -137,7 +137,7 @@ const Index = () => {
           onMenuClick={() => setSidebarOpen(true)}
           showMenuButton={isMobile}
         />
-        <div className="relative z-10 flex-1 flex flex-col">
+        <div className="relative z-10 flex-1 flex flex-col overflow-y-auto">
           {renderContent()}
         </div>
       </div>
