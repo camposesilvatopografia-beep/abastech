@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { 
   Fuel, 
   TrendingUp, 
@@ -279,6 +279,51 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
       ref?.refetch();
     });
   }, []);
+
+  // Calculate local KPIs by location from Supabase records (instant updates)
+  const localKPIsByLocation = useMemo(() => {
+    const kpis: Record<string, { entradas: number; saidas: number }> = {};
+    
+    for (const record of todayRecords) {
+      const loc = record.location || '';
+      if (!loc) continue;
+      
+      if (!kpis[loc]) {
+        kpis[loc] = { entradas: 0, saidas: 0 };
+      }
+      
+      const qty = record.fuel_quantity || 0;
+      const type = (record.record_type || 'saida').toLowerCase();
+      
+      if (type === 'entrada') {
+        kpis[loc].entradas += qty;
+      } else {
+        kpis[loc].saidas += qty;
+      }
+    }
+    
+    return kpis;
+  }, [todayRecords]);
+
+  // Helper to match location names flexibly
+  const getLocalKPIsForLocation = useCallback((location: string) => {
+    const normalized = location.toLowerCase().trim();
+    
+    // Direct match first
+    if (localKPIsByLocation[location]) {
+      return localKPIsByLocation[location];
+    }
+    
+    // Fuzzy match
+    for (const [key, value] of Object.entries(localKPIsByLocation)) {
+      const keyNorm = key.toLowerCase().trim();
+      if (keyNorm.includes(normalized) || normalized.includes(keyNorm)) {
+        return value;
+      }
+    }
+    
+    return undefined;
+  }, [localKPIsByLocation]);
 
   // Realtime sync for cross-device updates (broadcast channel)
   const { broadcast } = useRealtimeSync({
@@ -820,6 +865,7 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
             <LocationStockCard 
               key={selectedLocation} 
               location={selectedLocation}
+              localRecordKPIs={getLocalKPIsForLocation(selectedLocation)}
               ref={(el) => {
                 if (el) stockCardRefs.current.set(selectedLocation, el);
               }}
@@ -829,6 +875,7 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
               <LocationStockCard 
                 key={location} 
                 location={location}
+                localRecordKPIs={getLocalKPIsForLocation(location)}
                 ref={(el) => {
                   if (el) stockCardRefs.current.set(location, el);
                 }}
