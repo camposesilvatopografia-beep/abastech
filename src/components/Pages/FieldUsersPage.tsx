@@ -23,6 +23,10 @@ import {
   Truck,
   MessageCircle,
   CheckCircle,
+  Settings2,
+  Copy,
+  Trash2,
+  Zap,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -58,6 +62,7 @@ import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Checkbox } from '@/components/ui/checkbox';
 
 interface RequiredFields {
   horimeter_current: boolean;
@@ -71,6 +76,12 @@ interface RequiredFields {
   observations: boolean;
   photo_horimeter: boolean;
   photo_pump: boolean;
+}
+
+interface RequiredFieldsPreset {
+  id: string;
+  name: string;
+  fields: RequiredFields;
 }
 
 interface FieldUser {
@@ -144,6 +155,109 @@ const FIELD_LABELS: Record<keyof RequiredFields, string> = {
   photo_pump: 'Foto da Bomba',
 };
 
+const DEFAULT_PRESETS: RequiredFieldsPreset[] = [
+  {
+    id: 'basic',
+    name: 'Básico (Horímetro + Combustível)',
+    fields: {
+      horimeter_current: true,
+      km_current: false,
+      fuel_quantity: true,
+      arla_quantity: false,
+      oil_type: false,
+      oil_quantity: false,
+      lubricant: false,
+      filter_blow: false,
+      observations: false,
+      photo_horimeter: false,
+      photo_pump: false,
+    },
+  },
+  {
+    id: 'complete',
+    name: 'Completo (Todos os Campos)',
+    fields: {
+      horimeter_current: true,
+      km_current: true,
+      fuel_quantity: true,
+      arla_quantity: true,
+      oil_type: true,
+      oil_quantity: true,
+      lubricant: true,
+      filter_blow: true,
+      observations: true,
+      photo_horimeter: true,
+      photo_pump: true,
+    },
+  },
+  {
+    id: 'fuel_only',
+    name: 'Apenas Combustível',
+    fields: {
+      horimeter_current: false,
+      km_current: false,
+      fuel_quantity: true,
+      arla_quantity: false,
+      oil_type: false,
+      oil_quantity: false,
+      lubricant: false,
+      filter_blow: false,
+      observations: false,
+      photo_horimeter: false,
+      photo_pump: false,
+    },
+  },
+  {
+    id: 'fuel_arla',
+    name: 'Combustível + ARLA',
+    fields: {
+      horimeter_current: true,
+      km_current: false,
+      fuel_quantity: true,
+      arla_quantity: true,
+      oil_type: false,
+      oil_quantity: false,
+      lubricant: false,
+      filter_blow: false,
+      observations: false,
+      photo_horimeter: false,
+      photo_pump: false,
+    },
+  },
+  {
+    id: 'with_photos',
+    name: 'Com Fotos Obrigatórias',
+    fields: {
+      horimeter_current: true,
+      km_current: false,
+      fuel_quantity: true,
+      arla_quantity: false,
+      oil_type: false,
+      oil_quantity: false,
+      lubricant: false,
+      filter_blow: false,
+      observations: false,
+      photo_horimeter: true,
+      photo_pump: true,
+    },
+  },
+];
+
+const PRESETS_STORAGE_KEY = 'field_users_required_fields_presets';
+
+const loadCustomPresets = (): RequiredFieldsPreset[] => {
+  try {
+    const stored = localStorage.getItem(PRESETS_STORAGE_KEY);
+    return stored ? JSON.parse(stored) : [];
+  } catch {
+    return [];
+  }
+};
+
+const saveCustomPresets = (presets: RequiredFieldsPreset[]) => {
+  localStorage.setItem(PRESETS_STORAGE_KEY, JSON.stringify(presets));
+};
+
 const initialFormData: UserFormData = {
   name: '',
   username: '',
@@ -171,6 +285,17 @@ export function FieldUsersPage() {
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
   const [userRecordCounts, setUserRecordCounts] = useState<Record<string, number>>({});
+
+  // Presets state
+  const [customPresets, setCustomPresets] = useState<RequiredFieldsPreset[]>(loadCustomPresets());
+  const [showPresetModal, setShowPresetModal] = useState(false);
+  const [newPresetName, setNewPresetName] = useState('');
+  const [showBulkApplyModal, setShowBulkApplyModal] = useState(false);
+  const [selectedUsersForBulk, setSelectedUsersForBulk] = useState<string[]>([]);
+  const [selectedPresetForBulk, setSelectedPresetForBulk] = useState<string>('');
+  const [applyingBulk, setApplyingBulk] = useState(false);
+
+  const allPresets = [...DEFAULT_PRESETS, ...customPresets];
 
   useEffect(() => {
     fetchUsers();
@@ -303,6 +428,107 @@ export function FieldUsersPage() {
     setShowModal(true);
   };
 
+  const applyPreset = (presetId: string) => {
+    const preset = allPresets.find(p => p.id === presetId);
+    if (preset) {
+      setFormData({
+        ...formData,
+        required_fields: { ...preset.fields },
+      });
+      toast.success(`Preset "${preset.name}" aplicado!`);
+    }
+  };
+
+  const saveAsPreset = () => {
+    if (!newPresetName.trim()) {
+      toast.error('Digite um nome para o preset');
+      return;
+    }
+    
+    const newPreset: RequiredFieldsPreset = {
+      id: `custom_${Date.now()}`,
+      name: newPresetName.trim(),
+      fields: { ...formData.required_fields },
+    };
+    
+    const updatedPresets = [...customPresets, newPreset];
+    setCustomPresets(updatedPresets);
+    saveCustomPresets(updatedPresets);
+    setNewPresetName('');
+    setShowPresetModal(false);
+    toast.success('Preset salvo com sucesso!');
+  };
+
+  const deleteCustomPreset = (presetId: string) => {
+    const updatedPresets = customPresets.filter(p => p.id !== presetId);
+    setCustomPresets(updatedPresets);
+    saveCustomPresets(updatedPresets);
+    toast.success('Preset excluído!');
+  };
+
+  const openBulkApplyModal = () => {
+    setSelectedUsersForBulk([]);
+    setSelectedPresetForBulk('');
+    setShowBulkApplyModal(true);
+  };
+
+  const toggleUserForBulk = (userId: string) => {
+    setSelectedUsersForBulk(prev => 
+      prev.includes(userId) 
+        ? prev.filter(id => id !== userId)
+        : [...prev, userId]
+    );
+  };
+
+  const selectAllUsersForBulk = () => {
+    if (selectedUsersForBulk.length === users.length) {
+      setSelectedUsersForBulk([]);
+    } else {
+      setSelectedUsersForBulk(users.map(u => u.id));
+    }
+  };
+
+  const applyPresetToMultipleUsers = async () => {
+    if (selectedUsersForBulk.length === 0) {
+      toast.error('Selecione pelo menos um usuário');
+      return;
+    }
+    
+    if (!selectedPresetForBulk) {
+      toast.error('Selecione um preset');
+      return;
+    }
+    
+    const preset = allPresets.find(p => p.id === selectedPresetForBulk);
+    if (!preset) {
+      toast.error('Preset não encontrado');
+      return;
+    }
+    
+    setApplyingBulk(true);
+    
+    try {
+      const { error } = await supabase
+        .from('field_users')
+        .update({
+          required_fields: JSON.parse(JSON.stringify(preset.fields)),
+          updated_at: new Date().toISOString(),
+        } as any)
+        .in('id', selectedUsersForBulk);
+      
+      if (error) throw error;
+      
+      toast.success(`Preset aplicado a ${selectedUsersForBulk.length} usuário(s)!`);
+      setShowBulkApplyModal(false);
+      fetchUsers();
+    } catch (err) {
+      console.error('Bulk apply error:', err);
+      toast.error('Erro ao aplicar preset');
+    } finally {
+      setApplyingBulk(false);
+    }
+  };
+
   const handleSave = async () => {
     if (!formData.name.trim() || !formData.username.trim()) {
       toast.error('Nome e usuário são obrigatórios');
@@ -426,15 +652,26 @@ export function FieldUsersPage() {
               <p className="text-xs opacity-90">Gerenciamento de acessos</p>
             </div>
           </div>
-          <Button 
-            onClick={openCreateModal} 
-            variant="secondary"
-            size="sm"
-            className="gap-2"
-          >
-            <Plus className="w-4 h-4" />
-            Novo
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button 
+              onClick={openBulkApplyModal} 
+              variant="ghost"
+              size="sm"
+              className="gap-2 text-primary-foreground hover:bg-primary-foreground/20"
+            >
+              <Zap className="w-4 h-4" />
+              <span className="hidden sm:inline">Aplicar Preset</span>
+            </Button>
+            <Button 
+              onClick={openCreateModal} 
+              variant="secondary"
+              size="sm"
+              className="gap-2"
+            >
+              <Plus className="w-4 h-4" />
+              Novo
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -775,10 +1012,59 @@ export function FieldUsersPage() {
 
             {/* Required Fields Configuration */}
             <div className="space-y-2">
-              <Label className="flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 text-green-500" />
-                Campos Obrigatórios no Formulário
-              </Label>
+              <div className="flex items-center justify-between">
+                <Label className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-green-500" />
+                  Campos Obrigatórios no Formulário
+                </Label>
+                <div className="flex items-center gap-1">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowPresetModal(true)}
+                    className="h-7 text-xs gap-1"
+                  >
+                    <Save className="w-3 h-3" />
+                    Salvar Preset
+                  </Button>
+                </div>
+              </div>
+              
+              {/* Preset Selection */}
+              <div className="flex gap-2">
+                <Select onValueChange={applyPreset}>
+                  <SelectTrigger className="flex-1 h-9">
+                    <SelectValue placeholder="Aplicar preset..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <div className="px-2 py-1 text-xs font-semibold text-muted-foreground">
+                      Presets Padrão
+                    </div>
+                    {DEFAULT_PRESETS.map((preset) => (
+                      <SelectItem key={preset.id} value={preset.id}>
+                        {preset.name}
+                      </SelectItem>
+                    ))}
+                    {customPresets.length > 0 && (
+                      <>
+                        <div className="px-2 py-1 text-xs font-semibold text-muted-foreground border-t mt-1 pt-1">
+                          Presets Personalizados
+                        </div>
+                        {customPresets.map((preset) => (
+                          <div key={preset.id} className="flex items-center justify-between pr-2">
+                            <SelectItem value={preset.id} className="flex-1">
+                              {preset.name}
+                            </SelectItem>
+                          </div>
+                        ))}
+                      </>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              {/* Fields Checkboxes */}
               <div className="grid grid-cols-2 gap-2 p-3 bg-muted/50 rounded-lg max-h-48 overflow-y-auto">
                 {(Object.keys(FIELD_LABELS) as Array<keyof RequiredFields>).map((field) => (
                   <label key={field} className="flex items-center gap-2 cursor-pointer">
@@ -934,6 +1220,211 @@ export function FieldUsersPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowHistoryModal(false)}>
               Fechar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Save Preset Modal */}
+      <Dialog open={showPresetModal} onOpenChange={setShowPresetModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Save className="w-5 h-5" />
+              Salvar Preset de Campos
+            </DialogTitle>
+            <DialogDescription>
+              Salve a configuração atual como um preset reutilizável
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="preset-name">Nome do Preset</Label>
+              <Input
+                id="preset-name"
+                value={newPresetName}
+                onChange={(e) => setNewPresetName(e.target.value)}
+                placeholder="Ex: Comboio Padrão"
+              />
+            </div>
+            
+            <div className="p-3 bg-muted/50 rounded-lg">
+              <p className="text-sm font-medium mb-2">Campos que serão salvos:</p>
+              <div className="flex flex-wrap gap-1">
+                {(Object.keys(FIELD_LABELS) as Array<keyof RequiredFields>)
+                  .filter(field => formData.required_fields[field])
+                  .map(field => (
+                    <Badge key={field} variant="secondary" className="text-xs">
+                      {FIELD_LABELS[field]}
+                    </Badge>
+                  ))}
+                {Object.values(formData.required_fields).every(v => !v) && (
+                  <span className="text-xs text-muted-foreground">Nenhum campo obrigatório</span>
+                )}
+              </div>
+            </div>
+
+            {customPresets.length > 0 && (
+              <div className="space-y-2">
+                <Label>Presets Personalizados Existentes</Label>
+                <div className="space-y-1 max-h-32 overflow-y-auto">
+                  {customPresets.map(preset => (
+                    <div key={preset.id} className="flex items-center justify-between p-2 bg-muted/50 rounded">
+                      <span className="text-sm">{preset.name}</span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 text-destructive"
+                        onClick={() => deleteCustomPreset(preset.id)}
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="flex gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setShowPresetModal(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={saveAsPreset} className="gap-2">
+              <Save className="w-4 h-4" />
+              Salvar Preset
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Apply Preset Modal */}
+      <Dialog open={showBulkApplyModal} onOpenChange={setShowBulkApplyModal}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Zap className="w-5 h-5 text-yellow-500" />
+              Aplicar Preset em Múltiplos Usuários
+            </DialogTitle>
+            <DialogDescription>
+              Selecione um preset e os usuários para aplicar a configuração
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Selecione o Preset</Label>
+              <Select value={selectedPresetForBulk} onValueChange={setSelectedPresetForBulk}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Escolha um preset..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <div className="px-2 py-1 text-xs font-semibold text-muted-foreground">
+                    Presets Padrão
+                  </div>
+                  {DEFAULT_PRESETS.map((preset) => (
+                    <SelectItem key={preset.id} value={preset.id}>
+                      {preset.name}
+                    </SelectItem>
+                  ))}
+                  {customPresets.length > 0 && (
+                    <>
+                      <div className="px-2 py-1 text-xs font-semibold text-muted-foreground border-t mt-1 pt-1">
+                        Presets Personalizados
+                      </div>
+                      {customPresets.map((preset) => (
+                        <SelectItem key={preset.id} value={preset.id}>
+                          {preset.name}
+                        </SelectItem>
+                      ))}
+                    </>
+                  )}
+                </SelectContent>
+              </Select>
+              
+              {selectedPresetForBulk && (
+                <div className="p-2 bg-muted/50 rounded-lg">
+                  <p className="text-xs font-medium mb-1">Campos obrigatórios:</p>
+                  <div className="flex flex-wrap gap-1">
+                    {(Object.keys(FIELD_LABELS) as Array<keyof RequiredFields>)
+                      .filter(field => allPresets.find(p => p.id === selectedPresetForBulk)?.fields[field])
+                      .map(field => (
+                        <Badge key={field} variant="outline" className="text-xs">
+                          {FIELD_LABELS[field]}
+                        </Badge>
+                      ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label>Selecione os Usuários</Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={selectAllUsersForBulk}
+                  className="h-7 text-xs"
+                >
+                  {selectedUsersForBulk.length === users.length ? 'Desmarcar Todos' : 'Selecionar Todos'}
+                </Button>
+              </div>
+              <ScrollArea className="h-48 border rounded-lg p-2">
+                <div className="space-y-1">
+                  {users.map(user => (
+                    <label
+                      key={user.id}
+                      className={`flex items-center gap-3 p-2 rounded cursor-pointer transition-colors ${
+                        selectedUsersForBulk.includes(user.id) 
+                          ? 'bg-primary/10 border border-primary/20' 
+                          : 'hover:bg-muted/50'
+                      }`}
+                    >
+                      <Checkbox
+                        checked={selectedUsersForBulk.includes(user.id)}
+                        onCheckedChange={() => toggleUserForBulk(user.id)}
+                      />
+                      <div className="flex-1">
+                        <p className="text-sm font-medium">{user.name}</p>
+                        <p className="text-xs text-muted-foreground">{user.username}</p>
+                      </div>
+                      <Badge variant={user.active ? 'default' : 'secondary'} className="text-xs">
+                        {user.active ? 'Ativo' : 'Inativo'}
+                      </Badge>
+                    </label>
+                  ))}
+                </div>
+              </ScrollArea>
+              <p className="text-xs text-muted-foreground">
+                {selectedUsersForBulk.length} usuário(s) selecionado(s)
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter className="flex gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setShowBulkApplyModal(false)}>
+              Cancelar
+            </Button>
+            <Button 
+              onClick={applyPresetToMultipleUsers} 
+              disabled={applyingBulk || !selectedPresetForBulk || selectedUsersForBulk.length === 0}
+              className="gap-2"
+            >
+              {applyingBulk ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Aplicando...
+                </>
+              ) : (
+                <>
+                  <Zap className="w-4 h-4" />
+                  Aplicar Preset
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
