@@ -13,8 +13,14 @@ import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { useTheme } from '@/hooks/useTheme';
 
+interface LocalRecordKPI {
+  entradas: number;
+  saidas: number;
+}
+
 interface LocationStockCardProps {
   location: string;
+  localRecordKPIs?: LocalRecordKPI;
 }
 
 // Expose refetch method via ref
@@ -77,7 +83,7 @@ function isToday(dateStr: string): boolean {
 }
 
 export const LocationStockCard = forwardRef<LocationStockCardRef, LocationStockCardProps>(
-  function LocationStockCard({ location }, ref) {
+  function LocationStockCard({ location, localRecordKPIs }, ref) {
   const { theme } = useTheme();
   const stockSheetName = getStockSheetName(location);
   
@@ -169,14 +175,23 @@ export const LocationStockCard = forwardRef<LocationStockCardRef, LocationStockC
       }
     }
 
+    // Use local KPIs if provided for instant updates, but keep sheet's stock values
+    const finalEntradas = localRecordKPIs?.entradas ?? entradas;
+    const finalSaidas = localRecordKPIs?.saidas ?? saidas;
+    
+    // Recalculate stock based on local KPIs if available
+    const finalEstoqueAtual = localRecordKPIs 
+      ? Math.max(0, estoqueAnterior + finalEntradas - finalSaidas)
+      : Math.max(0, estoqueAtual);
+
     return {
       estoqueAnterior,
-      entradas,
-      saidas,
-      estoqueAtual: Math.max(0, estoqueAtual),
-      hasData,
+      entradas: finalEntradas,
+      saidas: finalSaidas,
+      estoqueAtual: finalEstoqueAtual,
+      hasData: hasData || !!localRecordKPIs,
     };
-  }, [stockSheetData.rows]);
+  }, [stockSheetData.rows, localRecordKPIs]);
 
   // Get short location name for display
   const shortLocationName = useMemo(() => {
