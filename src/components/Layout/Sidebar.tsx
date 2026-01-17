@@ -21,6 +21,7 @@ import {
   History,
   Building2,
   Settings,
+  FlaskConical,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Link, useNavigate } from 'react-router-dom';
@@ -62,6 +63,11 @@ const menuItems: MenuItem[] = [
     ]
   },
   { id: 'alertas', label: 'Alertas', icon: Bell },
+];
+
+// Admin-only menu items
+const adminMenuItems: MenuItem[] = [
+  { id: 'sync-tests', label: 'Testes Sync', icon: FlaskConical },
 ];
 
 interface SidebarProps {
@@ -231,6 +237,20 @@ export function Sidebar({ activeItem, onItemClick, onClose }: SidebarProps) {
               <History className="w-4 h-4 flex-shrink-0" />
               <span className="text-xs flex-1 text-left">Histórico</span>
             </button>
+            {/* Admin-only tools */}
+            {adminMenuItems.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => handleItemClick(item.id)}
+                className={cn(
+                  "sidebar-item w-full py-1.5",
+                  activeItem === item.id && "sidebar-item-active"
+                )}
+              >
+                <item.icon className="w-4 h-4 flex-shrink-0" />
+                <span className="text-xs flex-1 text-left">{item.label}</span>
+              </button>
+            ))}
           </div>
         )}
       </nav>
