@@ -117,6 +117,7 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
   
   // Refs
   const isDeletingRef = useRef(false);
+  const deletingRecordIdsRef = useRef<Set<string>>(new Set());
   const stockCardRefs = useRef<Map<string, LocationStockCardRef>>(new Map());
   
   // Location selection for users with multiple locations
@@ -141,7 +142,7 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
     }
   }, []);
 
-  // Fetch records function (reusable)
+  // Fetch records function (reusable) - excludes records being deleted
   const fetchTodayRecords = useCallback(async () => {
     try {
       // Fetch only today's records for this user
@@ -169,8 +170,11 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
         approvedDeletions = deletionRequests?.map(d => d.record_id) || [];
       }
 
-      // Filter out records with approved deletions
-      const filteredRecords = records?.filter(r => !approvedDeletions.includes(r.id)) || [];
+      // Filter out records with approved deletions AND records currently being deleted
+      const currentlyDeleting = Array.from(deletingRecordIdsRef.current);
+      const filteredRecords = records?.filter(r => 
+        !approvedDeletions.includes(r.id) && !currentlyDeleting.includes(r.id)
+      ) || [];
 
       const mappedRecords = filteredRecords.map(r => ({
         id: r.id,
@@ -359,21 +363,26 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
   const handleDirectDelete = async () => {
     if (!deleteConfirmation) return;
 
+    const recordId = deleteConfirmation.recordId;
+    
+    // Add to deleting set immediately to prevent re-adding via polling/realtime
+    deletingRecordIdsRef.current.add(recordId);
+    
     setIsDeleting(true);
     setDeletionStep('db');
 
-    const recordToDelete = todayRecords.find(r => r.id === deleteConfirmation.recordId);
+    const recordToDelete = todayRecords.find(r => r.id === recordId);
     
     console.log('[DELETE] Iniciando exclusão do registro:', {
-      recordId: deleteConfirmation.recordId,
+      recordId,
       vehicleCode: deleteConfirmation.vehicleCode,
       quantity: deleteConfirmation.quantity,
       record: recordToDelete,
     });
 
     // Optimistic UI: remove immediately so it disappears from the user's dashboard right away
+    setTodayRecords(prev => prev.filter(r => r.id !== recordId));
     if (recordToDelete) {
-      setTodayRecords(prev => prev.filter(r => r.id !== deleteConfirmation.recordId));
       setTodayStats(prev => {
         const liters = recordToDelete.fuel_quantity || 0;
         const arla = recordToDelete.arla_quantity || 0;
@@ -386,12 +395,12 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
     }
 
     try {
-      // STEP 1: Delete from database
+      // STEP 1: Delete from database IMMEDIATELY
       console.log('[DELETE] Passo 1: Excluindo do banco de dados...');
       const { error } = await supabase
         .from('field_fuel_records')
         .delete()
-        .eq('id', deleteConfirmation.recordId);
+        .eq('id', recordId);
 
       if (error) {
         console.error('[DELETE] ERRO ao excluir do banco:', error);
@@ -504,6 +513,9 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
       // Small delay to show completion before closing
       await new Promise(resolve => setTimeout(resolve, 500));
       
+      // Remove from deleting set
+      deletingRecordIdsRef.current.delete(recordId);
+      
       setDeleteConfirmation(null);
 
       // Hard refresh to ensure absolute consistency
@@ -512,10 +524,11 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
     } catch (err) {
       console.error('[DELETE] ERRO GERAL na exclusão:', err);
 
+      // Remove from deleting set on failure
+      deletingRecordIdsRef.current.delete(recordId);
+
       // Revert optimistic UI on failure
-      if (recordToDelete) {
-        await fetchTodayRecords();
-      }
+      await fetchTodayRecords();
 
       toast.error('❌ Erro ao excluir registro do banco de dados');
     } finally {
