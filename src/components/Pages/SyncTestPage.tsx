@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -20,6 +20,7 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 
 interface TestResult {
+  id: string;
   name: string;
   status: 'pending' | 'running' | 'passed' | 'failed';
   message?: string;
@@ -27,74 +28,44 @@ interface TestResult {
   duration?: number;
 }
 
-interface TestSuite {
-  name: string;
-  description: string;
-  tests: TestResult[];
-  status: 'idle' | 'running' | 'completed';
-}
-
 export function SyncTestPage() {
-  const [suites, setSuites] = useState<TestSuite[]>([
-    {
-      name: 'CRUD Sync Tests',
-      description: 'Testa sincronização de operações Create, Read, Update, Delete entre Supabase e Google Sheets',
-      tests: [],
-      status: 'idle',
-    },
-  ]);
+  const [tests, setTests] = useState<TestResult[]>([]);
   const [isRunning, setIsRunning] = useState(false);
-  const [testRecordId, setTestRecordId] = useState<string | null>(null);
+  const abortRef = useRef(false);
 
-  const updateTest = useCallback((suiteIndex: number, testIndex: number, update: Partial<TestResult>) => {
-    setSuites(prev => {
-      const newSuites = [...prev];
-      if (newSuites[suiteIndex]?.tests[testIndex]) {
-        newSuites[suiteIndex].tests[testIndex] = {
-          ...newSuites[suiteIndex].tests[testIndex],
-          ...update,
-        };
-      }
-      return newSuites;
-    });
-  }, []);
-
-  const addTest = useCallback((suiteIndex: number, test: TestResult) => {
-    setSuites(prev => {
-      const newSuites = [...prev];
-      if (newSuites[suiteIndex]) {
-        newSuites[suiteIndex].tests = [...newSuites[suiteIndex].tests, test];
-      }
-      return newSuites;
-    });
-    return newSuites => newSuites[suiteIndex]?.tests.length - 1 || 0;
+  const updateTest = useCallback((testId: string, update: Partial<TestResult>) => {
+    setTests(prev => prev.map(t => t.id === testId ? { ...t, ...update } : t));
   }, []);
 
   const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
   const runTests = async () => {
+    abortRef.current = false;
     setIsRunning(true);
-    setSuites(prev => prev.map(s => ({ ...s, tests: [], status: 'running' as const })));
+    
+    // Initialize all tests
+    const initialTests: TestResult[] = [
+      { id: 'create', name: '1. CREATE - Inserir registro no banco de dados', status: 'pending' },
+      { id: 'sync', name: '2. SYNC - Sincronizar com Google Sheets', status: 'pending' },
+      { id: 'read', name: '3. READ - Verificar registro na planilha', status: 'pending' },
+      { id: 'delete-db', name: '4. DELETE DB - Excluir registro do banco', status: 'pending' },
+      { id: 'delete-sheet', name: '5. DELETE SHEET - Excluir registro da planilha', status: 'pending' },
+      { id: 'verify', name: '6. VERIFY - Confirmar exclusão em ambos', status: 'pending' },
+    ];
+    setTests(initialTests);
 
     const testVehicleCode = `TEST-${Date.now().toString(36).toUpperCase()}`;
     const testDate = format(new Date(), 'yyyy-MM-dd');
     const testTime = format(new Date(), 'HH:mm:ss');
     const testQuantity = Math.floor(Math.random() * 100) + 10;
     let createdRecordId: string | null = null;
+    let sheetRowIndex: number | null = null;
 
     try {
       // ========== TEST 1: CREATE in Database ==========
-      const test1Idx = 0;
-      setSuites(prev => {
-        const newSuites = [...prev];
-        newSuites[0].tests.push({
-          name: '1. CREATE - Inserir registro no banco de dados',
-          status: 'running',
-        });
-        return newSuites;
-      });
-
+      updateTest('create', { status: 'running' });
       const startCreate = Date.now();
+      
       try {
         const { data: insertedRecord, error: insertError } = await supabase
           .from('field_fuel_records')
@@ -111,18 +82,16 @@ export function SyncTestPage() {
           .single();
 
         if (insertError) throw insertError;
-
         createdRecordId = insertedRecord.id;
-        setTestRecordId(createdRecordId);
 
-        updateTest(0, test1Idx, {
+        updateTest('create', {
           status: 'passed',
           message: `Registro criado: ${testVehicleCode}`,
-          details: { id: createdRecordId, vehicle_code: testVehicleCode },
+          details: { id: createdRecordId, vehicle_code: testVehicleCode, quantity: testQuantity },
           duration: Date.now() - startCreate,
         });
       } catch (err: any) {
-        updateTest(0, test1Idx, {
+        updateTest('create', {
           status: 'failed',
           message: err.message || 'Erro ao criar registro',
           duration: Date.now() - startCreate,
@@ -130,20 +99,13 @@ export function SyncTestPage() {
         throw err;
       }
 
-      // ========== TEST 2: SYNC to Google Sheets ==========
-      const test2Idx = 1;
-      setSuites(prev => {
-        const newSuites = [...prev];
-        newSuites[0].tests.push({
-          name: '2. SYNC - Sincronizar com Google Sheets',
-          status: 'running',
-        });
-        return newSuites;
-      });
+      if (abortRef.current) return;
 
+      // ========== TEST 2: SYNC to Google Sheets ==========
+      updateTest('sync', { status: 'running' });
       const startSync = Date.now();
+      
       try {
-        // Simulate what FieldFuelForm does - sync to sheet
         const sheetData = {
           'DATA': new Date(testDate).toLocaleDateString('pt-BR'),
           'HORA': testTime.substring(0, 5),
@@ -151,7 +113,7 @@ export function SyncTestPage() {
           'QUANTIDADE': testQuantity,
           'LOCAL': 'TEST_SYNC',
           'OPERADOR': 'TESTE AUTOMATIZADO',
-          'OBSERVACAO': `Teste de sincronização - ${new Date().toISOString()}`,
+          'OBSERVACAO': `Teste de sincronização`,
         };
 
         const { error: syncError } = await supabase.functions.invoke('google-sheets', {
@@ -164,42 +126,32 @@ export function SyncTestPage() {
 
         if (syncError) throw syncError;
 
-        // Mark as synced in DB
         await supabase
           .from('field_fuel_records')
           .update({ synced_to_sheet: true })
           .eq('id', createdRecordId);
 
-        updateTest(0, test2Idx, {
+        updateTest('sync', {
           status: 'passed',
           message: 'Registro sincronizado com planilha',
           details: sheetData,
           duration: Date.now() - startSync,
         });
       } catch (err: any) {
-        updateTest(0, test2Idx, {
+        updateTest('sync', {
           status: 'failed',
           message: err.message || 'Erro ao sincronizar',
           duration: Date.now() - startSync,
         });
-        // Continue to cleanup even if sync failed
       }
 
-      // Wait a bit for Sheet to process
+      if (abortRef.current) return;
       await sleep(2000);
 
       // ========== TEST 3: READ from Google Sheets ==========
-      const test3Idx = 2;
-      setSuites(prev => {
-        const newSuites = [...prev];
-        newSuites[0].tests.push({
-          name: '3. READ - Verificar registro na planilha',
-          status: 'running',
-        });
-        return newSuites;
-      });
-
+      updateTest('read', { status: 'running' });
       const startRead = Date.now();
+      
       try {
         const { data: sheetResponse, error: readError } = await supabase.functions.invoke('google-sheets', {
           body: {
@@ -220,9 +172,10 @@ export function SyncTestPage() {
         });
 
         if (foundRow) {
-          updateTest(0, test3Idx, {
+          sheetRowIndex = foundRow._rowIndex;
+          updateTest('read', {
             status: 'passed',
-            message: `Registro encontrado na planilha (linha ${foundRow._rowIndex})`,
+            message: `✅ Registro encontrado na planilha (linha ${foundRow._rowIndex})`,
             details: { 
               _rowIndex: foundRow._rowIndex,
               VEICULO: foundRow['VEICULO'] ?? foundRow['Veiculo'],
@@ -231,7 +184,7 @@ export function SyncTestPage() {
             duration: Date.now() - startRead,
           });
         } else {
-          updateTest(0, test3Idx, {
+          updateTest('read', {
             status: 'failed',
             message: `Registro ${testVehicleCode} não encontrado na planilha`,
             details: { totalRows: sheetResponse?.rows?.length || 0 },
@@ -239,25 +192,19 @@ export function SyncTestPage() {
           });
         }
       } catch (err: any) {
-        updateTest(0, test3Idx, {
+        updateTest('read', {
           status: 'failed',
           message: err.message || 'Erro ao ler planilha',
           duration: Date.now() - startRead,
         });
       }
 
-      // ========== TEST 4: DELETE from Database ==========
-      const test4Idx = 3;
-      setSuites(prev => {
-        const newSuites = [...prev];
-        newSuites[0].tests.push({
-          name: '4. DELETE - Excluir registro do banco',
-          status: 'running',
-        });
-        return newSuites;
-      });
+      if (abortRef.current) return;
 
-      const startDelete = Date.now();
+      // ========== TEST 4: DELETE from Database ==========
+      updateTest('delete-db', { status: 'running' });
+      const startDeleteDb = Date.now();
+      
       try {
         if (!createdRecordId) throw new Error('ID do registro não encontrado');
 
@@ -268,103 +215,92 @@ export function SyncTestPage() {
 
         if (deleteError) throw deleteError;
 
-        updateTest(0, test4Idx, {
+        updateTest('delete-db', {
           status: 'passed',
-          message: 'Registro excluído do banco de dados',
-          duration: Date.now() - startDelete,
+          message: '✅ Registro excluído do banco de dados',
+          duration: Date.now() - startDeleteDb,
         });
       } catch (err: any) {
-        updateTest(0, test4Idx, {
+        updateTest('delete-db', {
           status: 'failed',
           message: err.message || 'Erro ao excluir do banco',
-          duration: Date.now() - startDelete,
+          duration: Date.now() - startDeleteDb,
         });
       }
 
+      if (abortRef.current) return;
+
       // ========== TEST 5: DELETE from Google Sheets ==========
-      const test5Idx = 4;
-      setSuites(prev => {
-        const newSuites = [...prev];
-        newSuites[0].tests.push({
-          name: '5. SYNC DELETE - Excluir registro da planilha',
-          status: 'running',
-        });
-        return newSuites;
-      });
-
-      const startSheetDelete = Date.now();
+      updateTest('delete-sheet', { status: 'running' });
+      const startDeleteSheet = Date.now();
+      
       try {
-        // First, find the row in the sheet
-        const { data: sheetResponse } = await supabase.functions.invoke('google-sheets', {
-          body: {
-            action: 'getData',
-            sheetName: 'AbastecimentoCanteiro01',
-            noCache: true,
-          },
-        });
+        // If we already have the row index from the READ test, use it
+        let rowToDelete = sheetRowIndex;
 
-        const testDateBR = new Date(testDate).toLocaleDateString('pt-BR');
-        let rowIndex = -1;
-        
-        if (sheetResponse?.rows) {
-          for (let i = 0; i < sheetResponse.rows.length; i++) {
-            const row = sheetResponse.rows[i];
-            const rowVehicle = String(row['VEICULO'] ?? row['Veiculo'] ?? '').trim().toUpperCase();
-            const rowDate = String(row['DATA'] ?? row['Data'] ?? '').trim();
-            if (rowVehicle === testVehicleCode.toUpperCase() && 
-                (rowDate === testDateBR || rowDate.includes(testDateBR))) {
-              rowIndex = row._rowIndex || (i + 2);
-              break;
+        // Otherwise, find it again
+        if (!rowToDelete) {
+          const { data: sheetResponse } = await supabase.functions.invoke('google-sheets', {
+            body: {
+              action: 'getData',
+              sheetName: 'AbastecimentoCanteiro01',
+              noCache: true,
+            },
+          });
+
+          const testDateBR = new Date(testDate).toLocaleDateString('pt-BR');
+          if (sheetResponse?.rows) {
+            for (let i = 0; i < sheetResponse.rows.length; i++) {
+              const row = sheetResponse.rows[i];
+              const rowVehicle = String(row['VEICULO'] ?? row['Veiculo'] ?? '').trim().toUpperCase();
+              const rowDate = String(row['DATA'] ?? row['Data'] ?? '').trim();
+              if (rowVehicle === testVehicleCode.toUpperCase() && 
+                  (rowDate === testDateBR || rowDate.includes(testDateBR))) {
+                rowToDelete = row._rowIndex || (i + 2);
+                break;
+              }
             }
           }
         }
 
-        if (rowIndex > 0) {
+        if (rowToDelete && rowToDelete > 0) {
           const { error: sheetDeleteError } = await supabase.functions.invoke('google-sheets', {
             body: {
               action: 'delete',
               sheetName: 'AbastecimentoCanteiro01',
-              rowIndex: rowIndex,
+              rowIndex: rowToDelete,
             },
           });
 
           if (sheetDeleteError) throw sheetDeleteError;
 
-          updateTest(0, test5Idx, {
+          updateTest('delete-sheet', {
             status: 'passed',
-            message: `Linha ${rowIndex} excluída da planilha`,
-            duration: Date.now() - startSheetDelete,
+            message: `✅ Linha ${rowToDelete} excluída da planilha`,
+            duration: Date.now() - startDeleteSheet,
           });
         } else {
-          updateTest(0, test5Idx, {
+          updateTest('delete-sheet', {
             status: 'failed',
             message: 'Registro não encontrado na planilha para exclusão',
-            duration: Date.now() - startSheetDelete,
+            duration: Date.now() - startDeleteSheet,
           });
         }
       } catch (err: any) {
-        updateTest(0, test5Idx, {
+        updateTest('delete-sheet', {
           status: 'failed',
           message: err.message || 'Erro ao excluir da planilha',
-          duration: Date.now() - startSheetDelete,
+          duration: Date.now() - startDeleteSheet,
         });
       }
 
-      // Wait and verify deletion
+      if (abortRef.current) return;
       await sleep(2000);
 
       // ========== TEST 6: VERIFY DELETION ==========
-      const test6Idx = 5;
-      setSuites(prev => {
-        const newSuites = [...prev];
-        newSuites[0].tests.push({
-          name: '6. VERIFY - Confirmar exclusão em ambos',
-          status: 'running',
-        });
-        return newSuites;
-      });
-
+      updateTest('verify', { status: 'running' });
       const startVerify = Date.now();
+      
       try {
         // Check DB
         const { data: dbCheck } = await supabase
@@ -394,14 +330,14 @@ export function SyncTestPage() {
         const sheetClean = !stillInSheet;
 
         if (dbClean && sheetClean) {
-          updateTest(0, test6Idx, {
+          updateTest('verify', {
             status: 'passed',
             message: '✅ Registro removido de ambos: DB e Planilha',
             details: { dbClean, sheetClean },
             duration: Date.now() - startVerify,
           });
         } else {
-          updateTest(0, test6Idx, {
+          updateTest('verify', {
             status: 'failed',
             message: `Limpeza incompleta: DB=${dbClean ? '✅' : '❌'}, Sheet=${sheetClean ? '✅' : '❌'}`,
             details: { dbClean, sheetClean },
@@ -409,7 +345,7 @@ export function SyncTestPage() {
           });
         }
       } catch (err: any) {
-        updateTest(0, test6Idx, {
+        updateTest('verify', {
           status: 'failed',
           message: err.message || 'Erro na verificação final',
           duration: Date.now() - startVerify,
@@ -421,32 +357,31 @@ export function SyncTestPage() {
       console.error('Test suite error:', err);
       toast.error('Erro durante os testes: ' + err.message);
     } finally {
-      setSuites(prev => prev.map(s => ({ ...s, status: 'completed' as const })));
       setIsRunning(false);
     }
   };
 
   const getStatusIcon = (status: TestResult['status']) => {
     switch (status) {
-      case 'pending': return <div className="w-4 h-4 rounded-full bg-muted" />;
-      case 'running': return <Loader2 className="w-4 h-4 animate-spin text-amber-500" />;
-      case 'passed': return <CheckCircle className="w-4 h-4 text-green-500" />;
-      case 'failed': return <XCircle className="w-4 h-4 text-red-500" />;
+      case 'pending': return <div className="w-5 h-5 rounded-full border-2 border-muted-foreground/30" />;
+      case 'running': return <Loader2 className="w-5 h-5 animate-spin text-amber-500" />;
+      case 'passed': return <CheckCircle className="w-5 h-5 text-green-500" />;
+      case 'failed': return <XCircle className="w-5 h-5 text-red-500" />;
     }
   };
 
   const getStatusBadge = (status: TestResult['status']) => {
     switch (status) {
-      case 'pending': return <Badge variant="outline">Pendente</Badge>;
-      case 'running': return <Badge className="bg-amber-500">Executando</Badge>;
-      case 'passed': return <Badge className="bg-green-500">Passou</Badge>;
-      case 'failed': return <Badge variant="destructive">Falhou</Badge>;
+      case 'pending': return <Badge variant="outline" className="text-xs">Pendente</Badge>;
+      case 'running': return <Badge className="bg-amber-500 text-xs">Executando</Badge>;
+      case 'passed': return <Badge className="bg-green-500 text-xs">Passou</Badge>;
+      case 'failed': return <Badge variant="destructive" className="text-xs">Falhou</Badge>;
     }
   };
 
-  const passedCount = suites[0]?.tests.filter(t => t.status === 'passed').length || 0;
-  const failedCount = suites[0]?.tests.filter(t => t.status === 'failed').length || 0;
-  const totalTests = suites[0]?.tests.length || 0;
+  const passedCount = tests.filter(t => t.status === 'passed').length;
+  const failedCount = tests.filter(t => t.status === 'failed').length;
+  const totalTests = tests.length;
 
   return (
     <div className="p-6 space-y-6">
@@ -482,8 +417,8 @@ export function SyncTestPage() {
 
       {/* Summary */}
       {totalTests > 0 && (
-        <div className="flex gap-4">
-          <Card className="flex-1 bg-green-500/10 border-green-500/30">
+        <div className="grid grid-cols-3 gap-4">
+          <Card className="bg-green-500/10 border-green-500/30">
             <CardContent className="py-4 flex items-center gap-3">
               <CheckCircle className="w-8 h-8 text-green-500" />
               <div>
@@ -492,7 +427,7 @@ export function SyncTestPage() {
               </div>
             </CardContent>
           </Card>
-          <Card className="flex-1 bg-red-500/10 border-red-500/30">
+          <Card className="bg-red-500/10 border-red-500/30">
             <CardContent className="py-4 flex items-center gap-3">
               <XCircle className="w-8 h-8 text-red-500" />
               <div>
@@ -501,7 +436,7 @@ export function SyncTestPage() {
               </div>
             </CardContent>
           </Card>
-          <Card className="flex-1">
+          <Card>
             <CardContent className="py-4 flex items-center gap-3">
               <RefreshCw className="w-8 h-8 text-primary" />
               <div>
@@ -513,69 +448,69 @@ export function SyncTestPage() {
         </div>
       )}
 
-      {/* Test Suites */}
-      {suites.map((suite, suiteIdx) => (
-        <Card key={suiteIdx}>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Database className="w-5 h-5 text-primary" />
-              <ArrowRightLeft className="w-4 h-4 text-muted-foreground" />
-              <FileSpreadsheet className="w-5 h-5 text-green-500" />
-              {suite.name}
-            </CardTitle>
-            <CardDescription>{suite.description}</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {suite.tests.length === 0 && suite.status === 'idle' && (
-              <div className="text-center py-8 text-muted-foreground">
-                <AlertTriangle className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                <p>Clique em "Executar Testes" para iniciar</p>
-              </div>
-            )}
+      {/* Test Results */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Database className="w-5 h-5 text-primary" />
+            <ArrowRightLeft className="w-4 h-4 text-muted-foreground" />
+            <FileSpreadsheet className="w-5 h-5 text-green-500" />
+            CRUD Sync Tests
+          </CardTitle>
+          <CardDescription>
+            Testa sincronização de operações Create, Read, Update, Delete entre Supabase e Google Sheets
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {tests.length === 0 && (
+            <div className="text-center py-8 text-muted-foreground">
+              <AlertTriangle className="w-12 h-12 mx-auto mb-3 opacity-50" />
+              <p>Clique em "Executar Testes" para iniciar</p>
+            </div>
+          )}
 
-            {suite.tests.map((test, testIdx) => (
-              <div 
-                key={testIdx} 
-                className={`p-4 rounded-lg border transition-all ${
-                  test.status === 'running' ? 'bg-amber-500/5 border-amber-500/30' :
-                  test.status === 'passed' ? 'bg-green-500/5 border-green-500/30' :
-                  test.status === 'failed' ? 'bg-red-500/5 border-red-500/30' :
-                  'bg-muted/30 border-border'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    {getStatusIcon(test.status)}
-                    <span className="font-medium">{test.name}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {test.duration && (
-                      <span className="text-xs text-muted-foreground">
-                        {test.duration}ms
-                      </span>
-                    )}
-                    {getStatusBadge(test.status)}
-                  </div>
+          {tests.map((test) => (
+            <div 
+              key={test.id} 
+              className={`p-4 rounded-lg border transition-all ${
+                test.status === 'running' ? 'bg-amber-500/5 border-amber-500/30 animate-pulse' :
+                test.status === 'passed' ? 'bg-green-500/5 border-green-500/30' :
+                test.status === 'failed' ? 'bg-red-500/5 border-red-500/30' :
+                'bg-muted/30 border-border'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  {getStatusIcon(test.status)}
+                  <span className="font-medium">{test.name}</span>
                 </div>
-                {test.message && (
-                  <p className={`mt-2 text-sm ${
-                    test.status === 'passed' ? 'text-green-600 dark:text-green-400' :
-                    test.status === 'failed' ? 'text-red-600 dark:text-red-400' :
-                    'text-muted-foreground'
-                  }`}>
-                    {test.message}
-                  </p>
-                )}
-                {test.details && (
-                  <pre className="mt-2 p-2 bg-muted/50 rounded text-xs overflow-x-auto">
-                    {JSON.stringify(test.details, null, 2)}
-                  </pre>
-                )}
+                <div className="flex items-center gap-2">
+                  {test.duration && (
+                    <span className="text-xs text-muted-foreground">
+                      {test.duration}ms
+                    </span>
+                  )}
+                  {getStatusBadge(test.status)}
+                </div>
               </div>
-            ))}
-          </CardContent>
-        </Card>
-      ))}
+              {test.message && (
+                <p className={`mt-2 text-sm ${
+                  test.status === 'passed' ? 'text-green-600 dark:text-green-400' :
+                  test.status === 'failed' ? 'text-red-600 dark:text-red-400' :
+                  'text-muted-foreground'
+                }`}>
+                  {test.message}
+                </p>
+              )}
+              {test.details && (
+                <pre className="mt-2 p-2 bg-muted/50 rounded text-xs overflow-x-auto">
+                  {JSON.stringify(test.details, null, 2)}
+                </pre>
+              )}
+            </div>
+          ))}
+        </CardContent>
+      </Card>
 
       {/* Legend */}
       <Card className="bg-muted/30">
