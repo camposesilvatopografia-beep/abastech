@@ -44,7 +44,6 @@ interface AuthUser {
 const menuItems: MenuItem[] = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'abastecimento', label: 'Abastecimento', icon: Fuel },
-  { id: 'estoques', label: 'Estoques', icon: Package },
   { id: 'frota', label: 'Frota', icon: Truck },
   { id: 'horimetros', label: 'Horímetros', icon: Clock },
   { id: 'manutencao', label: 'Manutenção', icon: Wrench },
