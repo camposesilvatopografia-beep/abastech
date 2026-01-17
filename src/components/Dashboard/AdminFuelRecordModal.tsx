@@ -59,6 +59,7 @@ import {
 import { VehicleCombobox } from '@/components/ui/vehicle-combobox';
 import { supabase } from '@/integrations/supabase/client';
 import { useSheetData } from '@/hooks/useGoogleSheets';
+import { useRealtimeSync } from '@/hooks/useRealtimeSync';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
@@ -73,6 +74,7 @@ type QuickEntryMode = 'normal' | 'arla_only' | 'lubrication_only' | 'filter_blow
 export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFuelRecordModalProps) {
   const { data: vehiclesData } = useSheetData('Veiculo');
   const [isSaving, setIsSaving] = useState(false);
+  const { broadcast } = useRealtimeSync();
   
   // Quick entry mode
   const [quickEntryMode, setQuickEntryMode] = useState<QuickEntryMode>('normal');
@@ -606,6 +608,9 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
           toast.error('Sincronização falhou. Registro será sincronizado posteriormente.', { id: 'sync-sheet' });
         }
       }
+
+      // Broadcast to all clients
+      broadcast('fuel_record_created', { vehicleCode: dbRecord.vehicle_code });
 
       onOpenChange(false);
       onSuccess?.();

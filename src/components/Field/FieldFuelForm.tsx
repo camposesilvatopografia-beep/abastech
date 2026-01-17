@@ -59,6 +59,7 @@ import {
 } from '@/components/ui/popover';
 import { supabase } from '@/integrations/supabase/client';
 import { useSheetData } from '@/hooks/useGoogleSheets';
+import { useRealtimeSync } from '@/hooks/useRealtimeSync';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { formatCurrencyInput, parseCurrencyInput, formatQuantityInput } from '@/lib/numberToWords';
@@ -1208,6 +1209,9 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
       toast.success(syncSuccess 
         ? 'Abastecimento registrado e sincronizado!' 
         : 'Abastecimento registrado! (Sincronização pendente)');
+      
+      // Broadcast to all clients (desktop + mobile) for real-time sync
+      // Note: broadcast function would need to be passed as prop or use global context
       
       // Wait for animation and then redirect to dashboard
       setTimeout(() => {

@@ -5,6 +5,7 @@ import { StockSummary } from './StockSummary';
 import { ConsumptionRanking } from './ConsumptionRanking';
 import { KPIDiagnosticsModal } from './KPIDiagnosticsModal';
 import { useSheetData } from '@/hooks/useGoogleSheets';
+import { useRealtimeSync } from '@/hooks/useRealtimeSync';
 import { format, parse, isWithinInterval, startOfDay, endOfDay, isValid } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Button } from '@/components/ui/button';
@@ -12,6 +13,7 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
+import { toast as sonnerToast } from 'sonner';
 
 const GERAL_SHEET = 'Geral';
 const ABASTECIMENTO_SHEET = 'AbastecimentoCanteiro01';
@@ -50,16 +52,35 @@ export function DashboardContent() {
   // Enable polling every 30 seconds for real-time updates
   const POLLING_INTERVAL = 30000;
   
-  const { data: geralData, loading } = useSheetData(GERAL_SHEET, { pollingInterval: POLLING_INTERVAL });
-  const { data: abastecimentoData } = useSheetData(ABASTECIMENTO_SHEET, { pollingInterval: POLLING_INTERVAL });
+  const { data: geralData, loading, refetch: refetchGeral } = useSheetData(GERAL_SHEET, { pollingInterval: POLLING_INTERVAL });
+  const { data: abastecimentoData, refetch: refetchAbastecimento } = useSheetData(ABASTECIMENTO_SHEET, { pollingInterval: POLLING_INTERVAL });
   const { data: vehicleData } = useSheetData(VEHICLE_SHEET, { pollingInterval: POLLING_INTERVAL });
-  const { data: arlaData } = useSheetData(ARLA_SHEET, { pollingInterval: POLLING_INTERVAL });
+  const { data: arlaData, refetch: refetchArla } = useSheetData(ARLA_SHEET, { pollingInterval: POLLING_INTERVAL });
   const [isSending, setIsSending] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   const [search, setSearch] = useState('');
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [showDiagnostics, setShowDiagnostics] = useState(false);
   const { toast } = useToast();
+
+  // Real-time sync across all clients
+  const handleRealtimeRefresh = useCallback(() => {
+    console.log('[Dashboard] Realtime sync event received, refreshing data...');
+    refetchGeral(true, true);
+    refetchAbastecimento(true, true);
+    refetchArla(true, true);
+    setLastUpdate(new Date());
+    sonnerToast.info('📡 Dados atualizados em tempo real', { duration: 2000 });
+  }, [refetchGeral, refetchAbastecimento, refetchArla]);
+
+  // Subscribe to realtime sync events
+  useRealtimeSync({
+    onSyncEvent: (event) => {
+      if (['fuel_record_created', 'fuel_record_updated', 'fuel_record_deleted', 'stock_updated', 'manual_refresh'].includes(event.type)) {
+        handleRealtimeRefresh();
+      }
+    },
+  });
 
   // Update last sync time when data changes
   useEffect(() => {
