@@ -876,8 +876,8 @@ export function FieldUsersPage() {
 
       {/* Create/Edit Modal */}
       <Dialog open={showModal} onOpenChange={setShowModal}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
+        <DialogContent className="sm:max-w-md max-h-[85vh] flex flex-col">
+          <DialogHeader className="flex-shrink-0">
             <DialogTitle className="flex items-center gap-2">
               {editingUser ? (
                 <>
@@ -898,147 +898,150 @@ export function FieldUsersPage() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Nome Completo *</Label>
-              <Input
-                id="name"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="Ex: João da Silva"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="username">Nome de Usuário *</Label>
-              <Input
-                id="username"
-                value={formData.username}
-                onChange={(e) =>
-                  setFormData({ ...formData, username: e.target.value.toLowerCase() })
-                }
-                placeholder="Ex: joao.silva"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="password">
-                {editingUser ? 'Nova Senha (deixe vazio para manter)' : 'Senha *'}
-              </Label>
-              <div className="relative">
-                <Input
-                  id="password"
-                  type={showPassword ? 'text' : 'password'}
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  placeholder={editingUser ? '••••••••' : 'Digite a senha'}
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8"
-                  onClick={() => setShowPassword(!showPassword)}
-                >
-                  {showPassword ? (
-                    <EyeOff className="w-4 h-4" />
-                  ) : (
-                    <Eye className="w-4 h-4" />
-                  )}
-                </Button>
+          <ScrollArea className="flex-1 pr-4 -mr-4">
+            <div className="space-y-3 py-1">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="name" className="text-xs">Nome Completo *</Label>
+                  <Input
+                    id="name"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    placeholder="Ex: João da Silva"
+                    className="h-9"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="username" className="text-xs">Nome de Usuário *</Label>
+                  <Input
+                    id="username"
+                    value={formData.username}
+                    onChange={(e) =>
+                      setFormData({ ...formData, username: e.target.value.toLowerCase() })
+                    }
+                    placeholder="Ex: joao.silva"
+                    className="h-9"
+                  />
+                </div>
               </div>
-            </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="role">Perfil</Label>
-              <Select
-                value={formData.role}
-                onValueChange={(value) => setFormData({ ...formData, role: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="operador">
-                    <div className="flex items-center gap-2">
-                      <User className="w-4 h-4" />
-                      Operador
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="admin">
-                    <div className="flex items-center gap-2">
-                      <Shield className="w-4 h-4" />
-                      Administrador
-                    </div>
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="locations" className="flex items-center gap-2">
-                <MapPin className="w-4 h-4" />
-                Locais de Trabalho
-              </Label>
-              <div className="grid grid-cols-1 gap-2 p-3 bg-muted/50 rounded-lg">
-                {LOCATION_OPTIONS.map((loc) => (
-                  <label key={loc} className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={formData.assigned_locations.includes(loc)}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setFormData({
-                            ...formData,
-                            assigned_locations: [...formData.assigned_locations, loc],
-                          });
-                        } else {
-                          setFormData({
-                            ...formData,
-                            assigned_locations: formData.assigned_locations.filter((l) => l !== loc),
-                          });
-                        }
-                      }}
-                      className="w-4 h-4 rounded"
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="password" className="text-xs">
+                    {editingUser ? 'Nova Senha' : 'Senha *'}
+                  </Label>
+                  <div className="relative">
+                    <Input
+                      id="password"
+                      type={showPassword ? 'text' : 'password'}
+                      value={formData.password}
+                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                      placeholder={editingUser ? '••••••••' : 'Senha'}
+                      className="h-9 pr-9"
                     />
-                    <span className="text-sm">{loc}</span>
-                  </label>
-                ))}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-0 top-0 h-9 w-9"
+                      onClick={() => setShowPassword(!showPassword)}
+                    >
+                      {showPassword ? (
+                        <EyeOff className="w-3.5 h-3.5" />
+                      ) : (
+                        <Eye className="w-3.5 h-3.5" />
+                      )}
+                    </Button>
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="role" className="text-xs">Perfil</Label>
+                  <Select
+                    value={formData.role}
+                    onValueChange={(value) => setFormData({ ...formData, role: value })}
+                  >
+                    <SelectTrigger className="h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="operador">
+                        <div className="flex items-center gap-2">
+                          <User className="w-3.5 h-3.5" />
+                          Operador
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="admin">
+                        <div className="flex items-center gap-2">
+                          <Shield className="w-3.5 h-3.5" />
+                          Administrador
+                        </div>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-              <p className="text-xs text-muted-foreground">
-                Selecione os locais que o usuário pode abastecer. O primeiro será o padrão.
-              </p>
-            </div>
 
-            {/* Required Fields Configuration */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label className="flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4 text-green-500" />
-                  Campos Obrigatórios no Formulário
+              <div className="space-y-1.5">
+                <Label className="text-xs flex items-center gap-1.5">
+                  <MapPin className="w-3.5 h-3.5" />
+                  Locais de Trabalho
                 </Label>
-                <div className="flex items-center gap-1">
+                <div className="grid grid-cols-2 gap-1.5 p-2 bg-muted/50 rounded-lg">
+                  {LOCATION_OPTIONS.map((loc) => (
+                    <label key={loc} className="flex items-center gap-1.5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={formData.assigned_locations.includes(loc)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setFormData({
+                              ...formData,
+                              assigned_locations: [...formData.assigned_locations, loc],
+                            });
+                          } else {
+                            setFormData({
+                              ...formData,
+                              assigned_locations: formData.assigned_locations.filter((l) => l !== loc),
+                            });
+                          }
+                        }}
+                        className="w-3.5 h-3.5 rounded"
+                      />
+                      <span className="text-xs">{loc}</span>
+                    </label>
+                  ))}
+                </div>
+                <p className="text-[10px] text-muted-foreground">
+                  O primeiro local selecionado será o padrão.
+                </p>
+              </div>
+
+              {/* Required Fields Configuration */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs flex items-center gap-1.5">
+                    <CheckCircle className="w-3.5 h-3.5 text-green-500" />
+                    Campos Obrigatórios
+                  </Label>
                   <Button
                     type="button"
                     variant="ghost"
                     size="sm"
                     onClick={() => setShowPresetModal(true)}
-                    className="h-7 text-xs gap-1"
+                    className="h-6 text-[10px] gap-1 px-2"
                   >
                     <Save className="w-3 h-3" />
                     Salvar Preset
                   </Button>
                 </div>
-              </div>
-              
-              {/* Preset Selection */}
-              <div className="flex gap-2">
+                
+                {/* Preset Selection */}
                 <Select onValueChange={applyPreset}>
-                  <SelectTrigger className="flex-1 h-9">
+                  <SelectTrigger className="h-8 text-xs">
                     <SelectValue placeholder="Aplicar preset..." />
                   </SelectTrigger>
                   <SelectContent>
-                    <div className="px-2 py-1 text-xs font-semibold text-muted-foreground">
+                    <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground">
                       Presets Padrão
                     </div>
                     {DEFAULT_PRESETS.map((preset) => (
@@ -1048,7 +1051,7 @@ export function FieldUsersPage() {
                     ))}
                     {customPresets.length > 0 && (
                       <>
-                        <div className="px-2 py-1 text-xs font-semibold text-muted-foreground border-t mt-1 pt-1">
+                        <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground border-t mt-1 pt-1">
                           Presets Personalizados
                         </div>
                         {customPresets.map((preset) => (
@@ -1062,64 +1065,65 @@ export function FieldUsersPage() {
                     )}
                   </SelectContent>
                 </Select>
-              </div>
-              
-              {/* Fields Checkboxes */}
-              <div className="grid grid-cols-2 gap-2 p-3 bg-muted/50 rounded-lg max-h-48 overflow-y-auto">
-                {(Object.keys(FIELD_LABELS) as Array<keyof RequiredFields>).map((field) => (
-                  <label key={field} className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={formData.required_fields[field]}
-                      onChange={(e) => {
-                        setFormData({
-                          ...formData,
-                          required_fields: {
-                            ...formData.required_fields,
-                            [field]: e.target.checked,
-                          },
-                        });
-                      }}
-                      className="w-4 h-4 rounded"
-                    />
-                    <span className="text-xs">{FIELD_LABELS[field]}</span>
-                  </label>
-                ))}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Campos marcados serão obrigatórios no formulário de apontamento deste usuário.
-              </p>
-            </div>
-
-            {editingUser && (
-              <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
-                <div className="flex items-center gap-2">
-                  {formData.active ? (
-                    <UserCheck className="w-4 h-4 text-green-500" />
-                  ) : (
-                    <UserX className="w-4 h-4 text-red-500" />
-                  )}
-                  <span className="text-sm">
-                    Usuário {formData.active ? 'ativo' : 'inativo'}
-                  </span>
+                
+                {/* Fields Checkboxes */}
+                <div className="grid grid-cols-2 gap-1.5 p-2 bg-muted/50 rounded-lg">
+                  {(Object.keys(FIELD_LABELS) as Array<keyof RequiredFields>).map((field) => (
+                    <label key={field} className="flex items-center gap-1.5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={formData.required_fields[field]}
+                        onChange={(e) => {
+                          setFormData({
+                            ...formData,
+                            required_fields: {
+                              ...formData.required_fields,
+                              [field]: e.target.checked,
+                            },
+                          });
+                        }}
+                        className="w-3.5 h-3.5 rounded"
+                      />
+                      <span className="text-[10px]">{FIELD_LABELS[field]}</span>
+                    </label>
+                  ))}
                 </div>
-                <Button
-                  type="button"
-                  variant={formData.active ? 'destructive' : 'default'}
-                  size="sm"
-                  onClick={() => setFormData({ ...formData, active: !formData.active })}
-                >
-                  {formData.active ? 'Desativar' : 'Ativar'}
-                </Button>
+                <p className="text-[10px] text-muted-foreground">
+                  Campos marcados serão obrigatórios no formulário.
+                </p>
               </div>
-            )}
-          </div>
 
-          <DialogFooter className="flex gap-2 sm:gap-0">
-            <Button variant="outline" onClick={() => setShowModal(false)}>
+              {editingUser && (
+                <div className="flex items-center justify-between p-2 bg-muted rounded-lg">
+                  <div className="flex items-center gap-1.5">
+                    {formData.active ? (
+                      <UserCheck className="w-3.5 h-3.5 text-green-500" />
+                    ) : (
+                      <UserX className="w-3.5 h-3.5 text-red-500" />
+                    )}
+                    <span className="text-xs">
+                      Usuário {formData.active ? 'ativo' : 'inativo'}
+                    </span>
+                  </div>
+                  <Button
+                    type="button"
+                    variant={formData.active ? 'destructive' : 'default'}
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => setFormData({ ...formData, active: !formData.active })}
+                  >
+                    {formData.active ? 'Desativar' : 'Ativar'}
+                  </Button>
+                </div>
+              )}
+            </div>
+          </ScrollArea>
+
+          <DialogFooter className="flex-shrink-0 flex gap-2 sm:gap-0 pt-2 border-t">
+            <Button variant="outline" size="sm" onClick={() => setShowModal(false)}>
               Cancelar
             </Button>
-            <Button onClick={handleSave} disabled={saving} className="gap-2">
+            <Button onClick={handleSave} disabled={saving} size="sm" className="gap-2">
               {saving ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
