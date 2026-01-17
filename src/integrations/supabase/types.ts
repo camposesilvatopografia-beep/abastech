@@ -207,6 +207,7 @@ export type Database = {
           id: string
           name: string
           password_hash: string
+          required_fields: Json | null
           role: string | null
           updated_at: string | null
           username: string
@@ -218,6 +219,7 @@ export type Database = {
           id?: string
           name: string
           password_hash: string
+          required_fields?: Json | null
           role?: string | null
           updated_at?: string | null
           username: string
@@ -229,6 +231,7 @@ export type Database = {
           id?: string
           name?: string
           password_hash?: string
+          required_fields?: Json | null
           role?: string | null
           updated_at?: string | null
           username?: string

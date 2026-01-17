@@ -22,6 +22,7 @@ import {
   MapPin,
   Truck,
   MessageCircle,
+  CheckCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -58,6 +59,20 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
+interface RequiredFields {
+  horimeter_current: boolean;
+  km_current: boolean;
+  fuel_quantity: boolean;
+  arla_quantity: boolean;
+  oil_type: boolean;
+  oil_quantity: boolean;
+  lubricant: boolean;
+  filter_blow: boolean;
+  observations: boolean;
+  photo_horimeter: boolean;
+  photo_pump: boolean;
+}
+
 interface FieldUser {
   id: string;
   name: string;
@@ -67,6 +82,7 @@ interface FieldUser {
   created_at: string;
   updated_at: string;
   assigned_locations?: string[];
+  required_fields?: RequiredFields;
 }
 
 interface FuelRecord {
@@ -89,6 +105,7 @@ interface UserFormData {
   role: string;
   active: boolean;
   assigned_locations: string[];
+  required_fields: RequiredFields;
 }
 
 const LOCATION_OPTIONS = [
@@ -99,6 +116,34 @@ const LOCATION_OPTIONS = [
   'Comboio 03',
 ];
 
+const DEFAULT_REQUIRED_FIELDS: RequiredFields = {
+  horimeter_current: true,
+  km_current: false,
+  fuel_quantity: true,
+  arla_quantity: false,
+  oil_type: false,
+  oil_quantity: false,
+  lubricant: false,
+  filter_blow: false,
+  observations: false,
+  photo_horimeter: false,
+  photo_pump: false,
+};
+
+const FIELD_LABELS: Record<keyof RequiredFields, string> = {
+  horimeter_current: 'Horímetro Atual',
+  km_current: 'KM Atual',
+  fuel_quantity: 'Quantidade de Combustível',
+  arla_quantity: 'Quantidade de ARLA',
+  oil_type: 'Tipo de Óleo',
+  oil_quantity: 'Quantidade de Óleo',
+  lubricant: 'Lubrificante',
+  filter_blow: 'Sopra Filtro',
+  observations: 'Observações',
+  photo_horimeter: 'Foto do Horímetro',
+  photo_pump: 'Foto da Bomba',
+};
+
 const initialFormData: UserFormData = {
   name: '',
   username: '',
@@ -106,6 +151,7 @@ const initialFormData: UserFormData = {
   role: 'operador',
   active: true,
   assigned_locations: ['Tanque Canteiro 01'],
+  required_fields: DEFAULT_REQUIRED_FIELDS,
 };
 
 export function FieldUsersPage() {
@@ -145,7 +191,14 @@ export function FieldUsersPage() {
         .order('name');
 
       if (error) throw error;
-      setUsers(data || []);
+      
+      // Map data to ensure required_fields has correct type
+      const mappedUsers: FieldUser[] = (data || []).map(user => ({
+        ...user,
+        required_fields: (user.required_fields as unknown as RequiredFields) || DEFAULT_REQUIRED_FIELDS,
+      }));
+      
+      setUsers(mappedUsers);
     } catch (err) {
       console.error('Error fetching users:', err);
       toast.error('Erro ao carregar usuários');
@@ -244,6 +297,7 @@ export function FieldUsersPage() {
       role: user.role || 'operador',
       active: user.active,
       assigned_locations: user.assigned_locations || ['Tanque Canteiro 01'],
+      required_fields: user.required_fields || DEFAULT_REQUIRED_FIELDS,
     });
     setShowPassword(false);
     setShowModal(true);
@@ -270,6 +324,7 @@ export function FieldUsersPage() {
           role: formData.role,
           active: formData.active,
           assigned_locations: formData.assigned_locations,
+          required_fields: formData.required_fields,
           updated_at: new Date().toISOString(),
         };
 
@@ -306,6 +361,7 @@ export function FieldUsersPage() {
           role: formData.role,
           active: formData.active,
           assigned_locations: formData.assigned_locations,
+          required_fields: formData.required_fields,
         } as any);
 
         if (error) throw error;
@@ -714,6 +770,38 @@ export function FieldUsersPage() {
               </div>
               <p className="text-xs text-muted-foreground">
                 Selecione os locais que o usuário pode abastecer. O primeiro será o padrão.
+              </p>
+            </div>
+
+            {/* Required Fields Configuration */}
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-green-500" />
+                Campos Obrigatórios no Formulário
+              </Label>
+              <div className="grid grid-cols-2 gap-2 p-3 bg-muted/50 rounded-lg max-h-48 overflow-y-auto">
+                {(Object.keys(FIELD_LABELS) as Array<keyof RequiredFields>).map((field) => (
+                  <label key={field} className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.required_fields[field]}
+                      onChange={(e) => {
+                        setFormData({
+                          ...formData,
+                          required_fields: {
+                            ...formData.required_fields,
+                            [field]: e.target.checked,
+                          },
+                        });
+                      }}
+                      className="w-4 h-4 rounded"
+                    />
+                    <span className="text-xs">{FIELD_LABELS[field]}</span>
+                  </label>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Campos marcados serão obrigatórios no formulário de apontamento deste usuário.
               </p>
             </div>
 

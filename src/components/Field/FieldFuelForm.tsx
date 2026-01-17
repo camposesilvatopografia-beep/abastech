@@ -66,12 +66,41 @@ import logoAbastech from '@/assets/logo-abastech.png';
 import { useFieldSettings, playSuccessSound, vibrateDevice } from '@/hooks/useFieldSettings';
 import { useOfflineStorage } from '@/hooks/useOfflineStorage';
 
+interface RequiredFields {
+  horimeter_current: boolean;
+  km_current: boolean;
+  fuel_quantity: boolean;
+  arla_quantity: boolean;
+  oil_type: boolean;
+  oil_quantity: boolean;
+  lubricant: boolean;
+  filter_blow: boolean;
+  observations: boolean;
+  photo_horimeter: boolean;
+  photo_pump: boolean;
+}
+
+const DEFAULT_REQUIRED_FIELDS: RequiredFields = {
+  horimeter_current: true,
+  km_current: false,
+  fuel_quantity: true,
+  arla_quantity: false,
+  oil_type: false,
+  oil_quantity: false,
+  lubricant: false,
+  filter_blow: false,
+  observations: false,
+  photo_horimeter: false,
+  photo_pump: false,
+};
+
 interface FieldUser {
   id: string;
   name: string;
   username: string;
   role: string;
   assigned_locations?: string[];
+  required_fields?: RequiredFields;
 }
 
 interface FieldFuelFormProps {
@@ -184,6 +213,8 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
   const [workSite, setWorkSite] = useState('');
   const [horimeterPrevious, setHorimeterPrevious] = useState('');
   const [horimeterCurrent, setHorimeterCurrent] = useState('');
+  const [kmPrevious, setKmPrevious] = useState('');
+  const [kmCurrent, setKmCurrent] = useState('');
   const [fuelQuantity, setFuelQuantity] = useState('');
   const [fuelType, setFuelType] = useState('Diesel');
   const [arlaQuantity, setArlaQuantity] = useState('');
@@ -897,28 +928,74 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
       }
     } else {
       // Normal mode validation
+      // Get user's required fields configuration
+      const requiredFields = user.required_fields || DEFAULT_REQUIRED_FIELDS;
+      
       if (recordType === 'saida') {
-        if (!vehicleCode || !fuelQuantity) {
-          toast.error('Preencha veículo e quantidade');
-          return;
-        }
-        // Validate horimeter for equipment
-        if (isEquipment && !horimeterCurrent) {
-          toast.error('Horímetro Atual é obrigatório para equipamentos');
+        if (!vehicleCode) {
+          toast.error('Selecione o veículo');
           return;
         }
         
-        // Validate photos are required for Saida
-        if (!photoPump) {
-          toast.error('Foto da Bomba é obrigatória para registros de Saída');
-          return;
-        }
-        if (!photoHorimeter) {
-          toast.error('Foto do Horímetro é obrigatória para registros de Saída');
+        // Validate fuel_quantity based on user config
+        if (requiredFields.fuel_quantity && !fuelQuantity) {
+          toast.error('Quantidade de Combustível é obrigatória');
           return;
         }
         
-        // Validate horimeter current > previous
+        // Validate horimeter based on user config (or equipment type)
+        if ((requiredFields.horimeter_current || isEquipment) && !horimeterCurrent) {
+          toast.error('Horímetro Atual é obrigatório');
+          return;
+        }
+        
+        // Validate km_current based on user config
+        if (requiredFields.km_current && !kmCurrent) {
+          toast.error('KM Atual é obrigatório');
+          return;
+        }
+        
+        // Validate arla_quantity based on user config
+        if (requiredFields.arla_quantity && !arlaQuantity) {
+          toast.error('Quantidade de ARLA é obrigatória');
+          return;
+        }
+        
+        // Validate oil_type based on user config
+        if (requiredFields.oil_type && !oilType) {
+          toast.error('Tipo de Óleo é obrigatório');
+          return;
+        }
+        
+        // Validate oil_quantity based on user config
+        if (requiredFields.oil_quantity && !oilQuantity) {
+          toast.error('Quantidade de Óleo é obrigatória');
+          return;
+        }
+        
+        // Validate lubricant based on user config
+        if (requiredFields.lubricant && !lubricant) {
+          toast.error('Lubrificante é obrigatório');
+          return;
+        }
+        
+        // Validate observations based on user config
+        if (requiredFields.observations && !observations.trim()) {
+          toast.error('Observações são obrigatórias');
+          return;
+        }
+        
+        // Validate photos based on user config
+        if (requiredFields.photo_pump && !photoPump) {
+          toast.error('Foto da Bomba é obrigatória');
+          return;
+        }
+        if (requiredFields.photo_horimeter && !photoHorimeter) {
+          toast.error('Foto do Horímetro é obrigatória');
+          return;
+        }
+        
+        // Validate horimeter current > previous (only if horimeter is provided)
         if (horimeterCurrent && horimeterPrevious) {
           const currentValue = parseBrazilianNumber(horimeterCurrent);
           const previousValue = parseBrazilianNumber(horimeterPrevious);
