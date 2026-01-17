@@ -17,7 +17,10 @@ import {
   RefreshCw,
   Download,
   CheckCircle,
+  Bell,
+  BellOff,
 } from 'lucide-react';
+import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -104,6 +107,13 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
   // Visual indicator for admin updates
   const [showUpdatePulse, setShowUpdatePulse] = useState(false);
   const [updateMessage, setUpdateMessage] = useState('');
+  
+  // Push notifications for updates
+  const [notifyOnUpdate, setNotifyOnUpdate] = useState(() => {
+    const stored = localStorage.getItem('field_notify_on_update');
+    return stored === 'true';
+  });
+  const { isSupported, permission, requestPermission, showNotification } = usePushNotifications();
   
   // Refs
   const isDeletingRef = useRef(false);
@@ -215,17 +225,45 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
     return () => clearInterval(pollInterval);
   }, [fetchTodayRecords]);
 
-  // Function to trigger visual pulse indicator
-  const triggerUpdatePulse = useCallback((message: string) => {
+  // Function to trigger visual pulse indicator and optional push notification
+  const triggerUpdatePulse = useCallback((message: string, shouldNotify: boolean = true) => {
     setUpdateMessage(message);
     setShowUpdatePulse(true);
+    
+    // Send push notification if enabled
+    if (shouldNotify && notifyOnUpdate && permission === 'granted') {
+      showNotification({
+        title: 'Apontamento Campo',
+        body: message,
+        icon: '/pwa-192x192.png',
+        tag: 'field-update',
+      });
+    }
     
     // Auto-hide after 4 seconds
     setTimeout(() => {
       setShowUpdatePulse(false);
       setUpdateMessage('');
     }, 4000);
-  }, []);
+  }, [notifyOnUpdate, permission, showNotification]);
+  
+  // Toggle notification preference
+  const toggleNotifications = useCallback(async () => {
+    if (!notifyOnUpdate) {
+      // Trying to enable - check/request permission first
+      if (permission !== 'granted') {
+        const granted = await requestPermission();
+        if (!granted) return;
+      }
+      setNotifyOnUpdate(true);
+      localStorage.setItem('field_notify_on_update', 'true');
+      toast.success('Notificações de atualização ativadas!');
+    } else {
+      setNotifyOnUpdate(false);
+      localStorage.setItem('field_notify_on_update', 'false');
+      toast.info('Notificações de atualização desativadas');
+    }
+  }, [notifyOnUpdate, permission, requestPermission]);
 
   // Function to refresh all stock cards
   const refreshStockCards = useCallback(() => {
@@ -634,9 +672,24 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
               type="button"
               variant="secondary"
               size="sm"
+              className={cn(
+                "h-8 border-0",
+                notifyOnUpdate 
+                  ? "bg-green-500/30 text-white hover:bg-green-500/40" 
+                  : "bg-white/20 text-white hover:bg-white/30"
+              )}
+              onClick={toggleNotifications}
+              title={notifyOnUpdate ? "Desativar notificações" : "Ativar notificações de atualização"}
+            >
+              {notifyOnUpdate ? <Bell className="w-4 h-4" /> : <BellOff className="w-4 h-4" />}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
               className="h-8 bg-white/20 text-white hover:bg-white/30 border-0"
               onClick={async () => {
-                triggerUpdatePulse('Atualizando...');
+                triggerUpdatePulse('Atualizando...', false);
                 await fetchTodayRecords();
                 refreshStockCards();
                 toast.success('Atualizado!');
