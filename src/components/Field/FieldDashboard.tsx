@@ -558,17 +558,19 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
       // Small delay to show completion before closing
       await new Promise(resolve => setTimeout(resolve, 500));
       
-      // Remove from deleting set
-      deletingRecordIdsRef.current.delete(recordId);
-      
       setDeleteConfirmation(null);
 
       // Broadcast to all clients that a record was deleted
       broadcast('fuel_record_deleted', { recordId, vehicleCode: deleteConfirmation.vehicleCode });
 
       // Hard refresh to ensure absolute consistency
-      fetchTodayRecords();
+      // IMPORTANT: Keep the ID in deletingRecordIdsRef UNTIL after the fetch completes
+      // to prevent the record from briefly reappearing
+      await fetchTodayRecords();
       refreshStockCards();
+      
+      // Only NOW remove from deleting set, after UI is fully updated
+      deletingRecordIdsRef.current.delete(recordId);
     } catch (err) {
       console.error('[DELETE] ERRO GERAL na exclusão:', err);
 
