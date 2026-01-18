@@ -1,7 +1,9 @@
 import { useState, useMemo } from 'react';
-import { Fuel, Calendar, TrendingUp, TrendingDown, Gauge, Truck, X, Download } from 'lucide-react';
+import { Fuel, Calendar, TrendingUp, TrendingDown, Gauge, Truck, X, Download, Filter } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import {
   Dialog,
   DialogContent,
@@ -34,7 +36,14 @@ interface FuelRecord {
   km_previous: number | null;
   location: string | null;
   operator_name: string | null;
+  observations?: string | null;
 }
+
+// Check if a record is a tank refuel for comboio (shouldn't count for consumption)
+const isTankRefuelRecord = (observations?: string | null): boolean => {
+  if (!observations) return false;
+  return observations.includes('[ABAST. TANQUE COMBOIO]');
+};
 
 interface VehicleConsumptionModalProps {
   open: boolean;
@@ -62,6 +71,23 @@ export function VehicleConsumptionModal({
   const { settings } = useObraSettings();
   const [startDate, setStartDate] = useState<Date | undefined>(subDays(new Date(), 30));
   const [endDate, setEndDate] = useState<Date | undefined>(new Date());
+  
+  // Filter to exclude tank refuel records from consumption calculation
+  const [excludeTankRefuels, setExcludeTankRefuels] = useState(true);
+
+  // Check if this is a Comboio vehicle (CC prefix)
+  const isComboioVehicle = useMemo(() => {
+    const codeUpper = vehicleCode?.toUpperCase() || '';
+    const descUpper = vehicleDescription?.toUpperCase() || '';
+    return codeUpper.startsWith('CC') || 
+           codeUpper.includes('COMBOIO') ||
+           descUpper.includes('COMBOIO');
+  }, [vehicleCode, vehicleDescription]);
+
+  // Count tank refuel records
+  const tankRefuelCount = useMemo(() => {
+    return records.filter(r => isTankRefuelRecord(r.observations)).length;
+  }, [records]);
 
   // Determine if equipment (L/h) or vehicle (km/L)
   const isEquipment = useMemo(() => {
@@ -92,9 +118,15 @@ export function VehicleConsumptionModal({
     }).sort((a, b) => new Date(a.record_date).getTime() - new Date(b.record_date).getTime());
   }, [records, startDate, endDate]);
 
-  // Calculate consumption metrics
+  // Filter records for consumption calculation (excluding tank refuels if enabled)
+  const consumptionRecords = useMemo(() => {
+    if (!excludeTankRefuels) return filteredRecords;
+    return filteredRecords.filter(r => !isTankRefuelRecord(r.observations));
+  }, [filteredRecords, excludeTankRefuels]);
+
+  // Calculate consumption metrics (using consumptionRecords which may exclude tank refuels)
   const metrics = useMemo(() => {
-    if (filteredRecords.length === 0) {
+    if (consumptionRecords.length === 0) {
       return {
         totalLiters: 0,
         totalHours: 0,
@@ -102,16 +134,22 @@ export function VehicleConsumptionModal({
         avgConsumption: 0,
         recordCount: 0,
         consumptionUnit: isEquipment ? 'L/h' : 'km/L',
+        tankRefuelLiters: 0,
       };
     }
 
-    const totalLiters = filteredRecords.reduce((sum, r) => sum + (r.fuel_quantity || 0), 0);
+    const totalLiters = consumptionRecords.reduce((sum, r) => sum + (r.fuel_quantity || 0), 0);
+    
+    // Calculate tank refuel liters separately (for display purposes)
+    const tankRefuelLiters = filteredRecords
+      .filter(r => isTankRefuelRecord(r.observations))
+      .reduce((sum, r) => sum + (r.fuel_quantity || 0), 0);
     
     // Calculate intervals
     let totalHours = 0;
     let totalKm = 0;
 
-    filteredRecords.forEach(record => {
+    consumptionRecords.forEach(record => {
       if (record.horimeter_current && record.horimeter_previous) {
         totalHours += record.horimeter_current - record.horimeter_previous;
       }
@@ -135,10 +173,11 @@ export function VehicleConsumptionModal({
       totalHours,
       totalKm,
       avgConsumption,
-      recordCount: filteredRecords.length,
+      recordCount: consumptionRecords.length,
       consumptionUnit: isEquipment ? 'L/h' : 'km/L',
+      tankRefuelLiters,
     };
-  }, [filteredRecords, isEquipment]);
+  }, [consumptionRecords, filteredRecords, isEquipment]);
 
   // Export to PDF
   const exportToPDF = () => {
@@ -302,6 +341,42 @@ export function VehicleConsumptionModal({
             </Button>
           </div>
         </div>
+
+        {/* Tank Refuel Filter - Only show for Comboio vehicles or when there are tank refuels */}
+        {(isComboioVehicle || tankRefuelCount > 0) && (
+          <div className="flex flex-wrap items-center gap-4 py-3 px-4 bg-orange-50 dark:bg-orange-950/20 rounded-lg border border-orange-200 dark:border-orange-800">
+            <div className="flex items-center gap-2">
+              <Filter className="w-4 h-4 text-orange-600 dark:text-orange-400" />
+              <span className="text-sm font-medium text-orange-700 dark:text-orange-300">
+                Filtro de Consumo
+              </span>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <Switch 
+                id="exclude-tank-refuels" 
+                checked={excludeTankRefuels}
+                onCheckedChange={setExcludeTankRefuels}
+              />
+              <Label htmlFor="exclude-tank-refuels" className="text-sm cursor-pointer">
+                Excluir abastecimentos do tanque
+              </Label>
+            </div>
+
+            {tankRefuelCount > 0 && (
+              <Badge variant="outline" className="bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 border-orange-300">
+                {tankRefuelCount} registro(s) de tanque
+                {excludeTankRefuels && ` excluído(s)`}
+              </Badge>
+            )}
+
+            {!excludeTankRefuels && metrics.tankRefuelLiters > 0 && (
+              <span className="text-xs text-orange-600 dark:text-orange-400">
+                ({metrics.tankRefuelLiters.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} L de tanque incluídos)
+              </span>
+            )}
+          </div>
+        )}
 
         {/* Metrics Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 py-4">

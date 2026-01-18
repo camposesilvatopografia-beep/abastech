@@ -13,7 +13,14 @@ interface ConsumptionData {
   veiculo: string;
   data?: string;
   quantidade: number;
+  observacao?: string;
 }
+
+// Check if a record is a tank refuel for comboio (shouldn't count for consumption ranking)
+const isTankRefuelRecord = (observacao?: string): boolean => {
+  if (!observacao) return false;
+  return observacao.includes('[ABAST. TANQUE COMBOIO]');
+};
 
 interface RankingItem {
   veiculo: string;
@@ -91,6 +98,9 @@ export function ConsumptionRanking({
         const quantidade = item.quantidade || 0;
         
         if (!veiculo || quantidade <= 0) return;
+        
+        // Exclude tank refuel records for comboios (they shouldn't affect consumption ranking)
+        if (isTankRefuelRecord(item.observacao)) return;
         
         // Check date is in current month
         const itemDate = parseDate(item.data || '');
