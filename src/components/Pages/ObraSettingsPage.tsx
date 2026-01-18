@@ -1,22 +1,29 @@
-import { useState, useEffect } from 'react';
-import { Building2, Save, MapPin, FileText, Image } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Building2, Save, MapPin, FileText, Image, Upload, X, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useObraSettings } from '@/hooks/useObraSettings';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+import logoConsorcio from '@/assets/logo-consorcio.png';
 
 export function ObraSettingsPage() {
-  const { settings, loading, saving, updateSettings } = useObraSettings();
+  const { settings, loading, saving, updateSettings, refetch } = useObraSettings();
   const [nome, setNome] = useState('');
   const [subtitulo, setSubtitulo] = useState('');
   const [cidade, setCidade] = useState('');
+  const [logoUrl, setLogoUrl] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (settings) {
       setNome(settings.nome || '');
       setSubtitulo(settings.subtitulo || '');
       setCidade(settings.cidade || '');
+      setLogoUrl(settings.logo_url || '');
     }
   }, [settings]);
 
@@ -25,7 +32,63 @@ export function ObraSettingsPage() {
       nome,
       subtitulo,
       cidade,
+      logo_url: logoUrl || null,
     });
+  };
+
+  const handleLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast.error('Por favor, selecione uma imagem válida');
+      return;
+    }
+
+    // Validate file size (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('A imagem deve ter no máximo 2MB');
+      return;
+    }
+
+    try {
+      setUploading(true);
+
+      // Generate unique filename
+      const fileExt = file.name.split('.').pop();
+      const fileName = `logo-${Date.now()}.${fileExt}`;
+
+      // Upload to Supabase Storage
+      const { error: uploadError } = await supabase.storage
+        .from('obra-logos')
+        .upload(fileName, file, {
+          cacheControl: '3600',
+          upsert: true,
+        });
+
+      if (uploadError) throw uploadError;
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('obra-logos')
+        .getPublicUrl(fileName);
+
+      setLogoUrl(publicUrl);
+      toast.success('Logo carregada com sucesso!');
+    } catch (error) {
+      console.error('Error uploading logo:', error);
+      toast.error('Erro ao fazer upload da logo');
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleRemoveLogo = () => {
+    setLogoUrl('');
   };
 
   if (loading) {
@@ -115,9 +178,74 @@ export function ObraSettingsPage() {
               </p>
             </div>
 
+            {/* Logo Upload Section */}
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <Image className="w-4 h-4" />
+                Logo da Empresa
+              </Label>
+              
+              <div className="flex items-center gap-4">
+                {/* Logo Preview */}
+                <div className="relative w-20 h-20 bg-muted rounded-lg border-2 border-dashed border-muted-foreground/30 flex items-center justify-center overflow-hidden shrink-0">
+                  {logoUrl ? (
+                    <>
+                      <img 
+                        src={logoUrl} 
+                        alt="Logo" 
+                        className="w-full h-full object-contain p-1"
+                      />
+                      <button
+                        onClick={handleRemoveLogo}
+                        className="absolute -top-1 -right-1 w-5 h-5 bg-destructive text-destructive-foreground rounded-full flex items-center justify-center hover:bg-destructive/90 transition-colors"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </>
+                  ) : (
+                    <Image className="w-8 h-8 text-muted-foreground/50" />
+                  )}
+                </div>
+
+                {/* Upload Button */}
+                <div className="flex-1 space-y-2">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleLogoUpload}
+                    className="hidden"
+                    id="logo-upload"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploading}
+                    className="w-full gap-2"
+                  >
+                    {uploading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Enviando...
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="w-4 h-4" />
+                        {logoUrl ? 'Alterar Logo' : 'Enviar Logo'}
+                      </>
+                    )}
+                  </Button>
+                  <p className="text-xs text-muted-foreground">
+                    PNG ou JPG, máximo 2MB
+                  </p>
+                </div>
+              </div>
+            </div>
+
             <Button 
               onClick={handleSave} 
-              disabled={saving}
+              disabled={saving || uploading}
               className="w-full gap-2 mt-4"
               size="lg"
             >
@@ -143,11 +271,23 @@ export function ObraSettingsPage() {
               {/* PDF Header Preview */}
               <div className="bg-slate-800 text-white p-6 text-center space-y-2">
                 <div className="flex items-center justify-center gap-4 mb-2">
-                  <div className="w-12 h-12 bg-white/20 rounded flex items-center justify-center">
-                    <Building2 className="w-6 h-6" />
+                  <div className="w-12 h-12 bg-white rounded flex items-center justify-center overflow-hidden">
+                    <img 
+                      src={logoConsorcio} 
+                      alt="Consórcio" 
+                      className="w-10 h-10 object-contain"
+                    />
                   </div>
-                  <div className="w-12 h-12 bg-white/20 rounded flex items-center justify-center text-xs">
-                    Logo
+                  <div className="w-12 h-12 bg-white rounded flex items-center justify-center overflow-hidden">
+                    {logoUrl ? (
+                      <img 
+                        src={logoUrl} 
+                        alt="Logo" 
+                        className="w-10 h-10 object-contain"
+                      />
+                    ) : (
+                      <span className="text-xs text-gray-500">Logo</span>
+                    )}
                   </div>
                 </div>
                 <h2 className="text-lg font-bold">
@@ -164,8 +304,8 @@ export function ObraSettingsPage() {
               {/* PDF Body Preview */}
               <div className="bg-white p-4 space-y-2">
                 <div className="flex justify-between text-xs text-gray-500">
-                  <span>Data: 16/01/2026</span>
-                  <span>Gerado: 16/01/2026 10:00</span>
+                  <span>Data: {new Date().toLocaleDateString('pt-BR')}</span>
+                  <span>Gerado: {new Date().toLocaleDateString('pt-BR')} {new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
                 </div>
                 <div className="bg-slate-700 text-white px-3 py-2 rounded text-sm font-medium">
                   SEÇÃO DO RELATÓRIO
