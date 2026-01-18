@@ -1428,9 +1428,9 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 pb-4">
+    <div className="min-h-screen bg-gradient-to-br from-slate-100 via-slate-50 to-white dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 pb-4">
       {/* Header with Logo */}
-      <div className="bg-gradient-to-r from-amber-600 to-orange-600 p-4 mb-4">
+      <div className="bg-gradient-to-r from-blue-900 to-blue-800 p-4 mb-4">
         <div className="flex items-center gap-3 max-w-2xl mx-auto">
           <img src={logoAbastech} alt="Abastech" className="h-10 w-auto" />
           <div className="text-white">
@@ -1442,7 +1442,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
       
       {/* Voice status */}
       {voice.isListening && (
-        <div className="bg-amber-500 text-white p-3 flex items-center justify-center gap-2 animate-pulse">
+        <div className="bg-blue-800 text-white p-3 flex items-center justify-center gap-2 animate-pulse">
           <Mic className="w-5 h-5" />
           <span>Ouvindo... Fale agora</span>
           <Button 
@@ -1459,8 +1459,8 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
       {/* Form */}
       <div className="p-4 space-y-4 max-w-2xl mx-auto">
         {/* Current Date/Time Display (Auto-filled) */}
-        <div className="bg-card/80 dark:bg-slate-800/80 backdrop-blur-sm rounded-xl border border-amber-600/30 p-4 shadow-lg">
-          <div className="flex items-center gap-2 text-amber-500 mb-2">
+        <div className="bg-white dark:bg-slate-800 backdrop-blur-sm rounded-xl border border-blue-200 dark:border-blue-800 p-4 shadow-lg">
+          <div className="flex items-center gap-2 text-blue-700 dark:text-blue-400 mb-2">
             <Clock className="w-4 h-4" />
             <span className="text-sm font-medium">Data e Hora do Registro</span>
           </div>
@@ -1480,7 +1480,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         </div>
 
         {/* Record Type Selection */}
-        <div className="bg-card/80 dark:bg-slate-800/80 backdrop-blur-sm rounded-xl border border-amber-600/30 p-4 space-y-3 shadow-lg">
+        <div className="bg-white dark:bg-slate-800 backdrop-blur-sm rounded-xl border border-blue-200 dark:border-blue-800 p-4 space-y-3 shadow-lg">
           <Label className="flex items-center gap-2 text-base font-medium text-foreground">
             Tipo de Registro
           </Label>
@@ -1881,14 +1881,14 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
             </div>
 
             {/* Observations for quick modes */}
-            <div className="bg-slate-800/80 backdrop-blur-sm rounded-xl border border-amber-600/30 p-4 space-y-3 shadow-lg">
-              <Label className="text-base text-white">Observações</Label>
+            <div className="bg-white dark:bg-slate-800 backdrop-blur-sm rounded-xl border border-blue-200 dark:border-blue-800 p-4 space-y-3 shadow-lg">
+              <Label className="text-base text-foreground">Observações</Label>
               <Textarea
                 placeholder="Observações opcionais..."
                 value={observations}
                 onChange={(e) => setObservations(e.target.value)}
                 rows={2}
-                className="bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-400"
+                className="bg-slate-100 dark:bg-slate-700/50 border-slate-300 dark:border-slate-600 text-foreground placeholder:text-muted-foreground"
               />
             </div>
           </>
@@ -2184,8 +2184,8 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
 
         {/* Equipment-specific fields (optional) */}
         {isEquipment && recordType === 'saida' && (
-          <div className="bg-orange-50/80 dark:bg-orange-950/30 backdrop-blur-sm rounded-xl border border-orange-200 dark:border-orange-800 p-4 space-y-4 shadow-sm">
-            <div className="flex items-center gap-2 text-orange-600 dark:text-orange-400">
+          <div className="bg-blue-50 dark:bg-blue-950/30 backdrop-blur-sm rounded-xl border border-blue-200 dark:border-blue-800 p-4 space-y-4 shadow-sm">
+            <div className="flex items-center gap-2 text-blue-700 dark:text-blue-400">
               <Wrench className="w-5 h-5" />
               <Label className="text-base font-medium">Dados do Equipamento (Opcional)</Label>
             </div>
@@ -2639,9 +2639,9 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         )}
 
         {/* Observations */}
-        <div className="bg-slate-800/80 backdrop-blur-sm rounded-xl border border-amber-600/30 p-4 space-y-3 shadow-lg">
+        <div className="bg-white dark:bg-slate-800 backdrop-blur-sm rounded-xl border border-blue-200 dark:border-blue-800 p-4 space-y-3 shadow-lg">
           <div className="flex items-center justify-between">
-            <Label className="text-base text-white">Observações</Label>
+            <Label className="text-base text-foreground">Observações</Label>
             {voice.isSupported && (
               <Button
                 type="button"
@@ -2649,8 +2649,8 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                 variant="outline"
                 onClick={() => startVoiceForField('observations')}
                 className={cn(
-                  "border-amber-600/30 text-amber-400 hover:bg-amber-500/10",
-                  activeVoiceField === 'observations' && voice.isListening && "bg-amber-500/20"
+                  "border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50",
+                  activeVoiceField === 'observations' && voice.isListening && "bg-blue-200 dark:bg-blue-800"
                 )}
               >
                 <Mic className="w-4 h-4" />
@@ -2662,7 +2662,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
             value={observations}
             onChange={(e) => setObservations(e.target.value)}
             rows={3}
-            className="bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-400"
+            className="bg-slate-100 dark:bg-slate-700/50 border-slate-300 dark:border-slate-600 text-foreground placeholder:text-muted-foreground"
           />
         </div>
       </div>
@@ -2686,10 +2686,10 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
             )
           }
           className={cn(
-            "w-full h-14 text-lg gap-2 shadow-lg",
+            "w-full h-14 text-lg gap-2 shadow-lg text-white",
             recordType === 'entrada' 
-              ? "bg-green-500 hover:bg-green-600" 
-              : "bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600"
+              ? "bg-green-600 hover:bg-green-700" 
+              : "bg-gradient-to-r from-blue-800 to-blue-900 hover:from-blue-900 hover:to-blue-950"
           )}
         >
           {isUploadingPhotos ? (
