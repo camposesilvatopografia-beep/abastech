@@ -98,6 +98,11 @@ const DEFAULT_REQUIRED_FIELDS: RequiredFields = {
   skip_all_validation: false,
 };
 
+// Function to remove accents from text (for spreadsheet compatibility)
+const removeAccents = (text: string): string => {
+  return text.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+};
+
 interface FieldUser {
   id: string;
   name: string;
@@ -1089,10 +1094,13 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
       const recordDate = now.toLocaleDateString('pt-BR');
       const recordTime = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
-      // Prepare record data
+      // Prepare record data - normalize record_type to remove accents for spreadsheet compatibility
+      // e.g., "Saída" becomes "Saida", "Entrada" stays "Entrada"
+      const normalizedRecordType = removeAccents(recordType === 'saida' ? 'Saida' : recordType === 'entrada' ? 'Entrada' : recordType);
+      
       const recordData = {
         user_id: user.id,
-        record_type: recordType,
+        record_type: normalizedRecordType,
         vehicle_code: recordType === 'entrada' ? 'ENTRADA' : vehicleCode,
         vehicle_description: recordType === 'entrada' ? (supplier || '') : vehicleDescription,
         category: recordType === 'entrada' ? 'ENTRADA' : category,
