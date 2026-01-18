@@ -286,6 +286,11 @@ export function FieldUsersPage() {
   const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
   const [userRecordCounts, setUserRecordCounts] = useState<Record<string, number>>({});
 
+  // Delete state
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<FieldUser | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
   // Presets state
   const [customPresets, setCustomPresets] = useState<RequiredFieldsPreset[]>(loadCustomPresets());
   const [showPresetModal, setShowPresetModal] = useState(false);
@@ -623,6 +628,47 @@ export function FieldUsersPage() {
     }
   };
 
+  const openDeleteModal = (user: FieldUser) => {
+    setUserToDelete(user);
+    setShowDeleteModal(true);
+  };
+
+  const handleDeleteUser = async () => {
+    if (!userToDelete) return;
+    
+    setDeleting(true);
+    
+    try {
+      // First check if user has any records
+      const recordCount = userRecordCounts[userToDelete.id] || 0;
+      
+      if (recordCount > 0) {
+        toast.error(`Este usuário possui ${recordCount} apontamento(s). Desative-o em vez de excluir.`);
+        setShowDeleteModal(false);
+        setUserToDelete(null);
+        setDeleting(false);
+        return;
+      }
+      
+      const { error } = await supabase
+        .from('field_users')
+        .delete()
+        .eq('id', userToDelete.id);
+
+      if (error) throw error;
+      
+      toast.success('Usuário excluído com sucesso!');
+      setShowDeleteModal(false);
+      setUserToDelete(null);
+      fetchUsers();
+    } catch (err) {
+      console.error('Delete error:', err);
+      toast.error('Erro ao excluir usuário');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const filteredUsers = users.filter(
     (user) =>
       user.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -861,6 +907,15 @@ export function FieldUsersPage() {
                               ) : (
                                 <UserCheck className="w-4 h-4 text-green-500" />
                               )}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => openDeleteModal(user)}
+                              title="Excluir"
+                              className="text-destructive hover:text-destructive"
+                            >
+                              <Trash2 className="w-4 h-4" />
                             </Button>
                           </div>
                         </TableCell>
@@ -1299,6 +1354,65 @@ export function FieldUsersPage() {
             <Button onClick={saveAsPreset} className="gap-2">
               <Save className="w-4 h-4" />
               Salvar Preset
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Modal */}
+      <Dialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <Trash2 className="w-5 h-5" />
+              Excluir Usuário
+            </DialogTitle>
+            <DialogDescription>
+              Esta ação não pode ser desfeita. Tem certeza que deseja excluir este usuário?
+            </DialogDescription>
+          </DialogHeader>
+
+          {userToDelete && (
+            <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-destructive/20 flex items-center justify-center">
+                  <User className="w-5 h-5 text-destructive" />
+                </div>
+                <div>
+                  <p className="font-medium">{userToDelete.name}</p>
+                  <p className="text-sm text-muted-foreground">@{userToDelete.username}</p>
+                </div>
+              </div>
+              {(userRecordCounts[userToDelete.id] || 0) > 0 && (
+                <div className="mt-3 p-2 bg-yellow-500/10 border border-yellow-500/20 rounded text-sm text-yellow-600">
+                  ⚠️ Este usuário possui {userRecordCounts[userToDelete.id]} apontamento(s). 
+                  Considere desativar em vez de excluir.
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter className="flex gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setShowDeleteModal(false)}>
+              Cancelar
+            </Button>
+            <Button 
+              variant="destructive" 
+              onClick={handleDeleteUser} 
+              disabled={deleting}
+              className="gap-2"
+            >
+              {deleting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Excluindo...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="w-4 h-4" />
+                  Excluir Usuário
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
