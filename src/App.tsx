@@ -11,6 +11,7 @@ import InstallPage from "./pages/InstallPage";
 import { FieldPage } from "./components/Pages/FieldPage";
 import { FieldUsersPage } from "./components/Pages/FieldUsersPage";
 import { InstallPrompt } from "./components/PWA/InstallPrompt";
+import { UpdatePrompt } from "./components/PWA/UpdatePrompt";
 
 const queryClient = new QueryClient();
 
@@ -69,6 +70,7 @@ const App = () => (
           <Route path="*" element={<NotFound />} />
         </Routes>
         <InstallPrompt />
+        <UpdatePrompt />
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
