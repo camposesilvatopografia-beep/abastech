@@ -116,10 +116,51 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
   });
   const { isSupported, permission, requestPermission, showNotification } = usePushNotifications();
   
-  // Refs
+  // Refs - Use localStorage to persist deleting IDs across component remounts (PWA)
   const isDeletingRef = useRef(false);
-  const deletingRecordIdsRef = useRef<Set<string>>(new Set());
+  const deletingRecordIdsRef = useRef<Set<string>>(new Set<string>());
   const stockCardRefs = useRef<Map<string, LocationStockCardRef>>(new Map());
+  
+  // Initialize deleting IDs from localStorage on mount
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('field_deleting_record_ids');
+      if (stored) {
+        const parsed = JSON.parse(stored) as Record<string, number>;
+        const now = Date.now();
+        // Clean up entries older than 5 minutes
+        Object.entries(parsed).forEach(([id, timestamp]) => {
+          if (now - timestamp < 5 * 60 * 1000) {
+            deletingRecordIdsRef.current.add(id);
+          }
+        });
+      }
+    } catch {}
+  }, []);
+
+  // Helper to add a deleting ID to both ref and localStorage
+  const addDeletingId = useCallback((id: string) => {
+    deletingRecordIdsRef.current.add(id);
+    try {
+      const stored = localStorage.getItem('field_deleting_record_ids');
+      const parsed = stored ? JSON.parse(stored) : {};
+      parsed[id] = Date.now();
+      localStorage.setItem('field_deleting_record_ids', JSON.stringify(parsed));
+    } catch {}
+  }, []);
+
+  // Helper to remove a deleting ID from both ref and localStorage
+  const removeDeletingId = useCallback((id: string) => {
+    deletingRecordIdsRef.current.delete(id);
+    try {
+      const stored = localStorage.getItem('field_deleting_record_ids');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        delete parsed[id];
+        localStorage.setItem('field_deleting_record_ids', JSON.stringify(parsed));
+      }
+    } catch {}
+  }, []);
   
   // Pending realtime refresh flag
   const pendingRealtimeRefreshRef = useRef(false);
@@ -175,9 +216,24 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
       }
 
       // Filter out records with approved deletions AND records currently being deleted
+      // Also check localStorage for IDs that might have been added before a page refresh
       const currentlyDeleting = Array.from(deletingRecordIdsRef.current);
+      let persistedDeletingIds: string[] = [];
+      try {
+        const stored = localStorage.getItem('field_deleting_record_ids');
+        if (stored) {
+          const parsed = JSON.parse(stored) as Record<string, number>;
+          const now = Date.now();
+          persistedDeletingIds = Object.entries(parsed)
+            .filter(([_, timestamp]) => now - timestamp < 5 * 60 * 1000)
+            .map(([id]) => id);
+        }
+      } catch {}
+      
+      const allDeletingIds = [...new Set([...currentlyDeleting, ...persistedDeletingIds])];
+      
       const filteredRecords = records?.filter(r => 
-        !approvedDeletions.includes(r.id) && !currentlyDeleting.includes(r.id)
+        !approvedDeletions.includes(r.id) && !allDeletingIds.includes(r.id)
       ) || [];
 
       const mappedRecords = filteredRecords.map(r => ({
@@ -428,7 +484,7 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
     const recordId = deleteConfirmation.recordId;
     
     // Add to deleting set immediately to prevent re-adding via polling/realtime
-    deletingRecordIdsRef.current.add(recordId);
+    addDeletingId(recordId);
     
     setIsDeleting(true);
     setDeletionStep('db');
@@ -615,12 +671,12 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
       refreshStockCards();
       
       // Only NOW remove from deleting set, after UI is fully updated
-      deletingRecordIdsRef.current.delete(recordId);
+      removeDeletingId(recordId);
     } catch (err) {
       console.error('[DELETE] ERRO GERAL na exclusão:', err);
 
       // Remove from deleting set on failure
-      deletingRecordIdsRef.current.delete(recordId);
+      removeDeletingId(recordId);
 
       // Revert optimistic UI on failure
       await fetchTodayRecords();
@@ -640,7 +696,7 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
       {/* Visual Update Indicator - Blinking Banner */}
       {showUpdatePulse && (
         <div className="fixed top-0 left-0 right-0 z-50 animate-pulse">
-          <div className="bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500 text-white py-3 px-4 shadow-lg">
+          <div className="bg-gradient-to-r from-blue-800 via-blue-700 to-blue-800 text-white py-3 px-4 shadow-lg">
             <div className="flex items-center justify-center gap-2">
               <RefreshCw className="w-4 h-4 animate-spin" />
               <span className="text-sm font-medium">{updateMessage}</span>
@@ -669,20 +725,20 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
                   {/* Step 1: Database */}
                   <div className={`flex items-center gap-3 p-3 rounded-lg border transition-all ${
                     deletionStep === 'db' 
-                      ? 'bg-amber-500/10 border-amber-500/50' 
+                      ? 'bg-blue-500/10 border-blue-500/50' 
                       : deletionStep === 'sheet' || deletionStep === 'done'
                         ? 'bg-green-500/10 border-green-500/50'
                         : 'bg-muted/30 border-border'
                   }`}>
                     {deletionStep === 'db' ? (
-                      <Loader2 className="w-5 h-5 text-amber-500 animate-spin" />
+                      <Loader2 className="w-5 h-5 text-blue-500 animate-spin" />
                     ) : deletionStep === 'sheet' || deletionStep === 'done' ? (
                       <CheckCircle className="w-5 h-5 text-green-500" />
                     ) : (
                       <div className="w-5 h-5 rounded-full border-2 border-muted-foreground/50" />
                     )}
                     <span className={`font-medium ${
-                      deletionStep === 'db' ? 'text-amber-500' : 
+                      deletionStep === 'db' ? 'text-blue-500' : 
                       deletionStep === 'sheet' || deletionStep === 'done' ? 'text-green-500' : 
                       'text-muted-foreground'
                     }`}>
@@ -695,20 +751,20 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
                   {/* Step 2: Google Sheets */}
                   <div className={`flex items-center gap-3 p-3 rounded-lg border transition-all ${
                     deletionStep === 'sheet'
-                      ? 'bg-amber-500/10 border-amber-500/50'
+                      ? 'bg-blue-500/10 border-blue-500/50'
                       : deletionStep === 'done'
                         ? 'bg-green-500/10 border-green-500/50'
                         : 'bg-muted/30 border-border'
                   }`}>
                     {deletionStep === 'sheet' ? (
-                      <Loader2 className="w-5 h-5 text-amber-500 animate-spin" />
+                      <Loader2 className="w-5 h-5 text-blue-500 animate-spin" />
                     ) : deletionStep === 'done' ? (
                       <CheckCircle className="w-5 h-5 text-green-500" />
                     ) : (
                       <div className="w-5 h-5 rounded-full border-2 border-muted-foreground/50" />
                     )}
                     <span className={`font-medium ${
-                      deletionStep === 'sheet' ? 'text-amber-500' : 
+                      deletionStep === 'sheet' ? 'text-blue-500' : 
                       deletionStep === 'done' ? 'text-green-500' : 
                       'text-muted-foreground'
                     }`}>
@@ -772,7 +828,7 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
       )}
 
       {/* Welcome Header */}
-      <div className="bg-gradient-to-r from-amber-600 to-orange-600 rounded-xl p-4 text-white">
+      <div className="bg-gradient-to-r from-blue-900 to-blue-800 rounded-xl p-4 text-white">
         <div className="flex items-center justify-between mb-2">
           <h2 className="text-lg font-bold">Olá, {user.name}!</h2>
           <div className="flex items-center gap-2">
@@ -829,7 +885,7 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
             : "bg-white border-slate-200 shadow-sm"
         )}>
           <div className="flex items-center gap-2 mb-3">
-            <MapPin className="w-4 h-4 text-amber-500" />
+            <MapPin className="w-4 h-4 text-blue-600 dark:text-blue-400" />
             <span className={cn(
               "text-sm font-medium",
               theme === 'dark' ? "text-slate-200" : "text-slate-700"
@@ -845,7 +901,7 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
                 className={cn(
                   "text-xs",
                   selectedLocation === loc 
-                    ? "bg-amber-500 hover:bg-amber-600 text-white border-amber-500"
+                    ? "bg-blue-800 hover:bg-blue-900 text-white border-blue-800"
                     : theme === 'dark'
                       ? "border-slate-600 text-slate-300 hover:bg-slate-700"
                       : "border-slate-300 text-slate-600 hover:bg-slate-100"
@@ -896,7 +952,7 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
             "text-sm flex items-center gap-2",
             theme === 'dark' ? "text-slate-200" : "text-slate-700"
           )}>
-            <Clock className="w-4 h-4 text-amber-500" />
+            <Clock className="w-4 h-4 text-blue-600 dark:text-blue-400" />
             Registros do Dia
           </CardTitle>
         </CardHeader>
