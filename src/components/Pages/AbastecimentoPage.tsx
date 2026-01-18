@@ -707,6 +707,11 @@ export function AbastecimentoPage() {
         const records = resumoPorLocal.recordsByLocal[local];
         if (!records || records.length === 0) return;
         
+        // Sort records by description for better organization
+        const sortedRecords = [...records].sort((a, b) => 
+          (a.descricao || '').localeCompare(b.descricao || '', 'pt-BR')
+        );
+        
         // Add new page for each location after the first
         if (locationIndex > 0) {
           doc.addPage();
@@ -743,7 +748,7 @@ export function AbastecimentoPage() {
         let totalConsumo = 0;
         let countConsumo = 0;
         
-        const tableData = records.map((record, index) => {
+        const tableData = sortedRecords.map((record, index) => {
           // Determine if using km or hours based on data
           const usaKm = record.kmAtual > 0 || record.kmAnterior > 0;
           const anterior = usaKm ? record.kmAnterior : record.horAnterior;
@@ -771,10 +776,10 @@ export function AbastecimentoPage() {
             record.codigo,
             record.descricao,
             record.motorista,
-            anterior > 0 ? anterior.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '-',
-            atual > 0 ? atual.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '-',
-            intervalo > 0 ? intervalo.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '-',
-            consumo > 0 ? consumo.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '0,00',
+            anterior > 0 ? anterior.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-',
+            atual > 0 ? atual.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-',
+            intervalo > 0 ? intervalo.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-',
+            consumo > 0 ? consumo.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0,00',
             record.quantidade.toLocaleString('pt-BR', { minimumFractionDigits: 0 })
           ];
         });
@@ -789,7 +794,7 @@ export function AbastecimentoPage() {
           '',
           '',
           '',
-          mediaConsumo > 0 ? `Média: ${mediaConsumo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '-',
+          mediaConsumo > 0 ? `Média: ${mediaConsumo.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-',
           totalDiesel.toLocaleString('pt-BR', { minimumFractionDigits: 0 })
         ]);
         
@@ -891,6 +896,11 @@ export function AbastecimentoPage() {
         const records = resumoPorLocal.recordsByLocal[local];
         if (!records || records.length === 0) return;
         
+        // Sort records by description for better organization
+        const sortedRecords = [...records].sort((a, b) => 
+          (a.descricao || '').localeCompare(b.descricao || '', 'pt-BR')
+        );
+        
         // Add new page for each location after the first
         if (locationIndex > 0) {
           doc.addPage();
@@ -927,7 +937,7 @@ export function AbastecimentoPage() {
         let totalConsumo = 0;
         let countConsumo = 0;
         
-        const tableData = records.map((record, index) => {
+        const tableData = sortedRecords.map((record, index) => {
           // Determine if using km or hours based on data
           const usaKm = record.kmAtual > 0 || record.kmAnterior > 0;
           const anterior = usaKm ? record.kmAnterior : record.horAnterior;
@@ -955,10 +965,10 @@ export function AbastecimentoPage() {
             record.codigo,
             record.descricao,
             record.motorista,
-            anterior > 0 ? anterior.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '-',
-            atual > 0 ? atual.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '-',
-            intervalo > 0 ? intervalo.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '-',
-            consumo > 0 ? consumo.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '0,00',
+            anterior > 0 ? anterior.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-',
+            atual > 0 ? atual.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-',
+            intervalo > 0 ? intervalo.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-',
+            consumo > 0 ? consumo.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0,00',
             record.quantidade.toLocaleString('pt-BR', { minimumFractionDigits: 0 })
           ];
         });
@@ -973,7 +983,7 @@ export function AbastecimentoPage() {
           '',
           '',
           '',
-          mediaConsumo > 0 ? `Média: ${mediaConsumo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '-',
+          mediaConsumo > 0 ? `Média: ${mediaConsumo.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-',
           totalDiesel.toLocaleString('pt-BR', { minimumFractionDigits: 0 })
         ]);
         
@@ -1108,6 +1118,11 @@ export function AbastecimentoPage() {
           const records = empresaData.categorias[categoria];
           if (!records || records.length === 0) return;
           
+          // Sort records by description for better organization
+          const sortedRecords = [...records].sort((a, b) => 
+            (a.descricao || '').localeCompare(b.descricao || '', 'pt-BR')
+          );
+          
           // Check if we need a new page
           if (currentY > 180) {
             doc.addPage();
@@ -1127,7 +1142,7 @@ export function AbastecimentoPage() {
           let totalConsumo = 0;
           let countConsumo = 0;
           
-          const tableData = records.map((record, index) => {
+          const tableData = sortedRecords.map((record, index) => {
             // Determine if using km or hours based on data
             const usaKm = record.kmAtual > 0 || record.kmAnterior > 0;
             const anterior = usaKm ? record.kmAnterior : record.horAnterior;
@@ -1153,10 +1168,10 @@ export function AbastecimentoPage() {
               record.codigo,
               record.descricao.length > 20 ? record.descricao.substring(0, 17) + '...' : record.descricao,
               record.motorista,
-              anterior > 0 ? anterior.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '-',
-              atual > 0 ? atual.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '-',
-              intervalo > 0 ? intervalo.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '-',
-              consumo > 0 ? consumo.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '0,00',
+              anterior > 0 ? anterior.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-',
+              atual > 0 ? atual.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-',
+              intervalo > 0 ? intervalo.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-',
+              consumo > 0 ? consumo.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0,00',
               record.quantidade.toLocaleString('pt-BR', { minimumFractionDigits: 0 })
             ];
           });
@@ -1171,7 +1186,7 @@ export function AbastecimentoPage() {
             '',
             '',
             '',
-            mediaConsumo > 0 ? `Média: ${mediaConsumo.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '-',
+            mediaConsumo > 0 ? `Média: ${mediaConsumo.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-',
             totalDiesel.toLocaleString('pt-BR', { minimumFractionDigits: 0 })
           ]);
           
