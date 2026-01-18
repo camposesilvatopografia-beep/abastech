@@ -79,6 +79,7 @@ interface RequiredFields {
   observations: boolean;
   photo_horimeter: boolean;
   photo_pump: boolean;
+  skip_all_validation?: boolean; // Admin option to skip all mandatory fields
 }
 
 const DEFAULT_REQUIRED_FIELDS: RequiredFields = {
@@ -93,6 +94,7 @@ const DEFAULT_REQUIRED_FIELDS: RequiredFields = {
   observations: false,
   photo_horimeter: false,
   photo_pump: false,
+  skip_all_validation: false,
 };
 
 interface FieldUser {
@@ -932,68 +934,75 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
       // Get user's required fields configuration
       const requiredFields = user.required_fields || DEFAULT_REQUIRED_FIELDS;
       
+      // Check if admin user has skip_all_validation enabled
+      const skipValidation = requiredFields.skip_all_validation === true;
+      
       if (recordType === 'saida') {
+        // Vehicle is always required
         if (!vehicleCode) {
           toast.error('Selecione o veículo');
           return;
         }
         
-        // Validate fuel_quantity based on user config
-        if (requiredFields.fuel_quantity && !fuelQuantity) {
-          toast.error('Quantidade de Combustível é obrigatória');
-          return;
-        }
-        
-        // Validate horimeter based on user config (or equipment type)
-        if ((requiredFields.horimeter_current || isEquipment) && !horimeterCurrent) {
-          toast.error('Horímetro Atual é obrigatório');
-          return;
-        }
-        
-        // Validate km_current based on user config
-        if (requiredFields.km_current && !kmCurrent) {
-          toast.error('KM Atual é obrigatório');
-          return;
-        }
-        
-        // Validate arla_quantity based on user config
-        if (requiredFields.arla_quantity && !arlaQuantity) {
-          toast.error('Quantidade de ARLA é obrigatória');
-          return;
-        }
-        
-        // Validate oil_type based on user config
-        if (requiredFields.oil_type && !oilType) {
-          toast.error('Tipo de Óleo é obrigatório');
-          return;
-        }
-        
-        // Validate oil_quantity based on user config
-        if (requiredFields.oil_quantity && !oilQuantity) {
-          toast.error('Quantidade de Óleo é obrigatória');
-          return;
-        }
-        
-        // Validate lubricant based on user config
-        if (requiredFields.lubricant && !lubricant) {
-          toast.error('Lubrificante é obrigatório');
-          return;
-        }
-        
-        // Validate observations based on user config
-        if (requiredFields.observations && !observations.trim()) {
-          toast.error('Observações são obrigatórias');
-          return;
-        }
-        
-        // Validate photos based on user config
-        if (requiredFields.photo_pump && !photoPump) {
-          toast.error('Foto da Bomba é obrigatória');
-          return;
-        }
-        if (requiredFields.photo_horimeter && !photoHorimeter) {
-          toast.error('Foto do Horímetro é obrigatória');
-          return;
+        // Skip all field validations if admin mode is enabled
+        if (!skipValidation) {
+          // Validate fuel_quantity based on user config
+          if (requiredFields.fuel_quantity && !fuelQuantity) {
+            toast.error('Quantidade de Combustível é obrigatória');
+            return;
+          }
+          
+          // Validate horimeter based on user config (or equipment type)
+          if ((requiredFields.horimeter_current || isEquipment) && !horimeterCurrent) {
+            toast.error('Horímetro Atual é obrigatório');
+            return;
+          }
+          
+          // Validate km_current based on user config
+          if (requiredFields.km_current && !kmCurrent) {
+            toast.error('KM Atual é obrigatório');
+            return;
+          }
+          
+          // Validate arla_quantity based on user config
+          if (requiredFields.arla_quantity && !arlaQuantity) {
+            toast.error('Quantidade de ARLA é obrigatória');
+            return;
+          }
+          
+          // Validate oil_type based on user config
+          if (requiredFields.oil_type && !oilType) {
+            toast.error('Tipo de Óleo é obrigatório');
+            return;
+          }
+          
+          // Validate oil_quantity based on user config
+          if (requiredFields.oil_quantity && !oilQuantity) {
+            toast.error('Quantidade de Óleo é obrigatória');
+            return;
+          }
+          
+          // Validate lubricant based on user config
+          if (requiredFields.lubricant && !lubricant) {
+            toast.error('Lubrificante é obrigatório');
+            return;
+          }
+          
+          // Validate observations based on user config
+          if (requiredFields.observations && !observations.trim()) {
+            toast.error('Observações são obrigatórias');
+            return;
+          }
+          
+          // Validate photos based on user config
+          if (requiredFields.photo_pump && !photoPump) {
+            toast.error('Foto da Bomba é obrigatória');
+            return;
+          }
+          if (requiredFields.photo_horimeter && !photoHorimeter) {
+            toast.error('Foto do Horímetro é obrigatória');
+            return;
+          }
         }
         
         // Validate horimeter current > previous (only if horimeter is provided)
