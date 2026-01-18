@@ -76,6 +76,7 @@ interface RequiredFields {
   observations: boolean;
   photo_horimeter: boolean;
   photo_pump: boolean;
+  skip_all_validation?: boolean; // Admin option to skip all mandatory fields
 }
 
 interface RequiredFieldsPreset {
@@ -139,9 +140,10 @@ const DEFAULT_REQUIRED_FIELDS: RequiredFields = {
   observations: false,
   photo_horimeter: false,
   photo_pump: false,
+  skip_all_validation: false,
 };
 
-const FIELD_LABELS: Record<keyof RequiredFields, string> = {
+const FIELD_LABELS: Record<keyof Omit<RequiredFields, 'skip_all_validation'>, string> = {
   horimeter_current: 'Horímetro Atual',
   km_current: 'KM Atual',
   fuel_quantity: 'Quantidade de Combustível',
@@ -1078,74 +1080,107 @@ export function FieldUsersPage() {
                     <CheckCircle className="w-3.5 h-3.5 text-green-500" />
                     Campos Obrigatórios
                   </Label>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setShowPresetModal(true)}
-                    className="h-6 text-[10px] gap-1 px-2"
-                  >
-                    <Save className="w-3 h-3" />
-                    Salvar Preset
-                  </Button>
+                  {!formData.required_fields.skip_all_validation && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowPresetModal(true)}
+                      className="h-6 text-[10px] gap-1 px-2"
+                    >
+                      <Save className="w-3 h-3" />
+                      Salvar Preset
+                    </Button>
+                  )}
                 </div>
                 
-                {/* Preset Selection */}
-                <Select onValueChange={applyPreset}>
-                  <SelectTrigger className="h-8 text-xs">
-                    <SelectValue placeholder="Aplicar preset..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground">
-                      Presets Padrão
-                    </div>
-                    {DEFAULT_PRESETS.map((preset) => (
-                      <SelectItem key={preset.id} value={preset.id}>
-                        {preset.name}
-                      </SelectItem>
-                    ))}
-                    {customPresets.length > 0 && (
-                      <>
-                        <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground border-t mt-1 pt-1">
-                          Presets Personalizados
+                {/* Admin Skip Validation Option */}
+                <label className="flex items-center gap-2 p-2 bg-amber-500/10 border border-amber-500/20 rounded-lg cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.required_fields.skip_all_validation || false}
+                    onChange={(e) => {
+                      setFormData({
+                        ...formData,
+                        required_fields: {
+                          ...formData.required_fields,
+                          skip_all_validation: e.target.checked,
+                        },
+                      });
+                    }}
+                    className="w-4 h-4 rounded"
+                  />
+                  <div className="flex-1">
+                    <span className="text-xs font-medium flex items-center gap-1">
+                      <Shield className="w-3.5 h-3.5 text-amber-500" />
+                      Sem Campos Obrigatórios (Admin)
+                    </span>
+                    <p className="text-[10px] text-muted-foreground">
+                      Usuário pode preencher apenas o que desejar
+                    </p>
+                  </div>
+                </label>
+
+                {!formData.required_fields.skip_all_validation && (
+                  <>
+                    {/* Preset Selection */}
+                    <Select onValueChange={applyPreset}>
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue placeholder="Aplicar preset..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground">
+                          Presets Padrão
                         </div>
-                        {customPresets.map((preset) => (
-                          <div key={preset.id} className="flex items-center justify-between pr-2">
-                            <SelectItem value={preset.id} className="flex-1">
-                              {preset.name}
-                            </SelectItem>
-                          </div>
+                        {DEFAULT_PRESETS.map((preset) => (
+                          <SelectItem key={preset.id} value={preset.id}>
+                            {preset.name}
+                          </SelectItem>
                         ))}
-                      </>
-                    )}
-                  </SelectContent>
-                </Select>
-                
-                {/* Fields Checkboxes */}
-                <div className="grid grid-cols-2 gap-1.5 p-2 bg-muted/50 rounded-lg">
-                  {(Object.keys(FIELD_LABELS) as Array<keyof RequiredFields>).map((field) => (
-                    <label key={field} className="flex items-center gap-1.5 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={formData.required_fields[field]}
-                        onChange={(e) => {
-                          setFormData({
-                            ...formData,
-                            required_fields: {
-                              ...formData.required_fields,
-                              [field]: e.target.checked,
-                            },
-                          });
-                        }}
-                        className="w-3.5 h-3.5 rounded"
-                      />
-                      <span className="text-[10px]">{FIELD_LABELS[field]}</span>
-                    </label>
-                  ))}
-                </div>
-                <p className="text-[10px] text-muted-foreground">
-                  Campos marcados serão obrigatórios no formulário.
-                </p>
+                        {customPresets.length > 0 && (
+                          <>
+                            <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground border-t mt-1 pt-1">
+                              Presets Personalizados
+                            </div>
+                            {customPresets.map((preset) => (
+                              <div key={preset.id} className="flex items-center justify-between pr-2">
+                                <SelectItem value={preset.id} className="flex-1">
+                                  {preset.name}
+                                </SelectItem>
+                              </div>
+                            ))}
+                          </>
+                        )}
+                      </SelectContent>
+                    </Select>
+                    
+                    {/* Fields Checkboxes */}
+                    <div className="grid grid-cols-2 gap-1.5 p-2 bg-muted/50 rounded-lg">
+                      {(Object.keys(FIELD_LABELS) as Array<keyof Omit<RequiredFields, 'skip_all_validation'>>).map((field) => (
+                        <label key={field} className="flex items-center gap-1.5 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={formData.required_fields[field] as boolean}
+                            onChange={(e) => {
+                              setFormData({
+                                ...formData,
+                                required_fields: {
+                                  ...formData.required_fields,
+                                  [field]: e.target.checked,
+                                },
+                              });
+                            }}
+                            className="w-3.5 h-3.5 rounded"
+                          />
+                          <span className="text-[10px]">{FIELD_LABELS[field]}</span>
+                        </label>
+                      ))}
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">
+                      Campos marcados serão obrigatórios no formulário.
+                    </p>
+                  </>
+                )}
               </div>
 
               {editingUser && (
