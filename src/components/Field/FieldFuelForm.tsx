@@ -1170,8 +1170,9 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         operator_name: recordType === 'entrada' ? '' : (operatorName || user.name),
         company,
         work_site: workSite,
-        horimeter_previous: parseBrazilianNumber(horimeterPrevious),
-        horimeter_current: parseBrazilianNumber(horimeterCurrent),
+        // Only save horimeter values for own refueling (not for tank refuel mode)
+        horimeter_previous: quickEntryMode === 'comboio_tank_refuel' ? null : parseBrazilianNumber(horimeterPrevious),
+        horimeter_current: quickEntryMode === 'comboio_tank_refuel' ? null : parseBrazilianNumber(horimeterCurrent),
         // IMPORTANT: fuelQuantity is typed with BR formatting (e.g. 1.111)
         // so we must parse it as a Brazilian number to avoid saving 1.111 instead of 1111.
         fuel_quantity: parseBrazilianNumber(fuelQuantity) || 0,
