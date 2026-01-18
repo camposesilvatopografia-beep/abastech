@@ -1857,28 +1857,27 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
               </div>
             )}
 
-            {/* Location - for quick modes */}
-            <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-xl border border-slate-200 dark:border-slate-700 p-4 space-y-3 shadow-sm">
-              <Label className="flex items-center gap-2 text-base">
-                <MapPin className="w-4 h-4" />
-                Local
-              </Label>
-              <Select value={location} onValueChange={setLocation}>
-                <SelectTrigger className="h-12">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {(user.assigned_locations && user.assigned_locations.length > 0
-                    ? user.assigned_locations
-                    : ['Tanque Canteiro 01', 'Tanque Canteiro 02', 'Comboio 01', 'Comboio 02', 'Comboio 03', 'Posto Externo']
-                  ).map((loc) => (
-                    <SelectItem key={loc} value={loc}>
-                      {loc}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {/* Location - for quick modes (only show if user has multiple locations) */}
+            {user.assigned_locations && user.assigned_locations.length > 1 && (
+              <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-xl border border-slate-200 dark:border-slate-700 p-4 space-y-3 shadow-sm">
+                <Label className="flex items-center gap-2 text-base">
+                  <MapPin className="w-4 h-4" />
+                  Local
+                </Label>
+                <Select value={location} onValueChange={setLocation}>
+                  <SelectTrigger className="h-12">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {user.assigned_locations.map((loc) => (
+                      <SelectItem key={loc} value={loc}>
+                        {loc}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             {/* Observations for quick modes */}
             <div className="bg-white dark:bg-slate-800 backdrop-blur-sm rounded-xl border border-blue-200 dark:border-blue-800 p-4 space-y-3 shadow-lg">
@@ -2506,8 +2505,8 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
           </>
         )}
 
-        {/* Location - for Saida only */}
-        {recordType === 'saida' && (
+        {/* Location - for Saida only (only show if user has multiple locations) */}
+        {recordType === 'saida' && user.assigned_locations && user.assigned_locations.length > 1 && (
           <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-xl border border-slate-200 dark:border-slate-700 p-4 space-y-3 shadow-sm">
             <Label className="flex items-center gap-2 text-base">
               <MapPin className="w-4 h-4" />
@@ -2518,21 +2517,13 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {(user.assigned_locations && user.assigned_locations.length > 0
-                  ? user.assigned_locations
-                  : ['Tanque Canteiro 01', 'Tanque Canteiro 02', 'Comboio 01', 'Comboio 02', 'Comboio 03', 'Posto Externo']
-                ).map((loc) => (
+                {user.assigned_locations.map((loc) => (
                   <SelectItem key={loc} value={loc}>
                     {loc}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            {user.assigned_locations && user.assigned_locations.length === 1 && (
-              <p className="text-xs text-muted-foreground">
-                Local pré-definido pelo administrador
-              </p>
-            )}
           </div>
         )}
 
