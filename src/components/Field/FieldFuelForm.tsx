@@ -1453,6 +1453,31 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
       .sort((a, b) => a.code.localeCompare(b.code));
   }, [vehiclesData.rows]);
 
+  // Group vehicles by category for improved search UX
+  const groupedVehicles = useMemo(() => {
+    const groups: Record<string, typeof vehicles> = {};
+    
+    vehicles.forEach(vehicle => {
+      const category = vehicle.category?.trim() || 'Outros';
+      if (!groups[category]) {
+        groups[category] = [];
+      }
+      groups[category].push(vehicle);
+    });
+
+    // Sort categories alphabetically, but keep "Outros" at the end
+    const sortedCategories = Object.keys(groups).sort((a, b) => {
+      if (a === 'Outros') return 1;
+      if (b === 'Outros') return -1;
+      return a.localeCompare(b, 'pt-BR');
+    });
+
+    return sortedCategories.map(category => ({
+      category,
+      vehicles: groups[category].sort((a, b) => a.code.localeCompare(b.code))
+    }));
+  }, [vehicles]);
+
   // Vehicle search combobox state
   const [vehicleSearchOpen, setVehicleSearchOpen] = useState(false);
   
@@ -1743,7 +1768,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                 </Button>
               </div>
               
-              {/* Searchable Vehicle Combobox */}
+              {/* Searchable Vehicle Combobox - Grouped by Category */}
               <Popover open={vehicleSearchOpen} onOpenChange={setVehicleSearchOpen}>
                 <PopoverTrigger asChild>
                   <Button
@@ -1751,57 +1776,100 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                     role="combobox"
                     aria-expanded={vehicleSearchOpen}
                     className={cn(
-                      "w-full h-14 justify-between text-lg font-medium",
-                      !vehicleCode && "text-muted-foreground"
+                      "w-full h-14 justify-between font-medium border-2 transition-all",
+                      !vehicleCode && "text-muted-foreground",
+                      vehicleCode && "border-primary/30 bg-primary/5"
                     )}
                   >
-                    <span className="truncate">
-                      {vehicleCode || "Pesquisar veículo..."}
-                    </span>
-                    <ChevronsUpDown className="ml-2 h-5 w-5 shrink-0 opacity-50" />
+                    <div className="flex items-center gap-2 truncate">
+                      <Truck className={cn(
+                        "h-5 w-5 shrink-0",
+                        vehicleCode ? "text-primary" : "text-muted-foreground"
+                      )} />
+                      <span className={cn(
+                        "truncate text-lg",
+                        vehicleCode && "font-bold text-primary"
+                      )}>
+                        {vehicleCode || "Pesquisar veículo..."}
+                      </span>
+                    </div>
+                    <ChevronsUpDown className="ml-2 h-5 w-5 shrink-0 text-muted-foreground" />
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent 
-                  className="w-[--radix-popover-trigger-width] p-0 bg-background border shadow-lg z-50" 
+                  className="w-[--radix-popover-trigger-width] min-w-[320px] p-0 bg-popover border-2 shadow-xl z-[100]" 
                   align="start"
                   sideOffset={4}
                 >
-                  <Command className="bg-background">
-                    <div className="flex items-center border-b px-3">
-                      <Search className="h-4 w-4 shrink-0 opacity-50 mr-2" />
+                  <Command className="bg-popover">
+                    <div className="flex items-center border-b-2 px-3 bg-muted/50">
+                      <Search className="h-5 w-5 shrink-0 text-primary mr-2" />
                       <CommandInput 
-                        placeholder="Pesquisar veículo..." 
-                        className="h-12 border-0 focus:ring-0 text-base"
+                        placeholder="Digite código, descrição ou categoria..." 
+                        className="h-12 text-base border-0 focus:ring-0 bg-transparent"
                       />
                     </div>
-                    <CommandList className="max-h-[250px]">
-                      <CommandEmpty>Nenhum veículo encontrado.</CommandEmpty>
-                      <CommandGroup>
-                        {vehicles.map((vehicle) => (
-                          <CommandItem
-                            key={vehicle.code}
-                            value={`${vehicle.code} ${vehicle.description} ${vehicle.category}`.toLowerCase()}
-                            onSelect={() => {
-                              handleVehicleSelect(vehicle.code);
-                              setVehicleSearchOpen(false);
-                            }}
-                            className="cursor-pointer py-3"
-                          >
-                            <Check
-                              className={cn(
-                                "mr-2 h-4 w-4",
-                                vehicleCode === vehicle.code ? "opacity-100" : "opacity-0"
-                              )}
-                            />
-                            <div className="flex flex-col">
-                              <span className="font-medium">{vehicle.code}</span>
-                              {vehicle.description && (
-                                <span className="text-xs text-muted-foreground">{vehicle.description}</span>
-                              )}
+                    <CommandList className="max-h-[350px] overflow-auto">
+                      <CommandEmpty className="py-6 text-center">
+                        <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                          <Truck className="h-8 w-8 opacity-50" />
+                          <span className="text-sm">Nenhum veículo encontrado</span>
+                        </div>
+                      </CommandEmpty>
+                      
+                      {groupedVehicles.map(({ category: cat, vehicles: categoryVehicles }) => (
+                        <CommandGroup 
+                          key={cat} 
+                          heading={
+                            <div className="flex items-center gap-2 px-2 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground bg-muted/30 border-b">
+                              <span className="w-2 h-2 rounded-full bg-primary/50" />
+                              {cat} ({categoryVehicles.length})
                             </div>
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
+                          }
+                          className="p-0"
+                        >
+                          <div className="p-2">
+                            {categoryVehicles.map((vehicle) => {
+                              const isSelected = vehicleCode === vehicle.code;
+                              
+                              return (
+                                <CommandItem
+                                  key={vehicle.code}
+                                  value={`${vehicle.code} ${vehicle.description} ${cat}`.toLowerCase()}
+                                  onSelect={() => {
+                                    handleVehicleSelect(vehicle.code);
+                                    setVehicleSearchOpen(false);
+                                  }}
+                                  className={cn(
+                                    "cursor-pointer py-3 px-3 rounded-lg mb-1 transition-colors",
+                                    isSelected && "bg-primary/10 border border-primary/30"
+                                  )}
+                                >
+                                  <Check
+                                    className={cn(
+                                      "mr-3 h-5 w-5 text-primary",
+                                      isSelected ? "opacity-100" : "opacity-0"
+                                    )}
+                                  />
+                                  <div className="flex flex-col flex-1 min-w-0">
+                                    <span className={cn(
+                                      "font-bold text-base truncate",
+                                      isSelected && "text-primary"
+                                    )}>
+                                      {vehicle.code}
+                                    </span>
+                                    {vehicle.description && (
+                                      <span className="text-xs text-muted-foreground truncate">
+                                        {vehicle.description}
+                                      </span>
+                                    )}
+                                  </div>
+                                </CommandItem>
+                              );
+                            })}
+                          </div>
+                        </CommandGroup>
+                      ))}
                     </CommandList>
                   </Command>
                 </PopoverContent>
@@ -1993,7 +2061,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                 </Button>
               </div>
               
-              {/* Searchable Vehicle Combobox */}
+              {/* Searchable Vehicle Combobox - Grouped by Category */}
               <Popover open={vehicleSearchOpen} onOpenChange={setVehicleSearchOpen}>
                 <PopoverTrigger asChild>
                   <Button
@@ -2001,61 +2069,100 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                     role="combobox"
                     aria-expanded={vehicleSearchOpen}
                     className={cn(
-                      "w-full h-14 justify-between text-lg font-medium",
-                      !vehicleCode && "text-muted-foreground"
+                      "w-full h-14 justify-between font-medium border-2 transition-all",
+                      !vehicleCode && "text-muted-foreground",
+                      vehicleCode && "border-primary/30 bg-primary/5"
                     )}
                   >
-                    <span className="truncate">
-                      {vehicleCode || "Pesquisar veículo..."}
-                    </span>
-                    <ChevronsUpDown className="ml-2 h-5 w-5 shrink-0 opacity-50" />
+                    <div className="flex items-center gap-2 truncate">
+                      <Truck className={cn(
+                        "h-5 w-5 shrink-0",
+                        vehicleCode ? "text-primary" : "text-muted-foreground"
+                      )} />
+                      <span className={cn(
+                        "truncate text-lg",
+                        vehicleCode && "font-bold text-primary"
+                      )}>
+                        {vehicleCode || "Pesquisar veículo..."}
+                      </span>
+                    </div>
+                    <ChevronsUpDown className="ml-2 h-5 w-5 shrink-0 text-muted-foreground" />
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent 
-                  className="w-[--radix-popover-trigger-width] p-0 bg-popover border shadow-xl z-50" 
+                  className="w-[--radix-popover-trigger-width] min-w-[320px] p-0 bg-popover border-2 shadow-xl z-[100]" 
                   align="start"
                   sideOffset={4}
                 >
-                  <Command>
-                    <div className="flex items-center border-b px-3">
-                      <Search className="h-4 w-4 shrink-0 opacity-50 mr-2" />
+                  <Command className="bg-popover">
+                    <div className="flex items-center border-b-2 px-3 bg-muted/50">
+                      <Search className="h-5 w-5 shrink-0 text-primary mr-2" />
                       <CommandInput 
-                        placeholder="Digite código ou descrição..." 
-                        className="h-12 border-0 focus:ring-0"
+                        placeholder="Digite código, descrição ou categoria..." 
+                        className="h-12 text-base border-0 focus:ring-0 bg-transparent"
                       />
                     </div>
-                    <CommandList className="max-h-[300px]">
-                      <CommandEmpty className="py-6 text-center text-muted-foreground">
-                        Nenhum veículo encontrado.
+                    <CommandList className="max-h-[350px] overflow-auto">
+                      <CommandEmpty className="py-6 text-center">
+                        <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                          <Truck className="h-8 w-8 opacity-50" />
+                          <span className="text-sm">Nenhum veículo encontrado</span>
+                        </div>
                       </CommandEmpty>
-                      <CommandGroup>
-                        {vehicles.map((vehicle) => (
-                          <CommandItem
-                            key={vehicle.code}
-                            value={`${vehicle.code} ${vehicle.description} ${vehicle.category}`.toLowerCase()}
-                            onSelect={() => {
-                              handleVehicleSelect(vehicle.code);
-                              setVehicleSearchOpen(false);
-                            }}
-                            className="cursor-pointer py-3 px-3"
-                          >
-                            <Check
-                              className={cn(
-                                "mr-3 h-4 w-4",
-                                vehicleCode === vehicle.code ? "opacity-100" : "opacity-0"
-                              )}
-                            />
-                            <div className="flex flex-col">
-                              <span className="font-bold">{vehicle.code}</span>
-                              {vehicle.description && (
-                                <span className="text-sm text-muted-foreground truncate max-w-[250px]">
-                                  {vehicle.description}
-                                </span>
-                              )}
+                      
+                      {groupedVehicles.map(({ category: cat, vehicles: categoryVehicles }) => (
+                        <CommandGroup 
+                          key={cat} 
+                          heading={
+                            <div className="flex items-center gap-2 px-2 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground bg-muted/30 border-b">
+                              <span className="w-2 h-2 rounded-full bg-primary/50" />
+                              {cat} ({categoryVehicles.length})
                             </div>
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
+                          }
+                          className="p-0"
+                        >
+                          <div className="p-2">
+                            {categoryVehicles.map((vehicle) => {
+                              const isSelected = vehicleCode === vehicle.code;
+                              
+                              return (
+                                <CommandItem
+                                  key={vehicle.code}
+                                  value={`${vehicle.code} ${vehicle.description} ${cat}`.toLowerCase()}
+                                  onSelect={() => {
+                                    handleVehicleSelect(vehicle.code);
+                                    setVehicleSearchOpen(false);
+                                  }}
+                                  className={cn(
+                                    "cursor-pointer py-3 px-3 rounded-lg mb-1 transition-colors",
+                                    isSelected && "bg-primary/10 border border-primary/30"
+                                  )}
+                                >
+                                  <Check
+                                    className={cn(
+                                      "mr-3 h-5 w-5 text-primary",
+                                      isSelected ? "opacity-100" : "opacity-0"
+                                    )}
+                                  />
+                                  <div className="flex flex-col flex-1 min-w-0">
+                                    <span className={cn(
+                                      "font-bold text-base truncate",
+                                      isSelected && "text-primary"
+                                    )}>
+                                      {vehicle.code}
+                                    </span>
+                                    {vehicle.description && (
+                                      <span className="text-xs text-muted-foreground truncate">
+                                        {vehicle.description}
+                                      </span>
+                                    )}
+                                  </div>
+                                </CommandItem>
+                              );
+                            })}
+                          </div>
+                        </CommandGroup>
+                      ))}
                     </CommandList>
                   </Command>
                 </PopoverContent>
