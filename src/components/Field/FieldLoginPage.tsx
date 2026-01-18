@@ -90,14 +90,14 @@ export function FieldLoginPage({ onLogin }: FieldLoginPageProps) {
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
         <div className="text-center animate-in fade-in zoom-in duration-500">
           <div className="relative mb-8">
-            <div className="absolute inset-0 blur-3xl bg-amber-500/30 rounded-full animate-pulse" />
-            <div className="relative bg-gradient-to-br from-amber-400 to-amber-600 w-24 h-24 rounded-full flex items-center justify-center mx-auto shadow-2xl shadow-amber-500/50">
+            <div className="absolute inset-0 blur-3xl bg-blue-500/30 rounded-full animate-pulse" />
+            <div className="relative bg-gradient-to-br from-blue-700 to-blue-900 w-24 h-24 rounded-full flex items-center justify-center mx-auto shadow-2xl shadow-blue-500/50">
               <CheckCircle2 className="w-12 h-12 text-white animate-in zoom-in duration-300 delay-200" />
             </div>
           </div>
           
           <div className="space-y-4">
-            <div className="flex items-center justify-center gap-2 text-amber-400 animate-in slide-in-from-bottom-4 duration-500 delay-300">
+            <div className="flex items-center justify-center gap-2 text-blue-400 animate-in slide-in-from-bottom-4 duration-500 delay-300">
               <Sparkles className="w-5 h-5" />
               <span className="text-lg font-medium">Login realizado com sucesso!</span>
               <Sparkles className="w-5 h-5" />
@@ -112,9 +112,9 @@ export function FieldLoginPage({ onLogin }: FieldLoginPageProps) {
             </p>
             
             <div className="flex items-center justify-center gap-2 mt-8 animate-in fade-in duration-500 delay-1000">
-              <div className="w-2 h-2 bg-amber-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-              <div className="w-2 h-2 bg-amber-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-              <div className="w-2 h-2 bg-amber-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+              <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+              <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+              <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
             </div>
           </div>
         </div>
@@ -133,8 +133,8 @@ export function FieldLoginPage({ onLogin }: FieldLoginPageProps) {
           {/* Logo - Grande e em destaque */}
           <div className="flex flex-col items-center gap-6">
             <div className="relative">
-              <div className="absolute inset-0 blur-2xl bg-amber-500/20 rounded-full scale-110" />
-              <div className="absolute inset-0 blur-3xl bg-amber-400/15 rounded-full scale-125 animate-pulse" />
+              <div className="absolute inset-0 blur-2xl bg-blue-500/20 rounded-full scale-110" />
+              <div className="absolute inset-0 blur-3xl bg-blue-400/15 rounded-full scale-125 animate-pulse" />
               <img 
                 src={logoAbastech} 
                 alt="Abastech" 
@@ -164,7 +164,7 @@ export function FieldLoginPage({ onLogin }: FieldLoginPageProps) {
                 placeholder="Digite seu usuário"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                className="bg-white/10 border-white/20 text-white placeholder:text-slate-500 h-12 text-lg focus:border-amber-500 focus:ring-amber-500/20"
+                className="bg-white/10 border-white/20 text-white placeholder:text-slate-500 h-12 text-lg focus:border-blue-500 focus:ring-blue-500/20"
                 disabled={isLoading}
                 autoComplete="username"
               />
@@ -182,7 +182,7 @@ export function FieldLoginPage({ onLogin }: FieldLoginPageProps) {
                   placeholder="Digite sua senha"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="bg-white/10 border-white/20 text-white placeholder:text-slate-500 h-12 text-lg pr-12 focus:border-amber-500 focus:ring-amber-500/20"
+                  className="bg-white/10 border-white/20 text-white placeholder:text-slate-500 h-12 text-lg pr-12 focus:border-blue-500 focus:ring-blue-500/20"
                   disabled={isLoading}
                   autoComplete="current-password"
                 />
@@ -198,7 +198,7 @@ export function FieldLoginPage({ onLogin }: FieldLoginPageProps) {
 
             <Button
               type="submit"
-              className="w-full h-12 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-900 font-semibold text-base shadow-lg shadow-amber-500/25"
+              className="w-full h-12 bg-gradient-to-r from-blue-700 to-blue-800 hover:from-blue-800 hover:to-blue-900 text-white font-semibold text-base shadow-lg shadow-blue-500/25"
               disabled={isLoading}
             >
               {isLoading ? (

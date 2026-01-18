@@ -216,7 +216,7 @@ export const LocationStockCard = forwardRef<LocationStockCardRef, LocationStockC
           theme === 'dark' ? "text-slate-200" : "text-slate-700"
         )}>
           <span className="flex items-center gap-2">
-            <Database className="w-4 h-4 text-amber-500" />
+            <Database className="w-4 h-4 text-blue-600 dark:text-blue-400" />
             {shortLocationName}
           </span>
           <span className={cn(
@@ -230,7 +230,7 @@ export const LocationStockCard = forwardRef<LocationStockCardRef, LocationStockC
       <CardContent className="pt-0">
         {loading ? (
           <div className="flex items-center justify-center py-4">
-            <div className="w-5 h-5 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
+            <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
           </div>
         ) : (
           <div className="grid grid-cols-4 gap-2">
