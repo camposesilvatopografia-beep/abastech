@@ -19,7 +19,9 @@ import {
   CheckCircle,
   Bell,
   BellOff,
+  Truck,
 } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { useRealtimeSync } from '@/hooks/useRealtimeSync';
 import { useNavigate } from 'react-router-dom';
@@ -997,10 +999,26 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
                       <TrendingDown className="w-4 h-4 text-red-500" />
                     )}
                     <div>
-                      <p className={cn(
-                        "text-sm font-medium",
-                        theme === 'dark' ? "text-slate-200" : "text-slate-700"
-                      )}>{record.vehicle_code}</p>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <p className={cn(
+                          "text-sm font-medium",
+                          theme === 'dark' ? "text-slate-200" : "text-slate-700"
+                        )}>{record.vehicle_code}</p>
+                        {/* Badge for Comboio vehicles - show if tank refuel or own refuel */}
+                        {record.vehicle_code.toUpperCase().startsWith('CC') && record.record_type !== 'entrada' && (
+                          record.observations?.includes('[ABAST. TANQUE COMBOIO]') ? (
+                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 bg-orange-500/20 text-orange-500 border-orange-500/50">
+                              <Fuel className="w-2.5 h-2.5 mr-0.5" />
+                              Tanque
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 bg-blue-500/20 text-blue-500 border-blue-500/50">
+                              <Truck className="w-2.5 h-2.5 mr-0.5" />
+                              Próprio
+                            </Badge>
+                          )
+                        )}
+                      </div>
                       <p className={cn(
                         "text-xs",
                         theme === 'dark' ? "text-slate-400" : "text-slate-500"
