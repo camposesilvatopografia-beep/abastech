@@ -211,8 +211,13 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
   const [recordType, setRecordType] = useState<'saida' | 'entrada'>('saida');
   
   // Quick entry mode for simplified records
-  type QuickEntryMode = 'normal' | 'arla_only' | 'lubrication_only' | 'filter_blow_only' | 'oil_only';
+  type QuickEntryMode = 'normal' | 'arla_only' | 'lubrication_only' | 'filter_blow_only' | 'oil_only' | 'comboio_tank_refuel';
   const [quickEntryMode, setQuickEntryMode] = useState<QuickEntryMode>('normal');
+  
+  // Comboio fuel type selection (for Tanque users refueling Comboio vehicles)
+  type ComboioFuelType = null | 'tank_refuel' | 'own_refuel';
+  const [comboioFuelType, setComboioFuelType] = useState<ComboioFuelType>(null);
+  const [showComboioChoice, setShowComboioChoice] = useState(false);
   const [showQuickOptions, setShowQuickOptions] = useState(false);
   const [vehicleCode, setVehicleCode] = useState('');
   const [vehicleDescription, setVehicleDescription] = useState('');
@@ -595,19 +600,62 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
     }
   }, [voice.transcript, activeVoiceField, vehiclesData.rows]);
 
+  // Check if a vehicle code is a Caminhão Comboio (CC prefix)
+  const isComboioVehicle = (code: string, description?: string): boolean => {
+    const codeUpper = code.toUpperCase();
+    const descUpper = (description || '').toUpperCase();
+    return (
+      codeUpper.startsWith('CC') || 
+      codeUpper.includes('COMBOIO') ||
+      descUpper.includes('CAMINHAO COMBOIO') ||
+      descUpper.includes('CAMINHÃO COMBOIO') ||
+      descUpper.includes('COMBOIO')
+    );
+  };
+
   // Handle vehicle selection - fetch previous horimeter/km
   const handleVehicleSelect = async (code: string) => {
     setVehicleCode(code);
     const vehicle = vehiclesData.rows.find(v => String(v['Codigo']) === code);
     if (vehicle) {
-      setVehicleDescription(String(vehicle['Descricao'] || ''));
+      const desc = String(vehicle['Descricao'] || '');
+      setVehicleDescription(desc);
       setCategory(String(vehicle['Categoria'] || ''));
       setCompany(String(vehicle['Empresa'] || ''));
       setOperatorName(String(vehicle['Motorista'] || ''));
       setWorkSite(String(vehicle['Obra'] || ''));
       
+      // Check if Tanque user is refueling a Comboio vehicle
+      if (userLocationInfo.isTanqueUser && isComboioVehicle(code, desc) && recordType === 'saida' && quickEntryMode === 'normal') {
+        // Show choice dialog for Comboio vehicles
+        setShowComboioChoice(true);
+        setComboioFuelType(null);
+      } else {
+        setShowComboioChoice(false);
+        setComboioFuelType(null);
+      }
+      
       // Fetch last horimeter/km value from database or sheet
       await fetchPreviousHorimeter(code);
+    }
+  };
+  
+  // Handle Comboio fuel type selection
+  const handleComboioFuelTypeSelect = (type: ComboioFuelType) => {
+    setComboioFuelType(type);
+    setShowComboioChoice(false);
+    
+    if (type === 'tank_refuel') {
+      // Simplified mode: only quantity and pump photo
+      setQuickEntryMode('comboio_tank_refuel');
+      // Clear horimeter fields since they won't be used
+      setHorimeterCurrent('');
+      setHorimeterPrevious('');
+      toast.info('Modo Abastecimento do Tanque: apenas quantidade e foto são obrigatórios');
+    } else {
+      // Full mode: all fields required
+      setQuickEntryMode('normal');
+      toast.info('Modo Abastecimento Próprio: todos os campos habilitados');
     }
   };
 
@@ -935,6 +983,17 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         toast.error('Selecione o tipo de óleo e informe a quantidade');
         return;
       }
+      if (quickEntryMode === 'comboio_tank_refuel') {
+        // Comboio tank refuel: only needs quantity and pump photo
+        if (!fuelQuantity) {
+          toast.error('Informe a quantidade de combustível');
+          return;
+        }
+        if (!photoPump) {
+          toast.error('Foto da bomba é obrigatória para abastecimento de tanque');
+          return;
+        }
+      }
     } else {
       // Normal mode validation
       // Get user's required fields configuration
@@ -1115,9 +1174,18 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         fuel_type: fuelType,
         arla_quantity: parseBrazilianNumber(arlaQuantity) || 0,
         location: recordType === 'entrada' ? entryLocation : location,
-        observations: recordType === 'entrada' && photoInvoiceUrl
-          ? `${observations} | FOTO NF: ${photoInvoiceUrl}`.trim()
-          : observations,
+        observations: (() => {
+          let obs = observations;
+          // Add comboio tank refuel indicator
+          if (quickEntryMode === 'comboio_tank_refuel') {
+            obs = `[ABAST. TANQUE COMBOIO] ${obs}`.trim();
+          }
+          // Add invoice photo URL for entrada
+          if (recordType === 'entrada' && photoInvoiceUrl) {
+            obs = `${obs} | FOTO NF: ${photoInvoiceUrl}`.trim();
+          }
+          return obs;
+        })(),
         photo_pump_url: photoPumpUrl,
         photo_horimeter_url: photoHorimeterUrl,
         record_date: now.toISOString().split('T')[0],
@@ -1336,6 +1404,8 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
     setEntryLocation('');
     setQuickEntryMode('normal');
     setShowQuickOptions(false);
+    setComboioFuelType(null);
+    setShowComboioChoice(false);
     if (photoPumpInputRef.current) photoPumpInputRef.current.value = '';
     if (photoHorimeterInputRef.current) photoHorimeterInputRef.current.value = '';
     if (ocrInputRef.current) ocrInputRef.current.value = '';
@@ -1361,6 +1431,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
       case 'lubrication_only': return 'Apenas Lubrificação';
       case 'filter_blow_only': return 'Apenas Sopra Filtro';
       case 'oil_only': return 'Apenas Completar Óleo';
+      case 'comboio_tank_refuel': return 'Abastecimento do Tanque (Comboio)';
       default: return 'Apontamento Rápido';
     }
   };
@@ -1893,8 +1964,8 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
           </>
         )}
 
-        {/* NORMAL SAÍDA FORM - only when not in quick mode */}
-        {recordType === 'saida' && quickEntryMode === 'normal' && (
+        {/* NORMAL SAÍDA FORM - only when not in quick mode (but comboio_tank_refuel shows vehicle selection) */}
+        {recordType === 'saida' && (quickEntryMode === 'normal' || quickEntryMode === 'comboio_tank_refuel') && (
           <>
             {/* Vehicle Selection with Searchable Combobox */}
             <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-xl border border-slate-200 dark:border-slate-700 p-4 space-y-3 shadow-sm">
@@ -1997,9 +2068,70 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                   </div>
                 </div>
               )}
+
+              {/* Comboio Fuel Type Choice Dialog */}
+              {showComboioChoice && vehicleCode && isComboioVehicle(vehicleCode, vehicleDescription) && (
+                <div className="bg-orange-50 dark:bg-orange-950/30 border-2 border-orange-400 dark:border-orange-700 p-4 rounded-xl space-y-4 animate-in slide-in-from-top duration-300">
+                  <div className="flex items-center gap-2 text-orange-700 dark:text-orange-400">
+                    <Truck className="w-5 h-5" />
+                    <span className="font-bold">Caminhão Comboio Detectado</span>
+                  </div>
+                  <p className="text-sm text-orange-600 dark:text-orange-400">
+                    Selecione o tipo de abastecimento:
+                  </p>
+                  <div className="grid grid-cols-1 gap-3">
+                    <Button
+                      type="button"
+                      onClick={() => handleComboioFuelTypeSelect('tank_refuel')}
+                      className="h-16 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white flex flex-col items-center justify-center gap-1 shadow-lg"
+                    >
+                      <span className="font-bold text-lg">Abastecer o Tanque</span>
+                      <span className="text-xs opacity-90">Apenas quantidade + foto da bomba</span>
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={() => handleComboioFuelTypeSelect('own_refuel')}
+                      className="h-16 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white flex flex-col items-center justify-center gap-1 shadow-lg"
+                    >
+                      <span className="font-bold text-lg">Abastecimento Próprio</span>
+                      <span className="text-xs opacity-90">Todos os dados (horímetro, etc.)</span>
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Active Comboio Tank Refuel Mode Indicator */}
+              {quickEntryMode === 'comboio_tank_refuel' && (
+                <div className="bg-blue-100 dark:bg-blue-900/50 border border-blue-300 dark:border-blue-700 p-3 rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Fuel className="w-4 h-4 text-blue-600" />
+                      <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                        Modo: Abastecimento do Tanque
+                      </span>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 px-2 text-blue-600 hover:text-blue-800"
+                      onClick={() => {
+                        setQuickEntryMode('normal');
+                        setComboioFuelType(null);
+                        setShowComboioChoice(true);
+                      }}
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+                  <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                    Sem horímetro - apenas quantidade e foto da bomba são obrigatórios
+                  </p>
+                </div>
+              )}
           
-              {/* Previous horimeter/km display */}
-              {horimeterPrevious && (
+              {/* Previous horimeter/km display - hide for comboio tank refuel */}
+              {horimeterPrevious && quickEntryMode !== 'comboio_tank_refuel' && (
                 <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700/50 p-3 rounded-lg">
                   <div className="flex items-center gap-2 text-blue-700 dark:text-blue-300">
                     <Clock className="w-4 h-4" />
@@ -2087,7 +2219,8 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
           />
         </div>
 
-        {/* Horimeter with OCR */}
+        {/* Horimeter with OCR - Hide for comboio tank refuel mode */}
+        {quickEntryMode !== 'comboio_tank_refuel' && (
         <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-xl border border-slate-200 dark:border-slate-700 p-4 space-y-3 shadow-sm">
           <div className="flex items-center justify-between">
             <Label className="flex items-center gap-2 text-base">
@@ -2180,9 +2313,10 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
             </div>
           )}
         </div>
+        )}
 
-        {/* Equipment-specific fields (optional) */}
-        {isEquipment && recordType === 'saida' && (
+        {/* Equipment-specific fields (optional) - Hide for comboio tank refuel mode */}
+        {isEquipment && recordType === 'saida' && quickEntryMode !== 'comboio_tank_refuel' && (
           <div className="bg-blue-50 dark:bg-blue-950/30 backdrop-blur-sm rounded-xl border border-blue-200 dark:border-blue-800 p-4 space-y-4 shadow-sm">
             <div className="flex items-center gap-2 text-blue-700 dark:text-blue-400">
               <Wrench className="w-5 h-5" />
@@ -2532,13 +2666,18 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         <div className="bg-red-50/80 dark:bg-red-950/30 backdrop-blur-sm rounded-xl border border-red-200 dark:border-red-800 p-4 space-y-4 shadow-sm">
           <Label className="flex items-center gap-2 text-base text-red-600 dark:text-red-400">
             <Camera className="w-4 h-4 text-red-500" />
-            Fotos 
+            {quickEntryMode === 'comboio_tank_refuel' ? 'Foto da Bomba' : 'Fotos'}
             <span className="text-red-500 text-lg">*</span>
-            <span className="text-xs text-muted-foreground ml-auto">(Obrigatórias)</span>
+            <span className="text-xs text-muted-foreground ml-auto">
+              {quickEntryMode === 'comboio_tank_refuel' ? '(Obrigatória)' : '(Obrigatórias)'}
+            </span>
           </Label>
           
-          <div className="grid grid-cols-2 gap-4">
-            {/* Pump Photo */}
+          <div className={cn(
+            "grid gap-4",
+            quickEntryMode === 'comboio_tank_refuel' ? "grid-cols-1" : "grid-cols-2"
+          )}>
+            {/* Pump Photo - Always visible */}
             <div className="space-y-2">
               <p className="text-sm font-medium flex items-center gap-1">
                 Foto da Bomba
@@ -2582,7 +2721,8 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
               )}
             </div>
 
-            {/* Horimeter Photo */}
+            {/* Horimeter Photo - Hide for comboio tank refuel */}
+            {quickEntryMode !== 'comboio_tank_refuel' && (
             <div className="space-y-2">
               <p className="text-sm font-medium flex items-center gap-1">
                 Foto do Horímetro
@@ -2625,6 +2765,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                 </Button>
               )}
             </div>
+            )}
           </div>
         </div>
         )}
