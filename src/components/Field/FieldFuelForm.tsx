@@ -641,7 +641,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
   };
   
   // Handle Comboio fuel type selection
-  const handleComboioFuelTypeSelect = (type: ComboioFuelType) => {
+  const handleComboioFuelTypeSelect = async (type: ComboioFuelType) => {
     setComboioFuelType(type);
     setShowComboioChoice(false);
     
@@ -653,8 +653,12 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
       setHorimeterPrevious('');
       toast.info('Modo Abastecimento do Tanque: apenas quantidade e foto são obrigatórios');
     } else {
-      // Full mode: all fields required
+      // Full mode: all fields required - normal refueling with horimeter tracking
       setQuickEntryMode('normal');
+      // Fetch previous horimeter/km for proper consumption calculation
+      if (vehicleCode) {
+        await fetchPreviousHorimeter(vehicleCode);
+      }
       toast.info('Modo Abastecimento Próprio: todos os campos habilitados');
     }
   };
