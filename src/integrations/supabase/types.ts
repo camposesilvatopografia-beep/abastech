@@ -832,7 +832,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      is_system_admin: { Args: { _username: string }; Returns: boolean }
     }
     Enums: {
       system_user_role: "admin" | "supervisor" | "operador"
