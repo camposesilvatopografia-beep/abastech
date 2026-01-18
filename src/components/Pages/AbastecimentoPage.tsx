@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { 
   Fuel, 
   RefreshCw, 
@@ -183,8 +183,37 @@ export function AbastecimentoPage() {
   const [editingRecord, setEditingRecord] = useState<any>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
-
-  // Check if user can create records (admin or samarakelle)
+  
+  // Store field users for location responsibility mapping
+  const [fieldUsers, setFieldUsers] = useState<Array<{ id: string; name: string; assigned_locations: string[] | null }>>([]);
+  
+  // Fetch field users to get responsible person for each location
+  useEffect(() => {
+    const fetchFieldUsers = async () => {
+      const { data: users } = await supabase
+        .from('field_users')
+        .select('id, name, assigned_locations')
+        .eq('active', true);
+      
+      if (users) {
+        setFieldUsers(users);
+      }
+    };
+    
+    fetchFieldUsers();
+  }, []);
+  
+  // Helper function to get responsible user name for a location
+  const getResponsibleForLocation = useCallback((location: string): string => {
+    // Find user whose assigned_locations includes this location
+    const responsible = fieldUsers.find(user => 
+      user.assigned_locations?.some(loc => 
+        loc.toLowerCase().includes(location.toLowerCase()) || 
+        location.toLowerCase().includes(loc.toLowerCase())
+      )
+    );
+    return responsible?.name || 'Não atribuído';
+  }, [fieldUsers]);
   const canCreateRecords = useMemo(() => {
     if (!user) return false;
     const username = user.username?.toLowerCase() || '';
@@ -850,24 +879,23 @@ export function AbastecimentoPage() {
         // Get final Y position after table
         const finalY = (doc as any).lastAutoTable?.finalY || currentY + 100;
         
-        // Add signature section at bottom of each location page
-        const signatureY = Math.max(finalY + 20, pageHeight - 40);
+        // Add responsible person section at bottom of each location page
+        const signatureY = Math.max(finalY + 20, pageHeight - 35);
         
-        // Signature line
-        doc.setDrawColor(30, 41, 59);
-        doc.setLineWidth(0.5);
-        doc.line(pageWidth / 2 - 60, signatureY, pageWidth / 2 + 60, signatureY);
+        // Get the responsible person for this location
+        const responsibleName = getResponsibleForLocation(local);
         
-        // Signature label
-        doc.setFontSize(10);
-        doc.setFont('helvetica', 'normal');
+        // Responsible person label - centered, no signature line
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'bold');
         doc.setTextColor(30, 41, 59);
-        doc.text(`Responsável: ${local}`, pageWidth / 2, signatureY + 6, { align: 'center' });
+        doc.text(`Responsável: ${responsibleName}`, pageWidth / 2, signatureY, { align: 'center' });
         
-        // Date field
-        doc.setFontSize(8);
+        // Location label below
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'normal');
         doc.setTextColor(100, 100, 100);
-        doc.text(`Data: ____/____/________`, pageWidth / 2, signatureY + 12, { align: 'center' });
+        doc.text(`(${local})`, pageWidth / 2, signatureY + 6, { align: 'center' });
       });
       
       doc.save(`relatorio_abastecimento_${format(new Date(), 'yyyyMMdd_HHmmss')}.pdf`);
@@ -1039,24 +1067,23 @@ export function AbastecimentoPage() {
         // Get final Y position after table
         const finalY = (doc as any).lastAutoTable?.finalY || currentY + 100;
         
-        // Add signature section at bottom of each location page
-        const signatureY = Math.max(finalY + 20, pageHeight - 40);
+        // Add responsible person section at bottom of each location page
+        const signatureY = Math.max(finalY + 20, pageHeight - 35);
         
-        // Signature line
-        doc.setDrawColor(30, 41, 59);
-        doc.setLineWidth(0.5);
-        doc.line(pageWidth / 2 - 60, signatureY, pageWidth / 2 + 60, signatureY);
+        // Get the responsible person for this location
+        const responsibleName = getResponsibleForLocation(local);
         
-        // Signature label
-        doc.setFontSize(10);
-        doc.setFont('helvetica', 'normal');
+        // Responsible person label - centered, no signature line
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'bold');
         doc.setTextColor(30, 41, 59);
-        doc.text(`Responsável: ${local}`, pageWidth / 2, signatureY + 6, { align: 'center' });
+        doc.text(`Responsável: ${responsibleName}`, pageWidth / 2, signatureY, { align: 'center' });
         
-        // Date field
-        doc.setFontSize(8);
+        // Location label below
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'normal');
         doc.setTextColor(100, 100, 100);
-        doc.text(`Data: ____/____/________`, pageWidth / 2, signatureY + 12, { align: 'center' });
+        doc.text(`(${local})`, pageWidth / 2, signatureY + 6, { align: 'center' });
       });
       
       doc.save(`relatorio_abastecimento_${format(new Date(), 'yyyyMMdd_HHmmss')}.pdf`);
