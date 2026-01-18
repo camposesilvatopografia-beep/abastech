@@ -173,6 +173,7 @@ const DEFAULT_PRESETS: RequiredFieldsPreset[] = [
       observations: false,
       photo_horimeter: false,
       photo_pump: false,
+      skip_all_validation: false,
     },
   },
   {
@@ -190,6 +191,7 @@ const DEFAULT_PRESETS: RequiredFieldsPreset[] = [
       observations: true,
       photo_horimeter: true,
       photo_pump: true,
+      skip_all_validation: false,
     },
   },
   {
@@ -207,6 +209,7 @@ const DEFAULT_PRESETS: RequiredFieldsPreset[] = [
       observations: false,
       photo_horimeter: false,
       photo_pump: false,
+      skip_all_validation: false,
     },
   },
   {
@@ -224,6 +227,7 @@ const DEFAULT_PRESETS: RequiredFieldsPreset[] = [
       observations: false,
       photo_horimeter: false,
       photo_pump: false,
+      skip_all_validation: false,
     },
   },
   {
@@ -241,6 +245,25 @@ const DEFAULT_PRESETS: RequiredFieldsPreset[] = [
       observations: false,
       photo_horimeter: true,
       photo_pump: true,
+      skip_all_validation: false,
+    },
+  },
+  {
+    id: 'admin_no_required',
+    name: 'Admin (Sem Obrigatórios)',
+    fields: {
+      horimeter_current: false,
+      km_current: false,
+      fuel_quantity: false,
+      arla_quantity: false,
+      oil_type: false,
+      oil_quantity: false,
+      lubricant: false,
+      filter_blow: false,
+      observations: false,
+      photo_horimeter: false,
+      photo_pump: false,
+      skip_all_validation: true,
     },
   },
 ];
@@ -639,10 +662,11 @@ export function FieldUsersPage() {
     if (!userToDelete) return;
     
     setDeleting(true);
+    const deletedUserId = userToDelete.id;
     
     try {
       // First check if user has any records
-      const recordCount = userRecordCounts[userToDelete.id] || 0;
+      const recordCount = userRecordCounts[deletedUserId] || 0;
       
       if (recordCount > 0) {
         toast.error(`Este usuário possui ${recordCount} apontamento(s). Desative-o em vez de excluir.`);
@@ -655,17 +679,28 @@ export function FieldUsersPage() {
       const { error } = await supabase
         .from('field_users')
         .delete()
-        .eq('id', userToDelete.id);
+        .eq('id', deletedUserId);
 
       if (error) throw error;
+      
+      // Optimistic update - remove user from list immediately
+      setUsers(prev => prev.filter(u => u.id !== deletedUserId));
+      
+      // Also remove from record counts
+      setUserRecordCounts(prev => {
+        const newCounts = { ...prev };
+        delete newCounts[deletedUserId];
+        return newCounts;
+      });
       
       toast.success('Usuário excluído com sucesso!');
       setShowDeleteModal(false);
       setUserToDelete(null);
-      fetchUsers();
     } catch (err) {
       console.error('Delete error:', err);
       toast.error('Erro ao excluir usuário');
+      // Refresh on error to sync state
+      fetchUsers();
     } finally {
       setDeleting(false);
     }
