@@ -66,6 +66,7 @@ import { formatCurrencyInput, parseCurrencyInput, formatQuantityInput } from '@/
 import logoAbastech from '@/assets/logo-abastech.png';
 import { useFieldSettings, playSuccessSound, vibrateDevice } from '@/hooks/useFieldSettings';
 import { useOfflineStorage } from '@/hooks/useOfflineStorage';
+import { QRCodeScanner } from './QRCodeScanner';
 
 interface RequiredFields {
   horimeter_current: boolean;
@@ -1372,70 +1373,26 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
   const [vehicleSearchOpen, setVehicleSearchOpen] = useState(false);
   
   // QR Code scanner state
-  const [isScanning, setIsScanning] = useState(false);
-  const qrInputRef = useRef<HTMLInputElement>(null);
+  const [isQRScannerOpen, setIsQRScannerOpen] = useState(false);
   
-  // Handle QR code scan result
-  const handleQRCodeScan = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // Handle QR code scan result from new scanner
+  const handleQRCodeResult = (scannedCode: string) => {
+    // Try to find the vehicle by scanned code
+    const foundVehicle = vehicles.find(v => 
+      v.code === scannedCode || 
+      v.code.includes(scannedCode) ||
+      scannedCode.includes(v.code) ||
+      v.code.toLowerCase() === scannedCode.toLowerCase()
+    );
     
-    setIsScanning(true);
-    
-    // Use browser's built-in barcode detection if available
-    if ('BarcodeDetector' in window) {
-      const reader = new FileReader();
-      reader.onload = async (event) => {
-        try {
-          const img = new window.Image();
-          img.onload = async () => {
-            try {
-              // @ts-ignore - BarcodeDetector is not in TypeScript types yet
-              const barcodeDetector = new window.BarcodeDetector({ formats: ['qr_code'] });
-              const barcodes = await barcodeDetector.detect(img);
-              
-              if (barcodes.length > 0) {
-                const scannedCode = barcodes[0].rawValue;
-                // Try to find the vehicle by scanned code
-                const foundVehicle = vehicles.find(v => 
-                  v.code === scannedCode || 
-                  v.code.includes(scannedCode) ||
-                  scannedCode.includes(v.code)
-                );
-                
-                if (foundVehicle) {
-                  handleVehicleSelect(foundVehicle.code);
-                  toast.success(`Veículo encontrado: ${foundVehicle.code}`);
-                } else {
-                  // Try direct code
-                  setVehicleCode(scannedCode);
-                  toast.info(`Código lido: ${scannedCode}`);
-                }
-              } else {
-                toast.error('Nenhum QR Code encontrado na imagem');
-              }
-            } catch (err) {
-              console.error('Barcode detection error:', err);
-              toast.error('Erro ao ler QR Code');
-            }
-            setIsScanning(false);
-          };
-          img.src = event.target?.result as string;
-        } catch (err) {
-          console.error('Image load error:', err);
-          toast.error('Erro ao processar imagem');
-          setIsScanning(false);
-        }
-      };
-      reader.readAsDataURL(file);
+    if (foundVehicle) {
+      handleVehicleSelect(foundVehicle.code);
+      toast.success(`Veículo encontrado: ${foundVehicle.code}`);
     } else {
-      // Fallback: Try to read as text (for simple QR codes)
-      toast.error('Leitor de QR Code não suportado neste navegador');
-      setIsScanning(false);
+      // Try direct code
+      setVehicleCode(scannedCode);
+      toast.info(`Código lido: ${scannedCode}`);
     }
-    
-    // Reset input
-    if (qrInputRef.current) qrInputRef.current.value = '';
   };
 
   // Success overlay with animation
@@ -1689,34 +1646,17 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                   <span className="text-red-500">*</span>
                 </Label>
                 {/* QR Code Scanner Button */}
-                <div className="flex items-center gap-1">
-                  <input
-                    ref={qrInputRef}
-                    type="file"
-                    accept="image/*"
-                    capture="environment"
-                    onChange={handleQRCodeScan}
-                    className="hidden"
-                  />
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => qrInputRef.current?.click()}
-                    disabled={isScanning}
-                    className="gap-1"
-                    title="Escanear QR Code do veículo"
-                  >
-                    {isScanning ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <>
-                        <QrCode className="w-4 h-4" />
-                        <span className="text-xs hidden sm:inline">QR</span>
-                      </>
-                    )}
-                  </Button>
-                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setIsQRScannerOpen(true)}
+                  className="gap-1"
+                  title="Escanear QR Code do veículo"
+                >
+                  <QrCode className="w-4 h-4" />
+                  <span className="text-xs hidden sm:inline">QR</span>
+                </Button>
               </div>
               
               {/* Searchable Vehicle Combobox */}
@@ -1957,34 +1897,17 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                   Veículo
                 </Label>
                 {/* QR Code Scanner Button */}
-                <div className="flex items-center gap-1">
-                  <input
-                    ref={qrInputRef}
-                    type="file"
-                    accept="image/*"
-                    capture="environment"
-                    onChange={handleQRCodeScan}
-                    className="hidden"
-                  />
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => qrInputRef.current?.click()}
-                    disabled={isScanning}
-                    className="gap-1"
-                    title="Escanear QR Code do veículo"
-                  >
-                    {isScanning ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <>
-                        <QrCode className="w-4 h-4" />
-                        <span className="text-xs hidden sm:inline">QR</span>
-                      </>
-                    )}
-                  </Button>
-                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setIsQRScannerOpen(true)}
+                  className="gap-1"
+                  title="Escanear QR Code do veículo"
+                >
+                  <QrCode className="w-4 h-4" />
+                  <span className="text-xs hidden sm:inline">QR</span>
+                </Button>
               </div>
               
               {/* Searchable Vehicle Combobox */}
@@ -2779,6 +2702,13 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
           )}
         </Button>
       </div>
+
+      {/* QR Code Scanner Modal */}
+      <QRCodeScanner
+        isOpen={isQRScannerOpen}
+        onClose={() => setIsQRScannerOpen(false)}
+        onScan={handleQRCodeResult}
+      />
     </div>
   );
 }
