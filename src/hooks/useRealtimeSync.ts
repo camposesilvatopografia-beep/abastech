@@ -26,16 +26,24 @@ const sessionId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
 /**
  * Hook for real-time synchronization across all clients (desktop + mobile)
- * Uses Supabase Realtime Broadcast to notify all connected clients
+ * Uses Supabase Realtime Broadcast AND Postgres Changes for redundancy
  */
 export function useRealtimeSync(options?: {
   onSyncEvent?: (event: SyncEvent) => void;
   autoRefetch?: () => void;
 }) {
   const channelRef = useRef<RealtimeChannel | null>(null);
-  const { onSyncEvent, autoRefetch } = options || {};
+  const dbChannelRef = useRef<RealtimeChannel | null>(null);
+  const onSyncEventRef = useRef(options?.onSyncEvent);
+  const autoRefetchRef = useRef(options?.autoRefetch);
+  
+  // Keep refs updated
+  useEffect(() => {
+    onSyncEventRef.current = options?.onSyncEvent;
+    autoRefetchRef.current = options?.autoRefetch;
+  }, [options?.onSyncEvent, options?.autoRefetch]);
 
-  // Subscribe to sync channel
+  // Subscribe to broadcast channel
   useEffect(() => {
     const channel = supabase.channel(SYNC_CHANNEL, {
       config: {
@@ -50,21 +58,21 @@ export function useRealtimeSync(options?: {
         // Skip if from same session
         if (syncEvent.source === sessionId) return;
         
-        console.log('[RealtimeSync] Received event:', syncEvent.type);
+        console.log('[RealtimeSync] Received broadcast event:', syncEvent.type);
         
         // Call custom handler if provided
-        if (onSyncEvent) {
-          onSyncEvent(syncEvent);
+        if (onSyncEventRef.current) {
+          onSyncEventRef.current(syncEvent);
         }
         
         // Auto-refetch if configured
-        if (autoRefetch) {
-          autoRefetch();
+        if (autoRefetchRef.current) {
+          autoRefetchRef.current();
         }
       })
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
-          console.log('[RealtimeSync] Connected to sync channel');
+          console.log('[RealtimeSync] Connected to broadcast channel');
         }
       });
 
@@ -76,13 +84,70 @@ export function useRealtimeSync(options?: {
         channelRef.current = null;
       }
     };
-  }, [onSyncEvent, autoRefetch]);
+  }, []);
+
+  // Also subscribe to database changes as backup (more reliable)
+  useEffect(() => {
+    const dbChannel = supabase
+      .channel('db-fuel-records')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'field_fuel_records',
+        },
+        (payload) => {
+          console.log('[RealtimeSync] DB change detected:', payload.eventType);
+          
+          const eventType = payload.eventType === 'INSERT' 
+            ? 'fuel_record_created' 
+            : payload.eventType === 'UPDATE'
+            ? 'fuel_record_updated'
+            : 'fuel_record_deleted';
+          
+          const syncEvent: SyncEvent = {
+            type: eventType,
+            payload: payload.new || payload.old,
+            source: 'database',
+            timestamp: Date.now(),
+          };
+          
+          if (onSyncEventRef.current) {
+            onSyncEventRef.current(syncEvent);
+          }
+          
+          if (autoRefetchRef.current) {
+            autoRefetchRef.current();
+          }
+        }
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('[RealtimeSync] Connected to DB changes channel');
+        }
+      });
+
+    dbChannelRef.current = dbChannel;
+
+    return () => {
+      if (dbChannelRef.current) {
+        supabase.removeChannel(dbChannelRef.current);
+        dbChannelRef.current = null;
+      }
+    };
+  }, []);
 
   // Broadcast sync event to all clients
   const broadcast = useCallback(async (type: SyncEventType, payload?: any) => {
     if (!channelRef.current) {
-      console.warn('[RealtimeSync] Channel not ready');
-      return;
+      console.warn('[RealtimeSync] Channel not ready, will retry...');
+      // Wait and retry
+      await new Promise(resolve => setTimeout(resolve, 500));
+      if (!channelRef.current) {
+        console.error('[RealtimeSync] Channel still not ready after retry');
+        return;
+      }
     }
 
     const event: SyncEvent = {

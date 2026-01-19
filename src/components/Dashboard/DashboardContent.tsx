@@ -50,8 +50,8 @@ function parseBrazilianDate(dateStr: string): Date | null {
 }
 
 export function DashboardContent() {
-  // Enable polling every 15 seconds for faster real-time updates
-  const POLLING_INTERVAL = 15000;
+  // Enable polling every 10 seconds for real-time updates
+  const POLLING_INTERVAL = 10000;
   
   const { data: geralData, loading, refetch: refetchGeral } = useSheetData(GERAL_SHEET, { pollingInterval: POLLING_INTERVAL });
   const { data: abastecimentoData, refetch: refetchAbastecimento } = useSheetData(ABASTECIMENTO_SHEET, { pollingInterval: POLLING_INTERVAL });
@@ -64,24 +64,39 @@ export function DashboardContent() {
   const [showDiagnostics, setShowDiagnostics] = useState(false);
   const { toast } = useToast();
 
-  // Real-time sync across all clients
+  // Real-time sync across all clients - with forced cache bypass
   const handleRealtimeRefresh = useCallback(() => {
-    console.log('[Dashboard] Realtime sync event received, refreshing data...');
-    refetchGeral(true, true);
-    refetchAbastecimento(true, true);
-    refetchArla(true, true);
+    console.log('[Dashboard] Realtime sync event received, refreshing data with cache bypass...');
+    refetchGeral(false, true); // not silent, force no cache
+    refetchAbastecimento(false, true);
+    refetchArla(false, true);
     setLastUpdate(new Date());
-    sonnerToast.info('📡 Dados atualizados em tempo real', { duration: 2000 });
   }, [refetchGeral, refetchAbastecimento, refetchArla]);
 
   // Subscribe to realtime sync events
   useRealtimeSync({
     onSyncEvent: (event) => {
+      console.log('[Dashboard] Received sync event:', event.type);
       if (['fuel_record_created', 'fuel_record_updated', 'fuel_record_deleted', 'stock_updated', 'manual_refresh'].includes(event.type)) {
         handleRealtimeRefresh();
+        sonnerToast.info('📡 Novos dados recebidos do campo!', { duration: 3000 });
       }
     },
   });
+
+  // Refresh data when window regains focus
+  useEffect(() => {
+    const handleFocus = () => {
+      console.log('[Dashboard] Window focused, refreshing data...');
+      refetchGeral(true, true);
+      refetchAbastecimento(true, true);
+      refetchArla(true, true);
+      setLastUpdate(new Date());
+    };
+    
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [refetchGeral, refetchAbastecimento, refetchArla]);
 
   // Update last sync time when data changes
   useEffect(() => {
