@@ -230,6 +230,14 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
   const [workSite, setWorkSite] = useState('');
   const [horimeterPrevious, setHorimeterPrevious] = useState('');
   const [horimeterPreviousDate, setHorimeterPreviousDate] = useState('');
+  const [lastFuelRecords, setLastFuelRecords] = useState<{
+    record_date: string;
+    record_time: string;
+    fuel_quantity: number;
+    horimeter_current: number | null;
+    km_current: number | null;
+    location: string | null;
+  }[]>([]);
   const [horimeterCurrent, setHorimeterCurrent] = useState('');
   const [kmPrevious, setKmPrevious] = useState('');
   const [kmCurrent, setKmCurrent] = useState('');
@@ -778,6 +786,23 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
       } else {
         setHorimeterPrevious('');
         setHorimeterPreviousDate('');
+      }
+      
+      // Fetch last 5 fuel records for admin users
+      if (user.role === 'admin') {
+        const { data: recentRecords } = await supabase
+          .from('field_fuel_records')
+          .select('record_date, record_time, fuel_quantity, horimeter_current, km_current, location')
+          .eq('vehicle_code', vehicleCode)
+          .order('record_date', { ascending: false })
+          .order('record_time', { ascending: false })
+          .limit(5);
+        
+        if (recentRecords && recentRecords.length > 0) {
+          setLastFuelRecords(recentRecords);
+        } else {
+          setLastFuelRecords([]);
+        }
       }
     } catch (err) {
       console.error('Error fetching previous horimeter:', err);
@@ -2288,6 +2313,56 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                     <span className="text-sm font-medium">
                       Último registro{horimeterPreviousDate && <span className="text-blue-500 dark:text-blue-400"> ({horimeterPreviousDate})</span>}: <span className="font-bold text-blue-600 dark:text-blue-200">{horimeterPrevious}</span>
                     </span>
+                  </div>
+                </div>
+              )}
+              
+              {/* Last 5 fuel records - Admin only */}
+              {user.role === 'admin' && lastFuelRecords.length > 0 && (
+                <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50 p-3 rounded-lg">
+                  <div className="flex items-center gap-2 text-amber-700 dark:text-amber-300 mb-2">
+                    <Fuel className="w-4 h-4" />
+                    <span className="text-sm font-semibold">Últimos 5 abastecimentos</span>
+                  </div>
+                  <div className="space-y-1.5">
+                    {lastFuelRecords.map((record, index) => {
+                      const dateFormatted = record.record_date ? 
+                        new Date(record.record_date + 'T12:00:00').toLocaleDateString('pt-BR') : '-';
+                      const timeFormatted = record.record_time ? 
+                        record.record_time.substring(0, 5) : '';
+                      const quantity = record.fuel_quantity?.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) || '0';
+                      const horimeter = record.horimeter_current ? 
+                        record.horimeter_current.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : null;
+                      const km = record.km_current ? 
+                        record.km_current.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : null;
+                      
+                      return (
+                        <div 
+                          key={index} 
+                          className="flex items-center justify-between text-xs bg-white/50 dark:bg-slate-800/50 rounded px-2 py-1.5"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-amber-600 dark:text-amber-400">
+                              {dateFormatted} {timeFormatted && `às ${timeFormatted}`}
+                            </span>
+                            {record.location && (
+                              <span className="text-amber-500 dark:text-amber-500 text-[10px] truncate max-w-[80px]">
+                                ({record.location})
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 text-right">
+                            <span className="font-bold text-green-600 dark:text-green-400">{quantity}L</span>
+                            {horimeter && (
+                              <span className="text-slate-500 dark:text-slate-400">H: {horimeter}</span>
+                            )}
+                            {km && (
+                              <span className="text-blue-500 dark:text-blue-400">KM: {km}</span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
