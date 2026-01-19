@@ -76,8 +76,9 @@ const SHEET_NAME = 'AbastecimentoCanteiro01';
 const GERAL_SHEET = 'Geral';
 const SANEAMENTO_STOCK_SHEET = 'EstoqueObraSaneamento';
 
-import { Package2 } from 'lucide-react';
+import { Package2, Wrench } from 'lucide-react';
 import { useObraSettings } from '@/hooks/useObraSettings';
+import { HorimeterCorrectionsTab } from '@/components/Abastecimento/HorimeterCorrectionsTab';
 
 const TABS = [
   { id: 'painel', label: 'Painel de Estoque', icon: Package2 },
@@ -85,6 +86,7 @@ const TABS = [
   { id: 'detalhamento', label: 'Detalhamento', icon: List },
   { id: 'saneamento', label: 'Saneamento', icon: Droplet },
   { id: 'entradas', label: 'Entradas', icon: ArrowDownUp },
+  { id: 'correcoes', label: 'Correções', icon: Wrench },
   { id: 'relatorios', label: 'Relatórios', icon: FileSpreadsheet },
 ];
 
@@ -2575,6 +2577,14 @@ export function AbastecimentoPage() {
               </div>
             )}
           </div>
+        )}
+
+        {activeTab === 'correcoes' && (
+          <HorimeterCorrectionsTab
+            data={data}
+            refetch={refetch}
+            loading={loading}
+          />
         )}
 
         {activeTab === 'relatorios' && (
