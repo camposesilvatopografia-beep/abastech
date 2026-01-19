@@ -243,10 +243,11 @@ export function DashboardContent() {
       // READ Estoque Atual DIRECTLY from column G of Geral sheet
       const estoqueAtualGeral = parseNumber(matchingRow['Estoque Atual'] || matchingRow['EstoqueAtual'] || matchingRow['ESTOQUE ATUAL']);
       
-      // PRIORITY: Use CALCULATED values from AbastecimentoCanteiro01 data (more accurate real-time)
-      // Only fallback to sheet values if calculated values are 0
-      const finalSaidaComboios = calculatedExits.saidaComboios > 0 ? calculatedExits.saidaComboios : saidaComboiosGeral;
-      const finalSaidaEquipamentos = calculatedExits.saidaEquipamentos > 0 ? calculatedExits.saidaEquipamentos : saidaEquipamentosGeral;
+      // PRIORITY: Use CALCULATED values from AbastecimentoCanteiro01 data (100% real-time accuracy)
+      // The calculated values ARE the truth - if they are 0, it means there were no exits/entries
+      // DO NOT fallback to sheet values - they may be outdated or incorrect
+      const finalSaidaComboios = calculatedExits.saidaComboios;
+      const finalSaidaEquipamentos = calculatedExits.saidaEquipamentos;
       const finalEntrada = calculatedEntries > 0 ? calculatedEntries : entradaGeral;
       const finalTotalSaidas = finalSaidaComboios + finalSaidaEquipamentos;
       
