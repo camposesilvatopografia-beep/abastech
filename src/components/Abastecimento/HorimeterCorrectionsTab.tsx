@@ -569,6 +569,57 @@ export function HorimeterCorrectionsTab({ data, refetch, loading }: HorimeterCor
     }
   }, [anomalies, findCorrectPreviousValue]);
 
+  // Get current user from localStorage
+  const getCurrentUser = (): string => {
+    try {
+      const fieldUser = localStorage.getItem('fieldUser');
+      if (fieldUser) {
+        const parsed = JSON.parse(fieldUser);
+        return parsed.name || parsed.username || 'Campo';
+      }
+      const systemUser = localStorage.getItem('systemUser');
+      if (systemUser) {
+        const parsed = JSON.parse(systemUser);
+        return parsed.name || parsed.username || 'Admin';
+      }
+    } catch {
+      // ignore
+    }
+    return 'Sistema';
+  };
+
+  // Save audit log for a correction
+  const saveAuditLog = async (
+    anomaly: AnomalyRecord,
+    fieldCorrected: string,
+    oldValue: number,
+    newValue: number,
+    correctionType?: string,
+    correctionSource: 'auto_fix' | 'manual' = 'auto_fix'
+  ) => {
+    try {
+      const appliedBy = getCurrentUser();
+      
+      await supabase.from('correction_audit_logs').insert({
+        vehicle_code: anomaly.vehicleCode,
+        vehicle_description: anomaly.vehicleDescription || null,
+        record_date: anomaly.date,
+        record_time: anomaly.time || null,
+        field_corrected: fieldCorrected,
+        old_value: oldValue,
+        new_value: newValue,
+        correction_type: correctionType || null,
+        correction_source: correctionSource,
+        applied_by: appliedBy,
+        row_index: anomaly.rowIndex || null,
+      });
+      
+      console.log('Audit log saved for', anomaly.vehicleCode, fieldCorrected);
+    } catch (err) {
+      console.error('Error saving audit log:', err);
+    }
+  };
+
   // Apply a single auto-fix (updates both Google Sheets and Supabase database)
   const applySingleAutoFix = async (anomaly: AnomalyRecord): Promise<boolean> => {
     if (!anomaly.suggestedCorrection) return false;
@@ -578,16 +629,28 @@ export function HorimeterCorrectionsTab({ data, refetch, loading }: HorimeterCor
       const rowData: Record<string, any> = { ...anomaly.rawRow };
       delete rowData._rowIndex;
       
-      const { fieldToFix, previousValue, currentValue } = anomaly.suggestedCorrection;
+      const { fieldToFix, previousValue, currentValue, correctionType } = anomaly.suggestedCorrection;
       
-      // Prepare the update for Google Sheets
+      // Determine old and new values for audit log
+      let oldValue: number;
+      let newValue: number;
+      let fieldCorrected: string;
+      
       if (fieldToFix === 'current') {
+        oldValue = isVehicle ? anomaly.kmCurrent : anomaly.horimeterCurrent;
+        newValue = currentValue!;
+        fieldCorrected = isVehicle ? 'km_current' : 'horimeter_current';
+        
         if (isVehicle) {
           rowData['KM ATUAL'] = formatBrazilianNumber(currentValue!);
         } else {
           rowData['HORIMETRO ATUAL'] = formatBrazilianNumber(currentValue!);
         }
       } else {
+        oldValue = isVehicle ? anomaly.kmPrevious : anomaly.horimeterPrevious;
+        newValue = previousValue!;
+        fieldCorrected = isVehicle ? 'km_previous' : 'horimeter_previous';
+        
         if (isVehicle) {
           rowData['KM ANTERIOR'] = formatBrazilianNumber(previousValue!);
         } else {
@@ -610,15 +673,13 @@ export function HorimeterCorrectionsTab({ data, refetch, loading }: HorimeterCor
       }
       
       // Also update the Supabase database (field_fuel_records)
-      // Find matching record by vehicle_code, date and time
-      const dateFormatted = anomaly.date; // Already in DD/MM/YYYY format
+      const dateFormatted = anomaly.date;
       const dateParts = dateFormatted.split('/');
       const isoDate = dateParts.length === 3 
         ? `${dateParts[2]}-${dateParts[1].padStart(2, '0')}-${dateParts[0].padStart(2, '0')}`
         : null;
       
       if (isoDate) {
-        // Build the update object for the database
         const dbUpdate: Record<string, number | null> = {};
         
         if (fieldToFix === 'current') {
@@ -635,7 +696,6 @@ export function HorimeterCorrectionsTab({ data, refetch, loading }: HorimeterCor
           }
         }
         
-        // Try to find and update the matching record
         const { error: dbError } = await supabase
           .from('field_fuel_records')
           .update(dbUpdate)
@@ -645,11 +705,13 @@ export function HorimeterCorrectionsTab({ data, refetch, loading }: HorimeterCor
         
         if (dbError) {
           console.error('Error updating database:', dbError);
-          // Don't fail completely if DB update fails, sheet was already updated
         } else {
           console.log('Database updated successfully for', anomaly.vehicleCode, isoDate);
         }
       }
+      
+      // Save audit log
+      await saveAuditLog(anomaly, fieldCorrected, oldValue, newValue, correctionType, 'auto_fix');
       
       return true;
     } catch (err) {
