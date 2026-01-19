@@ -12,9 +12,13 @@ import { useToast } from '@/hooks/use-toast';
 
 // ---------------------------------------------
 // Global request de-dupe (per browser tab)
+//
+// IMPORTANT:
+// We key by "sheet + cache mode" so a manual "noCache" refresh is never
+// forced to await a cached in-flight request (which would make cards look stale).
 // ---------------------------------------------
-const inFlightBySheet = new Map<string, Promise<SheetData>>();
-const lastFetchAtBySheet = new Map<string, number>();
+const inFlightByKey = new Map<string, Promise<SheetData>>();
+const lastFetchAtByKey = new Map<string, number>();
 
 function canPollNow() {
   // Avoid background-tab polling bursts
@@ -72,31 +76,34 @@ export function useSheetData(
 
       // Throttle ultra-bursty refreshes (double-clicks, multi-components mounting at once)
       const now = Date.now();
-      const last = lastFetchAtBySheet.get(sheetName) ?? 0;
+
+      // Polling (silent) always bypasses cache; manual refresh can request bypass too.
+      const noCache = silent || forceNoCache;
+      const requestKey = `${sheetName}|${noCache ? 'noCache' : 'cache'}`;
+
+      const last = lastFetchAtByKey.get(requestKey) ?? 0;
       if (now - last < 800 && silent) return;
 
-      // De-dupe in-flight requests per sheet
-      const existing = inFlightBySheet.get(sheetName);
+      // De-dupe in-flight requests per (sheet + cacheMode)
+      const existing = inFlightByKey.get(requestKey);
       if (existing) {
         try {
           const sheetData = await existing;
           setData(sheetData);
           return;
-        } catch (e) {
+        } catch {
           // Fall through to normal error handling below
         }
       }
 
-      lastFetchAtBySheet.set(sheetName, now);
+      lastFetchAtByKey.set(requestKey, now);
 
       const promise = (async () => {
-        // Polling (silent) always bypasses cache; manual refresh can request bypass too.
-        const noCache = silent || forceNoCache;
         const sheetData = await getSheetData(sheetName, { noCache });
         return sheetData;
       })();
 
-      inFlightBySheet.set(sheetName, promise);
+      inFlightByKey.set(requestKey, promise);
 
       try {
         if (!silent) setLoading(true);
@@ -116,7 +123,7 @@ export function useSheetData(
           });
         }
       } finally {
-        inFlightBySheet.delete(sheetName);
+        inFlightByKey.delete(requestKey);
         if (!silent) setLoading(false);
       }
     },
@@ -148,16 +155,28 @@ export function useSheetData(
     };
 
     const onVisibility = () => {
-      if (canPollNow()) start();
-      else stop();
+      if (canPollNow()) {
+        start();
+        // Refresh immediately when the user comes back to the tab (avoid showing stale cards)
+        fetchData(true, true);
+      } else {
+        stop();
+      }
     };
 
     start();
     document.addEventListener('visibilitychange', onVisibility);
 
+    const onFocus = () => {
+      if (!canPollNow()) return;
+      fetchData(true, true);
+    };
+    window.addEventListener('focus', onFocus);
+
     return () => {
       stop();
       document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('focus', onFocus);
     };
   }, [pollingInterval, fetchData]);
 

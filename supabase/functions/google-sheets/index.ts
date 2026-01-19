@@ -18,6 +18,10 @@ interface SheetRow {
 // - We cache reads briefly (seconds) and metadata longer (minutes).
 
 const SHEET_DATA_TTL_MS = 15_000; // short TTL to feel "real-time" but avoid bursts
+// When the client explicitly requests noCache, we still keep a *tiny* TTL to coalesce bursts,
+// but avoid serving stale values for long.
+const NO_CACHE_TTL_MS = 1_500;
+
 const METADATA_TTL_MS = 5 * 60_000;
 const HEADER_TTL_MS = 5 * 60_000;
 
@@ -493,10 +497,11 @@ serve(async (req) => {
         const sheetRange = range || formatRange(sheetName);
 
         // Optionally bypass in-memory cache to ensure “immediate” UI updates.
+        // We still keep a tiny TTL for coalescing bursty refreshes.
         const rawData = noCache
           ? await (async () => {
               const values = await fetchSheetValues(accessToken, sheetId, sheetRange);
-              cacheSet(sheetDataCache, `${sheetId}:${sheetRange}`, values, SHEET_DATA_TTL_MS);
+              cacheSet(sheetDataCache, `${sheetId}:${sheetRange}`, values, NO_CACHE_TTL_MS);
               return values;
             })()
           : await getSheetData(accessToken, sheetId, sheetRange);
