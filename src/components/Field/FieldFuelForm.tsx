@@ -681,14 +681,25 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
       let bestValue = 0;
       let bestKmValue = 0;
       let bestSource = '';
-      let bestDate: Date | null = null;
+      let bestDateTime: Date | null = null;
       
-      // 1. Try from field_fuel_records (most recent refueling record by date)
+      // Helper to combine date and time into a single Date object for comparison
+      const combineDateAndTime = (dateStr: string, timeStr?: string): Date => {
+        const date = new Date(dateStr + 'T12:00:00');
+        if (timeStr) {
+          const [hours, minutes] = timeStr.split(':').map(Number);
+          date.setHours(hours || 0, minutes || 0, 0, 0);
+        }
+        return date;
+      };
+      
+      // 1. Try from field_fuel_records (most recent refueling record by date+time)
+      // Don't filter by record_type to catch all records including 'Saida', 'saida', etc.
       const { data: fuelRecords } = await supabase
         .from('field_fuel_records')
         .select('horimeter_current, km_current, record_date, record_time')
         .eq('vehicle_code', vehicleCode)
-        .eq('record_type', 'saida')
+        .or('horimeter_current.gt.0,km_current.gt.0')
         .order('record_date', { ascending: false })
         .order('record_time', { ascending: false })
         .limit(1);
@@ -697,19 +708,17 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         const record = fuelRecords[0];
         const horValue = Number(record.horimeter_current) || 0;
         const kmValue = Number(record.km_current) || 0;
-        const recordDate = new Date(record.record_date);
+        const recordDateTime = combineDateAndTime(record.record_date, record.record_time);
         
-        // Use this if it has valid values
         if (horValue > 0 || kmValue > 0) {
           bestValue = horValue;
           bestKmValue = kmValue;
-          bestDate = recordDate;
-          bestSource = 'abastecimento';
+          bestDateTime = recordDateTime;
+          bestSource = 'banco';
         }
       }
 
       // 2. Try from horimeter_readings table (dedicated horimeter tracking)
-      // First need to find the vehicle_id from the code
       const { data: vehicleData } = await supabase
         .from('vehicles')
         .select('id')
@@ -719,7 +728,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
       if (vehicleData?.id) {
         const { data: horimeterRecords } = await supabase
           .from('horimeter_readings')
-          .select('current_value, current_km, reading_date')
+          .select('current_value, current_km, reading_date, created_at')
           .eq('vehicle_id', vehicleData.id)
           .order('reading_date', { ascending: false })
           .order('created_at', { ascending: false })
@@ -729,22 +738,23 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
           const record = horimeterRecords[0];
           const horValue = Number(record.current_value) || 0;
           const kmValue = Number(record.current_km) || 0;
-          const recordDate = new Date(record.reading_date);
+          const recordDateTime = new Date(record.reading_date + 'T23:59:59');
           
-          // Use this if it's more recent OR if we don't have a date yet
-          if (!bestDate || recordDate > bestDate) {
+          // Use this if it's more recent
+          if (!bestDateTime || recordDateTime > bestDateTime) {
             if (horValue > 0 || kmValue > 0) {
               bestValue = horValue;
               bestKmValue = kmValue;
-              bestDate = recordDate;
+              bestDateTime = recordDateTime;
               bestSource = 'horímetro';
             }
           }
         }
       }
 
-      // 3. Try from Google Sheets data (backup) - only if no database records found
-      if (!bestDate && abastecimentoData.rows.length > 0) {
+      // 3. ALWAYS check Google Sheets data and compare with database records
+      // The sheet might have more recent data that hasn't been synced to the database
+      if (abastecimentoData.rows.length > 0) {
         const vehicleRecords = abastecimentoData.rows
           .filter(row => {
             const rowVehicle = String(row['VEICULO'] || row['Veiculo'] || '').trim();
@@ -753,20 +763,37 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
           .map(row => {
             // Parse date in DD/MM/YYYY format
             const dateStr = String(row['DATA'] || '');
+            const timeStr = String(row['HORA'] || '');
             const [day, month, year] = dateStr.split('/').map(Number);
-            const date = new Date(year, month - 1, day);
-            const horAtual = parseFloat(String(row['HORIMETRO ATUAL'] || row['HOR_ATUAL'] || row['HORIMETRO'] || 0).replace(',', '.')) || 0;
-            const kmAtual = parseFloat(String(row['KM ATUAL'] || row['KM_ATUAL'] || row['KM'] || 0).replace(',', '.')) || 0;
-            return { date, horValue: horAtual, kmValue: kmAtual };
+            
+            // Create date and add time if available
+            let dateTime = new Date(year, month - 1, day, 12, 0, 0);
+            if (timeStr) {
+              const [hours, minutes] = timeStr.split(':').map(Number);
+              dateTime.setHours(hours || 0, minutes || 0, 0, 0);
+            }
+            
+            // Parse horimeter - handle Brazilian number format (5.941,90)
+            const horAtualStr = String(row['HORIMETRO ATUAL'] || row['HOR_ATUAL'] || row['HORIMETRO'] || '0');
+            const horAtual = parseFloat(horAtualStr.replace(/\./g, '').replace(',', '.')) || 0;
+            
+            const kmAtualStr = String(row['KM ATUAL'] || row['KM_ATUAL'] || row['KM'] || '0');
+            const kmAtual = parseFloat(kmAtualStr.replace(/\./g, '').replace(',', '.')) || 0;
+            
+            return { dateTime, horValue: horAtual, kmValue: kmAtual };
           })
           .filter(r => r.horValue > 0 || r.kmValue > 0)
-          .sort((a, b) => b.date.getTime() - a.date.getTime());
+          .sort((a, b) => b.dateTime.getTime() - a.dateTime.getTime());
 
         if (vehicleRecords.length > 0) {
-          bestValue = vehicleRecords[0].horValue;
-          bestKmValue = vehicleRecords[0].kmValue;
-          bestDate = vehicleRecords[0].date;
-          bestSource = 'planilha';
+          const sheetRecord = vehicleRecords[0];
+          // Use sheet data if it's more recent than database data
+          if (!bestDateTime || sheetRecord.dateTime > bestDateTime) {
+            bestValue = sheetRecord.horValue;
+            bestKmValue = sheetRecord.kmValue;
+            bestDateTime = sheetRecord.dateTime;
+            bestSource = 'planilha';
+          }
         }
       }
 
@@ -774,9 +801,8 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
       const valueToShow = bestValue > 0 ? bestValue : bestKmValue;
       if (valueToShow > 0) {
         setHorimeterPrevious(formatBrazilianNumber(valueToShow));
-        // Format date as DD/MM/YYYY
-        if (bestDate) {
-          const formattedDate = bestDate.toLocaleDateString('pt-BR');
+        if (bestDateTime) {
+          const formattedDate = bestDateTime.toLocaleDateString('pt-BR');
           setHorimeterPreviousDate(formattedDate);
           toast.info(`Último registro em ${formattedDate}: ${formatBrazilianNumber(valueToShow)}`);
         } else {
