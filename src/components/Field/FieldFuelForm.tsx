@@ -2409,20 +2409,11 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
           
               {/* Previous horimeter/km display with refresh button - hide for comboio tank refuel */}
               {vehicleCode && quickEntryMode !== 'comboio_tank_refuel' && (
-                <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700/50 p-3 rounded-lg">
+                <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700/50 p-3 rounded-lg space-y-2">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 text-blue-700 dark:text-blue-300">
                       <Clock className="w-4 h-4" />
-                      {horimeterPrevious ? (
-                        <span className="text-sm font-medium">
-                          Último abastecimento{horimeterPreviousDate && (
-                            <span className="text-blue-500 dark:text-blue-400"> ({horimeterPreviousDate})</span>
-                          )}: <span className="font-bold text-blue-600 dark:text-blue-200">{horimeterPrevious}</span>
-                          <span className="text-xs text-muted-foreground"> (Horímetro Atual)</span>
-                        </span>
-                      ) : (
-                        <span className="text-sm text-muted-foreground">Sem abastecimento anterior encontrado</span>
-                      )}
+                      <span className="text-sm font-semibold">Último Abastecimento</span>
                     </div>
                     <Button
                       type="button"
@@ -2440,6 +2431,24 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                       )}
                     </Button>
                   </div>
+                  {horimeterPrevious ? (
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="bg-white/50 dark:bg-blue-950/50 rounded p-2 border border-blue-100 dark:border-blue-800">
+                        <span className="text-xs text-muted-foreground block">Data/Hora</span>
+                        <span className="font-bold text-blue-700 dark:text-blue-200">
+                          {horimeterPreviousDate || '-'}
+                        </span>
+                      </div>
+                      <div className="bg-white/50 dark:bg-blue-950/50 rounded p-2 border border-blue-100 dark:border-blue-800">
+                        <span className="text-xs text-muted-foreground block">Horímetro Atual</span>
+                        <span className="font-bold text-blue-700 dark:text-blue-200">
+                          {horimeterPrevious}
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">Sem abastecimento anterior encontrado</p>
+                  )}
                 </div>
               )}
               
