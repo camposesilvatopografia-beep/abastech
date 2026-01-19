@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from 'react';
-import { format, parse, isValid } from 'date-fns';
+import { format, parse, isValid, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
   AlertTriangle,
@@ -18,6 +18,8 @@ import {
   Sparkles,
   CheckCheck,
   Loader2,
+  CalendarIcon,
+  CalendarDays,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -52,9 +54,17 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+
+type DateFilterType = 'all' | 'today' | 'date' | 'period';
 
 interface HorimeterCorrectionsTabProps {
   data: {
@@ -135,6 +145,10 @@ interface AnomalyRecord {
 
 export function HorimeterCorrectionsTab({ data, refetch, loading }: HorimeterCorrectionsTabProps) {
   const [severityFilter, setSeverityFilter] = useState<'all' | 'high' | 'medium' | 'low'>('all');
+  const [dateFilterType, setDateFilterType] = useState<DateFilterType>('all');
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
+  const [startDate, setStartDate] = useState<Date | undefined>(undefined);
+  const [endDate, setEndDate] = useState<Date | undefined>(undefined);
   const [editingRowIndex, setEditingRowIndex] = useState<number | null>(null);
   const [editData, setEditData] = useState<{
     horimeterPrevious: string;
@@ -153,6 +167,39 @@ export function HorimeterCorrectionsTab({ data, refetch, loading }: HorimeterCor
   } | null>(null);
   const [anomaliesWithSuggestions, setAnomaliesWithSuggestions] = useState<AnomalyRecord[]>([]);
   const [isCalculatingSuggestions, setIsCalculatingSuggestions] = useState(false);
+
+  // Date filter function
+  const isDateInFilter = useCallback((dateStr: string): boolean => {
+    const recordDate = parseDate(dateStr);
+    if (!recordDate) return false;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    switch (dateFilterType) {
+      case 'all':
+        return true;
+      case 'today':
+        const recordDay = new Date(recordDate);
+        recordDay.setHours(0, 0, 0, 0);
+        return recordDay.getTime() === today.getTime();
+      case 'date':
+        if (!selectedDate) return true;
+        const selected = new Date(selectedDate);
+        selected.setHours(0, 0, 0, 0);
+        const record = new Date(recordDate);
+        record.setHours(0, 0, 0, 0);
+        return record.getTime() === selected.getTime();
+      case 'period':
+        if (!startDate || !endDate) return true;
+        return isWithinInterval(recordDate, {
+          start: startOfDay(startDate),
+          end: endOfDay(endDate),
+        });
+      default:
+        return true;
+    }
+  }, [dateFilterType, selectedDate, startDate, endDate]);
 
   // Calculate vehicle statistics (average intervals)
   const vehicleStats = useMemo(() => {
@@ -498,12 +545,17 @@ export function HorimeterCorrectionsTab({ data, refetch, loading }: HorimeterCor
     }
   };
 
-  // Filter anomalies by severity
+  // Filter anomalies by severity and date
   const displayedAnomalies = useMemo(() => {
     const source = anomaliesWithSuggestions.length > 0 ? anomaliesWithSuggestions : anomalies;
-    if (severityFilter === 'all') return source;
-    return source.filter(a => a.severity === severityFilter);
-  }, [anomalies, anomaliesWithSuggestions, severityFilter]);
+    return source.filter(a => {
+      // Apply date filter
+      if (!isDateInFilter(a.date)) return false;
+      // Apply severity filter
+      if (severityFilter !== 'all' && a.severity !== severityFilter) return false;
+      return true;
+    });
+  }, [anomalies, anomaliesWithSuggestions, severityFilter, isDateInFilter]);
 
   // Summary counts
   const summaryCounts = useMemo(() => ({
@@ -616,6 +668,108 @@ export function HorimeterCorrectionsTab({ data, refetch, loading }: HorimeterCor
 
   return (
     <div className="space-y-6">
+      {/* Date Filter */}
+      <div className="flex flex-wrap items-center gap-2 p-4 bg-muted/50 rounded-lg">
+        <span className="text-sm font-medium text-muted-foreground">Período:</span>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant={dateFilterType === 'all' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setDateFilterType('all')}
+          >
+            Todos
+          </Button>
+          <Button
+            variant={dateFilterType === 'today' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setDateFilterType('today')}
+          >
+            Hoje
+          </Button>
+          <Button
+            variant={dateFilterType === 'date' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setDateFilterType('date')}
+          >
+            <CalendarIcon className="h-4 w-4 mr-1" />
+            Data
+          </Button>
+          <Button
+            variant={dateFilterType === 'period' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setDateFilterType('period')}
+          >
+            <CalendarDays className="h-4 w-4 mr-1" />
+            Período
+          </Button>
+        </div>
+
+        {/* Single Date Picker */}
+        {dateFilterType === 'date' && (
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="ml-2">
+                <CalendarIcon className="h-4 w-4 mr-2" />
+                {selectedDate ? format(selectedDate, 'dd/MM/yyyy', { locale: ptBR }) : 'Selecionar'}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar
+                mode="single"
+                selected={selectedDate}
+                onSelect={setSelectedDate}
+                initialFocus
+                locale={ptBR}
+                className="p-3 pointer-events-auto"
+              />
+            </PopoverContent>
+          </Popover>
+        )}
+
+        {/* Period Date Pickers */}
+        {dateFilterType === 'period' && (
+          <div className="flex items-center gap-2 ml-2">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="border-green-500">
+                  <CalendarIcon className="h-4 w-4 mr-2" />
+                  {startDate ? format(startDate, 'dd/MM/yyyy', { locale: ptBR }) : 'Início'}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={startDate}
+                  onSelect={setStartDate}
+                  initialFocus
+                  locale={ptBR}
+                  className="p-3 pointer-events-auto"
+                />
+              </PopoverContent>
+            </Popover>
+            <span className="text-muted-foreground">até</span>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="border-destructive">
+                  <CalendarIcon className="h-4 w-4 mr-2" />
+                  {endDate ? format(endDate, 'dd/MM/yyyy', { locale: ptBR }) : 'Fim'}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={endDate}
+                  onSelect={setEndDate}
+                  initialFocus
+                  locale={ptBR}
+                  className="p-3 pointer-events-auto"
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
+        )}
+      </div>
+
       {/* Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card 
