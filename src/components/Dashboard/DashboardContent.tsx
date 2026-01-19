@@ -50,13 +50,13 @@ function parseBrazilianDate(dateStr: string): Date | null {
 }
 
 export function DashboardContent() {
-  // Enable polling every 10 seconds for real-time updates
-  const POLLING_INTERVAL = 10000;
+  // Use 20-second polling to avoid Google Sheets quota limits (60 req/min)
+  const POLLING_INTERVAL = 20000;
   
-  // Use polling with short interval for real-time accuracy - critical for TWA/PWA
+  // Use polling with moderate interval to avoid quota limits
   const { data: geralData, loading, refetch: refetchGeral } = useSheetData(GERAL_SHEET, { pollingInterval: POLLING_INTERVAL });
   const { data: abastecimentoData, refetch: refetchAbastecimento } = useSheetData(ABASTECIMENTO_SHEET, { pollingInterval: POLLING_INTERVAL });
-  const { data: vehicleData } = useSheetData(VEHICLE_SHEET, { pollingInterval: POLLING_INTERVAL });
+  const { data: vehicleData } = useSheetData(VEHICLE_SHEET, { pollingInterval: 60000 }); // Vehicles change less frequently
   const { data: arlaData, refetch: refetchArla } = useSheetData(ARLA_SHEET, { pollingInterval: POLLING_INTERVAL });
   const [isSending, setIsSending] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
@@ -115,7 +115,7 @@ export function DashboardContent() {
     };
   }, [refetchGeral, refetchAbastecimento, refetchArla]);
 
-  // Periodic force refresh every 30 seconds to ensure TWA stays updated
+  // Periodic force refresh every 60 seconds to ensure TWA stays updated (reduced to avoid quota)
   useEffect(() => {
     const forceRefreshInterval = setInterval(() => {
       console.log('[Dashboard] Periodic force refresh for TWA/PWA...');
@@ -123,7 +123,7 @@ export function DashboardContent() {
       refetchAbastecimento(true, true);
       refetchArla(true, true);
       setLastUpdate(new Date());
-    }, 30000); // Every 30 seconds
+    }, 60000); // Every 60 seconds to avoid quota limits
 
     return () => clearInterval(forceRefreshInterval);
   }, [refetchGeral, refetchAbastecimento, refetchArla]);
