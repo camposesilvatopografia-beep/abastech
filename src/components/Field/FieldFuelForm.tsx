@@ -798,6 +798,16 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
           return Number.isNaN(base.getTime()) ? null : base;
         };
 
+        const normalizeVehicleCode = (v: any) =>
+          String(v ?? '')
+            .replace(/\u00A0/g, ' ') // NBSP
+            .trim()
+            .toUpperCase()
+            .replace(/[–—]/g, '-')
+            .replace(/\s+/g, '');
+
+        const targetVehicle = normalizeVehicleCode(vehicleCode);
+
         const vehicleRecords = abastecimentoData.rows
           .filter((row) => {
             const rowVehicleRaw = getByNormalizedKey(row as any, [
@@ -807,26 +817,44 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
               'CÓDIGO',
               'COD',
             ]);
-            const rowVehicle = String(rowVehicleRaw || '').trim();
-            return rowVehicle === vehicleCode;
+            const rowVehicle = normalizeVehicleCode(rowVehicleRaw);
+            return rowVehicle && rowVehicle === targetVehicle;
           })
           .map((row) => {
             const dateRaw = getByNormalizedKey(row as any, ['DATA', 'DATE']);
             const timeRaw = getByNormalizedKey(row as any, ['HORA', 'TIME']);
             const dateTime = parseSheetDateTime(String(dateRaw || ''), String(timeRaw || ''));
 
+            // Column M - HORIMETRO ATUAL
             const horAtualStr = String(
-              getByNormalizedKey(row as any, ['HORIMETRO ATUAL', 'HOR_ATUAL', 'HORIMETRO']) || '0'
+              getByNormalizedKey(row as any, [
+                'HORIMETRO ATUAL',
+                'HORIMETRO ATUA',
+                'HOR_ATUAL',
+                'HORIMETRO',
+              ]) || '0'
             );
-            const horAtual = parseFloat(horAtualStr.replace(/\./g, '').replace(',', '.')) || 0;
+            const horAtual = parseBrazilianNumber(horAtualStr);
 
-            const kmAtualStr = String(getByNormalizedKey(row as any, ['KM ATUAL', 'KM_ATUAL', 'KM']) || '0');
-            const kmAtual = parseFloat(kmAtualStr.replace(/\./g, '').replace(',', '.')) || 0;
+            const kmAtualStr = String(
+              getByNormalizedKey(row as any, ['KM ATUAL', 'KM_ATUAL', 'KM']) || '0'
+            );
+            const kmAtual = parseBrazilianNumber(kmAtualStr);
 
-            return { dateTime, horValue: horAtual, kmValue: kmAtual };
+            return {
+              dateTime,
+              horValue: horAtual,
+              kmValue: kmAtual,
+              rowIndex: (row as any)._rowIndex ?? 0,
+            };
           })
-          .filter((r) => !!r.dateTime && (r.horValue > 0 || r.kmValue > 0))
-          .sort((a, b) => (b.dateTime!.getTime() - a.dateTime!.getTime()));
+          .filter((r) => (r.horValue > 0 || r.kmValue > 0))
+          .sort((a, b) => {
+            const aTime = a.dateTime?.getTime() ?? 0;
+            const bTime = b.dateTime?.getTime() ?? 0;
+            if (aTime !== bTime) return bTime - aTime;
+            return (b.rowIndex || 0) - (a.rowIndex || 0);
+          });
 
         if (vehicleRecords.length > 0) {
           const sheetRecord = vehicleRecords[0];
