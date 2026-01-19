@@ -181,6 +181,9 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
   const { data: abastecimentoData } = useSheetData('AbastecimentoCanteiro01');
   const { settings } = useFieldSettings();
   const offlineStorage = useOfflineStorage(user.id);
+  
+  // Real-time sync broadcast
+  const { broadcast } = useRealtimeSync();
   const [isSaving, setIsSaving] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [activeVoiceField, setActiveVoiceField] = useState<string | null>(null);
@@ -1302,7 +1305,12 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         : 'Abastecimento registrado! (Sincronização pendente)');
       
       // Broadcast to all clients (desktop + mobile) for real-time sync
-      // Note: broadcast function would need to be passed as prop or use global context
+      console.log('[FieldFuelForm] Broadcasting fuel_record_created event...');
+      await broadcast('fuel_record_created', { 
+        vehicleCode: recordType === 'entrada' ? 'ENTRADA' : vehicleCode,
+        location: recordType === 'entrada' ? entryLocation : location,
+        quantity: parseBrazilianNumber(fuelQuantity)
+      });
       
       // Wait for animation and then redirect to dashboard
       setTimeout(() => {
