@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { format } from 'date-fns';
+import { getSheetData } from '@/lib/googleSheets';
 import { ptBR } from 'date-fns/locale';
 import { 
   Fuel, 
@@ -118,6 +119,11 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
   const [oilTypes, setOilTypes] = useState<{ id: string; name: string }[]>([]);
   const [lubricants, setLubricants] = useState<{ id: string; name: string }[]>([]);
   const [suppliers, setSuppliers] = useState<{ id: string; name: string }[]>([]);
+
+  // History of last 5 refuelings from sheet
+  const [lastHorimeterHistory, setLastHorimeterHistory] = useState<
+    { dateTime: string; horimeterAtual: string }[]
+  >([]);
 
   // Location options
   const locationOptions = [
@@ -272,6 +278,7 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
     setEntryLocation('');
     setRecordDate(new Date());
     setRecordTime(new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
+    setLastHorimeterHistory([]);
   };
 
   // Transform vehicles for combobox
@@ -301,119 +308,145 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
     }
   };
 
-  // Fetch previous horimeter/km from records - get the MOST RECENT from all sources (DB + Google Sheets)
-  const fetchPreviousValues = async (vehicleCode: string) => {
+  // Fetch previous horimeter/km from records - get the MOST RECENT from AbastecimentoCanteiro01 (sheet as source of truth)
+  const fetchPreviousValues = async (vehicleCodeParam: string) => {
     try {
-      let maxHorimeter = 0;
-      let maxKm = 0;
+      // Always fetch directly from Google Sheet (no cache)
+      const sheetData = await getSheetData('AbastecimentoCanteiro01', { noCache: true });
+      const rows = sheetData.rows || [];
 
-      // 1. Try from field_fuel_records (Supabase)
-      const { data: fuelRecords } = await supabase
-        .from('field_fuel_records')
-        .select('horimeter_current, km_current, record_date, record_time, created_at')
-        .eq('vehicle_code', vehicleCode)
-        .eq('record_type', 'saida')
-        .order('record_date', { ascending: false })
-        .order('record_time', { ascending: false })
-        .order('created_at', { ascending: false })
-        .limit(10);
+      // Normalize vehicle code for matching
+      const normalizeVehicleCode = (v: any) =>
+        String(v ?? '')
+          .replace(/\u00A0/g, ' ')
+          .trim()
+          .toUpperCase()
+          .replace(/[–—]/g, '-')
+          .replace(/\s+/g, '');
 
-      if (fuelRecords && fuelRecords.length > 0) {
-        fuelRecords.forEach(record => {
-          const horValue = Number(record.horimeter_current) || 0;
-          const kmValue = Number(record.km_current) || 0;
-          if (horValue > maxHorimeter) maxHorimeter = horValue;
-          if (kmValue > maxKm) maxKm = kmValue;
-        });
-      }
+      const normalizeKey = (k: string) =>
+        k.trim().toUpperCase().normalize('NFD').replace(/\p{Diacritic}/gu, '').replace(/\s+/g, ' ');
 
-      // 2. Try from horimeter_readings (Supabase)
-      const { data: vehicleData } = await supabase
-        .from('vehicles')
-        .select('id')
-        .eq('code', vehicleCode)
-        .maybeSingle();
-
-      if (vehicleData?.id) {
-        const { data: horimeterRecords } = await supabase
-          .from('horimeter_readings')
-          .select('current_value, current_km, reading_date, created_at')
-          .eq('vehicle_id', vehicleData.id)
-          .order('reading_date', { ascending: false })
-          .order('created_at', { ascending: false })
-          .limit(10);
-
-        if (horimeterRecords && horimeterRecords.length > 0) {
-          horimeterRecords.forEach(record => {
-            const horValue = Number(record.current_value) || 0;
-            const kmValue = Number(record.current_km) || 0;
-            if (horValue > maxHorimeter) maxHorimeter = horValue;
-            if (kmValue > maxKm) maxKm = kmValue;
-          });
+      const getByNormalizedKey = (row: Record<string, any>, wanted: string[]) => {
+        const wantedSet = new Set(wanted.map(normalizeKey));
+        for (const [k, v] of Object.entries(row)) {
+          if (wantedSet.has(normalizeKey(k))) return v;
         }
-      }
+        return undefined;
+      };
 
-      // 3. Try from Google Sheets - AbastecimentoCanteiro01
-      try {
-        const abastecimentoResponse = await supabase.functions.invoke('google-sheets', {
-          body: {
-            action: 'getData',
-            sheetName: 'AbastecimentoCanteiro01',
-          },
+      const parseSheetDateTime = (rawDate: any, rawTime?: any): Date | null => {
+        const toDateFromSerial = (serial: number): Date => {
+          const utcMs = (serial - 25569) * 86400 * 1000;
+          return new Date(utcMs);
+        };
+
+        let base: Date | null = null;
+
+        if (typeof rawDate === 'number' && Number.isFinite(rawDate)) {
+          base = toDateFromSerial(rawDate);
+        } else {
+          const dateStr = String(rawDate ?? '').trim();
+          if (!dateStr) return null;
+
+          if (/^\d+(\.\d+)?$/.test(dateStr)) {
+            const serial = Number(dateStr);
+            if (Number.isFinite(serial)) base = toDateFromSerial(serial);
+          } else if (dateStr.includes('/')) {
+            const [day, month, year] = dateStr.split('/').map((n) => Number(n));
+            if (!day || !month || !year) return null;
+            base = new Date(year, month - 1, day, 12, 0, 0);
+          } else {
+            const parsed = new Date(dateStr);
+            if (Number.isNaN(parsed.getTime())) return null;
+            base = new Date(parsed);
+          }
+        }
+
+        if (!base || Number.isNaN(base.getTime())) return null;
+        base.setHours(12, 0, 0, 0);
+
+        if (typeof rawTime === 'number' && Number.isFinite(rawTime) && rawTime >= 0 && rawTime < 1) {
+          const totalMinutes = Math.round(rawTime * 24 * 60);
+          const h = Math.floor(totalMinutes / 60);
+          const m = totalMinutes % 60;
+          base.setHours(h, m, 0, 0);
+        } else {
+          const timeStr = String(rawTime ?? '').trim();
+          if (timeStr) {
+            const parts = timeStr.split(':');
+            const h = Number(parts[0]);
+            const m = Number(parts[1] ?? 0);
+            if (!Number.isNaN(h)) base.setHours(h || 0, m || 0, 0, 0);
+          }
+        }
+
+        return Number.isNaN(base.getTime()) ? null : base;
+      };
+
+      const targetVehicle = normalizeVehicleCode(vehicleCodeParam);
+
+      const vehicleRecords = rows
+        .filter((row) => {
+          const rowVehicleRaw = getByNormalizedKey(row as any, ['VEICULO', 'VEÍCULO', 'CODIGO', 'CÓDIGO', 'COD']);
+          const rowVehicle = normalizeVehicleCode(rowVehicleRaw);
+          return rowVehicle && rowVehicle === targetVehicle;
+        })
+        .map((row) => {
+          const dateRaw = getByNormalizedKey(row as any, ['DATA', 'DATE']);
+          const timeRaw = getByNormalizedKey(row as any, ['HORA', 'TIME']);
+          const dateTime = parseSheetDateTime(dateRaw, timeRaw);
+
+          const horAtualStr = String(
+            getByNormalizedKey(row as any, ['HORIMETRO ATUAL', 'HORIMETRO ATUA', 'HOR_ATUAL', 'HORIMETRO']) || '0'
+          );
+          const horAtual = parseBrazilianNumber(horAtualStr);
+
+          const kmAtualStr = String(getByNormalizedKey(row as any, ['KM ATUAL', 'KM_ATUAL', 'KM']) || '0');
+          const kmAtual = parseBrazilianNumber(kmAtualStr);
+
+          return {
+            dateTime,
+            horValue: horAtual,
+            kmValue: kmAtual,
+            rowIndex: (row as any)._rowIndex ?? 0,
+          };
+        })
+        .filter((r) => !!r.dateTime && (r.horValue > 0 || r.kmValue > 0))
+        .sort((a, b) => {
+          const aTime = a.dateTime?.getTime() ?? 0;
+          const bTime = b.dateTime?.getTime() ?? 0;
+          if (aTime !== bTime) return bTime - aTime;
+          return (b.rowIndex || 0) - (a.rowIndex || 0);
         });
 
-        if (abastecimentoResponse.data?.rows) {
-          const vehicleRows = abastecimentoResponse.data.rows.filter((row: any) => {
-            const rowVehicle = String(row['VEICULO'] || row['Veiculo'] || '').trim().toUpperCase();
-            return rowVehicle === vehicleCode.toUpperCase();
-          });
-
-          vehicleRows.forEach((row: any) => {
-            const horValue = parseFloat(String(row['HORIMETRO ATUAL'] || row['Horimetro Atual'] || row['HOR_ATUAL'] || '0').replace(/\./g, '').replace(',', '.')) || 0;
-            const kmValue = parseFloat(String(row['KM ATUAL'] || row['Km Atual'] || row['KM_ATUAL'] || '0').replace(/\./g, '').replace(',', '.')) || 0;
-            if (horValue > maxHorimeter) maxHorimeter = horValue;
-            if (kmValue > maxKm) maxKm = kmValue;
-          });
-        }
-      } catch (sheetErr) {
-        console.warn('Could not fetch from AbastecimentoCanteiro01 sheet:', sheetErr);
-      }
-
-      // 4. Try from Google Sheets - Horimetros
-      try {
-        const horimetrosResponse = await supabase.functions.invoke('google-sheets', {
-          body: {
-            action: 'getData',
-            sheetName: 'Horimetros',
-          },
+      // Histórico (5 últimos) - sempre da planilha
+      const historyTop5 = vehicleRecords.slice(0, 5).map((r) => {
+        const formatted = r.dateTime!.toLocaleString('pt-BR', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
         });
+        return {
+          dateTime: formatted,
+          horimeterAtual: formatBrazilianNumber(r.horValue),
+        };
+      });
+      setLastHorimeterHistory(historyTop5);
 
-        if (horimetrosResponse.data?.rows) {
-          const vehicleRows = horimetrosResponse.data.rows.filter((row: any) => {
-            const rowVehicle = String(row['Veiculo'] || row['VEICULO'] || row['Codigo'] || row['CODIGO'] || '').trim().toUpperCase();
-            return rowVehicle === vehicleCode.toUpperCase();
-          });
-
-          vehicleRows.forEach((row: any) => {
-            const horValue = parseFloat(String(row['Hor_Atual'] || row['HOR_ATUAL'] || row['Horimetro Atual'] || '0').replace(/\./g, '').replace(',', '.')) || 0;
-            const kmValue = parseFloat(String(row['Km_Atual'] || row['KM_ATUAL'] || row['Km Atual'] || '0').replace(/\./g, '').replace(',', '.')) || 0;
-            if (horValue > maxHorimeter) maxHorimeter = horValue;
-            if (kmValue > maxKm) maxKm = kmValue;
-          });
+      if (vehicleRecords.length > 0) {
+        const mostRecent = vehicleRecords[0];
+        if (mostRecent.horValue > 0) {
+          setHorimeterPrevious(formatBrazilianNumber(mostRecent.horValue));
         }
-      } catch (sheetErr) {
-        console.warn('Could not fetch from Horimetros sheet:', sheetErr);
+        if (mostRecent.kmValue > 0) {
+          setKmPrevious(formatBrazilianNumber(mostRecent.kmValue));
+        }
+      } else {
+        setLastHorimeterHistory([]);
       }
-
-      // Set the highest values found from all sources
-      if (maxHorimeter > 0) {
-        setHorimeterPrevious(formatBrazilianNumber(maxHorimeter));
-      }
-      if (maxKm > 0) {
-        setKmPrevious(formatBrazilianNumber(maxKm));
-      }
-
-      console.log(`Vehicle ${vehicleCode} - Max Horimeter: ${maxHorimeter}, Max KM: ${maxKm} (from DB + Sheets)`);
     } catch (err) {
       console.error('Error fetching previous values:', err);
     }
@@ -908,6 +941,33 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
                 />
                 {vehicleDescription && (
                   <p className="text-sm text-muted-foreground">{vehicleDescription}</p>
+                )}
+
+                {/* Histórico dos 5 últimos abastecimentos */}
+                {lastHorimeterHistory.length > 0 && (
+                  <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700/50 p-3 rounded-lg space-y-2">
+                    <div className="flex items-center gap-2 text-blue-700 dark:text-blue-300">
+                      <Clock className="w-4 h-4" />
+                      <span className="text-sm font-semibold">Últimos 5 Abastecimentos (AbastecimentoCanteiro01)</span>
+                    </div>
+                    <div className="space-y-1">
+                      {lastHorimeterHistory.map((h, idx) => (
+                        <div
+                          key={`${h.dateTime}-${idx}`}
+                          className={cn(
+                            "flex items-center justify-between text-xs p-1.5 rounded",
+                            idx === 0 ? "bg-blue-100/50 dark:bg-blue-800/50 font-semibold" : ""
+                          )}
+                        >
+                          <span className="text-muted-foreground">{h.dateTime}</span>
+                          <span className="font-semibold text-blue-700 dark:text-blue-200">{h.horimeterAtual}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      O primeiro registro (mais recente) será usado como Horímetro Anterior
+                    </p>
+                  </div>
                 )}
               </div>
 
