@@ -106,6 +106,7 @@ interface VehicleSummary {
 }
 
 type DateFilterType = 'all' | 'today' | 'week' | 'month' | 'period';
+type GroupByType = 'vehicle' | 'description';
 
 export function VehicleConsumptionDetailTab({ data, refetch, loading }: VehicleConsumptionDetailTabProps) {
   const { settings } = useObraSettings();
@@ -115,6 +116,7 @@ export function VehicleConsumptionDetailTab({ data, refetch, loading }: VehicleC
   const [endDate, setEndDate] = useState<Date | undefined>(new Date());
   const [expandedVehicles, setExpandedVehicles] = useState<Set<string>>(new Set());
   const [sortBy, setSortBy] = useState<'code' | 'consumption' | 'liters'>('code');
+  const [groupBy, setGroupBy] = useState<GroupByType>('description');
 
   // Determine if a category is equipment (L/h) or vehicle (km/L)
   const isEquipmentCategory = (category: string): boolean => {
@@ -278,6 +280,55 @@ export function VehicleConsumptionDetailTab({ data, refetch, loading }: VehicleC
     return result;
   }, [vehicleSummaries, searchTerm, sortBy]);
 
+  // Group summaries by description
+  const groupedByDescription = useMemo(() => {
+    if (groupBy !== 'description') return null;
+    
+    const groups = new Map<string, {
+      description: string;
+      vehicles: VehicleSummary[];
+      totalLiters: number;
+      totalHours: number;
+      totalKm: number;
+      avgConsumption: number;
+      isEquipment: boolean;
+      consumptionUnit: string;
+    }>();
+    
+    filteredSummaries.forEach(summary => {
+      const desc = summary.vehicleDescription || 'Outros';
+      if (!groups.has(desc)) {
+        groups.set(desc, {
+          description: desc,
+          vehicles: [],
+          totalLiters: 0,
+          totalHours: 0,
+          totalKm: 0,
+          avgConsumption: 0,
+          isEquipment: summary.isEquipment,
+          consumptionUnit: summary.consumptionUnit,
+        });
+      }
+      const group = groups.get(desc)!;
+      group.vehicles.push(summary);
+      group.totalLiters += summary.totalLiters;
+      group.totalHours += summary.totalHours;
+      group.totalKm += summary.totalKm;
+    });
+    
+    // Calculate average consumption for each group
+    groups.forEach(group => {
+      if (group.isEquipment) {
+        group.avgConsumption = group.totalHours > 0 ? group.totalLiters / group.totalHours : 0;
+      } else {
+        group.avgConsumption = group.totalLiters > 0 ? group.totalKm / group.totalLiters : 0;
+      }
+    });
+    
+    // Sort groups by description
+    return Array.from(groups.values()).sort((a, b) => a.description.localeCompare(b.description));
+  }, [filteredSummaries, groupBy]);
+
   // Global metrics
   const globalMetrics = useMemo(() => {
     const totalLiters = vehicleSummaries.reduce((sum, v) => sum + v.totalLiters, 0);
@@ -285,9 +336,10 @@ export function VehicleConsumptionDetailTab({ data, refetch, loading }: VehicleC
     const totalVehicles = vehicleSummaries.length;
     const equipmentCount = vehicleSummaries.filter(v => v.isEquipment).length;
     const vehicleCount = vehicleSummaries.filter(v => !v.isEquipment).length;
+    const totalDescriptions = groupedByDescription?.length || 0;
     
-    return { totalLiters, totalRecords, totalVehicles, equipmentCount, vehicleCount };
-  }, [vehicleSummaries]);
+    return { totalLiters, totalRecords, totalVehicles, equipmentCount, vehicleCount, totalDescriptions };
+  }, [vehicleSummaries, groupedByDescription]);
 
   // Toggle vehicle expansion
   const toggleVehicle = (vehicleCode: string) => {
@@ -548,6 +600,25 @@ export function VehicleConsumptionDetailTab({ data, refetch, loading }: VehicleC
           />
         </div>
 
+        {/* Group By */}
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Agrupar:</span>
+          <Button
+            variant={groupBy === 'description' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setGroupBy('description')}
+          >
+            Descrição
+          </Button>
+          <Button
+            variant={groupBy === 'vehicle' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setGroupBy('vehicle')}
+          >
+            Veículo
+          </Button>
+        </div>
+
         {/* Sort */}
         <div className="flex items-center gap-2">
           <span className="text-sm text-muted-foreground">Ordenar:</span>
@@ -585,7 +656,145 @@ export function VehicleConsumptionDetailTab({ data, refetch, loading }: VehicleC
         </Button>
       </div>
 
-      {/* Vehicle List */}
+      {/* Grouped by Description */}
+      {groupBy === 'description' && groupedByDescription && (
+        <div className="space-y-4">
+          {groupedByDescription.length === 0 ? (
+            <Card className="p-8 text-center">
+              <Truck className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+              <h3 className="text-lg font-semibold mb-2">Nenhum registro encontrado</h3>
+              <p className="text-muted-foreground">
+                Ajuste os filtros ou o período para visualizar os dados de consumo.
+              </p>
+            </Card>
+          ) : (
+            groupedByDescription.map((group) => (
+              <Collapsible
+                key={group.description}
+                open={expandedVehicles.has(group.description)}
+                onOpenChange={() => toggleVehicle(group.description)}
+              >
+                <Card className={cn(
+                  "transition-all",
+                  expandedVehicles.has(group.description) && "ring-2 ring-primary"
+                )}>
+                  <CollapsibleTrigger asChild>
+                    <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className={cn(
+                            "p-2 rounded-lg",
+                            group.isEquipment ? "bg-amber-100 dark:bg-amber-900/30" : "bg-blue-100 dark:bg-blue-900/30"
+                          )}>
+                            {group.isEquipment ? (
+                              <Gauge className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                            ) : (
+                              <Truck className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                            )}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-lg">{group.description}</span>
+                              <Badge variant="secondary">
+                                {group.vehicles.length} {group.vehicles.length === 1 ? 'veículo' : 'veículos'}
+                              </Badge>
+                            </div>
+                            <p className="text-sm text-muted-foreground">
+                              {group.vehicles.map(v => v.vehicleCode).join(', ')}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-6">
+                          <div className="text-right">
+                            <p className="text-sm text-muted-foreground">Total</p>
+                            <p className="font-bold text-lg">{formatBrazilianNumber(group.totalLiters)} L</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm text-muted-foreground">
+                              {group.isEquipment ? 'Horas' : 'Km'}
+                            </p>
+                            <p className="font-bold text-lg">
+                              {group.isEquipment 
+                                ? `${formatBrazilianNumber(group.totalHours)} h`
+                                : `${formatBrazilianNumber(group.totalKm, 0)} km`
+                              }
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm text-muted-foreground">Consumo Médio</p>
+                            <p className={cn(
+                              "font-bold text-lg",
+                              group.avgConsumption > 0 ? "text-green-600 dark:text-green-400" : "text-muted-foreground"
+                            )}>
+                              {formatBrazilianNumber(group.avgConsumption)} {group.consumptionUnit}
+                            </p>
+                          </div>
+                          <div>
+                            {expandedVehicles.has(group.description) ? (
+                              <ChevronUp className="h-5 w-5 text-muted-foreground" />
+                            ) : (
+                              <ChevronDown className="h-5 w-5 text-muted-foreground" />
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </CardHeader>
+                  </CollapsibleTrigger>
+
+                  <CollapsibleContent>
+                    <CardContent className="pt-0">
+                      <div className="rounded-lg border overflow-hidden">
+                        <Table>
+                          <TableHeader>
+                            <TableRow className="bg-muted/50">
+                              <TableHead>Veículo</TableHead>
+                              <TableHead className="text-right">Litros</TableHead>
+                              <TableHead className="text-right">{group.isEquipment ? 'Horas' : 'Km'}</TableHead>
+                              <TableHead className="text-right">Consumo</TableHead>
+                              <TableHead className="text-right">Abast.</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {group.vehicles.map((vehicle) => (
+                              <TableRow key={vehicle.vehicleCode}>
+                                <TableCell>
+                                  <div className="font-medium">{vehicle.vehicleCode}</div>
+                                </TableCell>
+                                <TableCell className="text-right font-mono">
+                                  {formatBrazilianNumber(vehicle.totalLiters)}
+                                </TableCell>
+                                <TableCell className="text-right font-mono">
+                                  {vehicle.isEquipment 
+                                    ? formatBrazilianNumber(vehicle.totalHours)
+                                    : formatBrazilianNumber(vehicle.totalKm, 0)
+                                  }
+                                </TableCell>
+                                <TableCell className={cn(
+                                  "text-right font-mono font-medium",
+                                  vehicle.avgConsumption > 0 ? "text-green-600 dark:text-green-400" : "text-muted-foreground"
+                                )}>
+                                  {vehicle.avgConsumption > 0 ? formatBrazilianNumber(vehicle.avgConsumption) : '-'} {vehicle.consumptionUnit}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  {vehicle.recordCount}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </CardContent>
+                  </CollapsibleContent>
+                </Card>
+              </Collapsible>
+            ))
+          )}
+        </div>
+      )}
+
+      {/* Vehicle List (ungrouped) */}
+      {groupBy === 'vehicle' && (
       <div className="space-y-3">
         {filteredSummaries.length === 0 ? (
           <Card className="p-8 text-center">
@@ -756,6 +965,7 @@ export function VehicleConsumptionDetailTab({ data, refetch, loading }: VehicleC
           ))
         )}
       </div>
+      )}
     </div>
   );
 }

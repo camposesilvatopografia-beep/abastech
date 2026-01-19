@@ -137,7 +137,9 @@ interface AnomalyRecord {
   issueType: 'high_interval' | 'negative_value' | 'zero_previous' | 'suspicious_sequence';
   rawRow: Record<string, any>;
   suggestedCorrection?: {
-    previousValue: number;
+    previousValue?: number;
+    currentValue?: number;
+    fieldToFix: 'previous' | 'current';
     source: string;
     sourceDate: string;
     correctionType?: 'current_extra_digit' | 'previous_missing_digit' | 'decimal_shift' | 'estimated_interval' | 'from_sheet';
@@ -446,29 +448,20 @@ export function HorimeterCorrectionsTab({ data, refetch, loading }: HorimeterCor
     // SMART CORRECTION LOGIC
     // Case 1: High interval - check if current value might have extra digit (typing error)
     if (anomaly.issueType === 'high_interval' && currentValue > 0 && prevValue > 0) {
-      // Check if dividing current by 10 gives a reasonable value close to previous + average interval
-      const expectedValue = prevValue + (avgInterval > 0 ? avgInterval : 50); // Use avg or default 50h/500km
-      
-      // Try dividing by 10 (extra digit typed)
+      // Try dividing current by 10 (extra digit typed in CURRENT)
       const currentDiv10 = currentValue / 10;
       const intervalIfDiv10 = currentDiv10 - prevValue;
       
       // If dividing by 10 gives a reasonable interval (positive and within 3x average)
       if (intervalIfDiv10 > 0 && (avgInterval <= 0 || intervalIfDiv10 < avgInterval * 3)) {
-        // This suggests the current value has an extra digit
-        // Suggest correcting the PREVIOUS to match what would make sense
-        // The correct previous should be currentValue/10 - reasonable_interval
-        const suggestedPrevious = Math.round((currentDiv10 - (avgInterval > 0 ? avgInterval : intervalIfDiv10)) * 100) / 100;
-        
-        // Only suggest if the suggested value is close to what we'd expect
-        if (suggestedPrevious > 0 && Math.abs(suggestedPrevious - prevValue) < prevValue * 0.5) {
-          return {
-            previousValue: Math.round(currentDiv10 * 100) / 100,
-            source: 'Correção inteligente (valor atual ÷10)',
-            sourceDate: anomaly.date,
-            correctionType: 'current_extra_digit',
-          };
-        }
+        // Suggest correcting the CURRENT value (remove extra digit)
+        return {
+          currentValue: Math.round(currentDiv10 * 100) / 100,
+          fieldToFix: 'current' as const,
+          source: 'Correção inteligente (valor atual ÷10)',
+          sourceDate: anomaly.date,
+          correctionType: 'current_extra_digit',
+        };
       }
       
       // Try multiplying previous by 10 (missing digit in previous)
@@ -478,20 +471,21 @@ export function HorimeterCorrectionsTab({ data, refetch, loading }: HorimeterCor
       if (intervalIfPrevTimes10 > 0 && (avgInterval <= 0 || intervalIfPrevTimes10 < avgInterval * 3)) {
         return {
           previousValue: Math.round(prevTimes10 * 100) / 100,
+          fieldToFix: 'previous' as const,
           source: 'Correção inteligente (anterior ×10)',
           sourceDate: previousRecord?.date || anomaly.date,
           correctionType: 'previous_missing_digit',
         };
       }
       
-      // Check if decimal point was placed wrong (e.g., 889953.90 should be 88995.39)
-      // Try moving decimal one place left
+      // Check if decimal point was placed wrong in CURRENT (e.g., 889953.90 should be 88995.39)
       const currentDecimalShift = currentValue / 10;
       const intervalWithShift = currentDecimalShift - prevValue;
       
       if (intervalWithShift > 0 && intervalWithShift < (avgInterval > 0 ? avgInterval * 2 : 200)) {
         return {
-          previousValue: Math.round(currentDecimalShift * 100) / 100,
+          currentValue: Math.round(currentDecimalShift * 100) / 100,
+          fieldToFix: 'current' as const,
           source: 'Correção inteligente (ponto decimal)',
           sourceDate: anomaly.date,
           correctionType: 'decimal_shift',
@@ -507,6 +501,7 @@ export function HorimeterCorrectionsTab({ data, refetch, loading }: HorimeterCor
         if (suggestedPrev > 0) {
           return {
             previousValue: Math.round(suggestedPrev * 100) / 100,
+            fieldToFix: 'previous' as const,
             source: 'Correção inteligente (intervalo estimado)',
             sourceDate: previousRecord?.date || '',
             correctionType: 'estimated_interval',
@@ -518,6 +513,7 @@ export function HorimeterCorrectionsTab({ data, refetch, loading }: HorimeterCor
       if (previousRecord && prevValue > 0 && prevValue < currentValue) {
         return {
           previousValue: prevValue,
+          fieldToFix: 'previous' as const,
           source: 'Registro anterior na planilha',
           sourceDate: previousRecord.date,
           correctionType: 'from_sheet',
@@ -529,6 +525,7 @@ export function HorimeterCorrectionsTab({ data, refetch, loading }: HorimeterCor
     if (anomaly.issueType === 'zero_previous' && previousRecord && prevValue > 0) {
       return {
         previousValue: prevValue,
+        fieldToFix: 'previous' as const,
         source: 'Registro anterior na planilha',
         sourceDate: previousRecord.date,
         correctionType: 'from_sheet',
@@ -539,6 +536,7 @@ export function HorimeterCorrectionsTab({ data, refetch, loading }: HorimeterCor
     if (previousRecord && prevValue > 0 && Math.abs(prevValue - previousValue) > 1) {
       return {
         previousValue: prevValue,
+        fieldToFix: 'previous' as const,
         source: 'Planilha',
         sourceDate: previousRecord.date,
         correctionType: 'from_sheet',
@@ -580,10 +578,22 @@ export function HorimeterCorrectionsTab({ data, refetch, loading }: HorimeterCor
       const rowData: Record<string, any> = { ...anomaly.rawRow };
       delete rowData._rowIndex;
       
-      if (isVehicle) {
-        rowData['KM ANTERIOR'] = formatBrazilianNumber(anomaly.suggestedCorrection.previousValue);
+      const { fieldToFix, previousValue, currentValue } = anomaly.suggestedCorrection;
+      
+      if (fieldToFix === 'current') {
+        // Correcting the CURRENT value
+        if (isVehicle) {
+          rowData['KM ATUAL'] = formatBrazilianNumber(currentValue!);
+        } else {
+          rowData['HORIMETRO ATUAL'] = formatBrazilianNumber(currentValue!);
+        }
       } else {
-        rowData['HORIMETRO ANTERIOR'] = formatBrazilianNumber(anomaly.suggestedCorrection.previousValue);
+        // Correcting the PREVIOUS value
+        if (isVehicle) {
+          rowData['KM ANTERIOR'] = formatBrazilianNumber(previousValue!);
+        } else {
+          rowData['HORIMETRO ANTERIOR'] = formatBrazilianNumber(previousValue!);
+        }
       }
       
       const { error } = await supabase.functions.invoke('google-sheets', {
@@ -616,12 +626,21 @@ export function HorimeterCorrectionsTab({ data, refetch, loading }: HorimeterCor
       total: fixableAnomalies.length,
       fixed: 0,
       errors: 0,
-      details: [] as { vehicleCode: string; date: string; oldValue: number; newValue: number; source: string }[],
+      details: [] as { vehicleCode: string; date: string; oldValue: number; newValue: number; source: string; fieldFixed: string }[],
     };
     
     for (const anomaly of fixableAnomalies) {
       const isVehicle = anomaly.category === 'VEICULO';
-      const oldValue = isVehicle ? anomaly.kmPrevious : anomaly.horimeterPrevious;
+      const correction = anomaly.suggestedCorrection!;
+      const fieldFixed = correction.fieldToFix === 'current' 
+        ? (isVehicle ? 'Km Atual' : 'Hor. Atual')
+        : (isVehicle ? 'Km Anterior' : 'Hor. Anterior');
+      const oldValue = correction.fieldToFix === 'current'
+        ? (isVehicle ? anomaly.kmCurrent : anomaly.horimeterCurrent)
+        : (isVehicle ? anomaly.kmPrevious : anomaly.horimeterPrevious);
+      const newValue = correction.fieldToFix === 'current' 
+        ? correction.currentValue!
+        : correction.previousValue!;
       
       const success = await applySingleAutoFix(anomaly);
       if (success) {
@@ -630,8 +649,9 @@ export function HorimeterCorrectionsTab({ data, refetch, loading }: HorimeterCor
           vehicleCode: anomaly.vehicleCode,
           date: anomaly.date,
           oldValue,
-          newValue: anomaly.suggestedCorrection!.previousValue,
-          source: anomaly.suggestedCorrection!.sourceDate,
+          newValue,
+          source: correction.source,
+          fieldFixed,
         });
       } else {
         results.errors++;
@@ -1149,17 +1169,18 @@ export function HorimeterCorrectionsTab({ data, refetch, loading }: HorimeterCor
                       )}
                     </TableCell>
                     <TableCell className="text-right font-mono">
-                      {hasSuggestion ? (
+                      {hasSuggestion && anomaly.suggestedCorrection!.fieldToFix === 'previous' ? (
                         <TooltipProvider>
                           <Tooltip>
                             <TooltipTrigger>
                               <span className="text-green-600 font-bold flex items-center justify-end gap-1">
                                 <Sparkles className="h-3 w-3" />
-                                {formatBrazilianNumber(anomaly.suggestedCorrection!.previousValue)}
+                                {formatBrazilianNumber(anomaly.suggestedCorrection!.previousValue!)}
                               </span>
                             </TooltipTrigger>
                             <TooltipContent>
-                              <p>Baseado no registro de {anomaly.suggestedCorrection!.sourceDate}</p>
+                              <p className="font-medium">Corrigir ANTERIOR</p>
+                              <p className="text-xs">{anomaly.suggestedCorrection!.source}</p>
                             </TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
@@ -1177,6 +1198,26 @@ export function HorimeterCorrectionsTab({ data, refetch, loading }: HorimeterCor
                           } : null)}
                           className="w-28 h-8 text-right"
                         />
+                      ) : hasSuggestion && anomaly.suggestedCorrection!.fieldToFix === 'current' ? (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger>
+                              <div className="flex flex-col items-end">
+                                <span className="text-muted-foreground line-through text-xs">
+                                  {formatBrazilianNumber(isVehicle ? anomaly.kmCurrent : anomaly.horimeterCurrent)}
+                                </span>
+                                <span className="text-purple-600 font-bold flex items-center gap-1">
+                                  <Sparkles className="h-3 w-3" />
+                                  {formatBrazilianNumber(anomaly.suggestedCorrection!.currentValue!)}
+                                </span>
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p className="font-medium">Corrigir ATUAL</p>
+                              <p className="text-xs">{anomaly.suggestedCorrection!.source}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                       ) : (
                         <span>
                           {formatBrazilianNumber(isVehicle ? anomaly.kmCurrent : anomaly.horimeterCurrent)}
