@@ -14,6 +14,10 @@ import {
   Truck,
   Clock,
   Filter,
+  Wand2,
+  Sparkles,
+  CheckCheck,
+  Loader2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -40,6 +44,14 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -78,6 +90,15 @@ function parseDate(dateStr: string): Date | null {
   return isValid(parsed) ? parsed : null;
 }
 
+function parseTime(timeStr: string): number {
+  if (!timeStr) return 0;
+  const parts = String(timeStr).split(':');
+  if (parts.length >= 2) {
+    return parseInt(parts[0]) * 60 + parseInt(parts[1]);
+  }
+  return 0;
+}
+
 interface VehicleStats {
   vehicleCode: string;
   vehicleDescription: string;
@@ -105,6 +126,11 @@ interface AnomalyRecord {
   severity: 'high' | 'medium' | 'low';
   issueType: 'high_interval' | 'negative_value' | 'zero_previous' | 'suspicious_sequence';
   rawRow: Record<string, any>;
+  suggestedCorrection?: {
+    previousValue: number;
+    source: string;
+    sourceDate: string;
+  };
 }
 
 export function HorimeterCorrectionsTab({ data, refetch, loading }: HorimeterCorrectionsTabProps) {
@@ -117,6 +143,16 @@ export function HorimeterCorrectionsTab({ data, refetch, loading }: HorimeterCor
     kmCurrent: string;
   } | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isAutoFixing, setIsAutoFixing] = useState(false);
+  const [showAutoFixDialog, setShowAutoFixDialog] = useState(false);
+  const [autoFixResults, setAutoFixResults] = useState<{
+    total: number;
+    fixed: number;
+    errors: number;
+    details: { vehicleCode: string; date: string; oldValue: number; newValue: number; source: string }[];
+  } | null>(null);
+  const [anomaliesWithSuggestions, setAnomaliesWithSuggestions] = useState<AnomalyRecord[]>([]);
+  const [isCalculatingSuggestions, setIsCalculatingSuggestions] = useState(false);
 
   // Calculate vehicle statistics (average intervals)
   const vehicleStats = useMemo(() => {
@@ -277,11 +313,197 @@ export function HorimeterCorrectionsTab({ data, refetch, loading }: HorimeterCor
     });
   }, [data.rows, vehicleStats]);
 
+  // Build a map of vehicle records sorted by date/time for finding previous values
+  const vehicleRecordsMap = useMemo(() => {
+    const map: Map<string, { date: string; time: string; dateObj: Date; timeMinutes: number; rowIndex: number; horimeter: number; km: number; category: string }[]> = new Map();
+    
+    data.rows.forEach(row => {
+      const vehicleCode = String(row['VEICULO'] || '').trim();
+      if (!vehicleCode) return;
+      
+      const dateStr = String(row['DATA'] || '');
+      const timeStr = String(row['HORA'] || '');
+      const dateObj = parseDate(dateStr);
+      if (!dateObj) return;
+      
+      const horimeterCurrent = parseNumber(row['HORIMETRO ATUAL']);
+      const kmCurrent = parseNumber(row['KM ATUAL']);
+      const category = String(row['CATEGORIA'] || '').toUpperCase();
+      const rowIndex = row._rowIndex as number;
+      
+      if (!map.has(vehicleCode)) {
+        map.set(vehicleCode, []);
+      }
+      
+      map.get(vehicleCode)!.push({
+        date: dateStr,
+        time: timeStr,
+        dateObj,
+        timeMinutes: parseTime(timeStr),
+        rowIndex,
+        horimeter: horimeterCurrent,
+        km: kmCurrent,
+        category,
+      });
+    });
+    
+    // Sort each vehicle's records by date and time (newest first)
+    map.forEach((records, vehicleCode) => {
+      records.sort((a, b) => {
+        const dateDiff = b.dateObj.getTime() - a.dateObj.getTime();
+        if (dateDiff !== 0) return dateDiff;
+        return b.timeMinutes - a.timeMinutes;
+      });
+    });
+    
+    return map;
+  }, [data.rows]);
+
+  // Function to find the correct previous value for an anomaly
+  const findCorrectPreviousValue = useCallback((anomaly: AnomalyRecord): AnomalyRecord['suggestedCorrection'] | null => {
+    const records = vehicleRecordsMap.get(anomaly.vehicleCode);
+    if (!records || records.length < 2) return null;
+    
+    const isVehicle = anomaly.category === 'VEICULO';
+    const anomalyDate = parseDate(anomaly.date);
+    const anomalyTime = parseTime(anomaly.time);
+    if (!anomalyDate) return null;
+    
+    // Find the record immediately before this one
+    let previousRecord = null;
+    for (const record of records) {
+      // Skip if it's the same record
+      if (record.rowIndex === anomaly.rowIndex) continue;
+      
+      // Check if this record is before the anomaly
+      const recordDate = record.dateObj;
+      if (recordDate.getTime() < anomalyDate.getTime() || 
+          (recordDate.getTime() === anomalyDate.getTime() && record.timeMinutes < anomalyTime)) {
+        previousRecord = record;
+        break; // Since records are sorted newest first, the first match is the immediate previous
+      }
+    }
+    
+    if (!previousRecord) return null;
+    
+    const previousValue = isVehicle ? previousRecord.km : previousRecord.horimeter;
+    if (previousValue <= 0) return null;
+    
+    return {
+      previousValue,
+      source: 'Planilha',
+      sourceDate: previousRecord.date,
+    };
+  }, [vehicleRecordsMap]);
+
+  // Calculate suggestions for all anomalies
+  const calculateSuggestions = useCallback(async () => {
+    setIsCalculatingSuggestions(true);
+    
+    const withSuggestions = anomalies.map(anomaly => {
+      const suggestion = findCorrectPreviousValue(anomaly);
+      return {
+        ...anomaly,
+        suggestedCorrection: suggestion || undefined,
+      };
+    });
+    
+    setAnomaliesWithSuggestions(withSuggestions);
+    setIsCalculatingSuggestions(false);
+    
+    const withValidSuggestions = withSuggestions.filter(a => a.suggestedCorrection);
+    if (withValidSuggestions.length > 0) {
+      toast.success(`${withValidSuggestions.length} correções sugeridas encontradas!`);
+    } else {
+      toast.info('Nenhuma correção automática disponível');
+    }
+  }, [anomalies, findCorrectPreviousValue]);
+
+  // Apply a single auto-fix
+  const applySingleAutoFix = async (anomaly: AnomalyRecord): Promise<boolean> => {
+    if (!anomaly.suggestedCorrection) return false;
+    
+    try {
+      const isVehicle = anomaly.category === 'VEICULO';
+      const rowData: Record<string, any> = { ...anomaly.rawRow };
+      delete rowData._rowIndex;
+      
+      if (isVehicle) {
+        rowData['KM ANTERIOR'] = formatBrazilianNumber(anomaly.suggestedCorrection.previousValue);
+      } else {
+        rowData['HORIMETRO ANTERIOR'] = formatBrazilianNumber(anomaly.suggestedCorrection.previousValue);
+      }
+      
+      const { error } = await supabase.functions.invoke('google-sheets', {
+        body: {
+          action: 'update',
+          sheetName: 'AbastecimentoCanteiro01',
+          rowIndex: anomaly.rowIndex,
+          rowData,
+        },
+      });
+      
+      if (error) throw error;
+      return true;
+    } catch (err) {
+      console.error('Error applying fix:', err);
+      return false;
+    }
+  };
+
+  // Apply all auto-fixes
+  const applyAllAutoFixes = async () => {
+    const fixableAnomalies = anomaliesWithSuggestions.filter(a => a.suggestedCorrection);
+    if (fixableAnomalies.length === 0) {
+      toast.info('Nenhuma correção automática disponível');
+      return;
+    }
+    
+    setIsAutoFixing(true);
+    const results = {
+      total: fixableAnomalies.length,
+      fixed: 0,
+      errors: 0,
+      details: [] as { vehicleCode: string; date: string; oldValue: number; newValue: number; source: string }[],
+    };
+    
+    for (const anomaly of fixableAnomalies) {
+      const isVehicle = anomaly.category === 'VEICULO';
+      const oldValue = isVehicle ? anomaly.kmPrevious : anomaly.horimeterPrevious;
+      
+      const success = await applySingleAutoFix(anomaly);
+      if (success) {
+        results.fixed++;
+        results.details.push({
+          vehicleCode: anomaly.vehicleCode,
+          date: anomaly.date,
+          oldValue,
+          newValue: anomaly.suggestedCorrection!.previousValue,
+          source: anomaly.suggestedCorrection!.sourceDate,
+        });
+      } else {
+        results.errors++;
+      }
+      
+      // Small delay to avoid rate limiting
+      await new Promise(resolve => setTimeout(resolve, 200));
+    }
+    
+    setAutoFixResults(results);
+    setShowAutoFixDialog(true);
+    setIsAutoFixing(false);
+    
+    if (results.fixed > 0) {
+      refetch();
+    }
+  };
+
   // Filter anomalies by severity
-  const filteredAnomalies = useMemo(() => {
-    if (severityFilter === 'all') return anomalies;
-    return anomalies.filter(a => a.severity === severityFilter);
-  }, [anomalies, severityFilter]);
+  const displayedAnomalies = useMemo(() => {
+    const source = anomaliesWithSuggestions.length > 0 ? anomaliesWithSuggestions : anomalies;
+    if (severityFilter === 'all') return source;
+    return source.filter(a => a.severity === severityFilter);
+  }, [anomalies, anomaliesWithSuggestions, severityFilter]);
 
   // Summary counts
   const summaryCounts = useMemo(() => ({
@@ -289,7 +511,8 @@ export function HorimeterCorrectionsTab({ data, refetch, loading }: HorimeterCor
     high: anomalies.filter(a => a.severity === 'high').length,
     medium: anomalies.filter(a => a.severity === 'medium').length,
     low: anomalies.filter(a => a.severity === 'low').length,
-  }), [anomalies]);
+    fixable: anomaliesWithSuggestions.filter(a => a.suggestedCorrection).length,
+  }), [anomalies, anomaliesWithSuggestions]);
 
   // Handle edit
   const handleStartEdit = (anomaly: AnomalyRecord) => {
@@ -345,6 +568,25 @@ export function HorimeterCorrectionsTab({ data, refetch, loading }: HorimeterCor
       toast.error('Erro ao salvar correção');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  // Apply suggestion to a single row
+  const handleApplySuggestion = async (anomaly: AnomalyRecord) => {
+    if (!anomaly.suggestedCorrection) {
+      toast.error('Nenhuma sugestão disponível');
+      return;
+    }
+    
+    setIsSaving(true);
+    const success = await applySingleAutoFix(anomaly);
+    setIsSaving(false);
+    
+    if (success) {
+      toast.success('Correção aplicada com sucesso!');
+      refetch();
+    } else {
+      toast.error('Erro ao aplicar correção');
     }
   };
 
@@ -450,23 +692,109 @@ export function HorimeterCorrectionsTab({ data, refetch, loading }: HorimeterCor
       </div>
 
       {/* Actions Bar */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="text-sm text-muted-foreground">
-          Mostrando {filteredAnomalies.length} de {anomalies.length} registros com inconsistências
+          Mostrando {displayedAnomalies.length} de {anomalies.length} registros com inconsistências
+          {summaryCounts.fixable > 0 && (
+            <span className="ml-2 text-green-600 font-medium">
+              ({summaryCounts.fixable} com correção sugerida)
+            </span>
+          )}
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => refetch()}
-          disabled={loading}
-        >
-          <RefreshCw className={cn("h-4 w-4 mr-2", loading && "animate-spin")} />
-          Atualizar
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={calculateSuggestions}
+            disabled={loading || isCalculatingSuggestions || anomalies.length === 0}
+          >
+            {isCalculatingSuggestions ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Sparkles className="h-4 w-4 mr-2" />
+            )}
+            Analisar
+          </Button>
+          <Button
+            variant="default"
+            size="sm"
+            onClick={applyAllAutoFixes}
+            disabled={loading || isAutoFixing || summaryCounts.fixable === 0}
+            className="bg-green-600 hover:bg-green-700"
+          >
+            {isAutoFixing ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Wand2 className="h-4 w-4 mr-2" />
+            )}
+            Corrigir Tudo ({summaryCounts.fixable})
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => refetch()}
+            disabled={loading}
+          >
+            <RefreshCw className={cn("h-4 w-4 mr-2", loading && "animate-spin")} />
+            Atualizar
+          </Button>
+        </div>
       </div>
 
+      {/* Auto-fix Results Dialog */}
+      <Dialog open={showAutoFixDialog} onOpenChange={setShowAutoFixDialog}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CheckCheck className="h-5 w-5 text-green-600" />
+              Resultado da Correção Automática
+            </DialogTitle>
+            <DialogDescription>
+              {autoFixResults?.fixed} de {autoFixResults?.total} registros foram corrigidos
+            </DialogDescription>
+          </DialogHeader>
+          
+          {autoFixResults && autoFixResults.details.length > 0 && (
+            <div className="space-y-2">
+              <div className="rounded-lg border overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/50">
+                      <TableHead>Veículo</TableHead>
+                      <TableHead>Data</TableHead>
+                      <TableHead className="text-right">Anterior (errado)</TableHead>
+                      <TableHead className="text-right">Anterior (corrigido)</TableHead>
+                      <TableHead>Fonte</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {autoFixResults.details.map((detail, idx) => (
+                      <TableRow key={idx}>
+                        <TableCell className="font-medium">{detail.vehicleCode}</TableCell>
+                        <TableCell>{detail.date}</TableCell>
+                        <TableCell className="text-right text-red-600 line-through">
+                          {formatBrazilianNumber(detail.oldValue)}
+                        </TableCell>
+                        <TableCell className="text-right text-green-600 font-medium">
+                          {formatBrazilianNumber(detail.newValue)}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">{detail.source}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          )}
+          
+          <DialogFooter>
+            <Button onClick={() => setShowAutoFixDialog(false)}>Fechar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Anomalies Table */}
-      {filteredAnomalies.length === 0 ? (
+      {displayedAnomalies.length === 0 ? (
         <Card className="p-8 text-center">
           <CheckCircle className="h-12 w-12 mx-auto mb-4 text-green-500" />
           <h3 className="text-lg font-semibold mb-2">Nenhuma inconsistência encontrada</h3>
@@ -481,22 +809,22 @@ export function HorimeterCorrectionsTab({ data, refetch, loading }: HorimeterCor
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/50">
-                <TableHead className="w-[100px]">Prioridade</TableHead>
+                <TableHead className="w-[80px]">Prioridade</TableHead>
                 <TableHead>Veículo</TableHead>
                 <TableHead>Data/Hora</TableHead>
                 <TableHead>Problema</TableHead>
                 <TableHead className="text-right">Anterior</TableHead>
+                <TableHead className="text-right">Sugestão</TableHead>
                 <TableHead className="text-right">Atual</TableHead>
-                <TableHead className="text-right">Intervalo</TableHead>
-                <TableHead className="text-right">Média</TableHead>
                 <TableHead className="text-right">Desvio</TableHead>
-                <TableHead className="w-[100px]">Ações</TableHead>
+                <TableHead className="w-[120px]">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredAnomalies.map((anomaly) => {
+              {displayedAnomalies.map((anomaly) => {
                 const isEditing = editingRowIndex === anomaly.rowIndex;
                 const isVehicle = anomaly.category === 'VEICULO';
+                const hasSuggestion = !!anomaly.suggestedCorrection;
                 
                 return (
                   <TableRow 
@@ -554,10 +882,30 @@ export function HorimeterCorrectionsTab({ data, refetch, loading }: HorimeterCor
                         />
                       ) : (
                         <span className={cn(
-                          anomaly.issueType === 'zero_previous' && "text-yellow-600 font-bold"
+                          anomaly.issueType === 'zero_previous' && "text-yellow-600 font-bold",
+                          anomaly.issueType === 'negative_value' && "text-red-600 font-bold"
                         )}>
                           {formatBrazilianNumber(isVehicle ? anomaly.kmPrevious : anomaly.horimeterPrevious)}
                         </span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right font-mono">
+                      {hasSuggestion ? (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger>
+                              <span className="text-green-600 font-bold flex items-center justify-end gap-1">
+                                <Sparkles className="h-3 w-3" />
+                                {formatBrazilianNumber(anomaly.suggestedCorrection!.previousValue)}
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Baseado no registro de {anomaly.suggestedCorrection!.sourceDate}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      ) : (
+                        <span className="text-muted-foreground">-</span>
                       )}
                     </TableCell>
                     <TableCell className="text-right font-mono">
@@ -578,19 +926,9 @@ export function HorimeterCorrectionsTab({ data, refetch, loading }: HorimeterCor
                     </TableCell>
                     <TableCell className="text-right font-mono">
                       <span className={cn(
-                        anomaly.interval < 0 && "text-red-600 font-bold",
-                        anomaly.deviationPercent > 200 && "text-yellow-600 font-bold"
-                      )}>
-                        {formatBrazilianNumber(anomaly.interval)} {isVehicle ? 'km' : 'h'}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-right font-mono text-muted-foreground">
-                      {formatBrazilianNumber(anomaly.avgInterval)} {isVehicle ? 'km' : 'h'}
-                    </TableCell>
-                    <TableCell className="text-right font-mono">
-                      <span className={cn(
                         anomaly.deviationPercent > 300 && "text-red-600",
-                        anomaly.deviationPercent > 200 && anomaly.deviationPercent <= 300 && "text-yellow-600"
+                        anomaly.deviationPercent > 200 && anomaly.deviationPercent <= 300 && "text-yellow-600",
+                        anomaly.deviationPercent < 0 && "text-red-600"
                       )}>
                         {anomaly.deviationPercent >= 0 ? '+' : ''}{Math.round(anomaly.deviationPercent)}%
                       </span>
@@ -618,14 +956,36 @@ export function HorimeterCorrectionsTab({ data, refetch, loading }: HorimeterCor
                           </Button>
                         </div>
                       ) : (
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-8 w-8"
-                          onClick={() => handleStartEdit(anomaly)}
-                        >
-                          <Edit2 className="h-4 w-4" />
-                        </Button>
+                        <div className="flex gap-1">
+                          {hasSuggestion && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-100"
+                                    onClick={() => handleApplySuggestion(anomaly)}
+                                    disabled={isSaving}
+                                  >
+                                    <Wand2 className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Aplicar correção sugerida</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8"
+                            onClick={() => handleStartEdit(anomaly)}
+                          >
+                            <Edit2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       )}
                     </TableCell>
                   </TableRow>
