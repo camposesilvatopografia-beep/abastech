@@ -375,8 +375,9 @@ export function DashboardContent() {
     { label: 'Estoque Anterior', value: stockData.estoqueAnterior.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) },
     { label: '+ Entradas', value: stockData.entrada.toLocaleString('pt-BR', { minimumFractionDigits: 2 }), isPositive: true },
     { label: '- Saídas Total', value: stockData.totalSaidas.toLocaleString('pt-BR', { minimumFractionDigits: 2 }), isNegative: true },
-    { label: 'Para Comboios', value: stockData.saidaComboios.toLocaleString('pt-BR', { minimumFractionDigits: 2 }), isSubItem: true },
-    { label: 'Para Equipamentos', value: stockData.saidaEquipamentos.toLocaleString('pt-BR', { minimumFractionDigits: 2 }), isSubItem: true },
+    // Only show sub-items if they have values > 0
+    ...(stockData.saidaComboios > 0 ? [{ label: 'Para Comboios', value: stockData.saidaComboios.toLocaleString('pt-BR', { minimumFractionDigits: 2 }), isSubItem: true }] : []),
+    ...(stockData.saidaEquipamentos > 0 ? [{ label: 'Para Equipamentos', value: stockData.saidaEquipamentos.toLocaleString('pt-BR', { minimumFractionDigits: 2 }), isSubItem: true }] : []),
     { label: 'Estoque Atual', value: stockData.estoqueAtual.toLocaleString('pt-BR', { minimumFractionDigits: 2 }), isTotal: true },
   ];
 
