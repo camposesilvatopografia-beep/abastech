@@ -302,6 +302,7 @@ function StockCard({
 }
 
 // Extração de dados para COMBOIOS - Headers: Data, Estoque Anterior, Saida, Entrada, Estoque Atual
+// SEMPRE busca os dados da DATA ATUAL (hoje), não a última linha
 function extractComboioData(sheetData: SheetData, localName: string, sheetName: string): StockCardData {
   const today = format(new Date(), 'dd/MM/yyyy');
   
@@ -317,15 +318,23 @@ function extractComboioData(sheetData: SheetData, localName: string, sheetName: 
     };
   }
 
-  // Pegar a última linha (dados mais recentes)
-  const lastRow = sheetData.rows[sheetData.rows.length - 1];
+  // PRIORITY: Find row for TODAY's date first
+  let targetRow = sheetData.rows.find(row => {
+    const rowDate = String(row['Data'] || row['DATA'] || '').trim();
+    return rowDate === today;
+  });
+  
+  // Fallback: if no data for today, use the last row (most recent)
+  if (!targetRow) {
+    targetRow = sheetData.rows[sheetData.rows.length - 1];
+  }
   
   // Headers confirmados: Data, Estoque Anterior, Saida, Entrada, Estoque Atual
-  const dataRow = String(lastRow['Data'] || today);
-  const estoqueAnterior = parseNumber(lastRow['Estoque Anterior']);
-  const saidas = parseNumber(lastRow['Saida']);
-  const entradas = parseNumber(lastRow['Entrada']);
-  const estoqueAtual = parseNumber(lastRow['Estoque Atual']);
+  const dataRow = String(targetRow['Data'] || today);
+  const estoqueAnterior = parseNumber(targetRow['Estoque Anterior']);
+  const saidas = parseNumber(targetRow['Saida']);
+  const entradas = parseNumber(targetRow['Entrada']);
+  const estoqueAtual = parseNumber(targetRow['Estoque Atual']);
 
   return {
     title: localName,
@@ -339,6 +348,7 @@ function extractComboioData(sheetData: SheetData, localName: string, sheetName: 
 }
 
 // Extração de dados para TANQUES - Headers variam por planilha
+// SEMPRE busca os dados da DATA ATUAL (hoje), não a última linha
 // EstoqueCanteiro01: Estoque Anterior, EstoqueAtual, Saida_para_Comboios, Saida_para_Equipamentos
 // EstoqueCanteiro02: EstoqueAnterior, EstoqueAtual, Saida_Para_Comboio, Saida_Equipamentos
 function extractTanqueData(sheetData: SheetData, localName: string, sheetName: string): StockCardData {
@@ -358,44 +368,53 @@ function extractTanqueData(sheetData: SheetData, localName: string, sheetName: s
     };
   }
 
-  const lastRow = sheetData.rows[sheetData.rows.length - 1];
+  // PRIORITY: Find row for TODAY's date first
+  let targetRow = sheetData.rows.find(row => {
+    const rowDate = String(row['Data'] || row['DATA'] || '').trim();
+    return rowDate === today;
+  });
+  
+  // Fallback: if no data for today, use the last row (most recent)
+  if (!targetRow) {
+    targetRow = sheetData.rows[sheetData.rows.length - 1];
+  }
   
   // Data
-  const dataRow = String(lastRow['Data'] || today);
+  const dataRow = String(targetRow['Data'] || today);
   
   // Estoque Anterior - multiple variations
   const estoqueAnterior = parseNumber(
-    lastRow['Estoque Anterior'] || 
-    lastRow['EstoqueAnterior'] || 
+    targetRow['Estoque Anterior'] || 
+    targetRow['EstoqueAnterior'] || 
     0
   );
   
   // Entradas
-  const entradas = parseNumber(lastRow['Entrada'] || 0);
+  const entradas = parseNumber(targetRow['Entrada'] || 0);
   
   // Saída Total
-  const saidas = parseNumber(lastRow['Saida'] || 0);
+  const saidas = parseNumber(targetRow['Saida'] || 0);
   
   // Saída para Comboios - multiple header variations
   const saidaParaComboios = parseNumber(
-    lastRow['Saida_para_Comboios'] ||
-    lastRow['Saida_Para_Comboio'] ||
-    lastRow['Saida para Comboios'] ||
+    targetRow['Saida_para_Comboios'] ||
+    targetRow['Saida_Para_Comboio'] ||
+    targetRow['Saida para Comboios'] ||
     0
   );
   
   // Saída para Equipamentos - multiple header variations
   const saidaParaEquipamentos = parseNumber(
-    lastRow['Saida_para_Equipamentos'] ||
-    lastRow['Saida_Equipamentos'] ||
-    lastRow['Saida para Equipamentos'] ||
+    targetRow['Saida_para_Equipamentos'] ||
+    targetRow['Saida_Equipamentos'] ||
+    targetRow['Saida para Equipamentos'] ||
     0
   );
   
   // Estoque Atual - multiple variations
   const estoqueAtual = parseNumber(
-    lastRow['EstoqueAtual'] ||
-    lastRow['Estoque Atual'] ||
+    targetRow['EstoqueAtual'] ||
+    targetRow['Estoque Atual'] ||
     0
   );
 
