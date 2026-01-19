@@ -781,28 +781,63 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
           return undefined;
         };
 
-        const parseSheetDateTime = (rawDate: string, rawTime?: string): Date | null => {
-          const dateStr = String(rawDate || '').trim();
-          const timeStr = String(rawTime || '').trim();
-          if (!dateStr) return null;
+        const parseSheetDateTime = (rawDate: any, rawTime?: any): Date | null => {
+          // Google Sheets can return formatted strings ("19/01/2026") OR serial numbers.
+          const dateVal = rawDate;
+          const timeVal = rawTime;
 
-          // Accept DD/MM/YYYY or YYYY-MM-DD (or any Date-parsable string)
+          const toDateFromSerial = (serial: number): Date => {
+            // Google Sheets serial date: days since 1899-12-30
+            const utcMs = (serial - 25569) * 86400 * 1000;
+            return new Date(utcMs);
+          };
+
           let base: Date | null = null;
 
-          if (dateStr.includes('/')) {
-            const [day, month, year] = dateStr.split('/').map((n) => Number(n));
-            if (!day || !month || !year) return null;
-            base = new Date(year, month - 1, day, 12, 0, 0);
+          // 1) Date
+          if (typeof dateVal === 'number' && Number.isFinite(dateVal)) {
+            base = toDateFromSerial(dateVal);
           } else {
-            const parsed = new Date(dateStr);
-            if (Number.isNaN(parsed.getTime())) return null;
-            base = new Date(parsed);
-            base.setHours(12, 0, 0, 0);
+            const dateStr = String(dateVal ?? '').trim();
+            if (!dateStr) return null;
+
+            // numeric string serial?
+            if (/^\d+(\.\d+)?$/.test(dateStr)) {
+              const serial = Number(dateStr);
+              if (Number.isFinite(serial)) base = toDateFromSerial(serial);
+            } else if (dateStr.includes('/')) {
+              const [day, month, year] = dateStr.split('/').map((n) => Number(n));
+              if (!day || !month || !year) return null;
+              base = new Date(year, month - 1, day, 12, 0, 0);
+            } else {
+              const parsed = new Date(dateStr);
+              if (Number.isNaN(parsed.getTime())) return null;
+              base = new Date(parsed);
+            }
           }
 
-          if (timeStr) {
-            const [h, m] = timeStr.split(':').map((n) => Number(n));
-            base.setHours(h || 0, m || 0, 0, 0);
+          if (!base || Number.isNaN(base.getTime())) return null;
+
+          // normalize base to local midday to avoid TZ edge cases
+          base.setHours(12, 0, 0, 0);
+
+          // 2) Time
+          if (typeof timeVal === 'number' && Number.isFinite(timeVal)) {
+            // time as fraction of day (0..1)
+            if (timeVal >= 0 && timeVal < 1) {
+              const totalMinutes = Math.round(timeVal * 24 * 60);
+              const h = Math.floor(totalMinutes / 60);
+              const m = totalMinutes % 60;
+              base.setHours(h, m, 0, 0);
+            }
+          } else {
+            const timeStr = String(timeVal ?? '').trim();
+            if (timeStr) {
+              const parts = timeStr.split(':');
+              const h = Number(parts[0]);
+              const m = Number(parts[1] ?? 0);
+              if (!Number.isNaN(h)) base.setHours(h || 0, m || 0, 0, 0);
+            }
           }
 
           return Number.isNaN(base.getTime()) ? null : base;
