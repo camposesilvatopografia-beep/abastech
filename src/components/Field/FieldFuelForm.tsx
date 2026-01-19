@@ -178,7 +178,7 @@ function useVoiceRecognition() {
 
 export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
   const { data: vehiclesData } = useSheetData('Veiculo');
-  const { data: abastecimentoData } = useSheetData('AbastecimentoCanteiro01');
+  const { data: abastecimentoData, refetch: refetchAbastecimento, loading: isLoadingSheetData } = useSheetData('AbastecimentoCanteiro01');
   const { settings } = useFieldSettings();
   const offlineStorage = useOfflineStorage(user.id);
   
@@ -191,6 +191,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
   const [pendingCount, setPendingCount] = useState(0);
   const [isSyncing, setIsSyncing] = useState(false);
   const [savedOffline, setSavedOffline] = useState(false);
+  const [isRefreshingHorimeter, setIsRefreshingHorimeter] = useState(false);
   
   // Photo state
   const [photoPump, setPhotoPump] = useState<File | null>(null);
@@ -833,6 +834,33 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
     } catch (err) {
       console.error('Error fetching previous horimeter:', err);
       toast.error('Erro ao buscar horímetro anterior');
+    }
+  };
+
+  // Force refresh sheet data and then fetch previous horimeter
+  const handleForceRefreshHorimeter = async () => {
+    if (!vehicleCode) {
+      toast.error('Selecione um veículo primeiro');
+      return;
+    }
+    
+    setIsRefreshingHorimeter(true);
+    try {
+      // Force refresh from Google Sheets
+      await refetchAbastecimento(true); // true = noCache
+      
+      // Small delay to allow state to update
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      // Re-fetch horimeter with fresh data
+      await fetchPreviousHorimeter(vehicleCode);
+      
+      toast.success('Dados atualizados com sucesso!');
+    } catch (err) {
+      console.error('Error refreshing horimeter data:', err);
+      toast.error('Erro ao atualizar dados');
+    } finally {
+      setIsRefreshingHorimeter(false);
     }
   };
 
@@ -2331,14 +2359,35 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                 </div>
               )}
           
-              {/* Previous horimeter/km display - hide for comboio tank refuel */}
-              {horimeterPrevious && quickEntryMode !== 'comboio_tank_refuel' && (
+              {/* Previous horimeter/km display with refresh button - hide for comboio tank refuel */}
+              {vehicleCode && quickEntryMode !== 'comboio_tank_refuel' && (
                 <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700/50 p-3 rounded-lg">
-                  <div className="flex items-center gap-2 text-blue-700 dark:text-blue-300">
-                    <Clock className="w-4 h-4" />
-                    <span className="text-sm font-medium">
-                      Último registro{horimeterPreviousDate && <span className="text-blue-500 dark:text-blue-400"> ({horimeterPreviousDate})</span>}: <span className="font-bold text-blue-600 dark:text-blue-200">{horimeterPrevious}</span>
-                    </span>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-blue-700 dark:text-blue-300">
+                      <Clock className="w-4 h-4" />
+                      {horimeterPrevious ? (
+                        <span className="text-sm font-medium">
+                          Último registro{horimeterPreviousDate && <span className="text-blue-500 dark:text-blue-400"> ({horimeterPreviousDate})</span>}: <span className="font-bold text-blue-600 dark:text-blue-200">{horimeterPrevious}</span>
+                        </span>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">Sem registro anterior encontrado</span>
+                      )}
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 px-2 text-blue-600 hover:text-blue-800 hover:bg-blue-100 dark:text-blue-400 dark:hover:bg-blue-900/50"
+                      onClick={handleForceRefreshHorimeter}
+                      disabled={isRefreshingHorimeter || isLoadingSheetData}
+                      title="Atualizar dados da planilha"
+                    >
+                      {isRefreshingHorimeter ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <RefreshCw className="w-4 h-4" />
+                      )}
+                    </Button>
                   </div>
                 </div>
               )}
