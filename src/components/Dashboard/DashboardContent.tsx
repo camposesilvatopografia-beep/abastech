@@ -1,5 +1,6 @@
 import { useMemo, useState, useCallback, useEffect } from 'react';
 import { Droplet, TrendingDown, TrendingUp, Package, Truck, ArrowDownCircle, ArrowUpCircle, Clock, Fuel, Calendar, MessageCircle, Wifi, RefreshCw, X, Search, Settings } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { MetricCard } from './MetricCard';
 import { StockSummary } from './StockSummary';
 import { ConsumptionRanking } from './ConsumptionRanking';
@@ -49,8 +50,8 @@ function parseBrazilianDate(dateStr: string): Date | null {
 }
 
 export function DashboardContent() {
-  // Enable polling every 30 seconds for real-time updates
-  const POLLING_INTERVAL = 30000;
+  // Enable polling every 15 seconds for faster real-time updates
+  const POLLING_INTERVAL = 15000;
   
   const { data: geralData, loading, refetch: refetchGeral } = useSheetData(GERAL_SHEET, { pollingInterval: POLLING_INTERVAL });
   const { data: abastecimentoData, refetch: refetchAbastecimento } = useSheetData(ABASTECIMENTO_SHEET, { pollingInterval: POLLING_INTERVAL });
@@ -440,6 +441,20 @@ _Sistema Abastech_`;
                   </Button>
                 )}
               </div>
+
+              {/* Manual Refresh Button */}
+              <Button 
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  handleRealtimeRefresh();
+                  sonnerToast.success('Dados atualizados!', { duration: 2000 });
+                }}
+                className="gap-2 h-10"
+              >
+                <RefreshCw className={cn("w-4 h-4", loading && "animate-spin")} />
+                <span className="hidden sm:inline">Atualizar</span>
+              </Button>
 
               {/* Sync Indicator */}
               <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted/50 border border-border">
