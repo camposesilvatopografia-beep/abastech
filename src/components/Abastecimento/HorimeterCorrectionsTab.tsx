@@ -569,7 +569,7 @@ export function HorimeterCorrectionsTab({ data, refetch, loading }: HorimeterCor
     }
   }, [anomalies, findCorrectPreviousValue]);
 
-  // Apply a single auto-fix
+  // Apply a single auto-fix (updates both Google Sheets and Supabase database)
   const applySingleAutoFix = async (anomaly: AnomalyRecord): Promise<boolean> => {
     if (!anomaly.suggestedCorrection) return false;
     
@@ -580,15 +580,14 @@ export function HorimeterCorrectionsTab({ data, refetch, loading }: HorimeterCor
       
       const { fieldToFix, previousValue, currentValue } = anomaly.suggestedCorrection;
       
+      // Prepare the update for Google Sheets
       if (fieldToFix === 'current') {
-        // Correcting the CURRENT value
         if (isVehicle) {
           rowData['KM ATUAL'] = formatBrazilianNumber(currentValue!);
         } else {
           rowData['HORIMETRO ATUAL'] = formatBrazilianNumber(currentValue!);
         }
       } else {
-        // Correcting the PREVIOUS value
         if (isVehicle) {
           rowData['KM ANTERIOR'] = formatBrazilianNumber(previousValue!);
         } else {
@@ -596,7 +595,8 @@ export function HorimeterCorrectionsTab({ data, refetch, loading }: HorimeterCor
         }
       }
       
-      const { error } = await supabase.functions.invoke('google-sheets', {
+      // Update Google Sheets
+      const { error: sheetError } = await supabase.functions.invoke('google-sheets', {
         body: {
           action: 'update',
           sheetName: 'AbastecimentoCanteiro01',
@@ -605,7 +605,52 @@ export function HorimeterCorrectionsTab({ data, refetch, loading }: HorimeterCor
         },
       });
       
-      if (error) throw error;
+      if (sheetError) {
+        console.error('Error updating Google Sheets:', sheetError);
+      }
+      
+      // Also update the Supabase database (field_fuel_records)
+      // Find matching record by vehicle_code, date and time
+      const dateFormatted = anomaly.date; // Already in DD/MM/YYYY format
+      const dateParts = dateFormatted.split('/');
+      const isoDate = dateParts.length === 3 
+        ? `${dateParts[2]}-${dateParts[1].padStart(2, '0')}-${dateParts[0].padStart(2, '0')}`
+        : null;
+      
+      if (isoDate) {
+        // Build the update object for the database
+        const dbUpdate: Record<string, number | null> = {};
+        
+        if (fieldToFix === 'current') {
+          if (isVehicle) {
+            dbUpdate.km_current = currentValue!;
+          } else {
+            dbUpdate.horimeter_current = currentValue!;
+          }
+        } else {
+          if (isVehicle) {
+            dbUpdate.km_previous = previousValue!;
+          } else {
+            dbUpdate.horimeter_previous = previousValue!;
+          }
+        }
+        
+        // Try to find and update the matching record
+        const { error: dbError } = await supabase
+          .from('field_fuel_records')
+          .update(dbUpdate)
+          .eq('vehicle_code', anomaly.vehicleCode)
+          .eq('record_date', isoDate)
+          .eq('record_time', anomaly.time);
+        
+        if (dbError) {
+          console.error('Error updating database:', dbError);
+          // Don't fail completely if DB update fails, sheet was already updated
+        } else {
+          console.log('Database updated successfully for', anomaly.vehicleCode, isoDate);
+        }
+      }
+      
       return true;
     } catch (err) {
       console.error('Error applying fix:', err);
