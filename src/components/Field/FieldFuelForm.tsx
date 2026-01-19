@@ -229,6 +229,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
   const [operatorName, setOperatorName] = useState('');
   const [workSite, setWorkSite] = useState('');
   const [horimeterPrevious, setHorimeterPrevious] = useState('');
+  const [horimeterPreviousDate, setHorimeterPreviousDate] = useState('');
   const [horimeterCurrent, setHorimeterCurrent] = useState('');
   const [kmPrevious, setKmPrevious] = useState('');
   const [kmCurrent, setKmCurrent] = useState('');
@@ -756,6 +757,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         if (vehicleRecords.length > 0) {
           bestValue = vehicleRecords[0].horValue;
           bestKmValue = vehicleRecords[0].kmValue;
+          bestDate = vehicleRecords[0].date;
           bestSource = 'planilha';
         }
       }
@@ -764,9 +766,18 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
       const valueToShow = bestValue > 0 ? bestValue : bestKmValue;
       if (valueToShow > 0) {
         setHorimeterPrevious(formatBrazilianNumber(valueToShow));
-        toast.info(`Último registro (${bestSource}): ${formatBrazilianNumber(valueToShow)}`);
+        // Format date as DD/MM/YYYY
+        if (bestDate) {
+          const formattedDate = bestDate.toLocaleDateString('pt-BR');
+          setHorimeterPreviousDate(formattedDate);
+          toast.info(`Último registro em ${formattedDate}: ${formatBrazilianNumber(valueToShow)}`);
+        } else {
+          setHorimeterPreviousDate('');
+          toast.info(`Último registro (${bestSource}): ${formatBrazilianNumber(valueToShow)}`);
+        }
       } else {
         setHorimeterPrevious('');
+        setHorimeterPreviousDate('');
       }
     } catch (err) {
       console.error('Error fetching previous horimeter:', err);
@@ -2275,7 +2286,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                   <div className="flex items-center gap-2 text-blue-700 dark:text-blue-300">
                     <Clock className="w-4 h-4" />
                     <span className="text-sm font-medium">
-                      Último registro: <span className="font-bold text-blue-600 dark:text-blue-200">{horimeterPrevious}</span>
+                      Último registro{horimeterPreviousDate && <span className="text-blue-500 dark:text-blue-400"> ({horimeterPreviousDate})</span>}: <span className="font-bold text-blue-600 dark:text-blue-200">{horimeterPrevious}</span>
                     </span>
                   </div>
                 </div>
