@@ -122,7 +122,7 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
 
   // History of last 5 refuelings from sheet
   const [lastHorimeterHistory, setLastHorimeterHistory] = useState<
-    { dateTime: string; horimeterAtual: string }[]
+    { dateTime: string; horimeterAtual: string; isKm?: boolean }[]
   >([]);
 
   // Location options
@@ -297,19 +297,22 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
     setVehicleCode(code);
     const vehicle = vehiclesData.rows.find(v => String(v['Codigo']) === code);
     if (vehicle) {
+      const cat = String(vehicle['Categoria'] || '');
       setVehicleDescription(String(vehicle['Descricao'] || ''));
-      setCategory(String(vehicle['Categoria'] || ''));
+      setCategory(cat);
       setCompany(String(vehicle['Empresa'] || ''));
       setOperatorName(String(vehicle['Motorista'] || ''));
       setWorkSite(String(vehicle['Obra'] || ''));
       
-      // Fetch previous horimeter/km
-      await fetchPreviousValues(code);
+      // Fetch previous horimeter/km - pass category to prioritize correctly
+      await fetchPreviousValues(code, cat);
     }
   };
 
   // Fetch previous horimeter/km from records - get the MOST RECENT from AbastecimentoCanteiro01 (sheet as source of truth)
-  const fetchPreviousValues = async (vehicleCodeParam: string) => {
+  // vehicleCategory: 'VEICULO' -> prioritize km, 'EQUIPAMENTO' -> prioritize horimeter
+  const fetchPreviousValues = async (vehicleCodeParam: string, vehicleCategory?: string) => {
+    const isVehicle = (vehicleCategory || '').toUpperCase() === 'VEICULO';
     try {
       // Always fetch directly from Google Sheet (no cache)
       const sheetData = await getSheetData('AbastecimentoCanteiro01', { noCache: true });
@@ -421,6 +424,7 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
         });
 
       // Histórico (5 últimos) - sempre da planilha
+      // Show horimeter for EQUIPAMENTO, km for VEICULO
       const historyTop5 = vehicleRecords.slice(0, 5).map((r) => {
         const formatted = r.dateTime!.toLocaleString('pt-BR', {
           day: '2-digit',
@@ -429,20 +433,35 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
           hour: '2-digit',
           minute: '2-digit',
         });
+        // Select value based on category: VEICULO -> km, EQUIPAMENTO -> horimeter
+        const displayValue = isVehicle ? r.kmValue : r.horValue;
         return {
           dateTime: formatted,
-          horimeterAtual: formatBrazilianNumber(r.horValue),
+          horimeterAtual: formatBrazilianNumber(displayValue),
+          isKm: isVehicle,
         };
       });
       setLastHorimeterHistory(historyTop5);
 
       if (vehicleRecords.length > 0) {
         const mostRecent = vehicleRecords[0];
-        if (mostRecent.horValue > 0) {
-          setHorimeterPrevious(formatBrazilianNumber(mostRecent.horValue));
-        }
-        if (mostRecent.kmValue > 0) {
-          setKmPrevious(formatBrazilianNumber(mostRecent.kmValue));
+        // Prioritize based on category
+        if (isVehicle) {
+          // VEICULO: prioritize km, fallback to horimeter
+          if (mostRecent.kmValue > 0) {
+            setKmPrevious(formatBrazilianNumber(mostRecent.kmValue));
+          }
+          if (mostRecent.horValue > 0) {
+            setHorimeterPrevious(formatBrazilianNumber(mostRecent.horValue));
+          }
+        } else {
+          // EQUIPAMENTO: prioritize horimeter, fallback to km
+          if (mostRecent.horValue > 0) {
+            setHorimeterPrevious(formatBrazilianNumber(mostRecent.horValue));
+          }
+          if (mostRecent.kmValue > 0) {
+            setKmPrevious(formatBrazilianNumber(mostRecent.kmValue));
+          }
         }
       } else {
         setLastHorimeterHistory([]);
@@ -948,7 +967,9 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
                   <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700/50 p-3 rounded-lg space-y-2">
                     <div className="flex items-center gap-2 text-blue-700 dark:text-blue-300">
                       <Clock className="w-4 h-4" />
-                      <span className="text-sm font-semibold">Últimos 5 Abastecimentos (AbastecimentoCanteiro01)</span>
+                      <span className="text-sm font-semibold">
+                        Últimos 5 Abastecimentos ({lastHorimeterHistory[0]?.isKm ? 'KM' : 'Horímetro'})
+                      </span>
                     </div>
                     <div className="space-y-1">
                       {lastHorimeterHistory.map((h, idx) => (
@@ -960,12 +981,14 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
                           )}
                         >
                           <span className="text-muted-foreground">{h.dateTime}</span>
-                          <span className="font-semibold text-blue-700 dark:text-blue-200">{h.horimeterAtual}</span>
+                          <span className="font-semibold text-blue-700 dark:text-blue-200">
+                            {h.horimeterAtual}{h.isKm ? ' km' : 'h'}
+                          </span>
                         </div>
                       ))}
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      O primeiro registro (mais recente) será usado como Horímetro Anterior
+                      O primeiro registro (mais recente) será usado como {category.toUpperCase() === 'VEICULO' ? 'KM' : 'Horímetro'} Anterior
                     </p>
                   </div>
                 )}

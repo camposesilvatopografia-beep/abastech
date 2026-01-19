@@ -233,7 +233,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
   const [horimeterPrevious, setHorimeterPrevious] = useState('');
   const [horimeterPreviousDate, setHorimeterPreviousDate] = useState('');
   const [lastHorimeterHistory, setLastHorimeterHistory] = useState<
-    { dateTime: string; horimeterAtual: string }[]
+    { dateTime: string; horimeterAtual: string; isKm?: boolean }[]
   >([]);
   const [lastFuelRecords, setLastFuelRecords] = useState<{
     record_date: string;
@@ -636,8 +636,9 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
     const vehicle = vehiclesData.rows.find(v => String(v['Codigo']) === code);
     if (vehicle) {
       const desc = String(vehicle['Descricao'] || '');
+      const cat = String(vehicle['Categoria'] || '');
       setVehicleDescription(desc);
-      setCategory(String(vehicle['Categoria'] || ''));
+      setCategory(cat);
       setCompany(String(vehicle['Empresa'] || ''));
       setOperatorName(String(vehicle['Motorista'] || ''));
       setWorkSite(String(vehicle['Obra'] || ''));
@@ -653,7 +654,8 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
       }
       
       // Sempre buscar o último abastecimento diretamente da planilha (sem cache)
-      await fetchPreviousHorimeter(code, { forceSheetNoCache: true });
+      // Pass category to determine whether to prioritize horimeter or km
+      await fetchPreviousHorimeter(code, { forceSheetNoCache: true, vehicleCategory: cat });
     }
   };
   
@@ -681,13 +683,15 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
   };
 
   // Fetch previous horimeter/km from records
+  // vehicleCategory: 'EQUIPAMENTO' -> prioritize horimeter, 'VEICULO' -> prioritize km
   const fetchPreviousHorimeter = async (
     vehicleCode: string,
-    options?: { forceSheetNoCache?: boolean }
+    options?: { forceSheetNoCache?: boolean; vehicleCategory?: string }
   ) => {
     try {
-      let bestValue = 0;
-      let bestKmValue = 0;
+      const isVehicle = (options?.vehicleCategory || '').toUpperCase() === 'VEICULO';
+      let bestValue = 0; // horimeter
+      let bestKmValue = 0; // km
       let bestSource = '';
       let bestDateTime: Date | null = null;
       // Helper to combine date and time into a single Date object for comparison
@@ -902,6 +906,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
           });
 
         // Histórico (5 últimos) - sempre da planilha
+        // Show horimeter for EQUIPAMENTO, km for VEICULO
         const historyTop5 = vehicleRecords.slice(0, 5).map((r) => {
           const formatted = r.dateTime!.toLocaleString('pt-BR', {
             day: '2-digit',
@@ -910,9 +915,12 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
             hour: '2-digit',
             minute: '2-digit',
           });
+          // Select value based on category: VEICULO -> km, EQUIPAMENTO -> horimeter
+          const displayValue = isVehicle ? r.kmValue : r.horValue;
           return {
             dateTime: formatted,
-            horimeterAtual: formatBrazilianNumber(r.horValue),
+            horimeterAtual: formatBrazilianNumber(displayValue),
+            isKm: isVehicle,
           };
         });
         setLastHorimeterHistory(historyTop5);
@@ -932,8 +940,13 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         }
       }
 
-      // Set the best value found - prioritize horimeter, fallback to km
-      const valueToShow = bestValue > 0 ? bestValue : bestKmValue;
+      // Set the best value found based on category
+      // VEICULO -> prioritize km, EQUIPAMENTO -> prioritize horimeter
+      const valueToShow = isVehicle
+        ? (bestKmValue > 0 ? bestKmValue : bestValue)
+        : (bestValue > 0 ? bestValue : bestKmValue);
+      const unitLabel = isVehicle ? 'km' : 'h';
+      
       if (valueToShow > 0) {
         setHorimeterPrevious(formatBrazilianNumber(valueToShow));
         if (bestDateTime) {
@@ -945,10 +958,10 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
             minute: '2-digit',
           });
           setHorimeterPreviousDate(formattedDateTime);
-          toast.info(`Último abastecimento em ${formattedDateTime}: ${formatBrazilianNumber(valueToShow)}`);
+          toast.info(`Último abastecimento em ${formattedDateTime}: ${formatBrazilianNumber(valueToShow)}${unitLabel}`);
         } else {
           setHorimeterPreviousDate('');
-          toast.info(`Último registro (${bestSource}): ${formatBrazilianNumber(valueToShow)}`);
+          toast.info(`Último registro (${bestSource}): ${formatBrazilianNumber(valueToShow)}${unitLabel}`);
         }
       } else {
         setHorimeterPrevious('');
@@ -2542,13 +2555,15 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                       {lastHorimeterHistory.length > 0 && (
                         <div className="bg-white/30 dark:bg-blue-950/30 rounded p-2 border border-blue-100/60 dark:border-blue-800/60">
                           <div className="text-xs font-semibold text-blue-700 dark:text-blue-300 mb-1">
-                            Histórico (5 últimos horímetros)
+                            Histórico (5 últimos {lastHorimeterHistory[0]?.isKm ? 'km' : 'horímetros'})
                           </div>
                           <div className="space-y-1">
                             {lastHorimeterHistory.map((h, idx) => (
                               <div key={`${h.dateTime}-${idx}`} className="flex items-center justify-between text-xs">
                                 <span className="text-muted-foreground">{h.dateTime}</span>
-                                <span className="font-semibold text-blue-700 dark:text-blue-200">{h.horimeterAtual}</span>
+                                <span className="font-semibold text-blue-700 dark:text-blue-200">
+                                  {h.horimeterAtual}{h.isKm ? ' km' : 'h'}
+                                </span>
                               </div>
                             ))}
                           </div>
