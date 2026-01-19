@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { User, Lock, LogIn, Mic, Eye, EyeOff, Loader2, CheckCircle2, Sparkles } from 'lucide-react';
+import { User, Lock, LogIn, Mic, Eye, EyeOff, Loader2, CheckCircle2, Sparkles, Monitor } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -215,8 +215,25 @@ export function FieldLoginPage({ onLogin }: FieldLoginPageProps) {
             </Button>
           </form>
 
+          {/* Admin System Access */}
+          <div className="pt-4 border-t border-white/10">
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-full h-10 text-slate-400 hover:text-white hover:bg-white/5 text-sm"
+              onClick={() => {
+                // Set flag to bypass mobile redirect
+                sessionStorage.setItem('admin_access_requested', 'true');
+                window.location.href = '/login';
+              }}
+            >
+              <Monitor className="w-4 h-4 mr-2" />
+              Acessar Sistema Administrativo
+            </Button>
+          </div>
+
           {/* Voice hint */}
-          <div className="pt-4 border-t border-white/10 text-center">
+          <div className="pt-2 text-center">
             <div className="flex items-center justify-center gap-2 text-slate-500 text-sm">
               <Mic className="w-4 h-4" />
               <span>Comando de voz disponível após login</span>
