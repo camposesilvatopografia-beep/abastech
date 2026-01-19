@@ -977,12 +977,12 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
               <p className="text-xs mt-1">Clique em "Novo Apontamento" para começar</p>
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-3">
               {todayRecords.map((record) => (
                 <div 
                   key={record.id} 
                   className={cn(
-                    "flex items-center justify-between p-3 rounded-lg border transition-all",
+                    "p-3 rounded-lg border transition-all",
                     record.record_type === 'entrada' 
                       ? theme === 'dark' 
                         ? "bg-green-900/30 border-green-700/50"
@@ -992,19 +992,20 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
                         : "bg-red-50 border-red-200"
                   )}
                 >
-                  <div className="flex items-center gap-2 flex-1">
-                    {record.record_type === 'entrada' ? (
-                      <TrendingUp className="w-4 h-4 text-green-500" />
-                    ) : (
-                      <TrendingDown className="w-4 h-4 text-red-500" />
-                    )}
-                    <div>
+                  {/* Header Row: Vehicle, Quantity, Actions */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 flex-1">
+                      {record.record_type === 'entrada' ? (
+                        <TrendingUp className="w-4 h-4 text-green-500 flex-shrink-0" />
+                      ) : (
+                        <TrendingDown className="w-4 h-4 text-red-500 flex-shrink-0" />
+                      )}
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <p className={cn(
-                          "text-sm font-medium",
+                          "text-sm font-bold",
                           theme === 'dark' ? "text-slate-200" : "text-slate-700"
                         )}>{record.vehicle_code}</p>
-                        {/* Badge for Comboio vehicles - show if tank refuel or own refuel */}
+                        {/* Badge for Comboio vehicles */}
                         {record.vehicle_code.toUpperCase().startsWith('CC') && record.record_type !== 'entrada' && (
                           record.observations?.includes('[ABAST. TANQUE COMBOIO]') ? (
                             <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 bg-orange-500/20 text-orange-500 border-orange-500/50">
@@ -1019,64 +1020,118 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
                           )
                         )}
                       </div>
-                      <p className={cn(
-                        "text-xs",
-                        theme === 'dark' ? "text-slate-400" : "text-slate-500"
-                      )}>
-                        {formatTime(record.record_time)} • {record.location}
-                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="text-right">
+                        <p className={cn(
+                          "text-sm font-bold",
+                          record.record_type === 'entrada' ? "text-green-500" : "text-red-500"
+                        )}>
+                          {record.record_type === 'entrada' ? '+' : '-'}{record.fuel_quantity}L
+                        </p>
+                      </div>
+                      <div className="flex gap-1">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className={cn(
+                            "h-7 w-7",
+                            theme === 'dark' 
+                              ? "text-slate-400 hover:text-blue-400 hover:bg-blue-900/30"
+                              : "text-slate-500 hover:text-blue-500 hover:bg-blue-50"
+                          )}
+                          onClick={() => setEditRecord(record)}
+                          title="Solicitar edição"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className={cn(
+                            "h-7 w-7",
+                            theme === 'dark' 
+                              ? "text-slate-400 hover:text-red-400 hover:bg-red-900/30"
+                              : "text-slate-500 hover:text-red-500 hover:bg-red-50"
+                          )}
+                          onClick={() => setDeleteConfirmation({
+                            recordId: record.id,
+                            vehicleCode: record.vehicle_code,
+                            quantity: record.fuel_quantity,
+                            reason: '',
+                          })}
+                          title="Excluir registro"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
                     </div>
                   </div>
-                  <div className="text-right mr-3">
-                    <p className={cn(
-                      "text-sm font-bold",
-                      record.record_type === 'entrada' ? "text-green-500" : "text-red-500"
-                    )}>
-                      {record.record_type === 'entrada' ? '+' : '-'}{record.fuel_quantity}L
-                    </p>
-                    {record.arla_quantity && record.arla_quantity > 0 && (
-                      <p className={cn(
-                        "text-xs",
-                        theme === 'dark' ? "text-slate-400" : "text-slate-500"
-                      )}>ARLA: {record.arla_quantity}L</p>
+
+                  {/* Detail Rows */}
+                  <div className={cn(
+                    "mt-2 pt-2 border-t grid grid-cols-2 gap-x-4 gap-y-1 text-xs",
+                    theme === 'dark' ? "border-slate-600/50" : "border-slate-300/50"
+                  )}>
+                    {/* Time & Location */}
+                    <div className="flex items-center gap-1">
+                      <Clock className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+                      <span className="text-muted-foreground">{formatTime(record.record_time)}</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <MapPin className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+                      <span className="text-muted-foreground truncate">{record.location || '-'}</span>
+                    </div>
+
+                    {/* Horimeter / KM */}
+                    {(record.horimeter_current || record.km_current) && (
+                      <>
+                        {record.horimeter_current ? (
+                          <div className="flex items-center gap-1">
+                            <span className="text-amber-600 dark:text-amber-400 font-medium">Hor:</span>
+                            <span className={theme === 'dark' ? "text-slate-300" : "text-slate-600"}>
+                              {record.horimeter_current.toLocaleString('pt-BR')}h
+                            </span>
+                          </div>
+                        ) : <div />}
+                        {record.km_current ? (
+                          <div className="flex items-center gap-1">
+                            <span className="text-blue-600 dark:text-blue-400 font-medium">Km:</span>
+                            <span className={theme === 'dark' ? "text-slate-300" : "text-slate-600"}>
+                              {record.km_current.toLocaleString('pt-BR')}
+                            </span>
+                          </div>
+                        ) : <div />}
+                      </>
                     )}
-                  </div>
-                  <div className="flex gap-1">
-                    {/* Edit button - requires admin approval */}
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className={cn(
-                        "h-8 w-8",
-                        theme === 'dark' 
-                          ? "text-slate-400 hover:text-blue-400 hover:bg-blue-900/30"
-                          : "text-slate-500 hover:text-blue-500 hover:bg-blue-50"
-                      )}
-                      onClick={() => setEditRecord(record)}
-                      title="Solicitar edição"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </Button>
-                    {/* Delete button - direct deletion */}
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className={cn(
-                        "h-8 w-8",
-                        theme === 'dark' 
-                          ? "text-slate-400 hover:text-red-400 hover:bg-red-900/30"
-                          : "text-slate-500 hover:text-red-500 hover:bg-red-50"
-                      )}
-                      onClick={() => setDeleteConfirmation({
-                        recordId: record.id,
-                        vehicleCode: record.vehicle_code,
-                        quantity: record.fuel_quantity,
-                        reason: '',
-                      })}
-                      title="Excluir registro"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
+
+                    {/* Operator */}
+                    {record.operator_name && (
+                      <div className="flex items-center gap-1 col-span-2">
+                        <span className="text-muted-foreground">Operador:</span>
+                        <span className={cn(
+                          "font-medium truncate",
+                          theme === 'dark' ? "text-slate-300" : "text-slate-600"
+                        )}>{record.operator_name}</span>
+                      </div>
+                    )}
+
+                    {/* ARLA */}
+                    {record.arla_quantity && record.arla_quantity > 0 && (
+                      <div className="flex items-center gap-1">
+                        <Package className="w-3 h-3 text-cyan-500 flex-shrink-0" />
+                        <span className="text-cyan-600 dark:text-cyan-400 font-medium">ARLA: {record.arla_quantity}L</span>
+                      </div>
+                    )}
+
+                    {/* Observations (excluding internal tags) */}
+                    {record.observations && !record.observations.startsWith('[ABAST.') && (
+                      <div className="col-span-2 mt-1">
+                        <span className="text-muted-foreground italic truncate block">
+                          "{record.observations}"
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
