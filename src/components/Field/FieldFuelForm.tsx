@@ -694,23 +694,22 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         return date;
       };
       
-      // 1. Try from field_fuel_records (most recent refueling record by date+time)
-      // Don't filter by record_type to catch all records including 'Saida', 'saida', etc.
+      // 1. Try from field_fuel_records (most recent refueling record)
+      // Prefer created_at because record_date/record_time are strings and may sort incorrectly.
       const { data: fuelRecords } = await supabase
         .from('field_fuel_records')
-        .select('horimeter_current, km_current, record_date, record_time')
+        .select('horimeter_current, km_current, record_date, record_time, created_at')
         .eq('vehicle_code', vehicleCode)
         .or('horimeter_current.gt.0,km_current.gt.0')
-        .order('record_date', { ascending: false })
-        .order('record_time', { ascending: false })
+        .order('created_at', { ascending: false })
         .limit(1);
 
       if (fuelRecords && fuelRecords.length > 0) {
         const record = fuelRecords[0];
         const horValue = Number(record.horimeter_current) || 0;
         const kmValue = Number(record.km_current) || 0;
-        const recordDateTime = combineDateAndTime(record.record_date, record.record_time);
-        
+        const recordDateTime = record.created_at ? new Date(record.created_at) : combineDateAndTime(record.record_date, record.record_time);
+
         if (horValue > 0 || kmValue > 0) {
           bestValue = horValue;
           bestKmValue = kmValue;
@@ -756,43 +755,86 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
       // 3. ALWAYS check Google Sheets data and compare with database records
       // The sheet might have more recent data that hasn't been synced to the database
       if (abastecimentoData.rows.length > 0) {
+        const normalizeKey = (k: string) =>
+          k
+            .trim()
+            .toUpperCase()
+            .normalize('NFD')
+            .replace(/\p{Diacritic}/gu, '')
+            .replace(/\s+/g, ' ');
+
+        const getByNormalizedKey = (row: Record<string, any>, wanted: string[]) => {
+          const wantedSet = new Set(wanted.map(normalizeKey));
+          for (const [k, v] of Object.entries(row)) {
+            if (wantedSet.has(normalizeKey(k))) return v;
+          }
+          return undefined;
+        };
+
+        const parseSheetDateTime = (rawDate: string, rawTime?: string): Date | null => {
+          const dateStr = String(rawDate || '').trim();
+          const timeStr = String(rawTime || '').trim();
+          if (!dateStr) return null;
+
+          // Accept DD/MM/YYYY or YYYY-MM-DD (or any Date-parsable string)
+          let base: Date | null = null;
+
+          if (dateStr.includes('/')) {
+            const [day, month, year] = dateStr.split('/').map((n) => Number(n));
+            if (!day || !month || !year) return null;
+            base = new Date(year, month - 1, day, 12, 0, 0);
+          } else {
+            const parsed = new Date(dateStr);
+            if (Number.isNaN(parsed.getTime())) return null;
+            base = new Date(parsed);
+            base.setHours(12, 0, 0, 0);
+          }
+
+          if (timeStr) {
+            const [h, m] = timeStr.split(':').map((n) => Number(n));
+            base.setHours(h || 0, m || 0, 0, 0);
+          }
+
+          return Number.isNaN(base.getTime()) ? null : base;
+        };
+
         const vehicleRecords = abastecimentoData.rows
-          .filter(row => {
-            const rowVehicle = String(row['VEICULO'] || row['Veiculo'] || '').trim();
+          .filter((row) => {
+            const rowVehicleRaw = getByNormalizedKey(row as any, [
+              'VEICULO',
+              'VEÍCULO',
+              'CODIGO',
+              'CÓDIGO',
+              'COD',
+            ]);
+            const rowVehicle = String(rowVehicleRaw || '').trim();
             return rowVehicle === vehicleCode;
           })
-          .map(row => {
-            // Parse date in DD/MM/YYYY format
-            const dateStr = String(row['DATA'] || '');
-            const timeStr = String(row['HORA'] || '');
-            const [day, month, year] = dateStr.split('/').map(Number);
-            
-            // Create date and add time if available
-            let dateTime = new Date(year, month - 1, day, 12, 0, 0);
-            if (timeStr) {
-              const [hours, minutes] = timeStr.split(':').map(Number);
-              dateTime.setHours(hours || 0, minutes || 0, 0, 0);
-            }
-            
-            // Parse horimeter - handle Brazilian number format (5.941,90)
-            const horAtualStr = String(row['HORIMETRO ATUAL'] || row['HOR_ATUAL'] || row['HORIMETRO'] || '0');
+          .map((row) => {
+            const dateRaw = getByNormalizedKey(row as any, ['DATA', 'DATE']);
+            const timeRaw = getByNormalizedKey(row as any, ['HORA', 'TIME']);
+            const dateTime = parseSheetDateTime(String(dateRaw || ''), String(timeRaw || ''));
+
+            const horAtualStr = String(
+              getByNormalizedKey(row as any, ['HORIMETRO ATUAL', 'HOR_ATUAL', 'HORIMETRO']) || '0'
+            );
             const horAtual = parseFloat(horAtualStr.replace(/\./g, '').replace(',', '.')) || 0;
-            
-            const kmAtualStr = String(row['KM ATUAL'] || row['KM_ATUAL'] || row['KM'] || '0');
+
+            const kmAtualStr = String(getByNormalizedKey(row as any, ['KM ATUAL', 'KM_ATUAL', 'KM']) || '0');
             const kmAtual = parseFloat(kmAtualStr.replace(/\./g, '').replace(',', '.')) || 0;
-            
+
             return { dateTime, horValue: horAtual, kmValue: kmAtual };
           })
-          .filter(r => r.horValue > 0 || r.kmValue > 0)
-          .sort((a, b) => b.dateTime.getTime() - a.dateTime.getTime());
+          .filter((r) => !!r.dateTime && (r.horValue > 0 || r.kmValue > 0))
+          .sort((a, b) => (b.dateTime!.getTime() - a.dateTime!.getTime()));
 
         if (vehicleRecords.length > 0) {
           const sheetRecord = vehicleRecords[0];
           // Use sheet data if it's more recent than database data
-          if (!bestDateTime || sheetRecord.dateTime > bestDateTime) {
+          if (!bestDateTime || sheetRecord.dateTime! > bestDateTime) {
             bestValue = sheetRecord.horValue;
             bestKmValue = sheetRecord.kmValue;
-            bestDateTime = sheetRecord.dateTime;
+            bestDateTime = sheetRecord.dateTime!;
             bestSource = 'planilha';
           }
         }
@@ -819,10 +861,9 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
       if (user.role === 'admin') {
         const { data: recentRecords } = await supabase
           .from('field_fuel_records')
-          .select('record_date, record_time, fuel_quantity, horimeter_current, km_current, location')
+          .select('record_date, record_time, fuel_quantity, horimeter_current, km_current, location, created_at')
           .eq('vehicle_code', vehicleCode)
-          .order('record_date', { ascending: false })
-          .order('record_time', { ascending: false })
+          .order('created_at', { ascending: false })
           .limit(5);
         
         if (recentRecords && recentRecords.length > 0) {
