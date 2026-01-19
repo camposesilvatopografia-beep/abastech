@@ -160,21 +160,18 @@ export function DashboardContent() {
 
     filteredAbastecimentoData.forEach(row => {
       const tipo = String(row['TIPO DE OPERACAO'] || row['TIPO_OPERACAO'] || row['Tipo'] || row['TIPO'] || '').toLowerCase();
-      const local = String(row['LOCAL'] || row['Local'] || '').toLowerCase();
-      const veiculo = String(row['VEICULO'] || row['Veiculo'] || '').trim();
       const quantidade = parseNumber(row['QUANTIDADE'] || row['Quantidade']);
       const fornecedor = String(row['FORNECEDOR'] || '').trim();
+      const descricao = String(row['DESCRICAO'] || row['Descricao'] || row['DESCRIÇÃO'] || row['Descrição'] || '').trim().toLowerCase();
       
       // Exclude entries from suppliers (has FORNECEDOR or TIPO contains 'entrada')
       if (tipo.includes('entrada') || fornecedor) return;
       if (quantidade <= 0) return;
       
-      // Check if the destination is a comboio (LOCAL contains 'comboio')
-      // OR if the vehicle code indicates comboio (e.g., 'CB-' prefix or name contains 'COMBOIO')
-      const isComboioDestination = local.includes('comboio');
-      const isComboioVehicle = isComboio(veiculo) || veiculo.toUpperCase().startsWith('CB-') || veiculo.toUpperCase().includes('COMBOIO');
+      // Check if the vehicle description is "Caminhão Comboio"
+      const isComboioVehicle = descricao === 'caminhão comboio' || descricao === 'caminhao comboio';
       
-      if (isComboioDestination || isComboioVehicle) {
+      if (isComboioVehicle) {
         saidaComboios += quantidade;
       } else {
         // All other exits go to equipamentos (máquinas, veículos de obra, etc.)
@@ -183,7 +180,7 @@ export function DashboardContent() {
     });
 
     return { saidaComboios, saidaEquipamentos };
-  }, [filteredAbastecimentoData, isComboio]);
+  }, [filteredAbastecimentoData]);
 
   // Calculate entries from filtered data - ONLY from external suppliers (Cavalo Marinho, Ipiranga, etc.)
   // NOT from comboios - comboio transfers are internal movements, not entries
