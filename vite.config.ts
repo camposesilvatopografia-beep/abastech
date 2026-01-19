@@ -31,16 +31,16 @@ export default defineConfig(({ mode }) => ({
         'pwa-maskable-512x512.png'
       ],
       manifest: {
-        name: 'Apontamento Campo - Abastech',
-        short_name: 'Campo',
-        description: 'Sistema de controle de apropriação de obras de terraplanagem',
+        name: 'Sistema Abastech - Gestão de Obras',
+        short_name: 'Abastech',
+        description: 'Sistema completo de gestão de obras, frota, manutenção e abastecimento',
         theme_color: '#1e3a5f',
         background_color: '#0f172a',
         display: 'standalone',
-        orientation: 'portrait',
-        start_url: '/apontamento',
-        scope: '/apontamento',
-        id: '/apontamento',
+        orientation: 'any',
+        start_url: '/',
+        scope: '/',
+        id: '/',
         icons: [
           {
             src: '/pwa-72x72.png',
