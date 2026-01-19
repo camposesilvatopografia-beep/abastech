@@ -59,6 +59,7 @@ import {
 } from '@/components/ui/popover';
 import { supabase } from '@/integrations/supabase/client';
 import { useSheetData } from '@/hooks/useGoogleSheets';
+import { getSheetData } from '@/lib/googleSheets';
 import { useRealtimeSync } from '@/hooks/useRealtimeSync';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -231,6 +232,9 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
   const [workSite, setWorkSite] = useState('');
   const [horimeterPrevious, setHorimeterPrevious] = useState('');
   const [horimeterPreviousDate, setHorimeterPreviousDate] = useState('');
+  const [lastHorimeterHistory, setLastHorimeterHistory] = useState<
+    { dateTime: string; horimeterAtual: string }[]
+  >([]);
   const [lastFuelRecords, setLastFuelRecords] = useState<{
     record_date: string;
     record_time: string;
@@ -648,8 +652,8 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         setComboioFuelType(null);
       }
       
-      // Fetch last horimeter/km value from database or sheet
-      await fetchPreviousHorimeter(code);
+      // Sempre buscar o último abastecimento diretamente da planilha (sem cache)
+      await fetchPreviousHorimeter(code, { forceSheetNoCache: true });
     }
   };
   
@@ -670,20 +674,22 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
       setQuickEntryMode('normal');
       // Fetch previous horimeter/km for proper consumption calculation
       if (vehicleCode) {
-        await fetchPreviousHorimeter(vehicleCode);
+        await fetchPreviousHorimeter(vehicleCode, { forceSheetNoCache: true });
       }
       toast.info('Modo Abastecimento Próprio: todos os campos habilitados');
     }
   };
 
   // Fetch previous horimeter/km from records
-  const fetchPreviousHorimeter = async (vehicleCode: string) => {
+  const fetchPreviousHorimeter = async (
+    vehicleCode: string,
+    options?: { forceSheetNoCache?: boolean }
+  ) => {
     try {
       let bestValue = 0;
       let bestKmValue = 0;
       let bestSource = '';
       let bestDateTime: Date | null = null;
-      
       // Helper to combine date and time into a single Date object for comparison
       const combineDateAndTime = (dateStr: string, timeStr?: string): Date => {
         const date = new Date(dateStr + 'T12:00:00');
@@ -754,7 +760,11 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
 
       // 3. ALWAYS check Google Sheets data and compare with database records
       // The sheet might have more recent data that hasn't been synced to the database
-      if (abastecimentoData.rows.length > 0) {
+      const sheetRows = options?.forceSheetNoCache
+        ? (await getSheetData('AbastecimentoCanteiro01', { noCache: true })).rows
+        : abastecimentoData.rows;
+
+      if (sheetRows.length > 0) {
         const normalizeKey = (k: string) =>
           k
             .trim()
@@ -808,7 +818,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
 
         const targetVehicle = normalizeVehicleCode(vehicleCode);
 
-        const vehicleRecords = abastecimentoData.rows
+        const vehicleRecords = sheetRows
           .filter((row) => {
             const rowVehicleRaw = getByNormalizedKey(row as any, [
               'VEICULO',
@@ -848,13 +858,29 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
               rowIndex: (row as any)._rowIndex ?? 0,
             };
           })
-          .filter((r) => (r.horValue > 0 || r.kmValue > 0))
+          .filter((r) => !!r.dateTime && (r.horValue > 0 || r.kmValue > 0))
           .sort((a, b) => {
             const aTime = a.dateTime?.getTime() ?? 0;
             const bTime = b.dateTime?.getTime() ?? 0;
             if (aTime !== bTime) return bTime - aTime;
             return (b.rowIndex || 0) - (a.rowIndex || 0);
           });
+
+        // Histórico (5 últimos) - sempre da planilha
+        const historyTop5 = vehicleRecords.slice(0, 5).map((r) => {
+          const formatted = r.dateTime!.toLocaleString('pt-BR', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+          });
+          return {
+            dateTime: formatted,
+            horimeterAtual: formatBrazilianNumber(r.horValue),
+          };
+        });
+        setLastHorimeterHistory(historyTop5);
 
         if (vehicleRecords.length > 0) {
           const sheetRecord = vehicleRecords[0];
@@ -866,6 +892,8 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
           bestKmValue = sheetRecord.kmValue;
           bestDateTime = sheetRecord.dateTime!;
           bestSource = 'planilha';
+        } else {
+          setLastHorimeterHistory([]);
         }
       }
 
@@ -2460,19 +2488,37 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                     </Button>
                   </div>
                   {horimeterPrevious ? (
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="bg-white/50 dark:bg-blue-950/50 rounded p-2 border border-blue-100 dark:border-blue-800">
-                        <span className="text-xs text-muted-foreground block">Data/Hora</span>
-                        <span className="font-bold text-blue-700 dark:text-blue-200">
-                          {horimeterPreviousDate || '-'}
-                        </span>
+                    <div className="space-y-2">
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="bg-white/50 dark:bg-blue-950/50 rounded p-2 border border-blue-100 dark:border-blue-800">
+                          <span className="text-xs text-muted-foreground block">Data/Hora</span>
+                          <span className="font-bold text-blue-700 dark:text-blue-200">
+                            {horimeterPreviousDate || '-'}
+                          </span>
+                        </div>
+                        <div className="bg-white/50 dark:bg-blue-950/50 rounded p-2 border border-blue-100 dark:border-blue-800">
+                          <span className="text-xs text-muted-foreground block">Horímetro Atual</span>
+                          <span className="font-bold text-blue-700 dark:text-blue-200">
+                            {horimeterPrevious}
+                          </span>
+                        </div>
                       </div>
-                      <div className="bg-white/50 dark:bg-blue-950/50 rounded p-2 border border-blue-100 dark:border-blue-800">
-                        <span className="text-xs text-muted-foreground block">Horímetro Atual</span>
-                        <span className="font-bold text-blue-700 dark:text-blue-200">
-                          {horimeterPrevious}
-                        </span>
-                      </div>
+
+                      {lastHorimeterHistory.length > 0 && (
+                        <div className="bg-white/30 dark:bg-blue-950/30 rounded p-2 border border-blue-100/60 dark:border-blue-800/60">
+                          <div className="text-xs font-semibold text-blue-700 dark:text-blue-300 mb-1">
+                            Histórico (5 últimos horímetros)
+                          </div>
+                          <div className="space-y-1">
+                            {lastHorimeterHistory.map((h, idx) => (
+                              <div key={`${h.dateTime}-${idx}`} className="flex items-center justify-between text-xs">
+                                <span className="text-muted-foreground">{h.dateTime}</span>
+                                <span className="font-semibold text-blue-700 dark:text-blue-200">{h.horimeterAtual}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <p className="text-sm text-muted-foreground">Sem abastecimento anterior encontrado</p>
