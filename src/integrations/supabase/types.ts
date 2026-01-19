@@ -14,6 +14,57 @@ export type Database = {
   }
   public: {
     Tables: {
+      correction_audit_logs: {
+        Row: {
+          applied_by: string | null
+          correction_source: string | null
+          correction_type: string | null
+          created_at: string
+          field_corrected: string
+          id: string
+          new_value: number
+          notes: string | null
+          old_value: number | null
+          record_date: string
+          record_time: string | null
+          row_index: number | null
+          vehicle_code: string
+          vehicle_description: string | null
+        }
+        Insert: {
+          applied_by?: string | null
+          correction_source?: string | null
+          correction_type?: string | null
+          created_at?: string
+          field_corrected: string
+          id?: string
+          new_value: number
+          notes?: string | null
+          old_value?: number | null
+          record_date: string
+          record_time?: string | null
+          row_index?: number | null
+          vehicle_code: string
+          vehicle_description?: string | null
+        }
+        Update: {
+          applied_by?: string | null
+          correction_source?: string | null
+          correction_type?: string | null
+          created_at?: string
+          field_corrected?: string
+          id?: string
+          new_value?: number
+          notes?: string | null
+          old_value?: number | null
+          record_date?: string
+          record_time?: string | null
+          row_index?: number | null
+          vehicle_code?: string
+          vehicle_description?: string | null
+        }
+        Relationships: []
+      }
       field_fuel_records: {
         Row: {
           arla_quantity: number | null
