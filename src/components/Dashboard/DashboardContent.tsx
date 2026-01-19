@@ -587,22 +587,8 @@ _Sistema Abastech_`;
           />
         </div>
 
-        {/* Secondary KPIs - Exits detail and ARLA */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4">
-          <MetricCard
-            title="SAÍDA P/ COMBOIOS"
-            value={`${stockData.saidaComboios.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} L`}
-            subtitle="Abastecimento em campo"
-            icon={Truck}
-            className="border-l-4 border-l-orange-500"
-          />
-          <MetricCard
-            title="SAÍDA P/ EQUIPAMENTOS"
-            value={`${stockData.saidaEquipamentos.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} L`}
-            subtitle="Abastecimento direto"
-            icon={ArrowUpCircle}
-            className="border-l-4 border-l-amber-500"
-          />
+        {/* ARLA Stock KPI */}
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 md:gap-4">
           <MetricCard
             title="ESTOQUE ARLA"
             value={`${estoqueArla.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L`}
