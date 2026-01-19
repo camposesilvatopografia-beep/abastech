@@ -357,7 +357,7 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
       try {
         const abastecimentoResponse = await supabase.functions.invoke('google-sheets', {
           body: {
-            action: 'read',
+            action: 'getData',
             sheetName: 'AbastecimentoCanteiro01',
           },
         });
@@ -383,7 +383,7 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
       try {
         const horimetrosResponse = await supabase.functions.invoke('google-sheets', {
           body: {
-            action: 'read',
+            action: 'getData',
             sheetName: 'Horimetros',
           },
         });
