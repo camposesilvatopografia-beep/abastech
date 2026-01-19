@@ -830,13 +830,14 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
 
         if (vehicleRecords.length > 0) {
           const sheetRecord = vehicleRecords[0];
-          // Use sheet data if it's more recent than database data
-          if (!bestDateTime || sheetRecord.dateTime! > bestDateTime) {
-            bestValue = sheetRecord.horValue;
-            bestKmValue = sheetRecord.kmValue;
-            bestDateTime = sheetRecord.dateTime!;
-            bestSource = 'planilha';
-          }
+
+          // IMPORTANT: For "horímetro anterior" in Apontamento Campo we treat the spreadsheet
+          // column "HORIMETRO ATUAL" (coluna M) as the source of truth for the last abastecimento.
+          // So if we have a valid sheet record, we always prefer it.
+          bestValue = sheetRecord.horValue;
+          bestKmValue = sheetRecord.kmValue;
+          bestDateTime = sheetRecord.dateTime!;
+          bestSource = 'planilha';
         }
       }
 
@@ -845,9 +846,15 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
       if (valueToShow > 0) {
         setHorimeterPrevious(formatBrazilianNumber(valueToShow));
         if (bestDateTime) {
-          const formattedDate = bestDateTime.toLocaleDateString('pt-BR');
-          setHorimeterPreviousDate(formattedDate);
-          toast.info(`Último registro em ${formattedDate}: ${formatBrazilianNumber(valueToShow)}`);
+          const formattedDateTime = bestDateTime.toLocaleString('pt-BR', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+          });
+          setHorimeterPreviousDate(formattedDateTime);
+          toast.info(`Último abastecimento em ${formattedDateTime}: ${formatBrazilianNumber(valueToShow)}`);
         } else {
           setHorimeterPreviousDate('');
           toast.info(`Último registro (${bestSource}): ${formatBrazilianNumber(valueToShow)}`);
@@ -2408,10 +2415,13 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                       <Clock className="w-4 h-4" />
                       {horimeterPrevious ? (
                         <span className="text-sm font-medium">
-                          Último registro{horimeterPreviousDate && <span className="text-blue-500 dark:text-blue-400"> ({horimeterPreviousDate})</span>}: <span className="font-bold text-blue-600 dark:text-blue-200">{horimeterPrevious}</span>
+                          Último abastecimento{horimeterPreviousDate && (
+                            <span className="text-blue-500 dark:text-blue-400"> ({horimeterPreviousDate})</span>
+                          )}: <span className="font-bold text-blue-600 dark:text-blue-200">{horimeterPrevious}</span>
+                          <span className="text-xs text-muted-foreground"> (Horímetro Atual)</span>
                         </span>
                       ) : (
-                        <span className="text-sm text-muted-foreground">Sem registro anterior encontrado</span>
+                        <span className="text-sm text-muted-foreground">Sem abastecimento anterior encontrado</span>
                       )}
                     </div>
                     <Button
