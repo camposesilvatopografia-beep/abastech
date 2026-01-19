@@ -37,6 +37,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { MetricCard } from '@/components/Dashboard/MetricCard';
 import { useSheetData } from '@/hooks/useGoogleSheets';
+import { useRealtimeSync } from '@/hooks/useRealtimeSync';
 import {
   Table,
   TableBody,
@@ -122,53 +123,51 @@ export function AbastecimentoPage() {
   const { data, loading, refetch } = useSheetData(SHEET_NAME);
   const { settings: obraSettings } = useObraSettings();
 
-  // Use 30-second polling to avoid Google Sheets quota limits (60 req/min)
-  const STOCK_POLLING_INTERVAL = 30000;
-
+  // NO POLLING - Use Supabase Realtime to detect changes, refresh only when needed
   const {
     data: geralData,
     refetch: refetchGeral,
     loading: geralLoading,
     lastUpdatedAt: geralUpdatedAt,
-  } = useSheetData(GERAL_SHEET, { pollingInterval: STOCK_POLLING_INTERVAL });
+  } = useSheetData(GERAL_SHEET);
 
   const { data: saneamentoStockData } = useSheetData(SANEAMENTO_STOCK_SHEET, { suppressErrors: true });
 
-  // Fetch stock data with 30-second polling to avoid quota limits
+  // Stock sheets - no polling, refresh triggered by Supabase Realtime
   const {
     data: estoqueComboio01Data,
     refetch: refetchComboio01,
     loading: comboio01Loading,
     lastUpdatedAt: comboio01UpdatedAt,
-  } = useSheetData('EstoqueComboio01', { suppressErrors: true, pollingInterval: STOCK_POLLING_INTERVAL });
+  } = useSheetData('EstoqueComboio01', { suppressErrors: true });
 
   const {
     data: estoqueComboio02Data,
     refetch: refetchComboio02,
     loading: comboio02Loading,
     lastUpdatedAt: comboio02UpdatedAt,
-  } = useSheetData('EstoqueComboio02', { suppressErrors: true, pollingInterval: STOCK_POLLING_INTERVAL });
+  } = useSheetData('EstoqueComboio02', { suppressErrors: true });
 
   const {
     data: estoqueComboio03Data,
     refetch: refetchComboio03,
     loading: comboio03Loading,
     lastUpdatedAt: comboio03UpdatedAt,
-  } = useSheetData('EstoqueComboio03', { suppressErrors: true, pollingInterval: STOCK_POLLING_INTERVAL });
+  } = useSheetData('EstoqueComboio03', { suppressErrors: true });
 
   const {
     data: estoqueCanteiro01Data,
     refetch: refetchCanteiro01,
     loading: canteiro01Loading,
     lastUpdatedAt: canteiro01UpdatedAt,
-  } = useSheetData('EstoqueCanteiro01', { suppressErrors: true, pollingInterval: STOCK_POLLING_INTERVAL });
+  } = useSheetData('EstoqueCanteiro01', { suppressErrors: true });
 
   const {
     data: estoqueCanteiro02Data,
     refetch: refetchCanteiro02,
     loading: canteiro02Loading,
     lastUpdatedAt: canteiro02UpdatedAt,
-  } = useSheetData('EstoqueCanteiro02', { suppressErrors: true, pollingInterval: STOCK_POLLING_INTERVAL });
+  } = useSheetData('EstoqueCanteiro02', { suppressErrors: true });
   const [activeTab, setActiveTab] = useState('painel');
   const [search, setSearch] = useState('');
   const [localFilter, setLocalFilter] = useState('all');
@@ -205,6 +204,29 @@ export function AbastecimentoPage() {
     
     fetchFieldUsers();
   }, []);
+
+  // Real-time sync: refresh data ONLY when Supabase detects a change from field
+  const handleRealtimeRefresh = useCallback(() => {
+    console.log('[Abastecimento] Realtime sync event received, refreshing all data...');
+    refetch();
+    refetchGeral();
+    refetchComboio01();
+    refetchComboio02();
+    refetchComboio03();
+    refetchCanteiro01();
+    refetchCanteiro02();
+    toast.success('📡 Dados atualizados automaticamente!');
+  }, [refetch, refetchGeral, refetchComboio01, refetchComboio02, refetchComboio03, refetchCanteiro01, refetchCanteiro02]);
+
+  // Subscribe to Supabase realtime changes - auto-refresh when field sends data
+  useRealtimeSync({
+    onSyncEvent: (event) => {
+      console.log('[Abastecimento] Received sync event:', event.type);
+      if (['fuel_record_created', 'fuel_record_updated', 'fuel_record_deleted', 'stock_updated'].includes(event.type)) {
+        handleRealtimeRefresh();
+      }
+    },
+  });
   
   // Helper function to get responsible user name for a location
   const getResponsibleForLocation = useCallback((location: string): string => {

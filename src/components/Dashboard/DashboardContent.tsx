@@ -50,14 +50,11 @@ function parseBrazilianDate(dateStr: string): Date | null {
 }
 
 export function DashboardContent() {
-  // Use 20-second polling to avoid Google Sheets quota limits (60 req/min)
-  const POLLING_INTERVAL = 20000;
-  
-  // Use polling with moderate interval to avoid quota limits
-  const { data: geralData, loading, refetch: refetchGeral } = useSheetData(GERAL_SHEET, { pollingInterval: POLLING_INTERVAL });
-  const { data: abastecimentoData, refetch: refetchAbastecimento } = useSheetData(ABASTECIMENTO_SHEET, { pollingInterval: POLLING_INTERVAL });
-  const { data: vehicleData } = useSheetData(VEHICLE_SHEET, { pollingInterval: 60000 }); // Vehicles change less frequently
-  const { data: arlaData, refetch: refetchArla } = useSheetData(ARLA_SHEET, { pollingInterval: POLLING_INTERVAL });
+  // NO POLLING - Use Supabase Realtime to detect changes, then refresh Google Sheets only when needed
+  const { data: geralData, loading, refetch: refetchGeral } = useSheetData(GERAL_SHEET);
+  const { data: abastecimentoData, refetch: refetchAbastecimento } = useSheetData(ABASTECIMENTO_SHEET);
+  const { data: vehicleData } = useSheetData(VEHICLE_SHEET);
+  const { data: arlaData, refetch: refetchArla } = useSheetData(ARLA_SHEET);
   const [isSending, setIsSending] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   const [search, setSearch] = useState('');
@@ -65,16 +62,16 @@ export function DashboardContent() {
   const [showDiagnostics, setShowDiagnostics] = useState(false);
   const { toast } = useToast();
 
-  // Real-time sync across all clients - with forced cache bypass
+  // Real-time sync: refresh data ONLY when Supabase detects a change
   const handleRealtimeRefresh = useCallback(() => {
-    console.log('[Dashboard] Realtime sync event received, refreshing data with cache bypass...');
-    refetchGeral(false, true); // not silent, force no cache
+    console.log('[Dashboard] Realtime sync event received, refreshing data...');
+    refetchGeral(false, true);
     refetchAbastecimento(false, true);
     refetchArla(false, true);
     setLastUpdate(new Date());
   }, [refetchGeral, refetchAbastecimento, refetchArla]);
 
-  // Subscribe to realtime sync events
+  // Subscribe to Supabase realtime changes - this is the PRIMARY sync mechanism
   useRealtimeSync({
     onSyncEvent: (event) => {
       console.log('[Dashboard] Received sync event:', event.type);
@@ -85,7 +82,7 @@ export function DashboardContent() {
     },
   });
 
-  // Refresh data when window regains focus - essential for TWA/PWA
+  // Refresh data when window regains focus (user returning to app)
   useEffect(() => {
     const handleFocus = () => {
       console.log('[Dashboard] Window focused, refreshing data...');
@@ -95,7 +92,7 @@ export function DashboardContent() {
       setLastUpdate(new Date());
     };
 
-    // Also trigger visibility change for PWA/TWA background/foreground switches
+    // Handle visibility change for PWA/TWA
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
         console.log('[Dashboard] App became visible, refreshing data...');
@@ -113,19 +110,6 @@ export function DashboardContent() {
       window.removeEventListener('focus', handleFocus);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [refetchGeral, refetchAbastecimento, refetchArla]);
-
-  // Periodic force refresh every 60 seconds to ensure TWA stays updated (reduced to avoid quota)
-  useEffect(() => {
-    const forceRefreshInterval = setInterval(() => {
-      console.log('[Dashboard] Periodic force refresh for TWA/PWA...');
-      refetchGeral(true, true);
-      refetchAbastecimento(true, true);
-      refetchArla(true, true);
-      setLastUpdate(new Date());
-    }, 60000); // Every 60 seconds to avoid quota limits
-
-    return () => clearInterval(forceRefreshInterval);
   }, [refetchGeral, refetchAbastecimento, refetchArla]);
 
   // Update last sync time when data changes
