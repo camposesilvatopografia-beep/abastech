@@ -28,11 +28,16 @@ function PwaEntryRedirect() {
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
     // Mobile-first experience: on mobile devices, always keep users inside the Field module
-    // (unless they are on install pages), so operators never land on the admin dashboard.
+    // (unless they are on install pages or admin login), so operators never land on the admin dashboard.
     if (isMobile) {
       const isInstallPage =
         location.pathname === '/instalar' ||
         location.pathname === '/apontamento/instalar';
+
+      const isAdminLogin = location.pathname === '/login';
+      
+      // Check if user explicitly requested admin access
+      const adminAccessRequested = sessionStorage.getItem('admin_access_requested') === 'true';
 
       const isInField =
         location.pathname === '/apontamento' ||
@@ -42,8 +47,14 @@ function PwaEntryRedirect() {
 
       // If running as installed app OR user is simply browsing on mobile,
       // force into /apontamento (FieldPage shows login when needed).
-      if (!isInstallPage && !isInField) {
+      // Exception: allow admin login if explicitly requested
+      if (!isInstallPage && !isInField && !isAdminLogin && !adminAccessRequested) {
         window.location.replace('/apontamento');
+      }
+      
+      // Clear admin access flag when on root (dashboard) to prevent permanent bypass
+      if (location.pathname === '/') {
+        sessionStorage.removeItem('admin_access_requested');
       }
     }
   }, [location.pathname]);
