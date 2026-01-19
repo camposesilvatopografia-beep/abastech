@@ -626,8 +626,9 @@ export function HorimeterCorrectionsTab({ data, refetch, loading }: HorimeterCor
     
     try {
       const isVehicle = anomaly.category === 'VEICULO';
-      const rowData: Record<string, any> = { ...anomaly.rawRow };
-      delete rowData._rowIndex;
+      // Create a copy of rawRow for the update
+      const data: Record<string, any> = { ...anomaly.rawRow };
+      delete data._rowIndex;
       
       const { fieldToFix, previousValue, currentValue, correctionType } = anomaly.suggestedCorrection;
       
@@ -642,9 +643,9 @@ export function HorimeterCorrectionsTab({ data, refetch, loading }: HorimeterCor
         fieldCorrected = isVehicle ? 'km_current' : 'horimeter_current';
         
         if (isVehicle) {
-          rowData['KM ATUAL'] = formatBrazilianNumber(currentValue!);
+          data['KM ATUAL'] = formatBrazilianNumber(currentValue!);
         } else {
-          rowData['HORIMETRO ATUAL'] = formatBrazilianNumber(currentValue!);
+          data['HORIMETRO ATUAL'] = formatBrazilianNumber(currentValue!);
         }
       } else {
         oldValue = isVehicle ? anomaly.kmPrevious : anomaly.horimeterPrevious;
@@ -652,25 +653,31 @@ export function HorimeterCorrectionsTab({ data, refetch, loading }: HorimeterCor
         fieldCorrected = isVehicle ? 'km_previous' : 'horimeter_previous';
         
         if (isVehicle) {
-          rowData['KM ANTERIOR'] = formatBrazilianNumber(previousValue!);
+          data['KM ANTERIOR'] = formatBrazilianNumber(previousValue!);
         } else {
-          rowData['HORIMETRO ANTERIOR'] = formatBrazilianNumber(previousValue!);
+          data['HORIMETRO ANTERIOR'] = formatBrazilianNumber(previousValue!);
         }
       }
       
-      // Update Google Sheets
-      const { error: sheetError } = await supabase.functions.invoke('google-sheets', {
+      console.log('Applying fix to row', anomaly.rowIndex, 'with data:', data);
+      
+      // Update Google Sheets - use 'data' property as expected by edge function
+      const { data: responseData, error: sheetError } = await supabase.functions.invoke('google-sheets', {
         body: {
           action: 'update',
           sheetName: 'AbastecimentoCanteiro01',
           rowIndex: anomaly.rowIndex,
-          rowData,
+          data, // Edge function expects 'data' not 'rowData'
         },
       });
       
       if (sheetError) {
         console.error('Error updating Google Sheets:', sheetError);
+        toast.error(`Erro ao atualizar planilha: ${sheetError.message}`);
+        return false;
       }
+      
+      console.log('Google Sheets update response:', responseData);
       
       // Also update the Supabase database (field_fuel_records)
       const dateFormatted = anomaly.date;
@@ -696,26 +703,30 @@ export function HorimeterCorrectionsTab({ data, refetch, loading }: HorimeterCor
           }
         }
         
-        const { error: dbError } = await supabase
+        const { data: dbData, error: dbError } = await supabase
           .from('field_fuel_records')
           .update(dbUpdate)
           .eq('vehicle_code', anomaly.vehicleCode)
           .eq('record_date', isoDate)
-          .eq('record_time', anomaly.time);
+          .eq('record_time', anomaly.time)
+          .select();
         
         if (dbError) {
           console.error('Error updating database:', dbError);
         } else {
-          console.log('Database updated successfully for', anomaly.vehicleCode, isoDate);
+          console.log('Database updated successfully:', dbData);
         }
       }
       
       // Save audit log
       await saveAuditLog(anomaly, fieldCorrected, oldValue, newValue, correctionType, 'auto_fix');
       
+      toast.success(`Correção aplicada: ${anomaly.vehicleCode} - ${fieldCorrected}`);
+      
       return true;
     } catch (err) {
       console.error('Error applying fix:', err);
+      toast.error('Erro ao aplicar correção');
       return false;
     }
   };
@@ -823,25 +834,80 @@ export function HorimeterCorrectionsTab({ data, refetch, loading }: HorimeterCor
     setIsSaving(true);
     
     try {
-      // Build the updated row data
-      const rowData: Record<string, any> = { ...anomaly.rawRow };
-      delete rowData._rowIndex;
+      const isVehicle = anomaly.category === 'VEICULO';
       
-      rowData['HORIMETRO ANTERIOR'] = editData.horimeterPrevious;
-      rowData['HORIMETRO ATUAL'] = editData.horimeterCurrent;
-      rowData['KM ANTERIOR'] = editData.kmPrevious;
-      rowData['KM ATUAL'] = editData.kmCurrent;
+      // Build the updated row data
+      const data: Record<string, any> = { ...anomaly.rawRow };
+      delete data._rowIndex;
+      
+      data['HORIMETRO ANTERIOR'] = editData.horimeterPrevious;
+      data['HORIMETRO ATUAL'] = editData.horimeterCurrent;
+      data['KM ANTERIOR'] = editData.kmPrevious;
+      data['KM ATUAL'] = editData.kmCurrent;
 
-      const { error } = await supabase.functions.invoke('google-sheets', {
+      // Update Google Sheets
+      const { error: sheetError } = await supabase.functions.invoke('google-sheets', {
         body: {
           action: 'update',
           sheetName: 'AbastecimentoCanteiro01',
           rowIndex: anomaly.rowIndex,
-          rowData,
+          data,
         },
       });
 
-      if (error) throw error;
+      if (sheetError) {
+        console.error('Error updating Google Sheets:', sheetError);
+        throw sheetError;
+      }
+
+      // Update Supabase database
+      const dateFormatted = anomaly.date;
+      const dateParts = dateFormatted.split('/');
+      const isoDate = dateParts.length === 3 
+        ? `${dateParts[2]}-${dateParts[1].padStart(2, '0')}-${dateParts[0].padStart(2, '0')}`
+        : null;
+      
+      if (isoDate) {
+        const newHorimeterPrevious = parseNumber(editData.horimeterPrevious);
+        const newHorimeterCurrent = parseNumber(editData.horimeterCurrent);
+        const newKmPrevious = parseNumber(editData.kmPrevious);
+        const newKmCurrent = parseNumber(editData.kmCurrent);
+        
+        const dbUpdate: Record<string, number | null> = {
+          horimeter_previous: newHorimeterPrevious || null,
+          horimeter_current: newHorimeterCurrent || null,
+          km_previous: newKmPrevious || null,
+          km_current: newKmCurrent || null,
+        };
+        
+        const { error: dbError } = await supabase
+          .from('field_fuel_records')
+          .update(dbUpdate)
+          .eq('vehicle_code', anomaly.vehicleCode)
+          .eq('record_date', isoDate)
+          .eq('record_time', anomaly.time);
+        
+        if (dbError) {
+          console.error('Error updating database:', dbError);
+        }
+        
+        // Save audit logs for all changed fields
+        if (isVehicle) {
+          if (newKmPrevious !== anomaly.kmPrevious) {
+            await saveAuditLog(anomaly, 'km_previous', anomaly.kmPrevious, newKmPrevious, undefined, 'manual');
+          }
+          if (newKmCurrent !== anomaly.kmCurrent) {
+            await saveAuditLog(anomaly, 'km_current', anomaly.kmCurrent, newKmCurrent, undefined, 'manual');
+          }
+        } else {
+          if (newHorimeterPrevious !== anomaly.horimeterPrevious) {
+            await saveAuditLog(anomaly, 'horimeter_previous', anomaly.horimeterPrevious, newHorimeterPrevious, undefined, 'manual');
+          }
+          if (newHorimeterCurrent !== anomaly.horimeterCurrent) {
+            await saveAuditLog(anomaly, 'horimeter_current', anomaly.horimeterCurrent, newHorimeterCurrent, undefined, 'manual');
+          }
+        }
+      }
 
       toast.success('Registro corrigido com sucesso!');
       setEditingRowIndex(null);
@@ -867,10 +933,7 @@ export function HorimeterCorrectionsTab({ data, refetch, loading }: HorimeterCor
     setIsSaving(false);
     
     if (success) {
-      toast.success('Correção aplicada com sucesso!');
       refetch();
-    } else {
-      toast.error('Erro ao aplicar correção');
     }
   };
 
