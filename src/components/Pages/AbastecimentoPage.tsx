@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, Fragment } from 'react';
 import { 
   Fuel, 
   RefreshCw, 
@@ -28,6 +28,9 @@ import {
   Plus,
   Edit2,
   PenLine,
+  ChevronDown,
+  ChevronUp,
+  Save,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
@@ -186,6 +189,11 @@ export function AbastecimentoPage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   
+  // Inline editing state for expanded rows
+  const [expandedRowId, setExpandedRowId] = useState<number | null>(null);
+  const [inlineEditData, setInlineEditData] = useState<any>(null);
+  const [isSavingInline, setIsSavingInline] = useState(false);
+  
   // Store field users for location responsibility mapping
   const [fieldUsers, setFieldUsers] = useState<Array<{ id: string; name: string; assigned_locations: string[] | null }>>([]);
   
@@ -239,6 +247,7 @@ export function AbastecimentoPage() {
     );
     return responsible?.name || 'Não atribuído';
   }, [fieldUsers]);
+  
   const canCreateRecords = useMemo(() => {
     if (!user) return false;
     const username = user.username?.toLowerCase() || '';
@@ -246,6 +255,59 @@ export function AbastecimentoPage() {
            username === 'samarakelle' || 
            user.role === 'admin';
   }, [user]);
+
+  // Handle inline edit save
+  const handleSaveInlineEdit = useCallback(async () => {
+    if (!inlineEditData || !inlineEditData._rowIndex) {
+      toast.error('Não foi possível identificar o registro para edição');
+      return;
+    }
+    
+    setIsSavingInline(true);
+    
+    try {
+      const rowData: Record<string, any> = {};
+      
+      // Map the editable fields
+      rowData['QUANTIDADE'] = inlineEditData['QUANTIDADE'];
+      rowData['HORIMETRO ANTERIOR'] = inlineEditData['HORIMETRO ANTERIOR'];
+      rowData['HORIMETRO ATUAL'] = inlineEditData['HORIMETRO ATUAL'];
+      rowData['MOTORISTA'] = inlineEditData['MOTORISTA'];
+      rowData['KM ANTERIOR'] = inlineEditData['KM ANTERIOR'];
+      rowData['KM ATUAL'] = inlineEditData['KM ATUAL'];
+      rowData['QUANTIDADE DE ARLA'] = inlineEditData['QUANTIDADE DE ARLA'];
+      rowData['LOCAL'] = inlineEditData['LOCAL'];
+      rowData['OBSERVAÇÃO'] = inlineEditData['OBSERVAÇÃO'];
+      
+      // Copy all original fields to maintain data integrity
+      Object.keys(inlineEditData).forEach(key => {
+        if (key !== '_rowIndex' && !(key in rowData)) {
+          rowData[key] = inlineEditData[key];
+        }
+      });
+      
+      const { error } = await supabase.functions.invoke('google-sheets', {
+        body: {
+          action: 'update',
+          sheetName: SHEET_NAME,
+          rowIndex: inlineEditData._rowIndex,
+          rowData
+        }
+      });
+      
+      if (error) throw error;
+      
+      toast.success('Registro atualizado com sucesso!');
+      setExpandedRowId(null);
+      setInlineEditData(null);
+      refetch();
+    } catch (err) {
+      console.error('Error updating record:', err);
+      toast.error('Erro ao atualizar registro');
+    } finally {
+      setIsSavingInline(false);
+    }
+  }, [inlineEditData, refetch]);
 
   // Get saneamento stock from estoqueobrasaneamento sheet (column H)
   const estoqueSaneamento = useMemo(() => {
@@ -1908,75 +1970,335 @@ export function AbastecimentoPage() {
                           }
                         }
 
+                        const rowId = row._rowIndex || index;
+                        const isExpanded = expandedRowId === rowId;
+
                         return (
-                          <TableRow 
-                            key={row._rowIndex || index} 
-                            className="cursor-pointer hover:bg-muted/50 transition-colors"
-                            onClick={() => {
-                              setSelectedRecord(row);
-                              setShowDetailModal(true);
-                            }}
-                          >
-                            <TableCell>{String(row['DATA'] || '')}</TableCell>
-                            <TableCell className="font-medium">{veiculo}</TableCell>
-                            <TableCell className="text-muted-foreground">
-                              {String(row['DESCRICAO'] || row['DESCRIÇÃO'] || row['Descricao'] || '-')}
-                            </TableCell>
-                            <TableCell>{String(row['MOTORISTA'] || row['Motorista'] || '-')}</TableCell>
-                            <TableCell className="text-right font-medium">
-                              {parseNumber(row['QUANTIDADE']).toLocaleString('pt-BR', { minimumFractionDigits: 1 })}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <span className="text-sm text-muted-foreground">
-                                {intervalo}
-                              </span>
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <span className={cn(
-                                "text-sm",
-                                consumoMedio !== '-' && "text-primary font-medium"
-                              )}>
-                                {consumoMedio}
-                              </span>
-                            </TableCell>
-                            <TableCell className="text-center">
-                              <div className="flex items-center justify-center gap-1">
-                                <Button 
-                                  variant="ghost" 
-                                  size="icon"
-                                  className="h-8 w-8"
-                                  title="Visualizar"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setSelectedRecord(row);
-                                    setShowDetailModal(true);
-                                  }}
-                                >
-                                  <Eye className="h-4 w-4 text-muted-foreground" />
-                                </Button>
-                                {canCreateRecords && (
+                          <Fragment key={rowId}>
+                            <TableRow 
+                              className={cn(
+                                "cursor-pointer hover:bg-muted/50 transition-colors",
+                                isExpanded && "bg-muted/30 border-b-0"
+                              )}
+                              onClick={() => {
+                                if (isExpanded) {
+                                  setExpandedRowId(null);
+                                  setInlineEditData(null);
+                                } else {
+                                  setExpandedRowId(rowId);
+                                  setInlineEditData({ ...row });
+                                }
+                              }}
+                            >
+                              <TableCell>
+                                <div className="flex items-center gap-2">
+                                  {isExpanded ? (
+                                    <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                                  ) : (
+                                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                                  )}
+                                  {String(row['DATA'] || '')}
+                                </div>
+                              </TableCell>
+                              <TableCell className="font-medium">{veiculo}</TableCell>
+                              <TableCell className="text-muted-foreground">
+                                {String(row['DESCRICAO'] || row['DESCRIÇÃO'] || row['Descricao'] || '-')}
+                              </TableCell>
+                              <TableCell>{String(row['MOTORISTA'] || row['Motorista'] || '-')}</TableCell>
+                              <TableCell className="text-right font-medium">
+                                {parseNumber(row['QUANTIDADE']).toLocaleString('pt-BR', { minimumFractionDigits: 1 })}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <span className="text-sm text-muted-foreground">
+                                  {intervalo}
+                                </span>
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <span className={cn(
+                                  "text-sm",
+                                  consumoMedio !== '-' && "text-primary font-medium"
+                                )}>
+                                  {consumoMedio}
+                                </span>
+                              </TableCell>
+                              <TableCell className="text-center">
+                                <div className="flex items-center justify-center gap-1">
                                   <Button 
                                     variant="ghost" 
                                     size="icon"
                                     className="h-8 w-8"
-                                    title="Editar"
+                                    title="Visualizar"
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      setEditingRecord(row);
-                                      setShowEditModal(true);
+                                      setSelectedRecord(row);
+                                      setShowDetailModal(true);
                                     }}
                                   >
-                                    <Edit2 className="h-4 w-4 text-blue-500" />
+                                    <Eye className="h-4 w-4 text-muted-foreground" />
                                   </Button>
-                                )}
-                              </div>
-                            </TableCell>
-                          </TableRow>
+                                  {canCreateRecords && (
+                                    <Button 
+                                      variant="ghost" 
+                                      size="icon"
+                                      className="h-8 w-8"
+                                      title="Editar"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setEditingRecord(row);
+                                        setShowEditModal(true);
+                                      }}
+                                    >
+                                      <Edit2 className="h-4 w-4 text-blue-500" />
+                                    </Button>
+                                  )}
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                            
+                            {/* Expanded Row with Inline Editing */}
+                            {isExpanded && inlineEditData && (
+                              <TableRow className="bg-muted/20 hover:bg-muted/20">
+                                <TableCell colSpan={8} className="p-4">
+                                  <div className="space-y-4">
+                                    {/* Editable Fields Grid */}
+                                    <div className="bg-card rounded-lg border border-primary/20 p-4 space-y-4">
+                                      <div className="flex items-center justify-between">
+                                        <h4 className="font-semibold text-sm flex items-center gap-2">
+                                          <PenLine className="w-4 h-4 text-primary" />
+                                          Editar Registro
+                                        </h4>
+                                        {canCreateRecords && (
+                                          <div className="flex gap-2">
+                                            <Button
+                                              variant="outline"
+                                              size="sm"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                setExpandedRowId(null);
+                                                setInlineEditData(null);
+                                              }}
+                                            >
+                                              Cancelar
+                                            </Button>
+                                            <Button
+                                              size="sm"
+                                              disabled={isSavingInline}
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleSaveInlineEdit();
+                                              }}
+                                              className="gap-2"
+                                            >
+                                              {isSavingInline ? (
+                                                <>
+                                                  <RefreshCw className="w-4 h-4 animate-spin" />
+                                                  Salvando...
+                                                </>
+                                              ) : (
+                                                <>
+                                                  <Save className="w-4 h-4" />
+                                                  Salvar
+                                                </>
+                                              )}
+                                            </Button>
+                                          </div>
+                                        )}
+                                      </div>
+                                      
+                                      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                                        <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
+                                          <label className="text-xs text-muted-foreground font-medium">Quantidade (L)</label>
+                                          <Input
+                                            type="text"
+                                            value={String(inlineEditData['QUANTIDADE'] || '')}
+                                            onChange={(e) => setInlineEditData({
+                                              ...inlineEditData,
+                                              'QUANTIDADE': e.target.value
+                                            })}
+                                            className="h-9"
+                                            disabled={!canCreateRecords}
+                                          />
+                                        </div>
+                                        <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
+                                          <label className="text-xs text-muted-foreground font-medium">Motorista</label>
+                                          <Input
+                                            type="text"
+                                            value={String(inlineEditData['MOTORISTA'] || '')}
+                                            onChange={(e) => setInlineEditData({
+                                              ...inlineEditData,
+                                              'MOTORISTA': e.target.value
+                                            })}
+                                            className="h-9"
+                                            disabled={!canCreateRecords}
+                                          />
+                                        </div>
+                                        <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
+                                          <label className="text-xs text-muted-foreground font-medium">Horímetro Anterior</label>
+                                          <Input
+                                            type="text"
+                                            value={String(inlineEditData['HORIMETRO ANTERIOR'] || '')}
+                                            onChange={(e) => setInlineEditData({
+                                              ...inlineEditData,
+                                              'HORIMETRO ANTERIOR': e.target.value
+                                            })}
+                                            className="h-9"
+                                            disabled={!canCreateRecords}
+                                          />
+                                        </div>
+                                        <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
+                                          <label className="text-xs text-muted-foreground font-medium">Horímetro Atual</label>
+                                          <Input
+                                            type="text"
+                                            value={String(inlineEditData['HORIMETRO ATUAL'] || '')}
+                                            onChange={(e) => setInlineEditData({
+                                              ...inlineEditData,
+                                              'HORIMETRO ATUAL': e.target.value
+                                            })}
+                                            className="h-9"
+                                            disabled={!canCreateRecords}
+                                          />
+                                        </div>
+                                        <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
+                                          <label className="text-xs text-muted-foreground font-medium">KM Anterior</label>
+                                          <Input
+                                            type="text"
+                                            value={String(inlineEditData['KM ANTERIOR'] || '')}
+                                            onChange={(e) => setInlineEditData({
+                                              ...inlineEditData,
+                                              'KM ANTERIOR': e.target.value
+                                            })}
+                                            className="h-9"
+                                            disabled={!canCreateRecords}
+                                          />
+                                        </div>
+                                        <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
+                                          <label className="text-xs text-muted-foreground font-medium">KM Atual</label>
+                                          <Input
+                                            type="text"
+                                            value={String(inlineEditData['KM ATUAL'] || '')}
+                                            onChange={(e) => setInlineEditData({
+                                              ...inlineEditData,
+                                              'KM ATUAL': e.target.value
+                                            })}
+                                            className="h-9"
+                                            disabled={!canCreateRecords}
+                                          />
+                                        </div>
+                                        <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
+                                          <label className="text-xs text-muted-foreground font-medium">Qtd. ARLA</label>
+                                          <Input
+                                            type="text"
+                                            value={String(inlineEditData['QUANTIDADE DE ARLA'] || '')}
+                                            onChange={(e) => setInlineEditData({
+                                              ...inlineEditData,
+                                              'QUANTIDADE DE ARLA': e.target.value
+                                            })}
+                                            className="h-9"
+                                            disabled={!canCreateRecords}
+                                          />
+                                        </div>
+                                        <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
+                                          <label className="text-xs text-muted-foreground font-medium">Local</label>
+                                          <Select
+                                            value={String(inlineEditData['LOCAL'] || '')}
+                                            onValueChange={(value) => setInlineEditData({
+                                              ...inlineEditData,
+                                              'LOCAL': value
+                                            })}
+                                            disabled={!canCreateRecords}
+                                          >
+                                            <SelectTrigger className="h-9">
+                                              <SelectValue placeholder="Selecione" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                              {locais.map(local => (
+                                                <SelectItem key={local} value={local}>{local}</SelectItem>
+                                              ))}
+                                            </SelectContent>
+                                          </Select>
+                                        </div>
+                                        <div className="space-y-2 md:col-span-2" onClick={(e) => e.stopPropagation()}>
+                                          <label className="text-xs text-muted-foreground font-medium">Observações</label>
+                                          <Input
+                                            type="text"
+                                            value={String(inlineEditData['OBSERVAÇÃO'] || '')}
+                                            onChange={(e) => setInlineEditData({
+                                              ...inlineEditData,
+                                              'OBSERVAÇÃO': e.target.value
+                                            })}
+                                            placeholder="Adicionar observação..."
+                                            className="h-9"
+                                            disabled={!canCreateRecords}
+                                          />
+                                        </div>
+                                      </div>
+                                    </div>
+                                    
+                                    {/* Photos Section */}
+                                    <div className="grid grid-cols-2 gap-4">
+                                      <div className="space-y-2">
+                                        <span className="text-xs text-muted-foreground font-medium">Foto Bomba</span>
+                                        {row['FOTO BOMBA'] && String(row['FOTO BOMBA']).trim() ? (
+                                          <div 
+                                            className="relative group cursor-pointer"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setFullscreenImage(String(row['FOTO BOMBA']));
+                                            }}
+                                          >
+                                            <img 
+                                              src={String(row['FOTO BOMBA'])} 
+                                              alt="Foto Bomba" 
+                                              className="w-full h-32 object-cover rounded-lg border border-border group-hover:opacity-90 transition-opacity"
+                                            />
+                                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors rounded-lg flex items-center justify-center">
+                                              <Eye className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                                            </div>
+                                          </div>
+                                        ) : (
+                                          <div className="w-full h-32 bg-muted/30 rounded-lg border border-dashed border-border flex flex-col items-center justify-center gap-2">
+                                            <Image className="w-6 h-6 text-muted-foreground/50" />
+                                            <span className="text-muted-foreground text-xs">Sem foto</span>
+                                          </div>
+                                        )}
+                                      </div>
+                                      <div className="space-y-2">
+                                        <span className="text-xs text-muted-foreground font-medium">Foto Horímetro</span>
+                                        {row['FOTO HORIMETRO'] && String(row['FOTO HORIMETRO']).trim() ? (
+                                          <div 
+                                            className="relative group cursor-pointer"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setFullscreenImage(String(row['FOTO HORIMETRO']));
+                                            }}
+                                          >
+                                            <img 
+                                              src={String(row['FOTO HORIMETRO'])} 
+                                              alt="Foto Horímetro" 
+                                              className="w-full h-32 object-cover rounded-lg border border-border group-hover:opacity-90 transition-opacity"
+                                            />
+                                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors rounded-lg flex items-center justify-center">
+                                              <Eye className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                                            </div>
+                                          </div>
+                                        ) : (
+                                          <div className="w-full h-32 bg-muted/30 rounded-lg border border-dashed border-border flex flex-col items-center justify-center gap-2">
+                                            <Image className="w-6 h-6 text-muted-foreground/50" />
+                                            <span className="text-muted-foreground text-xs">Sem foto</span>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            )}
+                          </Fragment>
                         );
                       })}
                       {filteredRows.length > 50 && (
                         <TableRow>
-                          <TableCell colSpan={9} className="text-center py-4 text-muted-foreground">
+                          <TableCell colSpan={8} className="text-center py-4 text-muted-foreground">
                             Mostrando 50 de {filteredRows.length} registros
                           </TableCell>
                         </TableRow>
