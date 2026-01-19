@@ -140,6 +140,7 @@ interface AnomalyRecord {
     previousValue: number;
     source: string;
     sourceDate: string;
+    correctionType?: 'current_extra_digit' | 'previous_missing_digit' | 'decimal_shift' | 'estimated_interval' | 'from_sheet';
   };
 }
 
@@ -406,7 +407,7 @@ export function HorimeterCorrectionsTab({ data, refetch, loading }: HorimeterCor
     return map;
   }, [data.rows]);
 
-  // Function to find the correct previous value for an anomaly
+  // Function to intelligently find the correct value for an anomaly
   const findCorrectPreviousValue = useCallback((anomaly: AnomalyRecord): AnomalyRecord['suggestedCorrection'] | null => {
     const records = vehicleRecordsMap.get(anomaly.vehicleCode);
     if (!records || records.length < 2) return null;
@@ -416,31 +417,135 @@ export function HorimeterCorrectionsTab({ data, refetch, loading }: HorimeterCor
     const anomalyTime = parseTime(anomaly.time);
     if (!anomalyDate) return null;
     
+    const currentValue = isVehicle ? anomaly.kmCurrent : anomaly.horimeterCurrent;
+    const previousValue = isVehicle ? anomaly.kmPrevious : anomaly.horimeterPrevious;
+    
     // Find the record immediately before this one
     let previousRecord = null;
-    for (const record of records) {
-      // Skip if it's the same record
+    let nextRecord = null;
+    
+    for (let i = 0; i < records.length; i++) {
+      const record = records[i];
       if (record.rowIndex === anomaly.rowIndex) continue;
       
-      // Check if this record is before the anomaly
       const recordDate = record.dateObj;
-      if (recordDate.getTime() < anomalyDate.getTime() || 
-          (recordDate.getTime() === anomalyDate.getTime() && record.timeMinutes < anomalyTime)) {
+      const isBefore = recordDate.getTime() < anomalyDate.getTime() || 
+          (recordDate.getTime() === anomalyDate.getTime() && record.timeMinutes < anomalyTime);
+      
+      if (isBefore && !previousRecord) {
         previousRecord = record;
-        break; // Since records are sorted newest first, the first match is the immediate previous
+      } else if (!isBefore) {
+        nextRecord = record;
       }
     }
     
-    if (!previousRecord) return null;
+    const prevValue = previousRecord ? (isVehicle ? previousRecord.km : previousRecord.horimeter) : 0;
+    const nextValue = nextRecord ? (isVehicle ? nextRecord.km : nextRecord.horimeter) : 0;
+    const avgInterval = anomaly.avgInterval || 0;
     
-    const previousValue = isVehicle ? previousRecord.km : previousRecord.horimeter;
-    if (previousValue <= 0) return null;
+    // SMART CORRECTION LOGIC
+    // Case 1: High interval - check if current value might have extra digit (typing error)
+    if (anomaly.issueType === 'high_interval' && currentValue > 0 && prevValue > 0) {
+      // Check if dividing current by 10 gives a reasonable value close to previous + average interval
+      const expectedValue = prevValue + (avgInterval > 0 ? avgInterval : 50); // Use avg or default 50h/500km
+      
+      // Try dividing by 10 (extra digit typed)
+      const currentDiv10 = currentValue / 10;
+      const intervalIfDiv10 = currentDiv10 - prevValue;
+      
+      // If dividing by 10 gives a reasonable interval (positive and within 3x average)
+      if (intervalIfDiv10 > 0 && (avgInterval <= 0 || intervalIfDiv10 < avgInterval * 3)) {
+        // This suggests the current value has an extra digit
+        // Suggest correcting the PREVIOUS to match what would make sense
+        // The correct previous should be currentValue/10 - reasonable_interval
+        const suggestedPrevious = Math.round((currentDiv10 - (avgInterval > 0 ? avgInterval : intervalIfDiv10)) * 100) / 100;
+        
+        // Only suggest if the suggested value is close to what we'd expect
+        if (suggestedPrevious > 0 && Math.abs(suggestedPrevious - prevValue) < prevValue * 0.5) {
+          return {
+            previousValue: Math.round(currentDiv10 * 100) / 100,
+            source: 'Correção inteligente (valor atual ÷10)',
+            sourceDate: anomaly.date,
+            correctionType: 'current_extra_digit',
+          };
+        }
+      }
+      
+      // Try multiplying previous by 10 (missing digit in previous)
+      const prevTimes10 = prevValue * 10;
+      const intervalIfPrevTimes10 = currentValue - prevTimes10;
+      
+      if (intervalIfPrevTimes10 > 0 && (avgInterval <= 0 || intervalIfPrevTimes10 < avgInterval * 3)) {
+        return {
+          previousValue: Math.round(prevTimes10 * 100) / 100,
+          source: 'Correção inteligente (anterior ×10)',
+          sourceDate: previousRecord?.date || anomaly.date,
+          correctionType: 'previous_missing_digit',
+        };
+      }
+      
+      // Check if decimal point was placed wrong (e.g., 889953.90 should be 88995.39)
+      // Try moving decimal one place left
+      const currentDecimalShift = currentValue / 10;
+      const intervalWithShift = currentDecimalShift - prevValue;
+      
+      if (intervalWithShift > 0 && intervalWithShift < (avgInterval > 0 ? avgInterval * 2 : 200)) {
+        return {
+          previousValue: Math.round(currentDecimalShift * 100) / 100,
+          source: 'Correção inteligente (ponto decimal)',
+          sourceDate: anomaly.date,
+          correctionType: 'decimal_shift',
+        };
+      }
+    }
     
-    return {
-      previousValue,
-      source: 'Planilha',
-      sourceDate: previousRecord.date,
-    };
+    // Case 2: Negative interval - the previous value is higher than current
+    if (anomaly.issueType === 'negative_value') {
+      // If we have a next record, use a value that makes sense between current and next
+      if (nextRecord && nextValue > 0) {
+        const suggestedPrev = currentValue - (avgInterval > 0 ? avgInterval : 50);
+        if (suggestedPrev > 0) {
+          return {
+            previousValue: Math.round(suggestedPrev * 100) / 100,
+            source: 'Correção inteligente (intervalo estimado)',
+            sourceDate: previousRecord?.date || '',
+            correctionType: 'estimated_interval',
+          };
+        }
+      }
+      
+      // Otherwise, just use the real previous record value
+      if (previousRecord && prevValue > 0 && prevValue < currentValue) {
+        return {
+          previousValue: prevValue,
+          source: 'Registro anterior na planilha',
+          sourceDate: previousRecord.date,
+          correctionType: 'from_sheet',
+        };
+      }
+    }
+    
+    // Case 3: Zero previous - get from the actual previous record
+    if (anomaly.issueType === 'zero_previous' && previousRecord && prevValue > 0) {
+      return {
+        previousValue: prevValue,
+        source: 'Registro anterior na planilha',
+        sourceDate: previousRecord.date,
+        correctionType: 'from_sheet',
+      };
+    }
+    
+    // Fallback: use the actual previous record if available and different from current recorded previous
+    if (previousRecord && prevValue > 0 && Math.abs(prevValue - previousValue) > 1) {
+      return {
+        previousValue: prevValue,
+        source: 'Planilha',
+        sourceDate: previousRecord.date,
+        correctionType: 'from_sheet',
+      };
+    }
+    
+    return null;
   }, [vehicleRecordsMap]);
 
   // Calculate suggestions for all anomalies
