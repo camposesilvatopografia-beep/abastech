@@ -53,6 +53,7 @@ export function DashboardContent() {
   // Enable polling every 10 seconds for real-time updates
   const POLLING_INTERVAL = 10000;
   
+  // Use polling with short interval for real-time accuracy - critical for TWA/PWA
   const { data: geralData, loading, refetch: refetchGeral } = useSheetData(GERAL_SHEET, { pollingInterval: POLLING_INTERVAL });
   const { data: abastecimentoData, refetch: refetchAbastecimento } = useSheetData(ABASTECIMENTO_SHEET, { pollingInterval: POLLING_INTERVAL });
   const { data: vehicleData } = useSheetData(VEHICLE_SHEET, { pollingInterval: POLLING_INTERVAL });
@@ -84,7 +85,7 @@ export function DashboardContent() {
     },
   });
 
-  // Refresh data when window regains focus
+  // Refresh data when window regains focus - essential for TWA/PWA
   useEffect(() => {
     const handleFocus = () => {
       console.log('[Dashboard] Window focused, refreshing data...');
@@ -93,9 +94,38 @@ export function DashboardContent() {
       refetchArla(true, true);
       setLastUpdate(new Date());
     };
+
+    // Also trigger visibility change for PWA/TWA background/foreground switches
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        console.log('[Dashboard] App became visible, refreshing data...');
+        refetchGeral(true, true);
+        refetchAbastecimento(true, true);
+        refetchArla(true, true);
+        setLastUpdate(new Date());
+      }
+    };
     
     window.addEventListener('focus', handleFocus);
-    return () => window.removeEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [refetchGeral, refetchAbastecimento, refetchArla]);
+
+  // Periodic force refresh every 30 seconds to ensure TWA stays updated
+  useEffect(() => {
+    const forceRefreshInterval = setInterval(() => {
+      console.log('[Dashboard] Periodic force refresh for TWA/PWA...');
+      refetchGeral(true, true);
+      refetchAbastecimento(true, true);
+      refetchArla(true, true);
+      setLastUpdate(new Date());
+    }, 30000); // Every 30 seconds
+
+    return () => clearInterval(forceRefreshInterval);
   }, [refetchGeral, refetchAbastecimento, refetchArla]);
 
   // Update last sync time when data changes
