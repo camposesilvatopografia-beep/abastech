@@ -295,7 +295,7 @@ export function AbastecimentoPage() {
           action: 'update',
           sheetName: SHEET_NAME,
           rowIndex: inlineEditData._rowIndex,
-          rowData
+          data: rowData
         }
       });
       
@@ -3123,7 +3123,7 @@ export function AbastecimentoPage() {
                           action: 'update',
                           sheetName: SHEET_NAME,
                           rowIndex: editingRecord._rowIndex,
-                          rowData
+                          data: rowData
                         }
                       });
                       
