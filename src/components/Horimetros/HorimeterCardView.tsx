@@ -35,6 +35,16 @@ interface HorimeterCardViewProps {
   onDelete: (reading: HorimeterReading) => void;
 }
 
+// Helper function to format numbers in Brazilian format with proper decimal handling
+const formatNumericBR = (val: number | null | undefined): string => {
+  if (val === null || val === undefined) return '-';
+  const hasDecimals = val % 1 !== 0;
+  return val.toLocaleString('pt-BR', { 
+    minimumFractionDigits: hasDecimals ? 2 : 0, 
+    maximumFractionDigits: 2 
+  });
+};
+
 export function HorimeterCardView({
   readings,
   selectedIds,
@@ -100,13 +110,13 @@ export function HorimeterCardView({
                 <div className="bg-muted/30 rounded-lg p-2">
                   <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Anterior</p>
                   <p className="font-bold text-sm">
-                    {reading.previous_value?.toLocaleString('pt-BR') || '-'}
+                    {formatNumericBR(reading.previous_value)}
                   </p>
                 </div>
                 <div className="bg-primary/10 border border-primary/20 rounded-lg p-2">
                   <p className="text-[10px] text-primary uppercase tracking-wider mb-1">Atual</p>
                   <p className="font-bold text-lg text-primary">
-                    {reading.current_value.toLocaleString('pt-BR')}
+                    {formatNumericBR(reading.current_value)}
                   </p>
                 </div>
                 <div className={cn(
@@ -121,7 +131,7 @@ export function HorimeterCardView({
                     reading.interval > 0 ? "text-green-600" : 
                     reading.interval < 0 ? "text-red-600" : ""
                   )}>
-                    {reading.interval > 0 ? '+' : ''}{reading.interval.toLocaleString('pt-BR')}
+                    {reading.interval !== 0 ? formatNumericBR(reading.interval) : '-'}
                   </p>
                 </div>
               </div>
@@ -132,13 +142,13 @@ export function HorimeterCardView({
                   <div className="bg-blue-50 dark:bg-blue-950/30 rounded-lg p-2">
                     <p className="text-[10px] text-blue-600 uppercase tracking-wider mb-1">KM Anterior</p>
                     <p className="font-bold text-sm text-blue-600">
-                      {reading.previous_km?.toLocaleString('pt-BR') || '-'}
+                      {formatNumericBR(reading.previous_km)}
                     </p>
                   </div>
                   <div className="bg-blue-100 dark:bg-blue-900/40 border border-blue-200 dark:border-blue-800 rounded-lg p-2">
                     <p className="text-[10px] text-blue-600 uppercase tracking-wider mb-1">KM Atual</p>
                     <p className="font-bold text-lg text-blue-600">
-                      {reading.current_km?.toLocaleString('pt-BR') || '-'}
+                      {formatNumericBR(reading.current_km)}
                     </p>
                   </div>
                   <div className={cn(
@@ -147,9 +157,7 @@ export function HorimeterCardView({
                   )}>
                     <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Total KM</p>
                     <p className="font-bold text-sm text-blue-600">
-                      {reading.km_interval 
-                        ? (reading.km_interval > 0 ? '+' : '') + reading.km_interval.toLocaleString('pt-BR')
-                        : '-'}
+                      {reading.km_interval !== 0 ? formatNumericBR(reading.km_interval) : '-'}
                     </p>
                   </div>
                 </div>
