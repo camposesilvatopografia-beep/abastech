@@ -674,7 +674,7 @@ export function AbastecimentoPage() {
         kmAtual: parseNumber(row['KM ATUAL'] || row['KM_ATUAL'] || row['KM'] || row['Km'] || 0),
         tipo,
         fornecedor,
-      });
+      } as any);
     });
 
     const entries = Object.entries(summary).sort((a, b) => b[1].diesel - a[1].diesel);
@@ -1319,7 +1319,7 @@ export function AbastecimentoPage() {
             return [
               (index + 1).toString() + '.',
               record.data,
-              record.fornecedor || 'N/I',
+              (record as any).local || local, // Show entry location (Tanque 01, Tanque 02) - fallback to current location context
               record.quantidade.toLocaleString('pt-BR', { minimumFractionDigits: 0 }) + ' L'
             ];
           });
@@ -1333,7 +1333,7 @@ export function AbastecimentoPage() {
           
           autoTable(doc, {
             startY: currentY,
-            head: [['', 'Data', 'Fornecedor', 'Quantidade']],
+            head: [['', 'Data', 'Local de Entrada', 'Quantidade']],
             body: entradasTableData,
             styles: { 
               fontSize: 9,
