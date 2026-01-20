@@ -1557,21 +1557,28 @@ export function ManutencaoPage() {
         format(new Date(row.order_date), 'dd/MM/yy'),
         row.vehicle_code,
         company,
-        row.order_type === 'Preventiva' ? 'Prev.' : 'Corr.',
-        (row.problem_description || '').slice(0, 25),
+        row.problem_description || '-',
         row.mechanic_name || '-',
-        row.priority,
         row.status
       ];
     });
 
     autoTable(doc, {
-      head: [['Nº OS', 'Data', 'Veículo', 'Empresa', 'Tipo', 'Problema', 'Mecânico', 'Prioridade', 'Status']],
+      head: [['Nº OS', 'Data', 'Veículo', 'Empresa', 'Problema', 'Mecânico', 'Status']],
       body: tableData,
       startY: y,
       styles: { fontSize: 7, cellPadding: 2 },
       headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255] },
       alternateRowStyles: { fillColor: [248, 249, 250] },
+      columnStyles: {
+        0: { cellWidth: 22 },  // Nº OS
+        1: { cellWidth: 18 },  // Data
+        2: { cellWidth: 20 },  // Veículo
+        3: { cellWidth: 22 },  // Empresa
+        4: { cellWidth: 'auto' },  // Problema - ocupa o espaço restante
+        5: { cellWidth: 30 },  // Mecânico
+        6: { cellWidth: 25 },  // Status
+      },
     });
 
     const fileName = companyFilter !== 'all' 
