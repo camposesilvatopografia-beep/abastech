@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -26,13 +26,14 @@ import {
 } from '@/components/ui/popover';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { VehicleCombobox } from '@/components/ui/vehicle-combobox';
+import { CurrencyInput } from '@/components/ui/currency-input';
 import { useVehicles, useHorimeterReadings, HorimeterWithVehicle } from '@/hooks/useHorimeters';
 import { useToast } from '@/hooks/use-toast';
 import { Clock, Save, History, AlertTriangle, RefreshCw, TrendingUp, CalendarIcon, X } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, isWithinInterval, startOfDay, isSameDay, isAfter } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
-import { parsePtBRNumber } from '@/lib/ptBRNumber';
+import { parsePtBRNumber, formatPtBRNumber } from '@/lib/ptBRNumber';
 
 interface DatabaseHorimeterModalProps {
   open: boolean;
