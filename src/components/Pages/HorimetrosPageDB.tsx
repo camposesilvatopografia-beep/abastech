@@ -27,7 +27,9 @@ import {
   Square,
   Layers,
   LayoutGrid,
-  LayoutList
+  LayoutList,
+  Wrench,
+  List,
 } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Button } from '@/components/ui/button';
@@ -81,7 +83,12 @@ import { ColumnConfigModal } from '@/components/Layout/ColumnConfigModal';
 import { useLayoutPreferences, ColumnConfig } from '@/hooks/useLayoutPreferences';
 import * as XLSX from 'xlsx';
 import { HorimeterCardView } from '@/components/Horimetros/HorimeterCardView';
+import { HorimeterDBCorrectionsTab } from '@/components/Horimetros/HorimeterDBCorrectionsTab';
 
+const TABS = [
+  { id: 'registros', label: 'Registros', icon: List },
+  { id: 'correcoes', label: 'Correções', icon: Wrench },
+];
 const DEFAULT_HORIMETER_COLUMNS: ColumnConfig[] = [
   { key: 'select', label: 'Seleção', visible: true, order: 0 },
   { key: 'data', label: 'Data', visible: true, order: 1 },
@@ -128,7 +135,7 @@ export function HorimetrosPageDB() {
   const [editingRecord, setEditingRecord] = useState<HorimeterWithVehicle | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<HorimeterWithVehicle | null>(null);
   const [showMissingModal, setShowMissingModal] = useState(false);
-  
+  const [activeTab, setActiveTab] = useState('registros');
   // Multi-selection state - disabled by default
   const [selectionModeActive, setSelectionModeActive] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -650,6 +657,30 @@ export function HorimetrosPageDB() {
           </div>
         </div>
 
+        {/* Tabs */}
+        <div className="flex gap-2 border-b pb-2">
+          {TABS.map(tab => (
+            <Button
+              key={tab.id}
+              variant={activeTab === tab.id ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setActiveTab(tab.id)}
+              className="gap-2"
+            >
+              <tab.icon className="h-4 w-4" />
+              {tab.label}
+            </Button>
+          ))}
+        </div>
+
+        {activeTab === 'correcoes' ? (
+          <HorimeterDBCorrectionsTab 
+            readings={readings} 
+            refetch={refetchReadings} 
+            loading={loading}
+          />
+        ) : (
+        <>
         {/* Filters */}
         <div className="bg-card rounded-lg border p-4 space-y-3">
           {/* Date Filter Row - Simplified: Hoje, Data, Período */}
@@ -1088,7 +1119,9 @@ export function HorimetrosPageDB() {
             )}
           </div>
         )}
-      </div>
+        </div>
+        </>
+        )}
 
       {/* Modals */}
       <DatabaseHorimeterModal
