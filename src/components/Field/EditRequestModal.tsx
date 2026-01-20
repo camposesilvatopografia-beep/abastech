@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Edit2, Loader2, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -12,6 +11,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { BrazilianNumberInput } from '@/components/ui/brazilian-number-input';
+import { parsePtBRNumber, formatPtBRNumber } from '@/lib/ptBRNumber';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
@@ -39,26 +40,31 @@ interface EditRequestModalProps {
 export function EditRequestModal({ record, userId, onClose, onSuccess }: EditRequestModalProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [reason, setReason] = useState('');
-  const [proposedChanges, setProposedChanges] = useState({
-    fuel_quantity: 0,
-    horimeter_current: 0,
-    km_current: 0,
-    arla_quantity: 0,
-    observations: '',
-  });
+  const [fuelQuantityStr, setFuelQuantityStr] = useState('');
+  const [horimeterCurrentStr, setHorimeterCurrentStr] = useState('');
+  const [kmCurrentStr, setKmCurrentStr] = useState('');
+  const [arlaQuantityStr, setArlaQuantityStr] = useState('');
+  const [observationsStr, setObservationsStr] = useState('');
 
   useEffect(() => {
     if (record) {
-      setProposedChanges({
-        fuel_quantity: record.fuel_quantity || 0,
-        horimeter_current: record.horimeter_current || 0,
-        km_current: record.km_current || 0,
-        arla_quantity: record.arla_quantity || 0,
-        observations: record.observations || '',
-      });
+      setFuelQuantityStr(record.fuel_quantity ? formatPtBRNumber(record.fuel_quantity) : '');
+      setHorimeterCurrentStr(record.horimeter_current ? formatPtBRNumber(record.horimeter_current) : '');
+      setKmCurrentStr(record.km_current ? formatPtBRNumber(record.km_current, { decimals: 0 }) : '');
+      setArlaQuantityStr(record.arla_quantity ? formatPtBRNumber(record.arla_quantity) : '');
+      setObservationsStr(record.observations || '');
       setReason('');
     }
   }, [record]);
+
+  // Get numeric values from strings
+  const getProposedChanges = () => ({
+    fuel_quantity: parsePtBRNumber(fuelQuantityStr),
+    horimeter_current: parsePtBRNumber(horimeterCurrentStr),
+    km_current: parsePtBRNumber(kmCurrentStr),
+    arla_quantity: parsePtBRNumber(arlaQuantityStr),
+    observations: observationsStr,
+  });
 
   const handleSubmit = async () => {
     if (!record) return;
@@ -67,6 +73,8 @@ export function EditRequestModal({ record, userId, onClose, onSuccess }: EditReq
       toast.error('Por favor, informe o motivo da alteração');
       return;
     }
+
+    const proposedChanges = getProposedChanges();
 
     // Check if any changes were made
     const hasChanges = 
@@ -135,16 +143,13 @@ export function EditRequestModal({ record, userId, onClose, onSuccess }: EditReq
           <div className="space-y-2">
             <Label className="text-foreground">
               Quantidade de Combustível (L)
-              <span className="text-xs text-muted-foreground ml-2">Atual: {record.fuel_quantity}L</span>
+              <span className="text-xs text-muted-foreground ml-2">Atual: {formatPtBRNumber(record.fuel_quantity)}L</span>
             </Label>
-            <Input
-              type="number"
-              step="0.01"
-              value={proposedChanges.fuel_quantity}
-              onChange={(e) => setProposedChanges(prev => ({ 
-                ...prev, 
-                fuel_quantity: parseFloat(e.target.value) || 0 
-              }))}
+            <BrazilianNumberInput
+              value={fuelQuantityStr}
+              onChange={setFuelQuantityStr}
+              decimals={2}
+              placeholder="Ex: 150,00"
               className="bg-background border-border text-foreground"
             />
           </div>
@@ -153,16 +158,13 @@ export function EditRequestModal({ record, userId, onClose, onSuccess }: EditReq
           <div className="space-y-2">
             <Label className="text-foreground">
               Horímetro Atual
-              <span className="text-xs text-muted-foreground ml-2">Atual: {record.horimeter_current || '-'}</span>
+              <span className="text-xs text-muted-foreground ml-2">Atual: {record.horimeter_current ? formatPtBRNumber(record.horimeter_current) : '-'}</span>
             </Label>
-            <Input
-              type="number"
-              step="0.1"
-              value={proposedChanges.horimeter_current}
-              onChange={(e) => setProposedChanges(prev => ({ 
-                ...prev, 
-                horimeter_current: parseFloat(e.target.value) || 0 
-              }))}
+            <BrazilianNumberInput
+              value={horimeterCurrentStr}
+              onChange={setHorimeterCurrentStr}
+              decimals={2}
+              placeholder="Ex: 4321,30"
               className="bg-background border-border text-foreground"
             />
           </div>
@@ -171,16 +173,13 @@ export function EditRequestModal({ record, userId, onClose, onSuccess }: EditReq
           <div className="space-y-2">
             <Label className="text-foreground">
               KM Atual
-              <span className="text-xs text-muted-foreground ml-2">Atual: {record.km_current || '-'}</span>
+              <span className="text-xs text-muted-foreground ml-2">Atual: {record.km_current ? formatPtBRNumber(record.km_current, { decimals: 0 }) : '-'}</span>
             </Label>
-            <Input
-              type="number"
-              step="1"
-              value={proposedChanges.km_current}
-              onChange={(e) => setProposedChanges(prev => ({ 
-                ...prev, 
-                km_current: parseInt(e.target.value) || 0 
-              }))}
+            <BrazilianNumberInput
+              value={kmCurrentStr}
+              onChange={setKmCurrentStr}
+              decimals={0}
+              placeholder="Ex: 45320"
               className="bg-background border-border text-foreground"
             />
           </div>
@@ -189,16 +188,13 @@ export function EditRequestModal({ record, userId, onClose, onSuccess }: EditReq
           <div className="space-y-2">
             <Label className="text-foreground">
               ARLA (L)
-              <span className="text-xs text-muted-foreground ml-2">Atual: {record.arla_quantity || 0}L</span>
+              <span className="text-xs text-muted-foreground ml-2">Atual: {formatPtBRNumber(record.arla_quantity || 0)}L</span>
             </Label>
-            <Input
-              type="number"
-              step="0.1"
-              value={proposedChanges.arla_quantity}
-              onChange={(e) => setProposedChanges(prev => ({ 
-                ...prev, 
-                arla_quantity: parseFloat(e.target.value) || 0 
-              }))}
+            <BrazilianNumberInput
+              value={arlaQuantityStr}
+              onChange={setArlaQuantityStr}
+              decimals={1}
+              placeholder="Ex: 20,5"
               className="bg-background border-border text-foreground"
             />
           </div>
@@ -207,11 +203,8 @@ export function EditRequestModal({ record, userId, onClose, onSuccess }: EditReq
           <div className="space-y-2">
             <Label className="text-foreground">Observações</Label>
             <Textarea
-              value={proposedChanges.observations}
-              onChange={(e) => setProposedChanges(prev => ({ 
-                ...prev, 
-                observations: e.target.value 
-              }))}
+              value={observationsStr}
+              onChange={(e) => setObservationsStr(e.target.value)}
               className="bg-background border-border text-foreground min-h-[60px]"
               placeholder="Observações do registro..."
             />

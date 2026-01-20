@@ -2195,11 +2195,19 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                   <span className="text-red-500">*</span>
                 </Label>
                 <Input
-                  type="number"
+                  type="text"
                   inputMode="decimal"
-                  placeholder="Ex: 20"
+                  placeholder="Ex: 20,00"
                   value={arlaQuantity}
-                  onChange={(e) => setArlaQuantity(e.target.value)}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/\./g, ',').replace(/[^\d,\-]/g, '');
+                    setArlaQuantity(value);
+                  }}
+                  onBlur={() => {
+                    if (arlaQuantity) {
+                      setArlaQuantity(formatBrazilianNumber(parseBrazilianNumber(arlaQuantity)));
+                    }
+                  }}
                   className="h-14 text-2xl text-center font-bold"
                 />
               </div>
@@ -2243,11 +2251,14 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                   <span className="text-red-500">*</span>
                 </Label>
                 <Input
-                  type="number"
+                  type="text"
                   inputMode="decimal"
                   placeholder="Ex: 1"
                   value={filterBlowQuantity}
-                  onChange={(e) => setFilterBlowQuantity(e.target.value)}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/\./g, ',').replace(/[^\d,\-]/g, '');
+                    setFilterBlowQuantity(value);
+                  }}
                   className="h-14 text-2xl text-center font-bold"
                 />
               </div>
@@ -2732,11 +2743,20 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
           )}
           
           <Input
-            type="number"
+            type="text"
             inputMode="decimal"
-            placeholder="Ex: 150"
+            placeholder="Ex: 150,00"
             value={fuelQuantity}
-            onChange={(e) => setFuelQuantity(e.target.value)}
+            onChange={(e) => {
+              // Force Brazilian format: replace dots with commas
+              const value = e.target.value.replace(/\./g, ',').replace(/[^\d,\-]/g, '');
+              setFuelQuantity(value);
+            }}
+            onBlur={() => {
+              if (fuelQuantity) {
+                setFuelQuantity(formatBrazilianNumber(parseBrazilianNumber(fuelQuantity)));
+              }
+            }}
             className="h-20 text-4xl text-center font-black border-3 border-amber-300 dark:border-amber-600 bg-white dark:bg-slate-900 focus:border-amber-500 focus:ring-4 focus:ring-amber-200 dark:focus:ring-amber-800 shadow-[0_4px_12px_rgba(0,0,0,0.4)] dark:shadow-[0_4px_12px_rgba(0,0,0,0.7)]"
           />
         </div>
@@ -2872,11 +2892,19 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
             <div className="space-y-2">
               <Label className="text-sm">Quantidade de Óleo (Litros)</Label>
               <Input
-                type="number"
+                type="text"
                 inputMode="decimal"
-                placeholder="Ex: 5"
+                placeholder="Ex: 5,00"
                 value={oilQuantity}
-                onChange={(e) => setOilQuantity(e.target.value)}
+                onChange={(e) => {
+                  const value = e.target.value.replace(/\./g, ',').replace(/[^\d,\-]/g, '');
+                  setOilQuantity(value);
+                }}
+                onBlur={() => {
+                  if (oilQuantity) {
+                    setOilQuantity(formatBrazilianNumber(parseBrazilianNumber(oilQuantity)));
+                  }
+                }}
                 className="h-10"
               />
             </div>
@@ -2885,11 +2913,14 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
             <div className="space-y-2">
               <Label className="text-sm">Sopra Filtro (Quantidade)</Label>
               <Input
-                type="number"
+                type="text"
                 inputMode="decimal"
                 placeholder="Quantidade (opcional)"
                 value={filterBlowQuantity}
-                onChange={(e) => setFilterBlowQuantity(e.target.value)}
+                onChange={(e) => {
+                  const value = e.target.value.replace(/\./g, ',').replace(/[^\d,\-]/g, '');
+                  setFilterBlowQuantity(value);
+                }}
                 className="h-10"
               />
             </div>
