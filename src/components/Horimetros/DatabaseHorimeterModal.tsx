@@ -310,37 +310,6 @@ export function DatabaseHorimeterModal({
 
     return true;
   };
-    
-    // At least one value must be provided
-    if (horimeterNum <= 0 && kmNum <= 0) {
-      toast({
-        title: 'Erro',
-        description: 'Informe pelo menos um valor (Horímetro ou KM)',
-        variant: 'destructive',
-      });
-      return false;
-    }
-
-    // Show warning but allow saving if horimeter is <= previous
-    if (horimeterNum > 0 && previousHorimeter > 0 && horimeterNum <= previousHorimeter) {
-      toast({
-        title: '⚠️ Atenção: Possível inconsistência',
-        description: `O horímetro atual (${horimeterNum.toLocaleString('pt-BR')}h) é menor ou igual ao anterior (${previousHorimeter.toLocaleString('pt-BR')}h). O registro será salvo e um alerta será enviado.`,
-        variant: 'default',
-      });
-    }
-
-    // Show warning but allow saving if KM is <= previous
-    if (kmNum > 0 && previousKm > 0 && kmNum <= previousKm) {
-      toast({
-        title: '⚠️ Atenção: Possível inconsistência',
-        description: `A quilometragem atual (${kmNum.toLocaleString('pt-BR')} km) é menor ou igual à anterior (${previousKm.toLocaleString('pt-BR')} km). O registro será salvo e um alerta será enviado.`,
-        variant: 'default',
-      });
-    }
-
-    return true;
-  };
 
   const handleButtonClick = () => {
     if (!validateForm()) return;
