@@ -659,6 +659,9 @@ export function AbastecimentoPage() {
       summary[local].valor += valor;
 
       // Add detailed record with anterior/atual values - use exact column names from sheet
+      // LOCAL DE ENTRADA comes from column AB in AbastecimentoCanteiro01
+      const localEntrada = String(row['LOCAL DE ENTRADA'] || row['LOCAL_DE_ENTRADA'] || '').trim();
+      
       recordsByLocal[local].push({
         data: String(row['DATA'] || ''),
         codigo: String(row['VEICULO'] || row['Veiculo'] || row['CODIGO'] || ''),
@@ -674,6 +677,7 @@ export function AbastecimentoPage() {
         kmAtual: parseNumber(row['KM ATUAL'] || row['KM_ATUAL'] || row['KM'] || row['Km'] || 0),
         tipo,
         fornecedor,
+        localEntrada, // Column AB - LOCAL DE ENTRADA (e.g., Comboio 01, Comboio 02)
       } as any);
     });
 
@@ -1316,10 +1320,13 @@ export function AbastecimentoPage() {
           const entradasTableData = sortedEntradas.map((record, index) => {
             totalDieselEntradas += record.quantidade;
             
+            // Use LOCAL DE ENTRADA (column AB) from the spreadsheet - e.g., "Comboio 01", "Comboio 02"
+            const entryLocation = (record as any).localEntrada || 'N/I';
+            
             return [
               (index + 1).toString() + '.',
               record.data,
-              (record as any).local || local, // Show entry location (Tanque 01, Tanque 02) - fallback to current location context
+              entryLocation,
               record.quantidade.toLocaleString('pt-BR', { minimumFractionDigits: 0 }) + ' L'
             ];
           });
