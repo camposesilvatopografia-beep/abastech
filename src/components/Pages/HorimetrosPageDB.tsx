@@ -1119,9 +1119,9 @@ export function HorimetrosPageDB() {
             )}
           </div>
         )}
-        </div>
         </>
         )}
+      </div>
 
       {/* Modals */}
       <DatabaseHorimeterModal
