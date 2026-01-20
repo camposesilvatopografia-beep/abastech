@@ -231,10 +231,16 @@ export function HorimeterCorrectionsTab({ data, refetch, loading }: HorimeterCor
         record.setHours(0, 0, 0, 0);
         return record.getTime() === selected.getTime();
       case 'period':
-        if (!startDate || !endDate) return true;
+        if (!startDate && !endDate) return true;
+        if (startDate && !endDate) {
+          return recordDate >= startOfDay(startDate);
+        }
+        if (!startDate && endDate) {
+          return recordDate <= endOfDay(endDate);
+        }
         return isWithinInterval(recordDate, {
-          start: startOfDay(startDate),
-          end: endOfDay(endDate),
+          start: startOfDay(startDate!),
+          end: endOfDay(endDate!),
         });
       default:
         return true;
