@@ -64,8 +64,8 @@ const PDF_COLUMNS = [
   { key: 'intervaloKm', label: 'Total Km' },
 ];
 
-// Company logos as base64
-const LOGO_CONSORCIO = '/logo-consorcio.png';
+// Logo paths
+const LOGO_CONSORCIO_HEADER = '/logo-consorcio-header.png';
 const LOGO_ABASTECH = '/logo-abastech.png';
 
 // Predefined companies for quick export
@@ -451,24 +451,43 @@ export function HorimeterHistoryTab({ vehicles, readings, loading }: HorimeterHi
       doc.addPage();
     }
 
+    // Header with logos
+    try {
+      const imgConsorcio = new Image();
+      imgConsorcio.src = LOGO_CONSORCIO_HEADER;
+      doc.addImage(imgConsorcio, 'PNG', 10, 5, 80, 18);
+    } catch (e) {
+      console.log('Logo consórcio não encontrado');
+    }
+
+    try {
+      const imgAbastech = new Image();
+      imgAbastech.src = LOGO_ABASTECH;
+      doc.addImage(imgAbastech, 'PNG', pageWidth - 35, 5, 25, 16);
+    } catch (e) {
+      console.log('Logo abastech não encontrado');
+    }
+
     // Title - Red underlined "Histórico de Horímetros"
     doc.setTextColor(180, 0, 0); // Dark red
-    doc.setFontSize(18);
+    doc.setFontSize(16);
     doc.setFont('helvetica', 'bold');
-    doc.text('Histórico de Horímetros', pageWidth / 2, 18, { align: 'center' });
+    doc.text('Histórico de Horímetros', pageWidth / 2, 30, { align: 'center' });
     
     // Red underline
     const titleWidth = doc.getTextWidth('Histórico de Horímetros');
     doc.setDrawColor(180, 0, 0);
-    doc.setLineWidth(0.8);
-    doc.line((pageWidth - titleWidth) / 2, 20, (pageWidth + titleWidth) / 2, 20);
+    doc.setLineWidth(0.6);
+    doc.line((pageWidth - titleWidth) / 2, 32, (pageWidth + titleWidth) / 2, 32);
     
     // Company name - prominent below title
+    let headerEndY = 36;
     if (companyName && companyName !== 'Todos os Veículos') {
       doc.setTextColor(60, 60, 60);
-      doc.setFontSize(12);
+      doc.setFontSize(11);
       doc.setFont('helvetica', 'bold');
-      doc.text(companyName, pageWidth / 2, 28, { align: 'center' });
+      doc.text(companyName, pageWidth / 2, 40, { align: 'center' });
+      headerEndY = 44;
     }
 
     // Period info if available
@@ -476,13 +495,14 @@ export function HorimeterHistoryTab({ vehicles, readings, loading }: HorimeterHi
       doc.setTextColor(80, 80, 80);
       doc.setFontSize(9);
       doc.setFont('helvetica', 'normal');
-      doc.text(`Período: ${periodInfo}`, pageWidth / 2, 34, { align: 'center' });
+      doc.text(`Período: ${periodInfo}`, pageWidth / 2, headerEndY + 4, { align: 'center' });
+      headerEndY += 8;
     }
 
     // Sort all data by vehicle code
     const sortedData = [...data].sort((a, b) => a.veiculo.localeCompare(b.veiculo));
 
-    let currentY = periodInfo ? 40 : (companyName && companyName !== 'Todos os Veículos') ? 34 : 28;
+    let currentY = headerEndY + 4;
     const tableMargin = 8;
     
     // Dynamic font size based on data volume
