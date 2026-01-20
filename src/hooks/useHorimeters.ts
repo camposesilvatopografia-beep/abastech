@@ -609,12 +609,13 @@ export function useSheetSync() {
         const kmAnterior = parseNum(row.Km_Anterior || row.KM_ANTERIOR || row['Km_Anterior ']);
         const kmAtual = parseNum(row.Km_Atual || row.KM_ATUAL || row['Km_Atual ']);
         
-        // current_value = horimeter value (primary), previous_value = previous horimeter
-        // current_km = km value, previous_km = previous km
-        const currentValue = horAtual > 0 ? horAtual : (kmAtual > 0 ? kmAtual : 0);
+        // Keep hours and KM strictly separated:
+        // - current_value/previous_value are ALWAYS hours (horímetro)
+        // - current_km/previous_km are ALWAYS KM
+        const currentValue = horAtual > 0 ? horAtual : 0;
         const previousValue = horAnterior > 0 ? horAnterior : null;
 
-        // Skip if no current value at all
+        // Skip only if both are missing
         if (currentValue === 0 && kmAtual === 0) {
           stats.errors++;
           continue;
@@ -637,7 +638,7 @@ export function useSheetSync() {
             await supabase
               .from('horimeter_readings')
               .update({
-                current_value: horAtual > 0 ? horAtual : currentValue,
+                current_value: currentValue,
                 previous_value: previousValue,
                 current_km: kmAtual > 0 ? kmAtual : null,
                 previous_km: kmAnterior > 0 ? kmAnterior : null,
@@ -654,7 +655,7 @@ export function useSheetSync() {
               .insert({
                 vehicle_id: vehicleId,
                 reading_date: readingDate,
-                current_value: horAtual > 0 ? horAtual : currentValue,
+                current_value: currentValue,
                 previous_value: previousValue,
                 current_km: kmAtual > 0 ? kmAtual : null,
                 previous_km: kmAnterior > 0 ? kmAnterior : null,

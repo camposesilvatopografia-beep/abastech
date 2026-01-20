@@ -94,16 +94,14 @@ const DEFAULT_HORIMETER_COLUMNS: ColumnConfig[] = [
   { key: 'data', label: 'Data', visible: true, order: 1 },
   { key: 'veiculo', label: 'Veículo', visible: true, order: 2 },
   { key: 'operador', label: 'Operador', visible: true, order: 3 },
-  { key: 'empresa', label: 'Empresa', visible: true, order: 4 },
-  { key: 'categoria', label: 'Categoria', visible: true, order: 5 },
-  { key: 'anterior', label: 'Hor. Anterior', visible: true, order: 6 },
-  { key: 'atual', label: 'Hor. Atual', visible: true, order: 7 },
-  { key: 'intervalo', label: 'H.T.', visible: true, order: 8 },
-  { key: 'km_anterior', label: 'KM Anterior', visible: true, order: 9 },
-  { key: 'km_atual', label: 'KM Atual', visible: true, order: 10 },
-  { key: 'km_intervalo', label: 'Total KM', visible: true, order: 11 },
-  { key: 'observacoes', label: 'Observações', visible: false, order: 12 },
-  { key: 'acoes', label: 'Ações', visible: true, order: 13 },
+  { key: 'anterior', label: 'Hor. Anterior', visible: true, order: 4 },
+  { key: 'atual', label: 'Hor. Atual', visible: true, order: 5 },
+  { key: 'intervalo', label: 'H.T.', visible: true, order: 6 },
+  { key: 'km_anterior', label: 'KM Anterior', visible: true, order: 7 },
+  { key: 'km_atual', label: 'KM Atual', visible: true, order: 8 },
+  { key: 'km_intervalo', label: 'Total KM', visible: true, order: 9 },
+  { key: 'observacoes', label: 'Observações', visible: false, order: 10 },
+  { key: 'acoes', label: 'Ações', visible: true, order: 11 },
 ];
 
 export function HorimetrosPageDB() {
@@ -485,8 +483,6 @@ export function HorimetrosPageDB() {
       format(new Date(r.reading_date + 'T00:00:00'), 'dd/MM/yyyy'),
       r.vehicle?.code || '-',
       r.operator || '-',
-      r.vehicle?.company || '-',
-      r.vehicle?.category || '-',
       formatBR(r.previous_value),
       formatBR(r.current_value),
       formatInterval(r.interval),
@@ -496,7 +492,7 @@ export function HorimetrosPageDB() {
     ]);
 
     autoTable(doc, {
-      head: [['Data', 'Veículo', 'Operador', 'Empresa', 'Categoria', 'Hor. Anterior', 'Hor. Atual', 'H.T.', 'KM Anterior', 'KM Atual', 'Total KM']],
+      head: [['Data', 'Veículo', 'Operador', 'Hor. Anterior', 'Hor. Atual', 'H.T.', 'KM Anterior', 'KM Atual', 'Total KM']],
       body: tableData,
       startY: y,
       styles: { fontSize: 7, cellPadding: 2 },
@@ -506,14 +502,12 @@ export function HorimetrosPageDB() {
         0: { cellWidth: 22 }, // Data
         1: { cellWidth: 22, fontStyle: 'bold' }, // Veículo
         2: { cellWidth: 28 }, // Operador
-        3: { cellWidth: 25 }, // Empresa
-        4: { cellWidth: 25 }, // Categoria
-        5: { cellWidth: 24, halign: 'right' }, // Hor. Anterior
-        6: { cellWidth: 22, halign: 'right' }, // Hor. Atual
-        7: { cellWidth: 18, halign: 'right', fontStyle: 'bold' }, // H.T.
-        8: { cellWidth: 24, halign: 'right' }, // KM Anterior
-        9: { cellWidth: 22, halign: 'right' }, // KM Atual
-        10: { cellWidth: 18, halign: 'right', fontStyle: 'bold' }, // Total KM
+        3: { cellWidth: 24, halign: 'right' }, // Hor. Anterior
+        4: { cellWidth: 22, halign: 'right' }, // Hor. Atual
+        5: { cellWidth: 18, halign: 'right', fontStyle: 'bold' }, // H.T.
+        6: { cellWidth: 24, halign: 'right' }, // KM Anterior
+        7: { cellWidth: 22, halign: 'right' }, // KM Atual
+        8: { cellWidth: 18, halign: 'right', fontStyle: 'bold' }, // Total KM
       },
     });
 
@@ -1003,8 +997,6 @@ export function HorimetrosPageDB() {
                   <TableHead>Data</TableHead>
                   <TableHead>Veículo</TableHead>
                   <TableHead>Operador</TableHead>
-                  <TableHead>Empresa</TableHead>
-                  <TableHead>Categoria</TableHead>
                   <TableHead className="text-right">Hor. Anterior</TableHead>
                   <TableHead className="text-right">Hor. Atual</TableHead>
                   <TableHead className="text-right">H.T.</TableHead>
@@ -1037,8 +1029,6 @@ export function HorimetrosPageDB() {
                       </TableCell>
                       <TableCell className="font-medium">{reading.vehicle?.code}</TableCell>
                       <TableCell>{reading.operator || '-'}</TableCell>
-                      <TableCell>{reading.vehicle?.company || '-'}</TableCell>
-                      <TableCell>{reading.vehicle?.category || '-'}</TableCell>
                       <TableCell className="text-right">
                         {reading.previous_value?.toLocaleString('pt-BR') || '-'}
                       </TableCell>
