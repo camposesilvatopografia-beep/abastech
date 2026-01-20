@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Download, FileText, Search, Share2, Settings2, Calendar, X } from 'lucide-react';
+import { Download, FileText, Search, Share2, Settings2, Calendar, X, Filter } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -39,16 +39,28 @@ import { useObraSettings } from '@/hooks/useObraSettings';
 // Default column configuration for history
 const DEFAULT_HISTORY_COLUMNS: ColumnConfig[] = [
   { key: 'index', label: '#', visible: true, order: 0 },
-  { key: 'veiculo', label: 'Código', visible: true, order: 1 },
+  { key: 'veiculo', label: 'Veículo', visible: true, order: 1 },
   { key: 'descricao', label: 'Descrição', visible: true, order: 2 },
   { key: 'empresa', label: 'Empresa', visible: true, order: 3 },
-  { key: 'operador', label: 'Operador', visible: true, order: 4 },
-  { key: 'horAnterior', label: 'Hor. Anterior', visible: true, order: 5 },
-  { key: 'horAtual', label: 'Hor. Atual', visible: true, order: 6 },
-  { key: 'intervaloHor', label: 'Intervalo (h)', visible: true, order: 7 },
-  { key: 'kmAnterior', label: 'Km Anterior', visible: true, order: 8 },
-  { key: 'kmAtual', label: 'Km Atual', visible: true, order: 9 },
-  { key: 'intervaloKm', label: 'Intervalo (km)', visible: true, order: 10 },
+  { key: 'horAnterior', label: 'Hor. Anterior', visible: true, order: 4 },
+  { key: 'horAtual', label: 'Hor. Atual', visible: true, order: 5 },
+  { key: 'kmAnterior', label: 'Km. Anterior', visible: true, order: 6 },
+  { key: 'kmAtual', label: 'Km. Atual', visible: true, order: 7 },
+  { key: 'intervaloHor', label: 'H.T', visible: true, order: 8 },
+  { key: 'intervaloKm', label: 'Km.T', visible: true, order: 9 },
+];
+
+// PDF column definitions for fixed layout (matching image)
+const PDF_COLUMNS = [
+  { key: 'index', label: '#' },
+  { key: 'veiculo', label: 'Veículo' },
+  { key: 'descricao', label: 'Descrição' },
+  { key: 'empresa', label: 'Empresa' },
+  { key: 'horAnterior', label: 'Hor. Anterior' },
+  { key: 'horAtual', label: 'Hor. Atual' },
+  { key: 'kmAnterior', label: 'Km. Anterior' },
+  { key: 'kmAtual', label: 'Km. Atual' },
+  { key: 'intervaloHor', label: 'H.T' },
 ];
 
 // Company logos as base64
@@ -117,6 +129,7 @@ export function HorimeterHistoryTab({ vehicles, readings, loading }: HorimeterHi
   const [search, setSearch] = useState('');
   const [empresaFilter, setEmpresaFilter] = useState<string>('all');
   const [categoriaFilter, setCategoriaFilter] = useState<string>('all');
+  const [veiculoFilter, setVeiculoFilter] = useState<string>('all');
   const [columnConfigOpen, setColumnConfigOpen] = useState(false);
   
   // Date filters - simplified: Hoje, Data, Período
@@ -153,6 +166,11 @@ export function HorimeterHistoryTab({ vehicles, readings, loading }: HorimeterHi
       if (v.category) unique.add(v.category);
     });
     return Array.from(unique).sort();
+  }, [vehicles]);
+
+  // Get unique vehicles for filter
+  const veiculosList = useMemo(() => {
+    return vehicles.map(v => ({ code: v.code, name: v.name || v.description || '' })).sort((a, b) => a.code.localeCompare(b.code));
   }, [vehicles]);
 
   // Helper to get date range based on filter
@@ -309,13 +327,17 @@ export function HorimeterHistoryTab({ vehicles, readings, loading }: HorimeterHi
         if (categoriaFilter !== 'all' && item.categoria !== categoriaFilter) {
           return false;
         }
+        // Veículo filter
+        if (veiculoFilter !== 'all' && item.veiculo !== veiculoFilter) {
+          return false;
+        }
         return true;
       })
       .sort((a, b) => a.veiculo.localeCompare(b.veiculo));
 
     // Re-index after filtering
     return result.map((item, idx) => ({ ...item, index: idx + 1 }));
-  }, [vehicles, readings, search, empresaFilter, categoriaFilter, getDateRange]);
+  }, [vehicles, readings, search, empresaFilter, categoriaFilter, veiculoFilter, getDateRange]);
 
   // Get all data (unfiltered) for company exports
   const getAllVehicleSummary = useMemo(() => {
@@ -418,7 +440,8 @@ export function HorimeterHistoryTab({ vehicles, readings, loading }: HorimeterHi
     doc: jsPDF,
     companyName: string,
     data: VehicleSummary[],
-    isFirstPage: boolean
+    isFirstPage: boolean,
+    periodInfo?: string
   ) => {
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
@@ -448,154 +471,106 @@ export function HorimeterHistoryTab({ vehicles, readings, loading }: HorimeterHi
       console.log('Logo abastech não encontrado');
     }
 
-    // Company name LARGE and prominent
+    // Title
     doc.setTextColor(255, 255, 255);
-    doc.setFontSize(18);
+    doc.setFontSize(16);
     doc.setFont('helvetica', 'bold');
-    doc.text(companyName.toUpperCase(), pageWidth / 2, 12, { align: 'center' });
-
-    // Subtitle
-    doc.setFontSize(11);
-    doc.setFont('helvetica', 'normal');
-    doc.text('RELATÓRIO DE HORÍMETROS', pageWidth / 2, 20, { align: 'center' });
+    doc.text('HISTÓRICO DE HORÍMETROS', pageWidth / 2, 12, { align: 'center' });
 
     // Company and project info - DYNAMIC from obra_settings
-    doc.setFontSize(8);
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
     const obraInfo = obraSettings?.nome 
       ? `${obraSettings.nome}${obraSettings.subtitulo ? ` - ${obraSettings.subtitulo}` : ''}${obraSettings.cidade ? ` | ${obraSettings.cidade}` : ''}`
       : 'Sistema de Gestão de Frotas';
-    doc.text(obraInfo, pageWidth / 2, 27, { align: 'center' });
+    doc.text(obraInfo, pageWidth / 2, 20, { align: 'center' });
+    
+    // Filter info
+    doc.setFontSize(9);
+    doc.text(companyName, pageWidth / 2, 27, { align: 'center' });
 
-    // Date - below header
+    // Date and period info
     doc.setTextColor(60, 60, 60);
     doc.setFontSize(8);
     const dateStr = format(new Date(), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR });
     doc.text(`Gerado em: ${dateStr}`, pageWidth - 10, 38, { align: 'right' });
     doc.text(`Total: ${data.length} registros`, 10, 38);
+    
+    if (periodInfo) {
+      doc.text(`Período: ${periodInfo}`, pageWidth / 2, 38, { align: 'center' });
+    }
 
-    // Separate equipment and vehicles
-    const equipments = data.filter(item => item.isEquipment).sort((a, b) => a.veiculo.localeCompare(b.veiculo));
-    const vehiclesList = data.filter(item => !item.isEquipment).sort((a, b) => a.veiculo.localeCompare(b.veiculo));
+    // Sort all data by vehicle code
+    const sortedData = [...data].sort((a, b) => a.veiculo.localeCompare(b.veiculo));
 
     let currentY = 42;
     const tableMargin = 6;
     
-    // Calculate available height for tables
-    const availableHeight = pageHeight - currentY - 15; // 15mm for footer
-    const hasEquipments = equipments.length > 0;
-    const hasVehicles = vehiclesList.length > 0;
-    
     // Dynamic font size based on data volume
-    const totalItems = equipments.length + vehiclesList.length;
+    const totalItems = sortedData.length;
     const fontSize = totalItems > 40 ? 6 : totalItems > 25 ? 7 : 8;
     const cellPadding = totalItems > 40 ? 1 : 1.5;
     
-    // Get visible columns for PDF - build headers and data dynamically
+    // Fixed PDF columns (matching the image layout)
     const buildPdfRow = (item: VehicleSummary, idx: number) => {
-      const row: string[] = [];
-      visibleColumns.forEach(col => {
-        switch (col.key) {
-          case 'index': row.push((idx + 1).toString()); break;
-          case 'veiculo': row.push(item.veiculo); break;
-          case 'descricao': row.push(item.descricao.substring(0, 30)); break;
-          case 'empresa': row.push(item.empresa); break;
-          case 'operador': row.push(item.operador || '-'); break;
-          case 'horAnterior': row.push(formatNumber(item.horAnterior)); break;
-          case 'horAtual': row.push(formatNumber(item.horAtual)); break;
-          case 'intervaloHor': row.push(formatInterval(item.intervaloHor)); break;
-          case 'kmAnterior': row.push(formatNumber(item.kmAnterior)); break;
-          case 'kmAtual': row.push(formatNumber(item.kmAtual)); break;
-          case 'intervaloKm': row.push(formatInterval(item.intervaloKm)); break;
-        }
-      });
-      return row;
+      return [
+        (idx + 1).toString(),
+        item.veiculo,
+        item.descricao.substring(0, 25),
+        item.empresa,
+        formatNumber(item.horAnterior),
+        formatNumber(item.horAtual),
+        formatNumber(item.kmAnterior),
+        formatNumber(item.kmAtual),
+        formatInterval(item.intervaloHor),
+      ];
     };
     
-    const pdfHeaders = visibleColumns.map(col => col.label);
+    const pdfHeaders = PDF_COLUMNS.map(col => col.label);
 
-    // Equipments section
-    if (hasEquipments) {
-      doc.setFontSize(9);
-      doc.setTextColor(30, 41, 59);
-      doc.setFont('helvetica', 'bold');
-      doc.text(`EQUIPAMENTOS (${equipments.length})`, tableMargin, currentY);
-      currentY += 3;
+    // Single table with all data (matching image layout - no separation by type)
+    const tableData = sortedData.map((item, idx) => buildPdfRow(item, idx));
 
-      const equipmentData = equipments.map((item, idx) => buildPdfRow(item, idx));
-
-      autoTable(doc, {
-        startY: currentY,
-        head: [pdfHeaders],
-        body: equipmentData,
-        theme: 'grid',
-        tableWidth: pageWidth - (tableMargin * 2),
-        margin: { left: tableMargin, right: tableMargin },
-        styles: {
-          fontSize: fontSize,
-          cellPadding: cellPadding,
-          halign: 'center',
-          valign: 'middle',
-          lineColor: [200, 200, 200],
-          lineWidth: 0.2,
-        },
-        headStyles: {
-          fillColor: [30, 41, 59], // Navy blue
-          textColor: [255, 255, 255],
-          fontStyle: 'bold',
-          halign: 'center',
-          fontSize: fontSize,
-        },
-        alternateRowStyles: {
-          fillColor: [248, 250, 252], // slate-50
-        },
-        bodyStyles: {
-          fillColor: [255, 255, 255],
-        },
-      });
-
-      currentY = (doc as any).lastAutoTable.finalY + 4;
-    }
-
-    // Vehicles section
-    if (hasVehicles) {
-      doc.setFontSize(9);
-      doc.setTextColor(30, 41, 59);
-      doc.setFont('helvetica', 'bold');
-      doc.text(`VEÍCULOS (${vehiclesList.length})`, tableMargin, currentY);
-      currentY += 3;
-
-      const vehicleData = vehiclesList.map((item, idx) => buildPdfRow(item, idx));
-
-      autoTable(doc, {
-        startY: currentY,
-        head: [pdfHeaders],
-        body: vehicleData,
-        theme: 'grid',
-        tableWidth: pageWidth - (tableMargin * 2),
-        margin: { left: tableMargin, right: tableMargin },
-        styles: {
-          fontSize: fontSize,
-          cellPadding: cellPadding,
-          halign: 'center',
-          valign: 'middle',
-          lineColor: [200, 200, 200],
-          lineWidth: 0.2,
-        },
-        headStyles: {
-          fillColor: [51, 65, 85], // slate-700 (slightly lighter navy)
-          textColor: [255, 255, 255],
-          fontStyle: 'bold',
-          halign: 'center',
-          fontSize: fontSize,
-        },
-        alternateRowStyles: {
-          fillColor: [248, 250, 252], // slate-50
-        },
-        bodyStyles: {
-          fillColor: [255, 255, 255],
-        },
-      });
-    }
+    autoTable(doc, {
+      startY: currentY,
+      head: [pdfHeaders],
+      body: tableData,
+      theme: 'grid',
+      tableWidth: pageWidth - (tableMargin * 2),
+      margin: { left: tableMargin, right: tableMargin },
+      styles: {
+        fontSize: fontSize,
+        cellPadding: cellPadding,
+        halign: 'center',
+        valign: 'middle',
+        lineColor: [200, 200, 200],
+        lineWidth: 0.2,
+      },
+      headStyles: {
+        fillColor: [30, 41, 59], // Navy blue
+        textColor: [255, 255, 255],
+        fontStyle: 'bold',
+        halign: 'center',
+        fontSize: fontSize,
+      },
+      columnStyles: {
+        0: { cellWidth: 10 }, // #
+        1: { cellWidth: 25, halign: 'left' }, // Veículo
+        2: { cellWidth: 45, halign: 'left' }, // Descrição
+        3: { cellWidth: 25, halign: 'left' }, // Empresa
+        4: { cellWidth: 28 }, // Hor. Anterior
+        5: { cellWidth: 28 }, // Hor. Atual
+        6: { cellWidth: 28 }, // Km. Anterior
+        7: { cellWidth: 28 }, // Km. Atual
+        8: { cellWidth: 18 }, // H.T
+      },
+      alternateRowStyles: {
+        fillColor: [248, 250, 252], // slate-50
+      },
+      bodyStyles: {
+        fillColor: [255, 255, 255],
+      },
+    });
 
     // Footer - subtle line
     doc.setDrawColor(30, 41, 59);
@@ -616,6 +591,20 @@ export function HorimeterHistoryTab({ vehicles, readings, loading }: HorimeterHi
     );
   };
 
+  // Get period info string for PDF
+  const getPeriodInfo = (): string | undefined => {
+    if (periodFilter === 'hoje') {
+      return format(new Date(), 'dd/MM/yyyy');
+    }
+    if (periodFilter === 'data' && selectedDate) {
+      return format(selectedDate, 'dd/MM/yyyy');
+    }
+    if (periodFilter === 'periodo' && startDate && endDate) {
+      return `${format(startDate, 'dd/MM/yy')} a ${format(endDate, 'dd/MM/yy')}`;
+    }
+    return undefined;
+  };
+
   const exportToPDF = async (companyFilter?: string) => {
     const doc = new jsPDF({
       orientation: 'landscape',
@@ -623,9 +612,8 @@ export function HorimeterHistoryTab({ vehicles, readings, loading }: HorimeterHi
       format: 'a4',
     });
 
-    const dataToExport = companyFilter 
-      ? vehicleSummary 
-      : getAllVehicleSummary.filter(item => empresaFilter === 'all' || item.empresa === empresaFilter);
+    // Use current filtered data
+    const dataToExport = vehicleSummary;
 
     if (dataToExport.length === 0) {
       toast({
@@ -636,14 +624,27 @@ export function HorimeterHistoryTab({ vehicles, readings, loading }: HorimeterHi
       return null;
     }
 
-    const companyName = companyFilter || (empresaFilter !== 'all' ? empresaFilter : 'Todas as Empresas');
+    // Build filter description
+    let filterDescription = 'Todos os Veículos';
+    if (veiculoFilter !== 'all') {
+      const vehicle = veiculosList.find(v => v.code === veiculoFilter);
+      filterDescription = `Veículo: ${veiculoFilter}${vehicle?.name ? ` - ${vehicle.name}` : ''}`;
+    } else if (empresaFilter !== 'all') {
+      filterDescription = `Empresa: ${empresaFilter}`;
+    } else if (categoriaFilter !== 'all') {
+      filterDescription = `Categoria: ${categoriaFilter}`;
+    }
     
-    generateCompanyPage(doc, companyName, dataToExport as VehicleSummary[], true);
+    const periodInfo = getPeriodInfo();
+    
+    generateCompanyPage(doc, filterDescription, dataToExport as VehicleSummary[], true, periodInfo);
 
     // Generate filename
     let filename = `horimetros-${format(new Date(), 'yyyy-MM-dd')}`;
-    if (companyFilter || empresaFilter !== 'all') {
-      filename += `-${(companyFilter || empresaFilter).replace(/\s+/g, '-')}`;
+    if (veiculoFilter !== 'all') {
+      filename += `-${veiculoFilter.replace(/\s+/g, '-')}`;
+    } else if (empresaFilter !== 'all') {
+      filename += `-${empresaFilter.replace(/\s+/g, '-')}`;
     }
     filename += '.pdf';
 
@@ -665,7 +666,7 @@ export function HorimeterHistoryTab({ vehicles, readings, loading }: HorimeterHi
       );
 
       if (companyData.length > 0) {
-        generateCompanyPage(doc, company, companyData as VehicleSummary[], isFirst);
+        generateCompanyPage(doc, `Empresa: ${company}`, companyData as VehicleSummary[], isFirst);
         isFirst = false;
       }
     }
@@ -708,7 +709,7 @@ export function HorimeterHistoryTab({ vehicles, readings, loading }: HorimeterHi
       format: 'a4',
     });
 
-    generateCompanyPage(doc, company, companyData as VehicleSummary[], true);
+    generateCompanyPage(doc, `Empresa: ${company}`, companyData as VehicleSummary[], true);
 
     const filename = `horimetros-${company.replace(/\s+/g, '-')}-${format(new Date(), 'yyyy-MM-dd')}.pdf`;
     doc.save(filename);
@@ -983,8 +984,19 @@ export function HorimeterHistoryTab({ vehicles, readings, loading }: HorimeterHi
             className="pl-10"
           />
         </div>
+        <Select value={veiculoFilter} onValueChange={setVeiculoFilter}>
+          <SelectTrigger className="w-full md:w-[200px]">
+            <SelectValue placeholder="Veículo" />
+          </SelectTrigger>
+          <SelectContent className="max-h-[300px]">
+            <SelectItem value="all">Todos Veículos</SelectItem>
+            {veiculosList.map(v => (
+              <SelectItem key={v.code} value={v.code}>{v.code} - {v.name.substring(0, 20)}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <Select value={empresaFilter} onValueChange={setEmpresaFilter}>
-          <SelectTrigger className="w-full md:w-[180px]">
+          <SelectTrigger className="w-full md:w-[150px]">
             <SelectValue placeholder="Empresa" />
           </SelectTrigger>
           <SelectContent>
@@ -995,7 +1007,7 @@ export function HorimeterHistoryTab({ vehicles, readings, loading }: HorimeterHi
           </SelectContent>
         </Select>
         <Select value={categoriaFilter} onValueChange={setCategoriaFilter}>
-          <SelectTrigger className="w-full md:w-[180px]">
+          <SelectTrigger className="w-full md:w-[150px]">
             <SelectValue placeholder="Categoria" />
           </SelectTrigger>
           <SelectContent>
