@@ -2434,24 +2434,27 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                                   }}
                                   className={cn(
                                     "cursor-pointer py-3 px-3 rounded-lg mb-1 transition-colors",
-                                    isSelected && "bg-primary/10 border border-primary/30"
+                                    isSelected && "bg-slate-800 text-white"
                                   )}
                                 >
                                   <Check
                                     className={cn(
-                                      "mr-3 h-5 w-5 text-primary",
-                                      isSelected ? "opacity-100" : "opacity-0"
+                                      "mr-3 h-5 w-5",
+                                      isSelected ? "opacity-100 text-white" : "opacity-0 text-primary"
                                     )}
                                   />
                                   <div className="flex flex-col flex-1 min-w-0">
                                     <span className={cn(
                                       "font-bold text-base truncate",
-                                      isSelected && "text-primary"
+                                      isSelected ? "text-white" : "text-foreground"
                                     )}>
                                       {vehicle.code}
                                     </span>
                                     {vehicle.description && (
-                                      <span className="text-xs text-muted-foreground truncate">
+                                      <span className={cn(
+                                        "text-xs truncate",
+                                        isSelected ? "text-white/80" : "text-muted-foreground"
+                                      )}>
                                         {vehicle.description}
                                       </span>
                                     )}

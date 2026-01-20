@@ -343,7 +343,7 @@ export function FieldPage() {
         : "bg-slate-50"
     )}>
       {/* Header with brand colors */}
-      <header className="sticky top-0 z-10 bg-gradient-to-r from-amber-600 to-orange-600 text-white p-3 shadow-lg">
+      <header className="sticky top-0 z-10 bg-gradient-to-r from-blue-800 to-blue-900 text-white p-3 shadow-lg">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <img src={logoAbastech} alt="Abastech" className="h-8 w-auto" />
