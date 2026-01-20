@@ -64,6 +64,7 @@ import { useRealtimeSync } from '@/hooks/useRealtimeSync';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { formatCurrencyInput, parseCurrencyInput, formatQuantityInput } from '@/lib/numberToWords';
+import { CurrencyInput } from '@/components/ui/currency-input';
 import logoAbastech from '@/assets/logo-abastech.png';
 import { useFieldSettings, playSuccessSound, vibrateDevice } from '@/hooks/useFieldSettings';
 import { useOfflineStorage } from '@/hooks/useOfflineStorage';
@@ -243,20 +244,20 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
     km_current: number | null;
     location: string | null;
   }[]>([]);
-  const [horimeterCurrent, setHorimeterCurrent] = useState('');
+  const [horimeterCurrent, setHorimeterCurrent] = useState<number | null>(null);
   const [kmPrevious, setKmPrevious] = useState('');
-  const [kmCurrent, setKmCurrent] = useState('');
-  const [fuelQuantity, setFuelQuantity] = useState('');
+  const [kmCurrent, setKmCurrent] = useState<number | null>(null);
+  const [fuelQuantity, setFuelQuantity] = useState<number | null>(null);
   const [fuelType, setFuelType] = useState('Diesel');
-  const [arlaQuantity, setArlaQuantity] = useState('');
+  const [arlaQuantity, setArlaQuantity] = useState<number | null>(null);
   const [location, setLocation] = useState(user.assigned_locations?.[0] || 'Tanque Canteiro 01');
   const [observations, setObservations] = useState('');
   
   // Equipment-specific fields (optional)
   const [oilType, setOilType] = useState('');
-  const [oilQuantity, setOilQuantity] = useState('');
+  const [oilQuantity, setOilQuantity] = useState<number | null>(null);
   const [filterBlow, setFilterBlow] = useState(false);
-  const [filterBlowQuantity, setFilterBlowQuantity] = useState('');
+  const [filterBlowQuantity, setFilterBlowQuantity] = useState<number | null>(null);
   const [lubricant, setLubricant] = useState('');
   
   // Oil types from database
@@ -271,7 +272,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
   // Entry-specific fields (Entrada)
   const [supplier, setSupplier] = useState('');
   const [invoiceNumber, setInvoiceNumber] = useState('');
-  const [unitPrice, setUnitPrice] = useState('');
+  const [unitPrice, setUnitPrice] = useState<number | null>(null);
   const [entryLocation, setEntryLocation] = useState('');
   
   // Invoice photo state (for Entrada)
@@ -560,15 +561,12 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
   // Handle entry quantity change with auto-formatting and words
   const handleEntryQuantityChange = (value: string) => {
     const result = formatQuantityInput(value);
-    setFuelQuantity(result.raw.toString());
+    setFuelQuantity(result.raw);
     setQuantityInWords(result.inWords);
   };
   
-  // Handle unit price change with currency formatting
-  const handleUnitPriceChange = (value: string) => {
-    const formatted = formatCurrencyInput(value);
-    setUnitPrice(formatted);
-  };
+  // Handle unit price change with currency formatting - no longer needed with CurrencyInput
+  // const handleUnitPriceChange = (value: string) => { ... }
 
   // Process voice commands
   useEffect(() => {
@@ -598,13 +596,16 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
           }
           break;
         case 'quantity':
-          setFuelQuantity(extractNumber(voice.transcript));
+          const qtyNum = parseFloat(extractNumber(voice.transcript));
+          setFuelQuantity(isNaN(qtyNum) ? null : qtyNum);
           break;
         case 'horimeter':
-          setHorimeterCurrent(extractNumber(voice.transcript));
+          const horNum = parseFloat(extractNumber(voice.transcript));
+          setHorimeterCurrent(isNaN(horNum) ? null : horNum);
           break;
         case 'arla':
-          setArlaQuantity(extractNumber(voice.transcript));
+          const arlaNum = parseFloat(extractNumber(voice.transcript));
+          setArlaQuantity(isNaN(arlaNum) ? null : arlaNum);
           break;
         case 'observations':
           setObservations(prev => prev + ' ' + voice.transcript);
@@ -668,7 +669,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
       // Simplified mode: only quantity and pump photo
       setQuickEntryMode('comboio_tank_refuel');
       // Clear horimeter fields since they won't be used
-      setHorimeterCurrent('');
+      setHorimeterCurrent(null);
       setHorimeterPrevious('');
       toast.info('Modo Abastecimento do Tanque: apenas quantidade e foto são obrigatórios');
     } else {
@@ -1045,7 +1046,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         }
 
         if (data?.success && data?.value) {
-          setHorimeterCurrent(String(data.value));
+          setHorimeterCurrent(parseFloat(data.value) || null);
           toast.success(`Valor reconhecido: ${data.value}`);
           
           // Also set this as the photo for the record
@@ -1097,7 +1098,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         }
 
         if (data?.success && data?.value) {
-          setFuelQuantity(String(data.value));
+          setFuelQuantity(parseFloat(data.value) || null);
           toast.success(`Quantidade reconhecida: ${data.value} L`);
           
           // Also set this as the pump photo for the record
@@ -1339,8 +1340,8 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         }
         
         // Validate horimeter current > previous (only if horimeter is provided)
-        if (horimeterCurrent && horimeterPrevious) {
-          const currentValue = parseBrazilianNumber(horimeterCurrent);
+        if (horimeterCurrent !== null && horimeterPrevious) {
+          const currentValue = horimeterCurrent;
           const previousValue = parseBrazilianNumber(horimeterPrevious);
           
           if (currentValue <= previousValue) {
@@ -1436,12 +1437,11 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         work_site: workSite,
         // Only save horimeter values for own refueling (not for tank refuel mode)
         horimeter_previous: quickEntryMode === 'comboio_tank_refuel' ? null : parseBrazilianNumber(horimeterPrevious),
-        horimeter_current: quickEntryMode === 'comboio_tank_refuel' ? null : parseBrazilianNumber(horimeterCurrent),
-        // IMPORTANT: fuelQuantity is typed with BR formatting (e.g. 1.111)
-        // so we must parse it as a Brazilian number to avoid saving 1.111 instead of 1111.
-        fuel_quantity: parseBrazilianNumber(fuelQuantity) || 0,
+        horimeter_current: quickEntryMode === 'comboio_tank_refuel' ? null : horimeterCurrent,
+        // fuelQuantity is now a number, no need to parse
+        fuel_quantity: fuelQuantity ?? 0,
         fuel_type: fuelType,
-        arla_quantity: parseBrazilianNumber(arlaQuantity) || 0,
+        arla_quantity: arlaQuantity ?? 0,
         location: recordType === 'entrada' ? entryLocation : location,
         observations: (() => {
           let obs = observations;
@@ -1462,14 +1462,14 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         synced_to_sheet: false,
         // Equipment fields
         oil_type: oilType || null,
-        oil_quantity: parseFloat(oilQuantity) || null,
+        oil_quantity: oilQuantity ?? null,
         filter_blow: filterBlow || false,
-        filter_blow_quantity: parseFloat(filterBlowQuantity) || null,
+        filter_blow_quantity: filterBlowQuantity ?? null,
         lubricant: lubricant || null,
         // Entry fields
         supplier: supplier || null,
         invoice_number: invoiceNumber || null,
-        unit_price: parseCurrencyInput(unitPrice) || null,
+        unit_price: unitPrice ?? null,
         entry_location: entryLocation || null,
       };
 
@@ -1521,10 +1521,10 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         company,
         workSite,
         horimeterPrevious: parseBrazilianNumber(horimeterPrevious),
-        horimeterCurrent: parseBrazilianNumber(horimeterCurrent),
-        fuelQuantity: parseBrazilianNumber(fuelQuantity) || 0,
+        horimeterCurrent: horimeterCurrent ?? 0,
+        fuelQuantity: fuelQuantity ?? 0,
         fuelType,
-        arlaQuantity: parseBrazilianNumber(arlaQuantity) || 0,
+        arlaQuantity: arlaQuantity ?? 0,
         location: recordType === 'entrada' ? entryLocation : location,
         observations: recordType === 'entrada' && photoInvoiceUrl
           ? `${observations} | FOTO NF: ${photoInvoiceUrl}`.trim()
@@ -1532,13 +1532,13 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         photoPumpUrl,
         photoHorimeterUrl,
         oilType,
-        oilQuantity: parseFloat(oilQuantity) || 0,
+        oilQuantity: oilQuantity ?? 0,
         filterBlow,
-        filterBlowQuantity: parseFloat(filterBlowQuantity) || 0,
+        filterBlowQuantity: filterBlowQuantity ?? 0,
         lubricant,
         supplier,
         invoiceNumber,
-        unitPrice: parseCurrencyInput(unitPrice) || 0,
+        unitPrice: unitPrice ?? 0,
         entryLocation,
       });
 
@@ -1570,7 +1570,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
       await broadcast('fuel_record_created', { 
         vehicleCode: recordType === 'entrada' ? 'ENTRADA' : vehicleCode,
         location: recordType === 'entrada' ? entryLocation : location,
-        quantity: parseBrazilianNumber(fuelQuantity)
+        quantity: fuelQuantity ?? 0
       });
       
       // Wait for animation and then redirect to dashboard
@@ -1600,23 +1600,23 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
             company,
             work_site: workSite,
             horimeter_previous: parseBrazilianNumber(horimeterPrevious),
-            horimeter_current: parseBrazilianNumber(horimeterCurrent),
-            fuel_quantity: parseBrazilianNumber(fuelQuantity) || 0,
+            horimeter_current: horimeterCurrent ?? 0,
+            fuel_quantity: fuelQuantity ?? 0,
             fuel_type: fuelType,
-            arla_quantity: parseBrazilianNumber(arlaQuantity) || 0,
+            arla_quantity: arlaQuantity ?? 0,
             location: recordType === 'entrada' ? entryLocation : location,
             observations,
             record_date: now.toISOString().split('T')[0],
             record_time: now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
             synced_to_sheet: false,
             oil_type: oilType || null,
-            oil_quantity: parseFloat(oilQuantity) || null,
+            oil_quantity: oilQuantity ?? null,
             filter_blow: filterBlow || false,
-            filter_blow_quantity: parseFloat(filterBlowQuantity) || null,
+            filter_blow_quantity: filterBlowQuantity ?? null,
             lubricant: lubricant || null,
             supplier: supplier || null,
             invoice_number: invoiceNumber || null,
-            unit_price: parseCurrencyInput(unitPrice) || null,
+            unit_price: unitPrice ?? null,
             entry_location: entryLocation || null,
           };
           
@@ -1657,9 +1657,9 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
     setOperatorName('');
     setWorkSite('');
     setHorimeterPrevious('');
-    setHorimeterCurrent('');
-    setFuelQuantity('');
-    setArlaQuantity('');
+    setHorimeterCurrent(null);
+    setFuelQuantity(null);
+    setArlaQuantity(null);
     setObservations('');
     setPhotoPump(null);
     setPhotoPumpPreview(null);
@@ -1668,13 +1668,13 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
     setOcrPhotoPreview(null);
     setQuantityOcrPhotoPreview(null);
     setOilType('');
-    setOilQuantity('');
+    setOilQuantity(null);
     setFilterBlow(false);
-    setFilterBlowQuantity('');
+    setFilterBlowQuantity(null);
     setLubricant('');
     setSupplier('');
     setInvoiceNumber('');
-    setUnitPrice('');
+    setUnitPrice(null);
     setEntryLocation('');
     setQuickEntryMode('normal');
     setShowQuickOptions(false);
@@ -2194,20 +2194,11 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                   Quantidade de ARLA (Litros)
                   <span className="text-red-500">*</span>
                 </Label>
-                <Input
-                  type="text"
-                  inputMode="decimal"
-                  placeholder="Ex: 20,00"
+                <CurrencyInput
+                  placeholder="0,00"
                   value={arlaQuantity}
-                  onChange={(e) => {
-                    const value = e.target.value.replace(/\./g, ',').replace(/[^\d,\-]/g, '');
-                    setArlaQuantity(value);
-                  }}
-                  onBlur={() => {
-                    if (arlaQuantity) {
-                      setArlaQuantity(formatBrazilianNumber(parseBrazilianNumber(arlaQuantity)));
-                    }
-                  }}
+                  onChange={setArlaQuantity}
+                  decimals={2}
                   className="h-14 text-2xl text-center font-bold"
                 />
               </div>
@@ -2250,15 +2241,11 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                   Quantidade Sopra Filtro
                   <span className="text-red-500">*</span>
                 </Label>
-                <Input
-                  type="text"
-                  inputMode="decimal"
-                  placeholder="Ex: 1"
+                <CurrencyInput
+                  placeholder="0,00"
                   value={filterBlowQuantity}
-                  onChange={(e) => {
-                    const value = e.target.value.replace(/\./g, ',').replace(/[^\d,\-]/g, '');
-                    setFilterBlowQuantity(value);
-                  }}
+                  onChange={setFilterBlowQuantity}
+                  decimals={0}
                   className="h-14 text-2xl text-center font-bold"
                 />
               </div>
@@ -2296,12 +2283,11 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
 
                 <div className="space-y-2">
                   <Label className="text-sm">Quantidade (Litros) <span className="text-red-500">*</span></Label>
-                  <Input
-                    type="number"
-                    inputMode="decimal"
-                    placeholder="Ex: 5"
+                  <CurrencyInput
+                    placeholder="0,00"
                     value={oilQuantity}
-                    onChange={(e) => setOilQuantity(e.target.value)}
+                    onChange={setOilQuantity}
+                    decimals={2}
                     className="h-14 text-2xl text-center font-bold"
                   />
                 </div>
@@ -2742,21 +2728,11 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
             </div>
           )}
           
-          <Input
-            type="text"
-            inputMode="decimal"
-            placeholder="Ex: 150,00"
+          <CurrencyInput
+            placeholder="0,00"
             value={fuelQuantity}
-            onChange={(e) => {
-              // Force Brazilian format: replace dots with commas
-              const value = e.target.value.replace(/\./g, ',').replace(/[^\d,\-]/g, '');
-              setFuelQuantity(value);
-            }}
-            onBlur={() => {
-              if (fuelQuantity) {
-                setFuelQuantity(formatBrazilianNumber(parseBrazilianNumber(fuelQuantity)));
-              }
-            }}
+            onChange={setFuelQuantity}
+            decimals={2}
             className="h-20 text-4xl text-center font-black border-3 border-amber-300 dark:border-amber-600 bg-white dark:bg-slate-900 focus:border-amber-500 focus:ring-4 focus:ring-amber-200 dark:focus:ring-amber-800 shadow-[0_4px_12px_rgba(0,0,0,0.4)] dark:shadow-[0_4px_12px_rgba(0,0,0,0.7)]"
           />
         </div>
@@ -2836,22 +2812,16 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
             </div>
           )}
           
-          <Input
-            type="text"
-            inputMode="decimal"
-            placeholder="Ex: 4.452,50"
+          <CurrencyInput
+            placeholder="0,00"
             value={horimeterCurrent}
-            onChange={(e) => handleHorimeterChange(e.target.value, setHorimeterCurrent)}
-            onBlur={() => {
-              if (horimeterCurrent) {
-                setHorimeterCurrent(formatBrazilianNumber(parseBrazilianNumber(horimeterCurrent)));
-              }
-            }}
+            onChange={setHorimeterCurrent}
+            decimals={2}
             className="h-16 text-2xl text-center font-bold border-3 border-emerald-300 dark:border-emerald-600 bg-white dark:bg-slate-900 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-200 dark:focus:ring-emerald-800 shadow-[0_4px_12px_rgba(0,0,0,0.4)] dark:shadow-[0_4px_12px_rgba(0,0,0,0.7)]"
           />
           
           {/* Validation warning */}
-          {horimeterPrevious && horimeterCurrent && parseBrazilianNumber(horimeterCurrent) < parseBrazilianNumber(horimeterPrevious) && (
+          {horimeterPrevious && horimeterCurrent !== null && horimeterCurrent < parseBrazilianNumber(horimeterPrevious) && (
             <div className="bg-yellow-100 dark:bg-yellow-950 border-2 border-yellow-400 dark:border-yellow-700 p-3 rounded-xl">
               <div className="flex items-center gap-3 text-yellow-800 dark:text-yellow-300 text-base font-semibold">
                 <AlertCircle className="w-5 h-5" />
@@ -2891,20 +2861,11 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
             {/* Oil Quantity */}
             <div className="space-y-2">
               <Label className="text-sm">Quantidade de Óleo (Litros)</Label>
-              <Input
-                type="text"
-                inputMode="decimal"
-                placeholder="Ex: 5,00"
+              <CurrencyInput
+                placeholder="0,00"
                 value={oilQuantity}
-                onChange={(e) => {
-                  const value = e.target.value.replace(/\./g, ',').replace(/[^\d,\-]/g, '');
-                  setOilQuantity(value);
-                }}
-                onBlur={() => {
-                  if (oilQuantity) {
-                    setOilQuantity(formatBrazilianNumber(parseBrazilianNumber(oilQuantity)));
-                  }
-                }}
+                onChange={setOilQuantity}
+                decimals={2}
                 className="h-10"
               />
             </div>
@@ -2912,15 +2873,11 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
             {/* Filter Blow - just quantity input */}
             <div className="space-y-2">
               <Label className="text-sm">Sopra Filtro (Quantidade)</Label>
-              <Input
-                type="text"
-                inputMode="decimal"
-                placeholder="Quantidade (opcional)"
+              <CurrencyInput
+                placeholder="0"
                 value={filterBlowQuantity}
-                onChange={(e) => {
-                  const value = e.target.value.replace(/\./g, ',').replace(/[^\d,\-]/g, '');
-                  setFilterBlowQuantity(value);
-                }}
+                onChange={setFilterBlowQuantity}
+                decimals={0}
                 className="h-10"
               />
             </div>
@@ -2967,12 +2924,11 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                 </Button>
               )}
             </div>
-            <Input
-              type="number"
-              inputMode="decimal"
-              placeholder="0"
+            <CurrencyInput
+              placeholder="0,00"
               value={arlaQuantity}
-              onChange={(e) => setArlaQuantity(e.target.value)}
+              onChange={setArlaQuantity}
+              decimals={2}
               className="h-12 text-lg text-center"
             />
           </div>
@@ -3066,12 +3022,20 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                   Quantidade (Litros)
                 </Label>
               </div>
-              <Input
-                type="text"
-                inputMode="numeric"
-                placeholder="Ex: 1000"
-                value={fuelQuantity ? parseInt(fuelQuantity).toLocaleString('pt-BR') : ''}
-                onChange={(e) => handleEntryQuantityChange(e.target.value)}
+              <CurrencyInput
+                placeholder="0,00"
+                value={fuelQuantity}
+                onChange={(val) => {
+                  setFuelQuantity(val);
+                  // Also update the in words representation
+                  if (val !== null) {
+                    const result = formatQuantityInput(String(Math.round(val)));
+                    setQuantityInWords(result.inWords);
+                  } else {
+                    setQuantityInWords('');
+                  }
+                }}
+                decimals={0}
                 className="h-14 text-2xl text-center font-bold"
               />
               {quantityInWords && (
@@ -3114,15 +3078,14 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                       Valor Unitário (R$)
                     </Label>
                     <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-medium">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-medium z-10">
                         R$
                       </span>
-                      <Input
-                        type="text"
-                        inputMode="numeric"
+                      <CurrencyInput
                         placeholder="0,00"
                         value={unitPrice}
-                        onChange={(e) => handleUnitPriceChange(e.target.value)}
+                        onChange={setUnitPrice}
+                        decimals={4}
                         className="h-12 text-lg pl-10"
                       />
                     </div>
