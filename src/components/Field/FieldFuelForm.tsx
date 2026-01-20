@@ -2374,8 +2374,8 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                     aria-expanded={vehicleSearchOpen}
                     className={cn(
                       "w-full h-16 justify-between font-bold border-3 transition-all text-lg shadow-[0_4px_12px_rgba(0,0,0,0.5)] dark:shadow-[0_4px_12px_rgba(0,0,0,0.8)]",
-                      "bg-amber-600 hover:bg-amber-700 border-amber-700 text-white",
-                      vehicleCode && "bg-amber-700 border-amber-800"
+                      "bg-slate-800 hover:bg-slate-900 border-slate-900 text-white",
+                      vehicleCode && "bg-slate-900 border-slate-950"
                     )}
                   >
                     <div className="flex items-center gap-3 truncate">
@@ -2393,11 +2393,11 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                   sideOffset={4}
                 >
                   <Command className="bg-popover" filter={vehicleSearchFilter}>
-                    <div className="flex items-center border-b-2 px-3 bg-amber-100 dark:bg-amber-900/30">
-                      <Search className="h-6 w-6 shrink-0 text-amber-700 dark:text-amber-400 mr-2" />
+                    <div className="flex items-center border-b-2 px-3 bg-slate-100 dark:bg-slate-800/50">
+                      <Search className="h-6 w-6 shrink-0 text-slate-700 dark:text-slate-300 mr-2" />
                       <CommandInput 
                         placeholder="Digite o prefixo do veículo..." 
-                        className="h-14 text-xl font-bold border-0 focus:ring-0 bg-transparent placeholder:text-amber-600/60 dark:placeholder:text-amber-400/60"
+                        className="h-14 text-xl font-bold border-0 focus:ring-0 bg-transparent placeholder:text-slate-500 dark:placeholder:text-slate-400"
                         autoFocus
                       />
                     </div>
