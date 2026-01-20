@@ -97,12 +97,13 @@ const DEFAULT_HORIMETER_COLUMNS: ColumnConfig[] = [
   { key: 'categoria', label: 'Categoria', visible: true, order: 4 },
   { key: 'anterior', label: 'Hor. Anterior', visible: true, order: 5 },
   { key: 'atual', label: 'Hor. Atual', visible: true, order: 6 },
-  { key: 'intervalo', label: 'Intervalo', visible: true, order: 7 },
-  { key: 'km_anterior', label: 'KM Anterior', visible: false, order: 8 },
-  { key: 'km_atual', label: 'KM Atual', visible: false, order: 9 },
-  { key: 'operador', label: 'Operador', visible: true, order: 10 },
-  { key: 'observacoes', label: 'Observações', visible: false, order: 11 },
-  { key: 'acoes', label: 'Ações', visible: true, order: 12 },
+  { key: 'intervalo', label: 'H.T.', visible: true, order: 7 },
+  { key: 'km_anterior', label: 'KM Anterior', visible: true, order: 8 },
+  { key: 'km_atual', label: 'KM Atual', visible: true, order: 9 },
+  { key: 'km_intervalo', label: 'Total KM', visible: true, order: 10 },
+  { key: 'operador', label: 'Operador', visible: true, order: 11 },
+  { key: 'observacoes', label: 'Observações', visible: false, order: 12 },
+  { key: 'acoes', label: 'Ações', visible: true, order: 13 },
 ];
 
 export function HorimetrosPageDB() {
@@ -276,12 +277,15 @@ export function HorimetrosPageDB() {
     });
   }, [readings, search, selectedDate, dateRange, categoryFilter, companyFilter, vehicleFilter]);
 
-  // Calculate interval for each reading
+  // Calculate interval for each reading (horimeter and km)
   const readingsWithInterval = useMemo(() => {
     return filteredReadings.map(reading => ({
       ...reading,
       interval: reading.previous_value 
         ? reading.current_value - reading.previous_value 
+        : 0,
+      km_interval: (reading as any).previous_km && (reading as any).current_km
+        ? (reading as any).current_km - (reading as any).previous_km
         : 0
     }));
   }, [filteredReadings]);
@@ -465,24 +469,52 @@ export function HorimetrosPageDB() {
     
     y += 10;
 
+    // Helper to format numbers in Brazilian format
+    const formatBR = (val: number | null | undefined): string => {
+      if (val === null || val === undefined || val === 0) return '-';
+      return val.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+    };
+
+    // Helper to format intervals (always positive with color indication in table)
+    const formatInterval = (val: number): string => {
+      if (!val || val === 0) return '-';
+      return Math.abs(val).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+    };
+
     const tableData = readingsWithInterval.map(r => [
       format(new Date(r.reading_date + 'T00:00:00'), 'dd/MM/yyyy'),
       r.vehicle?.code || '-',
       r.vehicle?.company || '-',
       r.vehicle?.category || '-',
-      r.previous_value?.toLocaleString('pt-BR') || '-',
-      r.current_value.toLocaleString('pt-BR'),
-      r.interval > 0 ? `+${r.interval.toLocaleString('pt-BR')}` : r.interval.toLocaleString('pt-BR'),
+      formatBR(r.previous_value),
+      formatBR(r.current_value),
+      formatInterval(r.interval),
+      formatBR((r as any).previous_km),
+      formatBR((r as any).current_km),
+      formatInterval((r as any).km_interval || 0),
       r.operator || '-',
     ]);
 
     autoTable(doc, {
-      head: [['Data', 'Veículo', 'Empresa', 'Categoria', 'Anterior', 'Atual', 'Intervalo', 'Operador']],
+      head: [['Data', 'Veículo', 'Empresa', 'Categoria', 'Hor. Anterior', 'Hor. Atual', 'H.T.', 'KM Anterior', 'KM Atual', 'Total KM', 'Operador']],
       body: tableData,
       startY: y,
-      styles: { fontSize: 8, cellPadding: 2 },
+      styles: { fontSize: 7, cellPadding: 2 },
       headStyles: { fillColor: [220, 53, 69], textColor: [255, 255, 255] },
       alternateRowStyles: { fillColor: [248, 249, 250] },
+      columnStyles: {
+        0: { cellWidth: 22 }, // Data
+        1: { cellWidth: 22, fontStyle: 'bold' }, // Veículo
+        2: { cellWidth: 25 }, // Empresa
+        3: { cellWidth: 25 }, // Categoria
+        4: { cellWidth: 24, halign: 'right' }, // Hor. Anterior
+        5: { cellWidth: 22, halign: 'right' }, // Hor. Atual
+        6: { cellWidth: 18, halign: 'right', fontStyle: 'bold' }, // H.T.
+        7: { cellWidth: 24, halign: 'right' }, // KM Anterior
+        8: { cellWidth: 22, halign: 'right' }, // KM Atual
+        9: { cellWidth: 18, halign: 'right', fontStyle: 'bold' }, // Total KM
+        10: { cellWidth: 30 }, // Operador
+      },
     });
 
     // Add totals
@@ -490,7 +522,10 @@ export function HorimetrosPageDB() {
     doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
     doc.text(`Total de registros: ${readingsWithInterval.length}`, 14, finalY + 10);
-    doc.text(`Intervalo total: ${metrics.totalInterval.toLocaleString('pt-BR')}`, 100, finalY + 10);
+    
+    const totalKmInterval = readingsWithInterval.reduce((sum, r) => sum + ((r as any).km_interval || 0), 0);
+    doc.text(`Intervalo Hor. Total: ${metrics.totalInterval.toLocaleString('pt-BR')}`, 100, finalY + 10);
+    doc.text(`Intervalo KM Total: ${totalKmInterval.toLocaleString('pt-BR')}`, 200, finalY + 10);
 
     const fileName = companyFilter !== 'all' 
       ? `horimetros_${companyFilter.replace(/\s+/g, '_')}_${format(new Date(), 'yyyy-MM-dd')}.pdf`
@@ -975,9 +1010,10 @@ export function HorimetrosPageDB() {
                   <TableHead>Categoria</TableHead>
                   <TableHead className="text-right">Hor. Anterior</TableHead>
                   <TableHead className="text-right">Hor. Atual</TableHead>
-                  <TableHead className="text-right">Intervalo</TableHead>
+                  <TableHead className="text-right">H.T.</TableHead>
                   <TableHead className="text-right">KM Anterior</TableHead>
                   <TableHead className="text-right">KM Atual</TableHead>
+                  <TableHead className="text-right">Total KM</TableHead>
                   <TableHead>Operador</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
@@ -985,7 +1021,7 @@ export function HorimetrosPageDB() {
               <TableBody>
                 {paginatedReadings.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={selectionModeActive ? 13 : 12} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={selectionModeActive ? 14 : 13} className="text-center py-8 text-muted-foreground">
                       Nenhum registro encontrado para o período selecionado
                     </TableCell>
                   </TableRow>
@@ -1023,6 +1059,14 @@ export function HorimetrosPageDB() {
                       </TableCell>
                       <TableCell className="text-right font-medium text-blue-600">
                         {(reading as any).current_km?.toLocaleString('pt-BR') || '-'}
+                      </TableCell>
+                      <TableCell className={cn(
+                        "text-right font-medium text-blue-600",
+                        (reading as any).km_interval > 0 ? "" : (reading as any).km_interval < 0 ? "text-red-600" : ""
+                      )}>
+                        {(reading as any).km_interval 
+                          ? ((reading as any).km_interval > 0 ? '+' : '') + (reading as any).km_interval.toLocaleString('pt-BR')
+                          : '-'}
                       </TableCell>
                       <TableCell>{reading.operator || '-'}</TableCell>
                       <TableCell className="text-right">
