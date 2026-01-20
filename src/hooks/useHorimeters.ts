@@ -593,28 +593,35 @@ export function useSheetSync() {
           continue;
         }
 
-        // Parse values
+        // Parse values - Map columns correctly based on image:
+        // Hor_Anterior (H), Hor_Atual (I), Km_Anterior (J), Km_Atual (K)
         const parseNum = (val: any): number => {
           if (!val) return 0;
           const str = String(val).replace(/\./g, '').replace(',', '.');
           return parseFloat(str) || 0;
         };
 
-        const horAtual = parseNum(row.Hor_Atual || row.HOR_ATUAL || row.HORIMETRO || row.HORAS);
-        const kmAtual = parseNum(row.Km_Atual || row.KM_ATUAL || row.KM);
-        const currentValue = horAtual > 0 ? horAtual : kmAtual;
+        // Correctly map horimeter columns (Hor_Anterior, Hor_Atual)
+        const horAnterior = parseNum(row.Hor_Anterior || row.HOR_ANTERIOR || row['Hor_Anterior ']);
+        const horAtual = parseNum(row.Hor_Atual || row.HOR_ATUAL || row['Hor_Atual ']);
         
-        const horAnterior = parseNum(row.Hor_Anterior || row.HOR_ANTERIOR);
-        const kmAnterior = parseNum(row.Km_Anterior || row.KM_ANTERIOR);
-        const previousValue = horAnterior > 0 ? horAnterior : kmAnterior;
+        // Correctly map km columns (Km_Anterior, Km_Atual)
+        const kmAnterior = parseNum(row.Km_Anterior || row.KM_ANTERIOR || row['Km_Anterior ']);
+        const kmAtual = parseNum(row.Km_Atual || row.KM_ATUAL || row['Km_Atual ']);
+        
+        // current_value = horimeter value (primary), previous_value = previous horimeter
+        // current_km = km value, previous_km = previous km
+        const currentValue = horAtual > 0 ? horAtual : (kmAtual > 0 ? kmAtual : 0);
+        const previousValue = horAnterior > 0 ? horAnterior : null;
 
-        if (currentValue === 0) {
+        // Skip if no current value at all
+        if (currentValue === 0 && kmAtual === 0) {
           stats.errors++;
           continue;
         }
 
-        const operator = String(row.OPERADOR || row.Operador || row.MOTORISTA || '').trim() || null;
-        const observations = String(row.OBSERVACAO || row.Observacao || row.OBS || '').trim() || null;
+        const operator = String(row.OPERADOR || row.Operador || row.MOTORISTA || row['Operador '] || '').trim() || null;
+        const observations = String(row.OBSERVACAO || row.Observacao || row.OBS || row['Observacao '] || '').trim() || null;
 
         try {
           // Check if record exists
@@ -626,12 +633,14 @@ export function useSheetSync() {
             .maybeSingle();
 
           if (existing) {
-            // Update existing
+            // Update existing - correctly map all 4 columns
             await supabase
               .from('horimeter_readings')
               .update({
-                current_value: currentValue,
-                previous_value: previousValue || null,
+                current_value: horAtual > 0 ? horAtual : currentValue,
+                previous_value: previousValue,
+                current_km: kmAtual > 0 ? kmAtual : null,
+                previous_km: kmAnterior > 0 ? kmAnterior : null,
                 operator,
                 observations,
                 synced_from_sheet: true,
@@ -639,14 +648,16 @@ export function useSheetSync() {
               .eq('id', existing.id);
             stats.readingsUpdated++;
           } else {
-            // Insert new
+            // Insert new - correctly map all 4 columns
             await supabase
               .from('horimeter_readings')
               .insert({
                 vehicle_id: vehicleId,
                 reading_date: readingDate,
-                current_value: currentValue,
-                previous_value: previousValue || null,
+                current_value: horAtual > 0 ? horAtual : currentValue,
+                previous_value: previousValue,
+                current_km: kmAtual > 0 ? kmAtual : null,
+                previous_km: kmAnterior > 0 ? kmAnterior : null,
                 operator,
                 observations,
                 source: 'sheet_sync',
