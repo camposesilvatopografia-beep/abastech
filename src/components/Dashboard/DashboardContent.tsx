@@ -555,9 +555,9 @@ _Sistema Abastech_`;
             icon={ArrowDownCircle}
           />
           <MetricCard
-            title="TOTAL SAÍDAS"
-            value={`${stockData.totalSaidas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} L`}
-            subtitle="Consumo total no período"
+            title="SAÍDA P/ EQUIPAMENTOS"
+            value={`${stockData.saidaEquipamentos.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L`}
+            subtitle="Diesel consumido"
             variant="red"
             icon={TrendingDown}
           />
