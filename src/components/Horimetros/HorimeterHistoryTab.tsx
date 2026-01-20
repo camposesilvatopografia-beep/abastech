@@ -50,7 +50,7 @@ const DEFAULT_HISTORY_COLUMNS: ColumnConfig[] = [
   { key: 'intervaloKm', label: 'Km.T', visible: true, order: 9 },
 ];
 
-// PDF column definitions for fixed layout (matching image)
+// PDF column definitions for fixed layout
 const PDF_COLUMNS = [
   { key: 'index', label: '#' },
   { key: 'veiculo', label: 'Veículo' },
@@ -58,10 +58,10 @@ const PDF_COLUMNS = [
   { key: 'empresa', label: 'Empresa' },
   { key: 'horAnterior', label: 'Hor. Anterior' },
   { key: 'horAtual', label: 'Hor. Atual' },
-  { key: 'kmAnterior', label: 'Km. Anterior' },
-  { key: 'kmAtual', label: 'Km. Atual' },
   { key: 'intervaloHor', label: 'H.T' },
-  { key: 'intervaloKm', label: 'Km.T' },
+  { key: 'kmAnterior', label: 'Km Anterior' },
+  { key: 'kmAtual', label: 'Km Atual' },
+  { key: 'intervaloKm', label: 'Total Km' },
 ];
 
 // Company logos as base64
@@ -542,7 +542,7 @@ export function HorimeterHistoryTab({ vehicles, readings, loading }: HorimeterHi
           { content: 'QUILOMETRAGEM', colSpan: 3, styles: { fillColor: [22, 78, 99], halign: 'center', fontStyle: 'bold' } },
         ],
         // Column headers row
-        ['#', 'Veículo', 'Descrição', 'Empresa', 'Anterior', 'Atual', 'H.T', 'Anterior', 'Atual', 'Km.T'],
+        ['#', 'Veículo', 'Descrição', 'Empresa', 'Hor. Anterior', 'Hor. Atual', 'H.T', 'Km Anterior', 'Km Atual', 'Total Km'],
       ],
       body: tableData,
       theme: 'grid',
