@@ -16,6 +16,7 @@ import { Upload, FileSpreadsheet, AlertTriangle, CheckCircle, X, Download, Refre
 import * as XLSX from 'xlsx';
 import { format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
+import { parsePtBRNumber, formatPtBRNumber } from '@/lib/ptBRNumber';
 
 interface ImportModalProps {
   open: boolean;
@@ -109,10 +110,7 @@ function parseExcelDate(value: any): string {
 }
 
 function parseNumber(value: any): number {
-  if (!value) return 0;
-  if (typeof value === 'number') return value;
-  const str = String(value).replace(/\./g, '').replace(',', '.');
-  return parseFloat(str) || 0;
+  return parsePtBRNumber(value);
 }
 
 export function ImportModal({ open, onOpenChange, onSuccess }: ImportModalProps) {

@@ -28,6 +28,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { useVehicles, useHorimeterReadings } from '@/hooks/useHorimeters';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { parsePtBRNumber } from '@/lib/ptBRNumber';
 
 interface BatchEntry {
   id: string;
@@ -126,7 +127,7 @@ export function BatchHorimeterModal({ open, onOpenChange, onSuccess }: BatchHori
   // Parse numeric value from string
   const parseNumericValue = useCallback((value: string): number | null => {
     if (!value || value.trim() === '') return null;
-    return parseFloat(value.replace(/\./g, '').replace(',', '.'));
+    return parsePtBRNumber(value);
   }, []);
 
   // Get validation for a specific entry based on previous entries and readings
@@ -219,12 +220,8 @@ export function BatchHorimeterModal({ open, onOpenChange, onSuccess }: BatchHori
       ));
 
       try {
-        const horimeterNum = entry.horimeterValue 
-          ? parseFloat(entry.horimeterValue.replace(/\./g, '').replace(',', '.')) 
-          : null;
-        const kmNum = entry.kmValue 
-          ? parseFloat(entry.kmValue.replace(/\./g, '').replace(',', '.')) 
-          : null;
+        const horimeterNum = entry.horimeterValue ? parsePtBRNumber(entry.horimeterValue) : null;
+        const kmNum = entry.kmValue ? parsePtBRNumber(entry.kmValue) : null;
 
         if (!horimeterNum && !kmNum) {
           setEntries(prev => prev.map(e => 

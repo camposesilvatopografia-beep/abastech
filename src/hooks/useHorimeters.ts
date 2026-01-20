@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { parsePtBRNumber } from '@/lib/ptBRNumber';
 
 export interface Vehicle {
   id: string;
@@ -593,67 +594,8 @@ export function useSheetSync() {
           continue;
         }
 
-        // Parse values - Robust parsing for Brazilian number formats
-        // IMPORTANT: Google Sheets may return numbers as:
-        // - Already parsed as number (no conversion needed)
-        // - String with Brazilian format: "1.234,56" or "1.234" (dot = thousand, comma = decimal)
-        // - String with US format: "1,234.56" (comma = thousand, dot = decimal)
-        const parseNum = (val: any): number => {
-          if (val === null || val === undefined) return 0;
-          
-          // If already a number, return as-is
-          if (typeof val === 'number') {
-            return isNaN(val) ? 0 : val;
-          }
-          
-          let str = String(val).trim();
-          if (!str) return 0;
-          
-          // Count dots and commas to determine format
-          const dotCount = (str.match(/\./g) || []).length;
-          const commaCount = (str.match(/,/g) || []).length;
-          const lastDot = str.lastIndexOf('.');
-          const lastComma = str.lastIndexOf(',');
-          
-          if (dotCount > 0 && commaCount > 0) {
-            // Both present - determine which is decimal separator
-            if (lastComma > lastDot) {
-              // Brazilian format: 1.234,56 -> comma is decimal
-              str = str.replace(/\./g, '').replace(',', '.');
-            } else {
-              // US format: 1,234.56 -> dot is decimal
-              str = str.replace(/,/g, '');
-            }
-          } else if (commaCount > 0 && dotCount === 0) {
-            // Only comma - assume Brazilian decimal separator
-            // "1234,56" -> "1234.56"
-            str = str.replace(',', '.');
-          } else if (dotCount > 0 && commaCount === 0) {
-            // Only dot(s) - need to determine if thousand or decimal separator
-            // Brazilian: dots are THOUSAND separators, so "1.234" = 1234, "1.234.567" = 1234567
-            // US: dot is DECIMAL separator, so "1.234" = 1.234
-            // 
-            // Heuristic: If there are multiple dots, they're thousand separators
-            // If there's one dot and it's followed by exactly 3 digits, it's likely thousand separator
-            // Otherwise, treat as decimal separator
-            if (dotCount > 1) {
-              // Multiple dots = thousand separators (Brazilian: 1.234.567 = 1234567)
-              str = str.replace(/\./g, '');
-            } else if (dotCount === 1) {
-              // Single dot - check what follows
-              const afterDot = str.substring(lastDot + 1);
-              if (afterDot.length === 3 && /^\d{3}$/.test(afterDot)) {
-                // Exactly 3 digits after dot - likely thousand separator (Brazilian format)
-                // e.g., "5.479" = 5479, "180.072" = 180072
-                str = str.replace('.', '');
-              }
-              // Otherwise keep dot as decimal separator (e.g., "5.47" = 5.47)
-            }
-          }
-          
-          const result = parseFloat(str) || 0;
-          return result;
-        };
+        // Parse values - single source of truth for numeric parsing (pt-BR / en-US)
+        const parseNum = parsePtBRNumber;
 
         // Helper to get column value with flexible key matching
         const getColValue = (keys: string[]): any => {
