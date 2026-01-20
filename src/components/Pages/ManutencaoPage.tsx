@@ -1567,7 +1567,7 @@ export function ManutencaoPage() {
       head: [['Nº OS', 'Data', 'Veículo', 'Empresa', 'Problema', 'Mecânico', 'Status']],
       body: tableData,
       startY: y,
-      styles: { fontSize: 7, cellPadding: 2 },
+      styles: { fontSize: 7, cellPadding: 2, overflow: 'linebreak' },
       headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255] },
       alternateRowStyles: { fillColor: [248, 249, 250] },
       columnStyles: {
@@ -1575,7 +1575,7 @@ export function ManutencaoPage() {
         1: { cellWidth: 18 },  // Data
         2: { cellWidth: 20 },  // Veículo
         3: { cellWidth: 22 },  // Empresa
-        4: { cellWidth: 'auto' },  // Problema - ocupa o espaço restante
+        4: { cellWidth: 'auto', overflow: 'linebreak' },  // Problema - quebra automática
         5: { cellWidth: 30 },  // Mecânico
         6: { cellWidth: 25 },  // Status
       },
