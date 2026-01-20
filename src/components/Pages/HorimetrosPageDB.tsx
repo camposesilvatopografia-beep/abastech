@@ -35,7 +35,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { MetricCard } from '@/components/Dashboard/MetricCard';
-import { useVehicles, useHorimeterReadings, HorimeterWithVehicle } from '@/hooks/useHorimeters';
+import { useVehicles, useHorimeterReadings, useSheetSync, HorimeterWithVehicle } from '@/hooks/useHorimeters';
 import { useToast } from '@/hooks/use-toast';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -108,7 +108,18 @@ export function HorimetrosPageDB() {
   const isMobile = useIsMobile();
   const { vehicles, loading: vehiclesLoading, refetch: refetchVehicles } = useVehicles();
   const { readings, loading: readingsLoading, refetch: refetchReadings, deleteReading } = useHorimeterReadings();
+  const { syncing: autoSyncing, progress: syncProgress, syncFromSheet } = useSheetSync();
   const { toast } = useToast();
+  
+  // Auto-sync state
+  const [autoSyncDone, setAutoSyncDone] = useState(false);
+  const [autoSyncResult, setAutoSyncResult] = useState<{
+    vehiclesImported: number;
+    readingsImported: number;
+    readingsUpdated: number;
+    readingsDeleted: number;
+    errors: number;
+  } | null>(null);
   
   // Column configuration
   const { 
@@ -150,13 +161,38 @@ export function HorimetrosPageDB() {
     }
   }, [isMobile]);
   
+  // Auto-sync on page load - runs once
+  useEffect(() => {
+    if (!autoSyncDone && !autoSyncing) {
+      const runAutoSync = async () => {
+        try {
+          console.log('🔄 Iniciando sincronização automática...');
+          const result = await syncFromSheet();
+          setAutoSyncResult(result);
+          setAutoSyncDone(true);
+          
+          // Refresh readings after sync
+          await refetchReadings();
+          await refetchVehicles();
+          
+          console.log('✅ Sincronização automática concluída:', result);
+        } catch (err) {
+          console.error('❌ Erro na sincronização automática:', err);
+          setAutoSyncDone(true); // Mark as done even on error to prevent infinite retries
+        }
+      };
+      
+      runAutoSync();
+    }
+  }, [autoSyncDone, autoSyncing, syncFromSheet, refetchReadings, refetchVehicles]);
+  
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(25);
   
   const ROWS_PER_PAGE_OPTIONS = [10, 25, 50, 100];
 
-  const loading = vehiclesLoading || readingsLoading;
+  const loading = vehiclesLoading || readingsLoading || autoSyncing;
   const isConnected = !loading && readings.length >= 0;
 
   // Get unique categories
@@ -556,6 +592,56 @@ export function HorimetrosPageDB() {
   return (
     <div className="flex-1 p-3 md:p-6 overflow-auto">
       <div className="space-y-4 md:space-y-6">
+        {/* Auto-sync progress banner */}
+        {autoSyncing && (
+          <div className="bg-primary/10 border border-primary/20 rounded-lg p-4 animate-pulse">
+            <div className="flex items-center gap-3">
+              <RefreshCw className="w-5 h-5 text-primary animate-spin" />
+              <div className="flex-1">
+                <p className="font-medium text-primary">Sincronizando dados da planilha...</p>
+                <p className="text-sm text-muted-foreground">
+                  Espelhando horímetros para manter o sistema atualizado
+                </p>
+              </div>
+              <span className="text-sm font-medium text-primary">{syncProgress}%</span>
+            </div>
+            <div className="mt-2 h-2 bg-muted rounded-full overflow-hidden">
+              <div 
+                className="h-full bg-primary transition-all duration-300" 
+                style={{ width: `${syncProgress}%` }}
+              />
+            </div>
+          </div>
+        )}
+        
+        {/* Auto-sync result banner */}
+        {autoSyncResult && !autoSyncing && (
+          <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3 flex items-center justify-between">
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-emerald-600 font-medium">✓ Sincronizado:</span>
+              <span>{autoSyncResult.vehiclesImported} veículos</span>
+              <span>•</span>
+              <span>{autoSyncResult.readingsImported} novos</span>
+              <span>•</span>
+              <span>{autoSyncResult.readingsUpdated} atualizados</span>
+              {autoSyncResult.readingsDeleted > 0 && (
+                <>
+                  <span>•</span>
+                  <span>{autoSyncResult.readingsDeleted} removidos</span>
+                </>
+              )}
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setAutoSyncResult(null)}
+              className="h-6 w-6 p-0"
+            >
+              <X className="w-4 h-4" />
+            </Button>
+          </div>
+        )}
+        
         {/* Header */}
         <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
           <div className="flex items-center gap-4">
@@ -568,7 +654,7 @@ export function HorimetrosPageDB() {
             </div>
             <div className={cn(
               "hidden sm:flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium",
-              isConnected ? "bg-emerald-500/10 text-emerald-500" : "bg-amber-500/10 text-amber-500"
+              isConnected ? "bg-emerald-500/10 text-emerald-600" : "bg-amber-500/10 text-amber-600"
             )}>
               {isConnected ? <Wifi className="w-3 h-3" /> : <RefreshCw className="w-3 h-3 animate-spin" />}
               {isConnected ? 'Conectado' : 'Carregando...'}
