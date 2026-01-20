@@ -38,6 +38,7 @@ import { Clock, Save, History, AlertTriangle, RefreshCw, TrendingUp, CalendarIco
 import { format, parse, isValid, startOfMonth, endOfMonth, isWithinInterval, startOfDay, isSameDay, isAfter } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { parsePtBRNumber } from '@/lib/ptBRNumber';
 
 interface EditRecord {
   rowIndex: number;
@@ -57,9 +58,7 @@ interface HorimeterModalProps {
 }
 
 function parseNumber(value: any): number {
-  if (!value) return 0;
-  const str = String(value).replace(/\./g, '').replace(',', '.');
-  return parseFloat(str) || 0;
+  return parsePtBRNumber(value);
 }
 
 function parseDate(dateStr: string): Date | null {
