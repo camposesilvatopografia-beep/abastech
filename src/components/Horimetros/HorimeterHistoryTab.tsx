@@ -451,101 +451,81 @@ export function HorimeterHistoryTab({ vehicles, readings, loading }: HorimeterHi
       doc.addPage();
     }
 
-    // Header with navy blue background
-    doc.setFillColor(30, 41, 59); // Navy/slate-800
-    doc.rect(0, 0, pageWidth, 35, 'F');
-
-    // Try to add logos
-    try {
-      const img1 = new Image();
-      img1.src = LOGO_CONSORCIO;
-      doc.addImage(img1, 'PNG', 8, 6, 22, 18);
-    } catch (e) {
-      console.log('Logo consórcio não encontrado');
-    }
-
-    try {
-      const img2 = new Image();
-      img2.src = LOGO_ABASTECH;
-      doc.addImage(img2, 'PNG', pageWidth - 30, 6, 22, 18);
-    } catch (e) {
-      console.log('Logo abastech não encontrado');
-    }
-
-    // Title
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(14);
+    // Title - Red underlined "Histórico de Horímetros"
+    doc.setTextColor(180, 0, 0); // Dark red
+    doc.setFontSize(18);
     doc.setFont('helvetica', 'bold');
-    doc.text('RELATÓRIO DE HORÍMETROS E QUILOMETRAGEM', pageWidth / 2, 12, { align: 'center' });
-
-    // Company name - PROMINENT
-    doc.setFontSize(12);
-    doc.setFont('helvetica', 'bold');
-    doc.text(companyName.toUpperCase(), pageWidth / 2, 21, { align: 'center' });
-
-    // Project info - Dynamic from obra_settings
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'normal');
-    const obraInfo = obraSettings?.nome 
-      ? `${obraSettings.nome}${obraSettings.subtitulo ? ` - ${obraSettings.subtitulo}` : ''}${obraSettings.cidade ? ` | ${obraSettings.cidade}` : ''}`
-      : 'Sistema de Gestão de Frotas';
-    doc.text(obraInfo, pageWidth / 2, 29, { align: 'center' });
-
-    // Date and period info - Below header
-    doc.setTextColor(60, 60, 60);
-    doc.setFontSize(8);
-    const dateStr = format(new Date(), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR });
-    doc.text(`Gerado em: ${dateStr}`, pageWidth - 10, 41, { align: 'right' });
-    doc.text(`Total: ${data.length} veículos`, 10, 41);
+    doc.text('Histórico de Horímetros', pageWidth / 2, 18, { align: 'center' });
     
+    // Red underline
+    const titleWidth = doc.getTextWidth('Histórico de Horímetros');
+    doc.setDrawColor(180, 0, 0);
+    doc.setLineWidth(0.8);
+    doc.line((pageWidth - titleWidth) / 2, 20, (pageWidth + titleWidth) / 2, 20);
+    
+    // Company name - prominent below title
+    if (companyName && companyName !== 'Todos os Veículos') {
+      doc.setTextColor(60, 60, 60);
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text(companyName, pageWidth / 2, 28, { align: 'center' });
+    }
+
+    // Period info if available
     if (periodInfo) {
-      doc.text(`Período: ${periodInfo}`, pageWidth / 2, 41, { align: 'center' });
+      doc.setTextColor(80, 80, 80);
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Período: ${periodInfo}`, pageWidth / 2, 34, { align: 'center' });
     }
 
     // Sort all data by vehicle code
     const sortedData = [...data].sort((a, b) => a.veiculo.localeCompare(b.veiculo));
 
-    let currentY = 46;
-    const tableMargin = 6;
+    let currentY = periodInfo ? 40 : (companyName && companyName !== 'Todos os Veículos') ? 34 : 28;
+    const tableMargin = 8;
     
     // Dynamic font size based on data volume
     const totalItems = sortedData.length;
-    const fontSize = totalItems > 40 ? 6 : totalItems > 25 ? 7 : 8;
-    const cellPadding = totalItems > 40 ? 1.2 : 1.8;
+    const fontSize = totalItems > 50 ? 7 : totalItems > 30 ? 8 : 9;
+    const cellPadding = totalItems > 50 ? 1.5 : 2;
     
-    // Build PDF row data
+    // Build PDF row data - matching exact image layout
     const buildPdfRow = (item: VehicleSummary, idx: number) => {
+      // Format numbers with dots as thousand separators (Brazilian format)
+      const formatBR = (val: number): string => {
+        if (!val || val === 0) return '';
+        return val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      };
+      
+      // Format interval without + or - symbols
+      const formatInt = (val: number): string => {
+        if (!val || val === 0) return '';
+        return Math.abs(val).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      };
+      
       return [
-        (idx + 1).toString(),
+        `${idx + 1}.`,
         item.veiculo,
-        item.descricao.substring(0, 22),
+        item.descricao.substring(0, 28),
         item.empresa,
-        formatNumber(item.horAnterior),
-        formatNumber(item.horAtual),
-        formatInterval(item.intervaloHor),
-        formatNumber(item.kmAnterior),
-        formatNumber(item.kmAtual),
-        formatInterval(item.intervaloKm),
+        formatBR(item.horAnterior),
+        formatBR(item.horAtual),
+        formatBR(item.kmAnterior),
+        formatBR(item.kmAtual),
+        formatInt(item.intervaloHor),
+        formatInt(item.intervaloKm),
       ];
     };
 
     const tableData = sortedData.map((item, idx) => buildPdfRow(item, idx));
 
-    // Custom headers with grouped columns for Horímetros and Km
+    // Simple clean table matching the image
     autoTable(doc, {
       startY: currentY,
-      head: [
-        // Group headers row
-        [
-          { content: '', colSpan: 4, styles: { fillColor: [30, 41, 59] } },
-          { content: 'HORÍMETROS', colSpan: 3, styles: { fillColor: [30, 58, 95], halign: 'center', fontStyle: 'bold' } },
-          { content: 'QUILOMETRAGEM', colSpan: 3, styles: { fillColor: [22, 78, 99], halign: 'center', fontStyle: 'bold' } },
-        ],
-        // Column headers row
-        ['#', 'Veículo', 'Descrição', 'Empresa', 'Hor. Anterior', 'Hor. Atual', 'H.T', 'Km Anterior', 'Km Atual', 'Total Km'],
-      ],
+      head: [['', 'Veículo ▲', 'Descricao', 'Empresa', 'Hor. Anterior', 'Hor. Atual', 'Km. Anterior', 'Km. Atual', 'H.T', 'Total Km']],
       body: tableData,
-      theme: 'grid',
+      theme: 'plain',
       tableWidth: pageWidth - (tableMargin * 2),
       margin: { left: tableMargin, right: tableMargin },
       styles: {
@@ -553,68 +533,45 @@ export function HorimeterHistoryTab({ vehicles, readings, loading }: HorimeterHi
         cellPadding: cellPadding,
         halign: 'center',
         valign: 'middle',
-        lineColor: [180, 180, 180],
-        lineWidth: 0.15,
+        textColor: [30, 30, 30],
         font: 'helvetica',
       },
       headStyles: {
-        fillColor: [30, 41, 59], // Navy blue
-        textColor: [255, 255, 255],
+        fillColor: [245, 245, 245], // Light gray header
+        textColor: [60, 60, 60],
         fontStyle: 'bold',
         halign: 'center',
         fontSize: fontSize,
+        lineColor: [180, 180, 180],
+        lineWidth: { bottom: 0.5 },
       },
       columnStyles: {
-        0: { cellWidth: 8 }, // #
-        1: { cellWidth: 22, halign: 'left', fontStyle: 'bold' }, // Veículo
-        2: { cellWidth: 38, halign: 'left' }, // Descrição
-        3: { cellWidth: 22, halign: 'left' }, // Empresa
-        4: { cellWidth: 24 }, // Hor. Anterior
-        5: { cellWidth: 24 }, // Hor. Atual
-        6: { cellWidth: 16, fontStyle: 'bold' }, // H.T
-        7: { cellWidth: 24 }, // Km. Anterior
-        8: { cellWidth: 24 }, // Km. Atual
-        9: { cellWidth: 16, fontStyle: 'bold' }, // Km.T
-      },
-      alternateRowStyles: {
-        fillColor: [245, 247, 250], // Light gray
+        0: { cellWidth: 10, halign: 'left' }, // #
+        1: { cellWidth: 24, halign: 'center', fontStyle: 'bold' }, // Veículo
+        2: { cellWidth: 42, halign: 'center' }, // Descrição
+        3: { cellWidth: 22, halign: 'center' }, // Empresa
+        4: { cellWidth: 26, halign: 'center' }, // Hor. Anterior
+        5: { cellWidth: 24, halign: 'center' }, // Hor. Atual
+        6: { cellWidth: 26, halign: 'center' }, // Km. Anterior
+        7: { cellWidth: 24, halign: 'center' }, // Km. Atual
+        8: { cellWidth: 18, halign: 'center', fontStyle: 'bold' }, // H.T
+        9: { cellWidth: 20, halign: 'center', fontStyle: 'bold' }, // Total Km
       },
       bodyStyles: {
         fillColor: [255, 255, 255],
-        textColor: [30, 30, 30],
+        lineColor: [220, 220, 220],
+        lineWidth: { bottom: 0.2 },
       },
-      didParseCell: (data) => {
-        // Style H.T column (index 6) with amber background for values
-        if (data.section === 'body' && data.column.index === 6 && data.cell.raw) {
-          data.cell.styles.fillColor = [254, 243, 199]; // amber-100
-          data.cell.styles.textColor = [120, 53, 15]; // amber-900
-        }
-        // Style Km.T column (index 9) with blue background for values
-        if (data.section === 'body' && data.column.index === 9 && data.cell.raw) {
-          data.cell.styles.fillColor = [219, 234, 254]; // blue-100
-          data.cell.styles.textColor = [30, 64, 175]; // blue-800
-        }
+      alternateRowStyles: {
+        fillColor: [255, 255, 255], // No alternating colors - clean like image
       },
     });
 
-    // Footer - navy line
-    doc.setDrawColor(30, 41, 59);
-    doc.setLineWidth(0.5);
-    doc.line(tableMargin, pageHeight - 12, pageWidth - tableMargin, pageHeight - 12);
-    
+    // Footer with generation info
     doc.setFontSize(7);
-    doc.setTextColor(80, 80, 80);
-    doc.text(
-      `${companyName} | ${data.length} veículos`,
-      tableMargin,
-      pageHeight - 7
-    );
-    doc.text(
-      'Sistema Abastech',
-      pageWidth - tableMargin,
-      pageHeight - 7,
-      { align: 'right' }
-    );
+    doc.setTextColor(120, 120, 120);
+    const dateStr = format(new Date(), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR });
+    doc.text(`Gerado em: ${dateStr} | Total: ${data.length} veículos | Sistema Abastech`, pageWidth / 2, pageHeight - 8, { align: 'center' });
   };
 
   // Get period info string for PDF
