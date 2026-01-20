@@ -311,20 +311,19 @@ export function HorimetrosPageDB() {
     });
   }, [readings, search, selectedDate, dateRange, categoryFilter, companyFilter, vehicleFilter]);
 
-  // Calculate interval for each reading (horimeter and km)
+  // Calculate interval for each reading using values from the SAME row
+  // The previous_value and current_value are ALREADY from the same spreadsheet row
   const readingsWithInterval = useMemo(() => {
     return filteredReadings.map(reading => {
-      // Calculate horimeter interval (H.T. = Horas Trabalhadas)
-      const horInterval = reading.previous_value 
-        ? reading.current_value - reading.previous_value 
-        : reading.current_value > 0 ? reading.current_value : 0;
+      // H.T. (Horas Trabalhadas) = current_value - previous_value from SAME row
+      const prevHor = reading.previous_value ?? 0;
+      const currHor = reading.current_value ?? 0;
+      const horInterval = currHor - prevHor;
       
-      // Calculate km interval (Total KM)
-      const prevKm = (reading as any).previous_km || 0;
-      const currKm = (reading as any).current_km || 0;
-      const kmInterval = prevKm > 0 && currKm > 0 
-        ? currKm - prevKm 
-        : 0;
+      // Total KM = current_km - previous_km from SAME row
+      const prevKm = (reading as any).previous_km ?? 0;
+      const currKm = (reading as any).current_km ?? 0;
+      const kmInterval = (currKm > 0 && prevKm >= 0) ? currKm - prevKm : 0;
       
       return {
         ...reading,
