@@ -58,6 +58,8 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
 import { VehicleCombobox } from '@/components/ui/vehicle-combobox';
+import { BrazilianNumberInput } from '@/components/ui/brazilian-number-input';
+import { parsePtBRNumber, formatPtBRNumber } from '@/lib/ptBRNumber';
 import { supabase } from '@/integrations/supabase/client';
 import { useSheetData } from '@/hooks/useGoogleSheets';
 import { useRealtimeSync } from '@/hooks/useRealtimeSync';
@@ -136,25 +138,18 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
     'Outro',
   ];
 
-  // Format number to Brazilian format (1.234,56)
+  // Use centralized pt-BR number functions
   const formatBrazilianNumber = (value: string | number): string => {
     if (!value && value !== 0) return '';
-    const num = typeof value === 'string' ? parseFloat(value.replace(/\./g, '').replace(',', '.')) : value;
-    if (isNaN(num)) return '';
-    return num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  };
-
-  // Parse Brazilian format to number
-  const parseBrazilianNumber = (value: string): number => {
-    if (!value) return 0;
-    const normalized = value.replace(/\./g, '').replace(',', '.');
-    return parseFloat(normalized) || 0;
+    const num = typeof value === 'string' ? parsePtBRNumber(value) : value;
+    if (!Number.isFinite(num)) return '';
+    return formatPtBRNumber(num);
   };
 
   // Validation for horimeter/km
   const horimeterValidation = useMemo(() => {
-    const current = parseBrazilianNumber(horimeterCurrent);
-    const previous = parseBrazilianNumber(horimeterPrevious);
+    const current = parsePtBRNumber(horimeterCurrent);
+    const previous = parsePtBRNumber(horimeterPrevious);
     
     if (!current || !previous) return { status: 'neutral', message: '' };
     
@@ -180,8 +175,8 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
   }, [horimeterCurrent, horimeterPrevious]);
 
   const kmValidation = useMemo(() => {
-    const current = parseBrazilianNumber(kmCurrent);
-    const previous = parseBrazilianNumber(kmPrevious);
+    const current = parsePtBRNumber(kmCurrent);
+    const previous = parsePtBRNumber(kmPrevious);
     
     if (!current || !previous) return { status: 'neutral', message: '' };
     
@@ -403,10 +398,10 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
           const horAtualStr = String(
             getByNormalizedKey(row as any, ['HORIMETRO ATUAL', 'HORIMETRO ATUA', 'HOR_ATUAL', 'HORIMETRO']) || '0'
           );
-          const horAtual = parseBrazilianNumber(horAtualStr);
+          const horAtual = parsePtBRNumber(horAtualStr);
 
           const kmAtualStr = String(getByNormalizedKey(row as any, ['KM ATUAL', 'KM_ATUAL', 'KM']) || '0');
-          const kmAtual = parseBrazilianNumber(kmAtualStr);
+          const kmAtual = parsePtBRNumber(kmAtualStr);
 
           return {
             dateTime,
@@ -566,13 +561,13 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
         operator_name: recordType === 'entrada' && quickEntryMode === 'normal' ? '' : operatorName,
         company,
         work_site: workSite,
-        horimeter_previous: parseBrazilianNumber(horimeterPrevious),
-        horimeter_current: parseBrazilianNumber(horimeterCurrent),
-        km_previous: parseBrazilianNumber(kmPrevious),
-        km_current: parseBrazilianNumber(kmCurrent),
-        fuel_quantity: parseFloat(fuelQuantity) || 0,
+        horimeter_previous: parsePtBRNumber(horimeterPrevious),
+        horimeter_current: parsePtBRNumber(horimeterCurrent),
+        km_previous: parsePtBRNumber(kmPrevious),
+        km_current: parsePtBRNumber(kmCurrent),
+        fuel_quantity: parsePtBRNumber(fuelQuantity),
         fuel_type: fuelType,
-        arla_quantity: parseFloat(arlaQuantity) || 0,
+        arla_quantity: parsePtBRNumber(arlaQuantity),
         location: recordType === 'entrada' && quickEntryMode === 'normal' ? entryLocation : location,
         observations: quickEntryMode !== 'normal' ? `[${getQuickModeLabel(quickEntryMode)}] ${observations}`.trim() : (observations || null),
         oil_type: oilType || null,
@@ -612,12 +607,12 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
         'MOTORISTA': operatorName,
         'EMPRESA': company,
         'OBRA': workSite,
-        'HORIMETRO ANTERIOR': parseBrazilianNumber(horimeterPrevious) || '',
-        'HORIMETRO ATUAL': parseBrazilianNumber(horimeterCurrent) || '',
-        'KM ANTERIOR': parseBrazilianNumber(kmPrevious) || '',
-        'KM ATUAL': parseBrazilianNumber(kmCurrent) || '',
-        'QUANTIDADE': parseFloat(fuelQuantity) || 0,
-        'QUANTIDADE DE ARLA': parseFloat(arlaQuantity) || '',
+        'HORIMETRO ANTERIOR': parsePtBRNumber(horimeterPrevious) || '',
+        'HORIMETRO ATUAL': parsePtBRNumber(horimeterCurrent) || '',
+        'KM ANTERIOR': parsePtBRNumber(kmPrevious) || '',
+        'KM ATUAL': parsePtBRNumber(kmCurrent) || '',
+        'QUANTIDADE': parsePtBRNumber(fuelQuantity) || 0,
+        'QUANTIDADE DE ARLA': parsePtBRNumber(arlaQuantity) || '',
         'TIPO DE COMBUSTIVEL': fuelType,
         'LOCAL': dbRecord.location,
         'OBSERVAÇÃO': dbRecord.observations || '',
@@ -1037,9 +1032,10 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
                       <Gauge className="h-4 w-4 text-amber-500" />
                       Horímetro Anterior
                     </Label>
-                    <Input
+                    <BrazilianNumberInput
                       value={horimeterPrevious}
-                      onChange={(e) => setHorimeterPrevious(e.target.value)}
+                      onChange={setHorimeterPrevious}
+                      decimals={2}
                       placeholder="0,00"
                       className="border-amber-300 focus:border-amber-500"
                     />
@@ -1059,9 +1055,10 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
                         </Tooltip>
                       )}
                     </Label>
-                    <Input
+                    <BrazilianNumberInput
                       value={horimeterCurrent}
-                      onChange={(e) => setHorimeterCurrent(e.target.value)}
+                      onChange={setHorimeterCurrent}
+                      decimals={2}
                       placeholder="0,00"
                       className={cn(
                         "border-amber-300 focus:border-amber-500",
@@ -1080,10 +1077,11 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
                       <Clock className="h-4 w-4 text-blue-500" />
                       KM Anterior
                     </Label>
-                    <Input
+                    <BrazilianNumberInput
                       value={kmPrevious}
-                      onChange={(e) => setKmPrevious(e.target.value)}
-                      placeholder="0,00"
+                      onChange={setKmPrevious}
+                      decimals={0}
+                      placeholder="0"
                       className="border-blue-300 focus:border-blue-500"
                     />
                   </div>
@@ -1102,10 +1100,11 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
                         </Tooltip>
                       )}
                     </Label>
-                    <Input
+                    <BrazilianNumberInput
                       value={kmCurrent}
-                      onChange={(e) => setKmCurrent(e.target.value)}
-                      placeholder="0,00"
+                      onChange={setKmCurrent}
+                      decimals={0}
+                      placeholder="0"
                       className={cn(
                         "border-blue-300 focus:border-blue-500",
                         kmValidation.status === 'error' && "border-red-500 focus:border-red-600",
@@ -1124,12 +1123,11 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
                     <Fuel className="h-4 w-4 text-red-500" />
                     Quantidade (L)
                   </Label>
-                  <Input
-                    type="number"
+                  <BrazilianNumberInput
                     value={fuelQuantity}
-                    onChange={(e) => setFuelQuantity(e.target.value)}
-                    placeholder="0"
-                    step="0.01"
+                    onChange={setFuelQuantity}
+                    decimals={2}
+                    placeholder="0,00"
                   />
                 </div>
                 <div className="space-y-2">
@@ -1154,12 +1152,11 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
                     <Droplet className="h-4 w-4 text-blue-500" />
                     Quantidade ARLA (L)
                   </Label>
-                  <Input
-                    type="number"
+                  <BrazilianNumberInput
                     value={arlaQuantity}
-                    onChange={(e) => setArlaQuantity(e.target.value)}
-                    placeholder="0"
-                    step="0.01"
+                    onChange={setArlaQuantity}
+                    decimals={2}
+                    placeholder="0,00"
                   />
                 </div>
                 <div className="space-y-2">
