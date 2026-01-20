@@ -136,7 +136,7 @@ interface AnomalyRecord {
   avgInterval: number;
   deviationPercent: number;
   severity: 'high' | 'medium' | 'low';
-  issueType: 'high_interval' | 'negative_value' | 'zero_previous' | 'suspicious_sequence';
+  issueType: 'high_interval' | 'negative_value' | 'zero_previous' | 'suspicious_sequence' | 'magnitude_mismatch';
   rawRow: Record<string, any>;
   suggestedCorrection?: {
     previousValue?: number;
@@ -144,7 +144,7 @@ interface AnomalyRecord {
     fieldToFix: 'previous' | 'current';
     source: string;
     sourceDate: string;
-    correctionType?: 'current_extra_digit' | 'previous_missing_digit' | 'decimal_shift' | 'estimated_interval' | 'from_sheet';
+    correctionType?: 'current_extra_digit' | 'previous_missing_digit' | 'decimal_shift' | 'estimated_interval' | 'from_sheet' | 'format_fix_x1000' | 'format_fix_x100';
   };
 }
 
@@ -355,14 +355,32 @@ export function HorimeterCorrectionsTab({ data, refetch, loading }: HorimeterCor
         severity = 'high';
         deviationPercent = -100;
       }
-      // Issue 2: Zero previous value when current has value
+      // Issue 2: Magnitude mismatch - previous value seems wrong format (e.g., 1.66 vs 1669)
+      else if (!isVehicle && horimeterPrevious > 0 && horimeterCurrent > 0) {
+        const ratio = horimeterCurrent / horimeterPrevious;
+        // If current is 100x-1000x bigger than previous, it's likely a formatting issue
+        if (ratio >= 100 && ratio <= 1200) {
+          issueType = 'magnitude_mismatch';
+          severity = 'high';
+          deviationPercent = (ratio - 1) * 100;
+        }
+      }
+      else if (isVehicle && kmPrevious > 0 && kmCurrent > 0) {
+        const ratio = kmCurrent / kmPrevious;
+        if (ratio >= 100 && ratio <= 1200) {
+          issueType = 'magnitude_mismatch';
+          severity = 'high';
+          deviationPercent = (ratio - 1) * 100;
+        }
+      }
+      // Issue 3: Zero previous value when current has value
       else if ((isVehicle && kmPrevious === 0 && kmCurrent > 0) || 
                (!isVehicle && horimeterPrevious === 0 && horimeterCurrent > 0)) {
         issueType = 'zero_previous';
         severity = 'medium';
         deviationPercent = 100;
       }
-      // Issue 3: High interval compared to average
+      // Issue 4: High interval compared to average
       else if (avgInterval > 0 && interval > 0) {
         deviationPercent = ((interval - avgInterval) / avgInterval) * 100;
         
@@ -489,6 +507,43 @@ export function HorimeterCorrectionsTab({ data, refetch, loading }: HorimeterCor
     const avgInterval = anomaly.avgInterval || 0;
     
     // SMART CORRECTION LOGIC
+    // Case 0: Magnitude mismatch - formatting error (e.g., 1.66 should be 1666)
+    if (anomaly.issueType === 'magnitude_mismatch' && previousValue > 0 && currentValue > 0) {
+      const ratio = currentValue / previousValue;
+      
+      // If ratio is around 1000, multiply previous by 1000
+      if (ratio >= 900 && ratio <= 1100) {
+        const correctedPrev = Math.round(previousValue * 1000);
+        const newInterval = currentValue - correctedPrev;
+        
+        if (newInterval >= 0 && (avgInterval <= 0 || newInterval < avgInterval * 5)) {
+          return {
+            previousValue: correctedPrev,
+            fieldToFix: 'previous' as const,
+            source: 'Correção de formatação (×1000)',
+            sourceDate: anomaly.date,
+            correctionType: 'format_fix_x1000',
+          };
+        }
+      }
+      
+      // If ratio is around 100, multiply previous by 100
+      if (ratio >= 90 && ratio <= 110) {
+        const correctedPrev = Math.round(previousValue * 100);
+        const newInterval = currentValue - correctedPrev;
+        
+        if (newInterval >= 0 && (avgInterval <= 0 || newInterval < avgInterval * 5)) {
+          return {
+            previousValue: correctedPrev,
+            fieldToFix: 'previous' as const,
+            source: 'Correção de formatação (×100)',
+            sourceDate: anomaly.date,
+            correctionType: 'format_fix_x100',
+          };
+        }
+      }
+    }
+
     // Case 1: High interval - check if current value might have extra digit (typing error)
     if (anomaly.issueType === 'high_interval' && currentValue > 0 && prevValue > 0) {
       // Try dividing current by 10 (extra digit typed in CURRENT)

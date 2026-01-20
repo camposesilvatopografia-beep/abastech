@@ -99,14 +99,14 @@ interface AnomalyRecord {
   avgInterval: number;
   deviationPercent: number;
   severity: 'high' | 'medium' | 'low';
-  issueType: 'negative_value' | 'zero_previous' | 'high_interval' | 'negative_km';
+  issueType: 'negative_value' | 'zero_previous' | 'high_interval' | 'negative_km' | 'magnitude_mismatch';
   operator: string;
   suggestedCorrection?: {
     previousValue?: number;
     currentValue?: number;
     fieldToFix: 'previous' | 'current';
     source: string;
-    correctionType?: 'extra_digit' | 'missing_digit' | 'from_history' | 'estimated';
+    correctionType?: 'extra_digit' | 'missing_digit' | 'from_history' | 'estimated' | 'format_fix_x1000' | 'format_fix_x100';
   };
 }
 
@@ -293,14 +293,36 @@ export function HorimeterDBCorrectionsTab({ readings, refetch, loading }: Horime
         deviationPercent = -100;
         interval = kmInterval;
       }
-      // Issue 3: Zero previous when current has value
+      // Issue 3: Magnitude mismatch - previous value seems wrong format (e.g., 1.66 vs 1669)
+      // This happens when pt-BR formatting is misread (1.666 interpreted as 1.666 instead of 1666)
+      else if (horimeterPrevious > 0 && horimeterCurrent > 0) {
+        const ratio = horimeterCurrent / horimeterPrevious;
+        // If current is 100x-1000x bigger than previous, it's likely a formatting issue
+        if (ratio >= 100 && ratio <= 1200) {
+          issueType = 'magnitude_mismatch';
+          severity = 'high';
+          deviationPercent = (ratio - 1) * 100;
+          interval = horimeterInterval;
+        }
+        // Also check for KM
+        else if (kmPrevious > 0 && kmCurrent > 0) {
+          const kmRatio = kmCurrent / kmPrevious;
+          if (kmRatio >= 100 && kmRatio <= 1200) {
+            issueType = 'magnitude_mismatch';
+            severity = 'high';
+            deviationPercent = (kmRatio - 1) * 100;
+            interval = kmInterval;
+          }
+        }
+      }
+      // Issue 4: Zero previous when current has value
       else if ((horimeterPrevious === 0 && horimeterCurrent > 0) || 
                (kmPrevious === 0 && kmCurrent > 0)) {
         issueType = 'zero_previous';
         severity = 'medium';
         deviationPercent = 100;
       }
-      // Issue 4: High interval compared to average
+      // Issue 5: High interval compared to average
       else if (avgInterval > 0 && horimeterInterval > 0) {
         deviationPercent = ((horimeterInterval - avgInterval) / avgInterval) * 100;
         
@@ -363,6 +385,53 @@ export function HorimeterDBCorrectionsTab({ readings, refetch, loading }: Horime
     // Find reading before this one
     const prevReading = vehicleReadings.find(r => new Date(r.reading_date) < anomalyDate);
     const prevValue = prevReading?.current_value || 0;
+
+    // Case 0: Magnitude mismatch - formatting error (e.g., 1.66 should be 1666)
+    // This is the most common error: pt-BR formatting misread
+    if (anomaly.issueType === 'magnitude_mismatch' && previousValue > 0 && currentValue > 0) {
+      const ratio = currentValue / previousValue;
+      
+      // If ratio is around 1000 (900-1100), multiply previous by 1000
+      if (ratio >= 900 && ratio <= 1100) {
+        const correctedPrev = Math.round(previousValue * 1000);
+        const newInterval = currentValue - correctedPrev;
+        
+        // Verify the corrected value makes sense
+        if (newInterval >= 0 && (avgInterval <= 0 || newInterval < avgInterval * 5)) {
+          return {
+            previousValue: correctedPrev,
+            fieldToFix: 'previous',
+            source: 'Correção de formatação (×1000)',
+            correctionType: 'format_fix_x1000',
+          };
+        }
+      }
+      
+      // If ratio is around 100 (90-110), multiply previous by 100
+      if (ratio >= 90 && ratio <= 110) {
+        const correctedPrev = Math.round(previousValue * 100);
+        const newInterval = currentValue - correctedPrev;
+        
+        if (newInterval >= 0 && (avgInterval <= 0 || newInterval < avgInterval * 5)) {
+          return {
+            previousValue: correctedPrev,
+            fieldToFix: 'previous',
+            source: 'Correção de formatação (×100)',
+            correctionType: 'format_fix_x100',
+          };
+        }
+      }
+      
+      // Try using actual previous reading value
+      if (prevReading && prevValue > 0 && prevValue < currentValue) {
+        return {
+          previousValue: prevValue,
+          fieldToFix: 'previous',
+          source: `Registro anterior (${prevReading.reading_date})`,
+          correctionType: 'from_history',
+        };
+      }
+    }
 
     // Case 1: High interval - check for extra digit
     if (anomaly.issueType === 'high_interval' && currentValue > 0 && prevValue > 0) {
@@ -660,6 +729,8 @@ export function HorimeterDBCorrectionsTab({ readings, refetch, loading }: Horime
         return 'Valor anterior zerado';
       case 'high_interval':
         return 'Intervalo muito alto';
+      case 'magnitude_mismatch':
+        return 'Formatação incorreta';
       default:
         return issueType;
     }
