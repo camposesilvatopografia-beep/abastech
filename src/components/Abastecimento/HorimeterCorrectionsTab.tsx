@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { format, parse, isValid, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
@@ -20,6 +20,8 @@ import {
   Loader2,
   CalendarIcon,
   CalendarDays,
+  History,
+  ListChecks,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -147,6 +149,7 @@ interface AnomalyRecord {
 }
 
 export function HorimeterCorrectionsTab({ data, refetch, loading }: HorimeterCorrectionsTabProps) {
+  const [activeTab, setActiveTab] = useState<'pending' | 'history'>('pending');
   const [severityFilter, setSeverityFilter] = useState<'all' | 'high' | 'medium' | 'low'>('all');
   const [dateFilterType, setDateFilterType] = useState<DateFilterType>('all');
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
@@ -170,6 +173,38 @@ export function HorimeterCorrectionsTab({ data, refetch, loading }: HorimeterCor
   } | null>(null);
   const [anomaliesWithSuggestions, setAnomaliesWithSuggestions] = useState<AnomalyRecord[]>([]);
   const [isCalculatingSuggestions, setIsCalculatingSuggestions] = useState(false);
+  const [correctedRowIds, setCorrectedRowIds] = useState<Set<string>>(new Set());
+  const [auditLogs, setAuditLogs] = useState<any[]>([]);
+  const [loadingLogs, setLoadingLogs] = useState(false);
+
+  // Fetch audit logs
+  const fetchAuditLogs = useCallback(async () => {
+    setLoadingLogs(true);
+    try {
+      const { data: logs, error } = await supabase
+        .from('correction_audit_logs')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(100);
+      
+      if (error) {
+        console.error('Error fetching audit logs:', error);
+      } else {
+        setAuditLogs(logs || []);
+      }
+    } catch (err) {
+      console.error('Error fetching audit logs:', err);
+    } finally {
+      setLoadingLogs(false);
+    }
+  }, []);
+
+  // Fetch logs when switching to history tab
+  useEffect(() => {
+    if (activeTab === 'history') {
+      fetchAuditLogs();
+    }
+  }, [activeTab, fetchAuditLogs]);
 
   // Date filter function
   const isDateInFilter = useCallback((dateStr: string): boolean => {
@@ -788,17 +823,20 @@ export function HorimeterCorrectionsTab({ data, refetch, loading }: HorimeterCor
     }
   };
 
-  // Filter anomalies by severity and date
+  // Filter anomalies by severity and date, excluding corrected ones
   const displayedAnomalies = useMemo(() => {
     const source = anomaliesWithSuggestions.length > 0 ? anomaliesWithSuggestions : anomalies;
     return source.filter(a => {
+      // Exclude corrected items
+      const rowId = `${a.vehicleCode}-${a.date}-${a.time}`;
+      if (correctedRowIds.has(rowId)) return false;
       // Apply date filter
       if (!isDateInFilter(a.date)) return false;
       // Apply severity filter
       if (severityFilter !== 'all' && a.severity !== severityFilter) return false;
       return true;
     });
-  }, [anomalies, anomaliesWithSuggestions, severityFilter, isDateInFilter]);
+  }, [anomalies, anomaliesWithSuggestions, severityFilter, isDateInFilter, correctedRowIds]);
 
   // Summary counts
   const summaryCounts = useMemo(() => ({
@@ -910,15 +948,21 @@ export function HorimeterCorrectionsTab({ data, refetch, loading }: HorimeterCor
       }
 
       toast.success('Registro corrigido com sucesso!');
+      markAsCorrected(anomaly);
       setEditingRowIndex(null);
       setEditData(null);
-      refetch();
     } catch (err) {
       console.error('Error saving correction:', err);
       toast.error('Erro ao salvar correção');
     } finally {
       setIsSaving(false);
     }
+  };
+
+  // Mark an anomaly as corrected (removes from pending list)
+  const markAsCorrected = (anomaly: AnomalyRecord) => {
+    const rowId = `${anomaly.vehicleCode}-${anomaly.date}-${anomaly.time}`;
+    setCorrectedRowIds(prev => new Set([...prev, rowId]));
   };
 
   // Apply suggestion to a single row
@@ -933,7 +977,8 @@ export function HorimeterCorrectionsTab({ data, refetch, loading }: HorimeterCor
     setIsSaving(false);
     
     if (success) {
-      refetch();
+      markAsCorrected(anomaly);
+      // Optionally refetch to update data, but item will be hidden immediately
     }
   };
 
@@ -963,9 +1008,39 @@ export function HorimeterCorrectionsTab({ data, refetch, loading }: HorimeterCor
 
   return (
     <div className="space-y-6">
-      {/* Date Filter */}
-      <div className="flex flex-wrap items-center gap-2 p-4 bg-muted/50 rounded-lg">
-        <span className="text-sm font-medium text-muted-foreground">Período:</span>
+      {/* Tab Navigation */}
+      <div className="flex items-center gap-4 border-b pb-2">
+        <Button
+          variant={activeTab === 'pending' ? 'default' : 'ghost'}
+          size="sm"
+          onClick={() => setActiveTab('pending')}
+          className="gap-2"
+        >
+          <ListChecks className="h-4 w-4" />
+          Pendentes
+          {displayedAnomalies.length > 0 && (
+            <Badge variant="secondary" className="ml-1">{displayedAnomalies.length}</Badge>
+          )}
+        </Button>
+        <Button
+          variant={activeTab === 'history' ? 'default' : 'ghost'}
+          size="sm"
+          onClick={() => setActiveTab('history')}
+          className="gap-2"
+        >
+          <History className="h-4 w-4" />
+          Histórico de Correções
+          {auditLogs.length > 0 && (
+            <Badge variant="outline" className="ml-1">{auditLogs.length}</Badge>
+          )}
+        </Button>
+      </div>
+
+      {activeTab === 'pending' && (
+        <>
+          {/* Date Filter */}
+          <div className="flex flex-wrap items-center gap-2 p-4 bg-muted/50 rounded-lg">
+            <span className="text-sm font-medium text-muted-foreground">Período:</span>
         <div className="flex flex-wrap gap-2">
           <Button
             variant={dateFilterType === 'all' ? 'default' : 'outline'}
@@ -1463,6 +1538,98 @@ export function HorimeterCorrectionsTab({ data, refetch, loading }: HorimeterCor
               })}
             </TableBody>
           </Table>
+        </div>
+      )}
+        </>
+      )}
+
+      {/* History Tab */}
+      {activeTab === 'history' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold flex items-center gap-2">
+              <History className="h-5 w-5" />
+              Histórico de Correções Aplicadas
+            </h3>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={fetchAuditLogs}
+              disabled={loadingLogs}
+            >
+              <RefreshCw className={cn("h-4 w-4 mr-2", loadingLogs && "animate-spin")} />
+              Atualizar
+            </Button>
+          </div>
+
+          {loadingLogs ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : auditLogs.length === 0 ? (
+            <Card className="p-8 text-center">
+              <CheckCircle className="h-12 w-12 mx-auto text-muted-foreground/30 mb-4" />
+              <p className="text-muted-foreground">Nenhuma correção aplicada ainda.</p>
+            </Card>
+          ) : (
+            <div className="rounded-lg border overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/50">
+                    <TableHead>Data/Hora</TableHead>
+                    <TableHead>Veículo</TableHead>
+                    <TableHead>Campo</TableHead>
+                    <TableHead className="text-right">Valor Anterior</TableHead>
+                    <TableHead className="text-right">Valor Novo</TableHead>
+                    <TableHead>Tipo</TableHead>
+                    <TableHead>Aplicado por</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {auditLogs.map((log) => (
+                    <TableRow key={log.id}>
+                      <TableCell>
+                        <div className="text-sm">
+                          <div>{format(new Date(log.created_at), 'dd/MM/yyyy', { locale: ptBR })}</div>
+                          <div className="text-muted-foreground">{format(new Date(log.created_at), 'HH:mm', { locale: ptBR })}</div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div>
+                          <div className="font-medium">{log.vehicle_code}</div>
+                          {log.vehicle_description && (
+                            <div className="text-xs text-muted-foreground">{log.vehicle_description}</div>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline">
+                          {log.field_corrected === 'horimeter_previous' && 'Hor. Anterior'}
+                          {log.field_corrected === 'horimeter_current' && 'Hor. Atual'}
+                          {log.field_corrected === 'km_previous' && 'Km Anterior'}
+                          {log.field_corrected === 'km_current' && 'Km Atual'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-destructive">
+                        {log.old_value ? formatBrazilianNumber(log.old_value) : '-'}
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-green-600 font-bold">
+                        {formatBrazilianNumber(log.new_value)}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={log.correction_source === 'auto_fix' ? 'default' : 'secondary'}>
+                          {log.correction_source === 'auto_fix' ? 'Automático' : 'Manual'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {log.applied_by}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
         </div>
       )}
     </div>
