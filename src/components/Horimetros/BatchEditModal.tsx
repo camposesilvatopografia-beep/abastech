@@ -1,9 +1,9 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
-import { format } from 'date-fns';
+import { format, subDays, startOfDay, endOfDay, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { 
   Clock, Save, Loader2, Truck, Edit3, Check, AlertTriangle, 
-  ChevronDown, ChevronUp, RefreshCw
+  ChevronDown, ChevronUp, RefreshCw, Calendar, Filter
 } from 'lucide-react';
 import {
   Dialog,
@@ -19,6 +19,19 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { CurrencyInput } from '@/components/ui/currency-input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { useVehicles, useHorimeterReadings } from '@/hooks/useHorimeters';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -55,16 +68,57 @@ export function BatchEditModal({ open, onOpenChange, onSuccess }: BatchEditModal
   const [editableReadings, setEditableReadings] = useState<EditableReading[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [showOnlyDirty, setShowOnlyDirty] = useState(false);
+  
+  // Period filter states
+  const [periodFilter, setPeriodFilter] = useState<string>('todos');
+  const [startDate, setStartDate] = useState<Date | undefined>(undefined);
+  const [endDate, setEndDate] = useState<Date | undefined>(undefined);
 
-  // Get readings for selected vehicle
+  // Calculate date range based on period filter
+  const dateRange = useMemo(() => {
+    const today = startOfDay(new Date());
+    
+    switch (periodFilter) {
+      case 'hoje':
+        return { start: today, end: endOfDay(today) };
+      case 'ontem':
+        const yesterday = subDays(today, 1);
+        return { start: yesterday, end: endOfDay(yesterday) };
+      case '7dias':
+        return { start: subDays(today, 6), end: endOfDay(today) };
+      case '30dias':
+        return { start: subDays(today, 29), end: endOfDay(today) };
+      case 'mes':
+        return { start: startOfMonth(today), end: endOfMonth(today) };
+      case 'personalizado':
+        return { 
+          start: startDate ? startOfDay(startDate) : subDays(today, 30), 
+          end: endDate ? endOfDay(endDate) : endOfDay(today) 
+        };
+      case 'todos':
+      default:
+        return null;
+    }
+  }, [periodFilter, startDate, endDate]);
+
+  // Get readings for selected vehicle with date filter
   const vehicleReadings = useMemo(() => {
     if (!selectedVehicleId) return [];
-    return readings
-      .filter(r => r.vehicle_id === selectedVehicleId)
-      .sort((a, b) => new Date(b.reading_date).getTime() - new Date(a.reading_date).getTime());
-  }, [selectedVehicleId, readings]);
+    
+    let filtered = readings.filter(r => r.vehicle_id === selectedVehicleId);
+    
+    // Apply date filter
+    if (dateRange) {
+      filtered = filtered.filter(r => {
+        const readingDate = new Date(r.reading_date + 'T00:00:00');
+        return isWithinInterval(readingDate, { start: dateRange.start, end: dateRange.end });
+      });
+    }
+    
+    return filtered.sort((a, b) => new Date(b.reading_date).getTime() - new Date(a.reading_date).getTime());
+  }, [selectedVehicleId, readings, dateRange]);
 
-  // Initialize editable readings when vehicle changes
+  // Initialize editable readings when vehicle or date filter changes
   useEffect(() => {
     if (!selectedVehicleId) {
       setEditableReadings([]);
@@ -210,6 +264,9 @@ export function BatchEditModal({ open, onOpenChange, onSuccess }: BatchEditModal
     }
     setSelectedVehicleId('');
     setEditableReadings([]);
+    setPeriodFilter('todos');
+    setStartDate(undefined);
+    setEndDate(undefined);
     onOpenChange(false);
   };
 
@@ -217,14 +274,20 @@ export function BatchEditModal({ open, onOpenChange, onSuccess }: BatchEditModal
     ? editableReadings.filter(r => r.isDirty || r.isSaved)
     : editableReadings;
 
+  // Total readings for this vehicle (without date filter)
+  const totalVehicleReadings = useMemo(() => {
+    if (!selectedVehicleId) return 0;
+    return readings.filter(r => r.vehicle_id === selectedVehicleId).length;
+  }, [selectedVehicleId, readings]);
+
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-5xl max-h-[95vh] flex flex-col p-0 gap-0">
         {/* Header */}
-        <DialogHeader className="p-4 pb-3 border-b bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30">
+        <DialogHeader className="p-4 pb-3 border-b bg-gradient-to-r from-primary/10 to-primary/5">
           <div className="flex items-center justify-between">
             <DialogTitle className="flex items-center gap-3 text-lg">
-              <div className="p-2 rounded-lg bg-blue-500 text-white">
+              <div className="p-2 rounded-lg bg-primary text-primary-foreground">
                 <Edit3 className="w-4 h-4" />
               </div>
               Edição em Lote
@@ -236,8 +299,9 @@ export function BatchEditModal({ open, onOpenChange, onSuccess }: BatchEditModal
         </DialogHeader>
 
         <div className="flex-1 overflow-hidden flex flex-col p-4 gap-4">
-          {/* Vehicle Selection */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-muted/50 rounded-xl border-2 border-border">
+          {/* Vehicle Selection + Period Filter */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 p-4 bg-muted/50 rounded-xl border-2 border-border">
+            {/* Vehicle */}
             <div className="space-y-2">
               <Label className="text-sm font-semibold text-foreground flex items-center gap-2">
                 <Truck className="w-4 h-4 text-primary" />
@@ -253,34 +317,105 @@ export function BatchEditModal({ open, onOpenChange, onSuccess }: BatchEditModal
                 }))}
                 value={selectedVehicleId}
                 onValueChange={setSelectedVehicleId}
-                placeholder="Selecionar veículo para editar..."
+                placeholder="Selecionar veículo..."
                 useIdAsValue
               />
             </div>
             
-            <div className="flex items-end gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => refetch()}
-                className="gap-2"
-              >
-                <RefreshCw className="w-4 h-4" />
-                Atualizar
-              </Button>
-              
-              {editableReadings.length > 0 && (
+            {/* Period Filter */}
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold text-foreground flex items-center gap-2">
+                <Filter className="w-4 h-4 text-muted-foreground" />
+                Período
+              </Label>
+              <Select value={periodFilter} onValueChange={setPeriodFilter}>
+                <SelectTrigger className="h-10">
+                  <SelectValue placeholder="Selecionar período..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos os registros</SelectItem>
+                  <SelectItem value="hoje">Hoje</SelectItem>
+                  <SelectItem value="ontem">Ontem</SelectItem>
+                  <SelectItem value="7dias">Últimos 7 dias</SelectItem>
+                  <SelectItem value="30dias">Últimos 30 dias</SelectItem>
+                  <SelectItem value="mes">Este mês</SelectItem>
+                  <SelectItem value="personalizado">Período personalizado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            {/* Custom Date Range */}
+            {periodFilter === 'personalizado' && (
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold text-foreground flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-muted-foreground" />
+                  Datas
+                </Label>
+                <div className="flex gap-2">
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className="flex-1 justify-start text-left font-normal h-10">
+                        <Calendar className="mr-2 h-4 w-4" />
+                        {startDate ? format(startDate, 'dd/MM/yy') : 'Início'}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <CalendarComponent
+                        mode="single"
+                        selected={startDate}
+                        onSelect={setStartDate}
+                        initialFocus
+                        className="p-3 pointer-events-auto"
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className="flex-1 justify-start text-left font-normal h-10">
+                        <Calendar className="mr-2 h-4 w-4" />
+                        {endDate ? format(endDate, 'dd/MM/yy') : 'Fim'}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <CalendarComponent
+                        mode="single"
+                        selected={endDate}
+                        onSelect={setEndDate}
+                        initialFocus
+                        className="p-3 pointer-events-auto"
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </div>
+            )}
+            
+            {/* Actions */}
+            {periodFilter !== 'personalizado' && (
+              <div className="flex items-end gap-2">
                 <Button
-                  variant={showOnlyDirty ? "default" : "outline"}
+                  variant="outline"
                   size="sm"
-                  onClick={() => setShowOnlyDirty(!showOnlyDirty)}
+                  onClick={() => refetch()}
                   className="gap-2"
                 >
-                  {showOnlyDirty ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                  {showOnlyDirty ? 'Mostrar Todos' : 'Só Alterados'}
+                  <RefreshCw className="w-4 h-4" />
+                  Atualizar
                 </Button>
-              )}
-            </div>
+                
+                {editableReadings.length > 0 && (
+                  <Button
+                    variant={showOnlyDirty ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setShowOnlyDirty(!showOnlyDirty)}
+                    className="gap-2"
+                  >
+                    {showOnlyDirty ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                    {showOnlyDirty ? 'Todos' : 'Alterados'}
+                  </Button>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Vehicle Info */}
@@ -294,18 +429,18 @@ export function BatchEditModal({ open, onOpenChange, onSuccess }: BatchEditModal
                 </Badge>
               </div>
               <div className="flex items-center gap-3">
-                <Badge variant="outline" className="gap-1 bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400">
+                <Badge variant="outline" className="gap-1 bg-amber-500/10 text-amber-700 border-amber-200 dark:text-amber-400">
                   <Edit3 className="w-3 h-3" />
                   {dirtyCount} alterado(s)
                 </Badge>
                 {savedCount > 0 && (
-                  <Badge variant="outline" className="gap-1 bg-green-50 text-green-700 border-green-200 dark:bg-green-950/30 dark:text-green-400">
+                  <Badge variant="outline" className="gap-1 bg-green-500/10 text-green-700 border-green-200 dark:text-green-400">
                     <Check className="w-3 h-3" />
                     {savedCount} salvo(s)
                   </Badge>
                 )}
                 <Badge variant="outline" className="text-xs">
-                  {editableReadings.length} registros
+                  {editableReadings.length} de {totalVehicleReadings} registros
                 </Badge>
               </div>
             </div>
@@ -323,23 +458,23 @@ export function BatchEditModal({ open, onOpenChange, onSuccess }: BatchEditModal
                 <Clock className="w-3 h-3 text-amber-500" />
                 Hor. Atual
               </span>
-              <span className="flex items-center gap-1 text-blue-600">
+              <span className="flex items-center gap-1 text-primary">
                 KM Anterior
               </span>
-              <span className="flex items-center gap-1 text-blue-600">
+              <span className="flex items-center gap-1 text-primary">
                 KM Atual
               </span>
               <span className="text-center">Status</span>
             </div>
             
-            <ScrollArea className="h-[400px]">
+            <ScrollArea className="h-[350px]">
               <div className="divide-y">
                 {displayedReadings.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
                     <Edit3 className="w-10 h-10 mb-2 opacity-30" />
                     <p className="text-sm">
                       {selectedVehicleId 
-                        ? 'Nenhum registro encontrado para este veículo' 
+                        ? 'Nenhum registro encontrado para este período' 
                         : 'Selecione um veículo para editar'}
                     </p>
                   </div>
@@ -349,10 +484,10 @@ export function BatchEditModal({ open, onOpenChange, onSuccess }: BatchEditModal
                       key={reading.id}
                       className={cn(
                         "grid grid-cols-[100px_1fr_1fr_1fr_1fr_60px] gap-2 items-center py-2 px-3 transition-colors",
-                        reading.isDirty && "bg-amber-50/50 dark:bg-amber-950/20",
-                        reading.isSaved && "bg-green-50/50 dark:bg-green-950/20",
-                        reading.error && "bg-red-50/50 dark:bg-red-950/20",
-                        reading.isSaving && "bg-blue-50/50 dark:bg-blue-950/20"
+                        reading.isDirty && "bg-amber-500/10",
+                        reading.isSaved && "bg-green-500/10",
+                        reading.error && "bg-destructive/10",
+                        reading.isSaving && "bg-primary/10"
                       )}
                     >
                       {/* Date */}
@@ -374,7 +509,7 @@ export function BatchEditModal({ open, onOpenChange, onSuccess }: BatchEditModal
                           className={cn(
                             "h-9 text-sm font-mono",
                             reading.edited_previous !== null && reading.edited_previous !== reading.original_previous 
-                              && "border-amber-400 bg-amber-50 dark:bg-amber-950/30"
+                              && "border-amber-400 bg-amber-500/10"
                           )}
                         />
                         {reading.edited_previous !== null && reading.edited_previous !== reading.original_previous && (
@@ -393,7 +528,7 @@ export function BatchEditModal({ open, onOpenChange, onSuccess }: BatchEditModal
                           className={cn(
                             "h-9 text-sm font-mono",
                             reading.edited_current !== null && reading.edited_current !== reading.original_current 
-                              && "border-amber-400 bg-amber-50 dark:bg-amber-950/30"
+                              && "border-amber-400 bg-amber-500/10"
                           )}
                         />
                         {reading.edited_current !== null && reading.edited_current !== reading.original_current && (
@@ -412,11 +547,11 @@ export function BatchEditModal({ open, onOpenChange, onSuccess }: BatchEditModal
                           className={cn(
                             "h-9 text-sm font-mono",
                             reading.edited_previous_km !== null && reading.edited_previous_km !== reading.original_previous_km 
-                              && "border-blue-400 bg-blue-50 dark:bg-blue-950/30"
+                              && "border-primary bg-primary/10"
                           )}
                         />
                         {reading.edited_previous_km !== null && reading.edited_previous_km !== reading.original_previous_km && (
-                          <span className="absolute -top-1 -right-1 text-[8px] bg-blue-500 text-white px-1 rounded">
+                          <span className="absolute -top-1 -right-1 text-[8px] bg-primary text-primary-foreground px-1 rounded">
                             era {(reading.original_previous_km || 0).toLocaleString('pt-BR')}
                           </span>
                         )}
@@ -431,11 +566,11 @@ export function BatchEditModal({ open, onOpenChange, onSuccess }: BatchEditModal
                           className={cn(
                             "h-9 text-sm font-mono",
                             reading.edited_current_km !== null && reading.edited_current_km !== reading.original_current_km 
-                              && "border-blue-400 bg-blue-50 dark:bg-blue-950/30"
+                              && "border-primary bg-primary/10"
                           )}
                         />
                         {reading.edited_current_km !== null && reading.edited_current_km !== reading.original_current_km && (
-                          <span className="absolute -top-1 -right-1 text-[8px] bg-blue-500 text-white px-1 rounded">
+                          <span className="absolute -top-1 -right-1 text-[8px] bg-primary text-primary-foreground px-1 rounded">
                             era {(reading.original_current_km || 0).toLocaleString('pt-BR')}
                           </span>
                         )}
@@ -444,13 +579,13 @@ export function BatchEditModal({ open, onOpenChange, onSuccess }: BatchEditModal
                       {/* Status */}
                       <div className="flex justify-center">
                         {reading.isSaving ? (
-                          <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                          <Loader2 className="w-4 h-4 animate-spin text-primary" />
                         ) : reading.isSaved ? (
                           <Check className="w-4 h-4 text-green-600" />
                         ) : reading.error ? (
                           <AlertTriangle className="w-4 h-4 text-destructive" />
                         ) : reading.isDirty ? (
-                          <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" title="Alterado" />
+                          <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
                         ) : null}
                       </div>
                     </div>
@@ -469,7 +604,7 @@ export function BatchEditModal({ open, onOpenChange, onSuccess }: BatchEditModal
           <Button 
             onClick={handleSaveAll} 
             disabled={isSaving || dirtyCount === 0}
-            className="min-w-[180px] gap-2 bg-blue-500 hover:bg-blue-600 text-white"
+            className="min-w-[180px] gap-2"
           >
             {isSaving ? (
               <>
