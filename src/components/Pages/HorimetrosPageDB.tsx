@@ -528,19 +528,19 @@ export function HorimetrosPageDB() {
     const excelData = readingsWithInterval.map(r => ({
       'Data': format(new Date(r.reading_date + 'T00:00:00'), 'dd/MM/yyyy'),
       'Veículo': r.vehicle?.code || '',
-      'Anterior': r.previous_value || '',
-      'Atual': r.current_value,
-      'Intervalo': r.interval,
-      'Descrição': r.vehicle?.name || '',
-      'Categoria': r.vehicle?.category || '',
       'Operador': r.operator || '',
-      'Observação': r.observations || '',
+      'Hor. Anterior': r.previous_value || '',
+      'Hor. Atual': r.current_value,
+      'H.T.': r.interval,
+      'KM Anterior': (r as any).previous_km || '',
+      'KM Atual': (r as any).current_km || '',
+      'Total KM': (r as any).km_interval || '',
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(excelData);
     worksheet['!cols'] = [
-      { wch: 12 }, { wch: 15 }, { wch: 12 }, { wch: 12 }, { wch: 12 },
-      { wch: 25 }, { wch: 15 }, { wch: 20 }, { wch: 30 },
+      { wch: 12 }, { wch: 15 }, { wch: 20 }, { wch: 14 }, { wch: 14 },
+      { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 12 },
     ];
 
     const workbook = XLSX.utils.book_new();
