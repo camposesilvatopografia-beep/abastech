@@ -61,6 +61,7 @@ const PDF_COLUMNS = [
   { key: 'kmAnterior', label: 'Km. Anterior' },
   { key: 'kmAtual', label: 'Km. Atual' },
   { key: 'intervaloHor', label: 'H.T' },
+  { key: 'intervaloKm', label: 'Km.T' },
 ];
 
 // Company logos as base64
@@ -511,18 +512,19 @@ export function HorimeterHistoryTab({ vehicles, readings, loading }: HorimeterHi
     const fontSize = totalItems > 40 ? 6 : totalItems > 25 ? 7 : 8;
     const cellPadding = totalItems > 40 ? 1 : 1.5;
     
-    // Fixed PDF columns (matching the image layout)
+    // Fixed PDF columns (matching the image layout with Km.T)
     const buildPdfRow = (item: VehicleSummary, idx: number) => {
       return [
         (idx + 1).toString(),
         item.veiculo,
-        item.descricao.substring(0, 25),
+        item.descricao.substring(0, 22),
         item.empresa,
         formatNumber(item.horAnterior),
         formatNumber(item.horAtual),
         formatNumber(item.kmAnterior),
         formatNumber(item.kmAtual),
         formatInterval(item.intervaloHor),
+        formatInterval(item.intervaloKm),
       ];
     };
     
@@ -554,15 +556,16 @@ export function HorimeterHistoryTab({ vehicles, readings, loading }: HorimeterHi
         fontSize: fontSize,
       },
       columnStyles: {
-        0: { cellWidth: 10 }, // #
-        1: { cellWidth: 25, halign: 'left' }, // Veículo
-        2: { cellWidth: 45, halign: 'left' }, // Descrição
-        3: { cellWidth: 25, halign: 'left' }, // Empresa
-        4: { cellWidth: 28 }, // Hor. Anterior
-        5: { cellWidth: 28 }, // Hor. Atual
-        6: { cellWidth: 28 }, // Km. Anterior
-        7: { cellWidth: 28 }, // Km. Atual
-        8: { cellWidth: 18 }, // H.T
+        0: { cellWidth: 8 }, // #
+        1: { cellWidth: 22, halign: 'left' }, // Veículo
+        2: { cellWidth: 40, halign: 'left' }, // Descrição
+        3: { cellWidth: 22, halign: 'left' }, // Empresa
+        4: { cellWidth: 26 }, // Hor. Anterior
+        5: { cellWidth: 26 }, // Hor. Atual
+        6: { cellWidth: 26 }, // Km. Anterior
+        7: { cellWidth: 26 }, // Km. Atual
+        8: { cellWidth: 16 }, // H.T
+        9: { cellWidth: 16 }, // Km.T
       },
       alternateRowStyles: {
         fillColor: [248, 250, 252], // slate-50
