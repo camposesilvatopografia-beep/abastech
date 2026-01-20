@@ -16,6 +16,7 @@ interface HorimeterReading {
   operator: string | null;
   observations: string | null;
   interval: number;
+  km_interval?: number;
   vehicle?: {
     id: string;
     code: string;
@@ -127,12 +128,30 @@ export function HorimeterCardView({
 
               {/* KM values if available */}
               {(reading.current_km || reading.previous_km) && (
-                <div className="flex items-center gap-3 text-sm">
-                  <Gauge className="w-4 h-4 text-blue-500" />
-                  <span className="text-muted-foreground">KM:</span>
-                  <span className="text-blue-600">
-                    {reading.previous_km?.toLocaleString('pt-BR') || '-'} → {reading.current_km?.toLocaleString('pt-BR') || '-'}
-                  </span>
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="bg-blue-50 dark:bg-blue-950/30 rounded-lg p-2">
+                    <p className="text-[10px] text-blue-600 uppercase tracking-wider mb-1">KM Anterior</p>
+                    <p className="font-bold text-sm text-blue-600">
+                      {reading.previous_km?.toLocaleString('pt-BR') || '-'}
+                    </p>
+                  </div>
+                  <div className="bg-blue-100 dark:bg-blue-900/40 border border-blue-200 dark:border-blue-800 rounded-lg p-2">
+                    <p className="text-[10px] text-blue-600 uppercase tracking-wider mb-1">KM Atual</p>
+                    <p className="font-bold text-lg text-blue-600">
+                      {reading.current_km?.toLocaleString('pt-BR') || '-'}
+                    </p>
+                  </div>
+                  <div className={cn(
+                    "rounded-lg p-2",
+                    (reading.km_interval || 0) > 0 ? "bg-blue-500/10 border border-blue-500/20" : "bg-muted/30"
+                  )}>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Total KM</p>
+                    <p className="font-bold text-sm text-blue-600">
+                      {reading.km_interval 
+                        ? (reading.km_interval > 0 ? '+' : '') + reading.km_interval.toLocaleString('pt-BR')
+                        : '-'}
+                    </p>
+                  </div>
                 </div>
               )}
 
