@@ -852,11 +852,14 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
                     Quantidade ARLA (L) *
                   </Label>
                   <Input
-                    type="number"
+                    type="text"
+                    inputMode="decimal"
                     value={arlaQuantity}
-                    onChange={(e) => setArlaQuantity(e.target.value)}
-                    placeholder="0"
-                    step="0.01"
+                    onChange={(e) => {
+                      const value = e.target.value.replace(/\./g, ',').replace(/[^\d,\-]/g, '');
+                      setArlaQuantity(value);
+                    }}
+                    placeholder="0,00"
                     className="text-lg h-12"
                   />
                 </div>
@@ -884,9 +887,13 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
                 <div className="space-y-2">
                   <Label>Quantidade Sopra Filtro *</Label>
                   <Input
-                    type="number"
+                    type="text"
+                    inputMode="decimal"
                     value={filterBlowQuantity}
-                    onChange={(e) => setFilterBlowQuantity(e.target.value)}
+                    onChange={(e) => {
+                      const value = e.target.value.replace(/\./g, ',').replace(/[^\d,\-]/g, '');
+                      setFilterBlowQuantity(value);
+                    }}
                     placeholder="0"
                     className="text-lg h-12"
                   />
@@ -912,11 +919,14 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
                   <div className="space-y-2">
                     <Label>Quantidade (L) *</Label>
                     <Input
-                      type="number"
+                      type="text"
+                      inputMode="decimal"
                       value={oilQuantity}
-                      onChange={(e) => setOilQuantity(e.target.value)}
-                      placeholder="0"
-                      step="0.1"
+                      onChange={(e) => {
+                        const value = e.target.value.replace(/\./g, ',').replace(/[^\d,\-]/g, '');
+                        setOilQuantity(value);
+                      }}
+                      placeholder="0,0"
                       className="text-lg h-12"
                     />
                   </div>
