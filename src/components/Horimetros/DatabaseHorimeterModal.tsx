@@ -62,10 +62,10 @@ export function DatabaseHorimeterModal({
   const isEditMode = !!editRecord;
   
   const [selectedVehicleId, setSelectedVehicleId] = useState(initialVehicleId || '');
-  const [horimeterValue, setHorimeterValue] = useState('');
-  const [kmValue, setKmValue] = useState('');
-  const [previousHorimeterValue, setPreviousHorimeterValue] = useState('');
-  const [previousKmValue, setPreviousKmValue] = useState('');
+  const [horimeterValue, setHorimeterValue] = useState<number | null>(null);
+  const [kmValue, setKmValue] = useState<number | null>(null);
+  const [previousHorimeterValue, setPreviousHorimeterValue] = useState<number | null>(null);
+  const [previousKmValue, setPreviousKmValue] = useState<number | null>(null);
   const [operador, setOperador] = useState('');
   const [observacao, setObservacao] = useState('');
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
@@ -127,11 +127,11 @@ export function DatabaseHorimeterModal({
 
   // Effective previous values (editable in edit mode, derived in create mode)
   const previousHorimeter = isEditMode 
-    ? parsePtBRNumber(previousHorimeterValue) 
+    ? (previousHorimeterValue ?? 0)
     : previousHorimeterDerived;
   
   const previousKm = isEditMode 
-    ? parsePtBRNumber(previousKmValue) 
+    ? (previousKmValue ?? 0)
     : previousKmDerived;
 
   // Check for duplicate - improved logic for edit mode
@@ -177,8 +177,8 @@ export function DatabaseHorimeterModal({
   // Reset form when vehicle changes (only in create mode)
   useEffect(() => {
     if (!isEditMode && selectedVehicleId) {
-      setHorimeterValue('');
-      setKmValue('');
+      setHorimeterValue(null);
+      setKmValue(null);
       setObservacao('');
       
       // Auto-fill operator and recommend date from last reading
@@ -200,8 +200,8 @@ export function DatabaseHorimeterModal({
         setOperador('');
       }
     } else if (!isEditMode && !selectedVehicleId) {
-      setHorimeterValue('');
-      setKmValue('');
+      setHorimeterValue(null);
+      setKmValue(null);
       setOperador('');
       setObservacao('');
       setSelectedDate(new Date());
@@ -222,10 +222,10 @@ export function DatabaseHorimeterModal({
         const prevHor = editRecord.previous_value;
         const prevKm = (editRecord as any).previous_km as number | null | undefined;
 
-        setHorimeterValue(hor && hor > 0 ? hor.toString().replace('.', ',') : '');
-        setKmValue(km && km > 0 ? km.toString().replace('.', ',') : '');
-        setPreviousHorimeterValue(prevHor && prevHor > 0 ? prevHor.toString().replace('.', ',') : '');
-        setPreviousKmValue(prevKm && prevKm > 0 ? prevKm.toString().replace('.', ',') : '');
+        setHorimeterValue(hor && hor > 0 ? hor : null);
+        setKmValue(km && km > 0 ? km : null);
+        setPreviousHorimeterValue(prevHor && prevHor > 0 ? prevHor : null);
+        setPreviousKmValue(prevKm && prevKm > 0 ? prevKm : null);
 
         setOperador(editRecord.operator || '');
         setObservacao(editRecord.observations || '');
@@ -238,17 +238,15 @@ export function DatabaseHorimeterModal({
           setSelectedVehicleId(initialVehicleId);
           // Date will be set by the vehicle change effect
         }
-        setHorimeterValue('');
-        setKmValue('');
-        setPreviousHorimeterValue('');
-        setPreviousKmValue('');
+        setHorimeterValue(null);
+        setKmValue(null);
+        setPreviousHorimeterValue(null);
+        setPreviousKmValue(null);
         setOperador('');
         setObservacao('');
       }
     }
   }, [open, editRecord, initialVehicleId, vehicles]);
-
-  const parseNumber = (val: string): number => parsePtBRNumber(val);
 
   const validateForm = (): boolean => {
     if (!selectedVehicleId) {
@@ -279,8 +277,39 @@ export function DatabaseHorimeterModal({
       return false;
     }
 
-    const horimeterNum = parseNumber(horimeterValue);
-    const kmNum = parseNumber(kmValue);
+    const horimeterNum = horimeterValue ?? 0;
+    const kmNum = kmValue ?? 0;
+    
+    // At least one value must be provided
+    if (horimeterNum <= 0 && kmNum <= 0) {
+      toast({
+        title: 'Erro',
+        description: 'Informe pelo menos um valor (Horímetro ou KM)',
+        variant: 'destructive',
+      });
+      return false;
+    }
+
+    // Show warning but allow saving if horimeter is <= previous
+    if (horimeterNum > 0 && previousHorimeter > 0 && horimeterNum <= previousHorimeter) {
+      toast({
+        title: '⚠️ Atenção: Possível inconsistência',
+        description: `O horímetro atual (${horimeterNum.toLocaleString('pt-BR')}h) é menor ou igual ao anterior (${previousHorimeter.toLocaleString('pt-BR')}h). O registro será salvo e um alerta será enviado.`,
+        variant: 'default',
+      });
+    }
+
+    // Show warning but allow saving if KM is <= previous
+    if (kmNum > 0 && previousKm > 0 && kmNum <= previousKm) {
+      toast({
+        title: '⚠️ Atenção: Possível inconsistência',
+        description: `A quilometragem atual (${kmNum.toLocaleString('pt-BR')} km) é menor ou igual à anterior (${previousKm.toLocaleString('pt-BR')} km). O registro será salvo e um alerta será enviado.`,
+        variant: 'default',
+      });
+    }
+
+    return true;
+  };
     
     // At least one value must be provided
     if (horimeterNum <= 0 && kmNum <= 0) {
@@ -329,8 +358,8 @@ export function DatabaseHorimeterModal({
 
     try {
       const readingDate = format(selectedDate, 'yyyy-MM-dd');
-      const horimeterNum = parseNumber(horimeterValue);
-      const kmNum = parseNumber(kmValue);
+      const horimeterNum = horimeterValue ?? 0;
+      const kmNum = kmValue ?? 0;
       
       // Horimeter is stored in current_value/previous_value
       // KM is stored in current_km/previous_km
@@ -417,8 +446,8 @@ export function DatabaseHorimeterModal({
           title: 'Registro salvo!',
           description: 'Formulário pronto para novo apontamento.',
         });
-        setHorimeterValue('');
-        setKmValue('');
+        setHorimeterValue(null);
+        setKmValue(null);
         setObservacao('');
         // Set date to the date we just saved (which is now the last reading)
         setSelectedDate(selectedDate);
@@ -508,10 +537,11 @@ export function DatabaseHorimeterModal({
                         Horímetro Anterior
                       </div>
                       {isEditMode ? (
-                        <Input
+                        <CurrencyInput
                           value={previousHorimeterValue}
-                          onChange={(e) => setPreviousHorimeterValue(e.target.value)}
-                          placeholder="0"
+                          onChange={setPreviousHorimeterValue}
+                          decimals={2}
+                          placeholder="0,00"
                           className="h-7 text-center font-semibold text-amber-600 bg-transparent border-amber-300 text-sm mt-1"
                         />
                       ) : (
@@ -526,9 +556,10 @@ export function DatabaseHorimeterModal({
                         KM Anterior
                       </div>
                       {isEditMode ? (
-                        <Input
+                        <CurrencyInput
                           value={previousKmValue}
-                          onChange={(e) => setPreviousKmValue(e.target.value)}
+                          onChange={setPreviousKmValue}
+                          decimals={0}
                           placeholder="0"
                           className="h-7 text-center font-semibold text-blue-600 bg-transparent border-blue-300 text-sm mt-1"
                         />
@@ -606,11 +637,12 @@ export function DatabaseHorimeterModal({
                     <Clock className={cn("w-4 h-4", isExpanded && "w-5 h-5")} />
                     Horímetro (horas)
                   </Label>
-                  <Input
+                  <CurrencyInput
                     id="horimeter"
                     value={horimeterValue}
-                    onChange={(e) => setHorimeterValue(e.target.value)}
-                    placeholder="Ex: 1.250,5"
+                    onChange={setHorimeterValue}
+                    decimals={2}
+                    placeholder="0,00"
                     className={cn(
                       "font-mono text-lg",
                       isExpanded && "h-14 text-2xl"
@@ -633,11 +665,12 @@ export function DatabaseHorimeterModal({
                     <TrendingUp className={cn("w-4 h-4", isExpanded && "w-5 h-5")} />
                     Quilometragem (km)
                   </Label>
-                  <Input
+                  <CurrencyInput
                     id="km"
                     value={kmValue}
-                    onChange={(e) => setKmValue(e.target.value)}
-                    placeholder="Ex: 85.420"
+                    onChange={setKmValue}
+                    decimals={0}
+                    placeholder="0"
                     className={cn(
                       "font-mono text-lg",
                       isExpanded && "h-14 text-2xl"
@@ -652,23 +685,23 @@ export function DatabaseHorimeterModal({
               </div>
               
               {/* Difference display */}
-              {selectedVehicleId && (parseNumber(horimeterValue) > 0 || parseNumber(kmValue) > 0) && (
+              {selectedVehicleId && ((horimeterValue ?? 0) > 0 || (kmValue ?? 0) > 0) && (
                 <div className="text-xs text-muted-foreground bg-muted/30 rounded p-2 space-y-1">
-                  {parseNumber(horimeterValue) > 0 && (
+                  {(horimeterValue ?? 0) > 0 && (
                     <p className={cn(
                       'flex items-center gap-1',
-                      previousHorimeter === 0 || parseNumber(horimeterValue) > previousHorimeter ? 'text-green-600' : 'text-destructive'
+                      previousHorimeter === 0 || (horimeterValue ?? 0) > previousHorimeter ? 'text-green-600' : 'text-destructive'
                     )}>
-                      Diferença Horímetro: {(parseNumber(horimeterValue) - previousHorimeter).toLocaleString('pt-BR')}h
+                      Diferença Horímetro: {((horimeterValue ?? 0) - previousHorimeter).toLocaleString('pt-BR')}h
                       {previousHorimeter > 0 && ` (anterior: ${previousHorimeter.toLocaleString('pt-BR')}h)`}
                     </p>
                   )}
-                  {parseNumber(kmValue) > 0 && (
+                  {(kmValue ?? 0) > 0 && (
                     <p className={cn(
                       'flex items-center gap-1',
-                      previousKm === 0 || parseNumber(kmValue) > previousKm ? 'text-green-600' : 'text-destructive'
+                      previousKm === 0 || (kmValue ?? 0) > previousKm ? 'text-green-600' : 'text-destructive'
                     )}>
-                      Diferença KM: {(parseNumber(kmValue) - previousKm).toLocaleString('pt-BR')} km
+                      Diferença KM: {((kmValue ?? 0) - previousKm).toLocaleString('pt-BR')} km
                       {previousKm > 0 && ` (anterior: ${previousKm.toLocaleString('pt-BR')} km)`}
                     </p>
                   )}
@@ -734,7 +767,7 @@ export function DatabaseHorimeterModal({
                 <Button
                   onClick={handleButtonClick}
                   className="flex-1"
-                  disabled={isSaving || !selectedVehicleId || (!horimeterValue && !kmValue)}
+                  disabled={isSaving || !selectedVehicleId || (horimeterValue === null && kmValue === null)}
                 >
                   {isSaving ? (
                     <>
