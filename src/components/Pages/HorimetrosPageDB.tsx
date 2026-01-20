@@ -108,18 +108,7 @@ export function HorimetrosPageDB() {
   const isMobile = useIsMobile();
   const { vehicles, loading: vehiclesLoading, refetch: refetchVehicles } = useVehicles();
   const { readings, loading: readingsLoading, refetch: refetchReadings, deleteReading } = useHorimeterReadings();
-  const { syncing: autoSyncing, progress: syncProgress, syncFromSheet } = useSheetSync();
   const { toast } = useToast();
-  
-  // Auto-sync state
-  const [autoSyncDone, setAutoSyncDone] = useState(false);
-  const [autoSyncResult, setAutoSyncResult] = useState<{
-    vehiclesImported: number;
-    readingsImported: number;
-    readingsUpdated: number;
-    readingsDeleted: number;
-    errors: number;
-  } | null>(null);
   
   // Column configuration
   const { 
@@ -161,38 +150,13 @@ export function HorimetrosPageDB() {
     }
   }, [isMobile]);
   
-  // Auto-sync on page load - runs once
-  useEffect(() => {
-    if (!autoSyncDone && !autoSyncing) {
-      const runAutoSync = async () => {
-        try {
-          console.log('🔄 Iniciando sincronização automática...');
-          const result = await syncFromSheet();
-          setAutoSyncResult(result);
-          setAutoSyncDone(true);
-          
-          // Refresh readings after sync
-          await refetchReadings();
-          await refetchVehicles();
-          
-          console.log('✅ Sincronização automática concluída:', result);
-        } catch (err) {
-          console.error('❌ Erro na sincronização automática:', err);
-          setAutoSyncDone(true); // Mark as done even on error to prevent infinite retries
-        }
-      };
-      
-      runAutoSync();
-    }
-  }, [autoSyncDone, autoSyncing, syncFromSheet, refetchReadings, refetchVehicles]);
-  
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(25);
   
   const ROWS_PER_PAGE_OPTIONS = [10, 25, 50, 100];
 
-  const loading = vehiclesLoading || readingsLoading || autoSyncing;
+  const loading = vehiclesLoading || readingsLoading;
   const isConnected = !loading && readings.length >= 0;
 
   // Get unique categories
@@ -601,69 +565,6 @@ export function HorimetrosPageDB() {
   return (
     <div className="flex-1 p-3 md:p-6 overflow-auto">
       <div className="space-y-4 md:space-y-6">
-        {/* Auto-sync progress banner */}
-        {autoSyncing && (
-          <div className="bg-primary/10 border border-primary/20 rounded-lg p-4 animate-pulse">
-            <div className="flex items-center gap-3">
-              <RefreshCw className="w-5 h-5 text-primary animate-spin" />
-              <div className="flex-1">
-                <p className="font-medium text-primary">Sincronizando dados da planilha...</p>
-                <p className="text-sm text-muted-foreground">
-                  Espelhando horímetros para manter o sistema atualizado
-                </p>
-              </div>
-              <span className="text-sm font-medium text-primary">{syncProgress}%</span>
-            </div>
-            <div className="mt-2 h-2 bg-muted rounded-full overflow-hidden">
-              <div 
-                className="h-full bg-primary transition-all duration-300" 
-                style={{ width: `${syncProgress}%` }}
-              />
-            </div>
-          </div>
-        )}
-        
-        {/* Auto-sync result banner */}
-        {autoSyncResult && !autoSyncing && (
-          <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-4">
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center">
-                  <span className="text-emerald-600 text-lg">✓</span>
-                </div>
-                <span className="font-medium text-emerald-700">Sincronização Concluída</span>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setAutoSyncResult(null)}
-                className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
-              >
-                <X className="w-4 h-4" />
-              </Button>
-            </div>
-            
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3">
-              <div className="bg-background/50 rounded-lg p-2 text-center">
-                <p className="text-lg font-semibold text-foreground">{autoSyncResult.vehiclesImported}</p>
-                <p className="text-xs text-muted-foreground">Veículos</p>
-              </div>
-              <div className="bg-background/50 rounded-lg p-2 text-center">
-                <p className="text-lg font-semibold text-emerald-600">{autoSyncResult.readingsImported}</p>
-                <p className="text-xs text-muted-foreground">Novos</p>
-              </div>
-              <div className="bg-background/50 rounded-lg p-2 text-center">
-                <p className="text-lg font-semibold text-blue-600">{autoSyncResult.readingsUpdated}</p>
-                <p className="text-xs text-muted-foreground">Atualizados</p>
-              </div>
-              <div className="bg-background/50 rounded-lg p-2 text-center">
-                <p className="text-lg font-semibold text-amber-600">{autoSyncResult.readingsDeleted}</p>
-                <p className="text-xs text-muted-foreground">Removidos</p>
-              </div>
-            </div>
-          </div>
-        )}
-        
         {/* Header */}
         <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
           <div className="flex items-center gap-4">
