@@ -93,15 +93,15 @@ const DEFAULT_HORIMETER_COLUMNS: ColumnConfig[] = [
   { key: 'select', label: 'Seleção', visible: true, order: 0 },
   { key: 'data', label: 'Data', visible: true, order: 1 },
   { key: 'veiculo', label: 'Veículo', visible: true, order: 2 },
-  { key: 'empresa', label: 'Empresa', visible: true, order: 3 },
-  { key: 'categoria', label: 'Categoria', visible: true, order: 4 },
-  { key: 'anterior', label: 'Hor. Anterior', visible: true, order: 5 },
-  { key: 'atual', label: 'Hor. Atual', visible: true, order: 6 },
-  { key: 'intervalo', label: 'H.T.', visible: true, order: 7 },
-  { key: 'km_anterior', label: 'KM Anterior', visible: true, order: 8 },
-  { key: 'km_atual', label: 'KM Atual', visible: true, order: 9 },
-  { key: 'km_intervalo', label: 'Total KM', visible: true, order: 10 },
-  { key: 'operador', label: 'Operador', visible: true, order: 11 },
+  { key: 'operador', label: 'Operador', visible: true, order: 3 },
+  { key: 'empresa', label: 'Empresa', visible: true, order: 4 },
+  { key: 'categoria', label: 'Categoria', visible: true, order: 5 },
+  { key: 'anterior', label: 'Hor. Anterior', visible: true, order: 6 },
+  { key: 'atual', label: 'Hor. Atual', visible: true, order: 7 },
+  { key: 'intervalo', label: 'H.T.', visible: true, order: 8 },
+  { key: 'km_anterior', label: 'KM Anterior', visible: true, order: 9 },
+  { key: 'km_atual', label: 'KM Atual', visible: true, order: 10 },
+  { key: 'km_intervalo', label: 'Total KM', visible: true, order: 11 },
   { key: 'observacoes', label: 'Observações', visible: false, order: 12 },
   { key: 'acoes', label: 'Ações', visible: true, order: 13 },
 ];
@@ -484,6 +484,7 @@ export function HorimetrosPageDB() {
     const tableData = readingsWithInterval.map(r => [
       format(new Date(r.reading_date + 'T00:00:00'), 'dd/MM/yyyy'),
       r.vehicle?.code || '-',
+      r.operator || '-',
       r.vehicle?.company || '-',
       r.vehicle?.category || '-',
       formatBR(r.previous_value),
@@ -492,11 +493,10 @@ export function HorimetrosPageDB() {
       formatBR((r as any).previous_km),
       formatBR((r as any).current_km),
       formatInterval((r as any).km_interval || 0),
-      r.operator || '-',
     ]);
 
     autoTable(doc, {
-      head: [['Data', 'Veículo', 'Empresa', 'Categoria', 'Hor. Anterior', 'Hor. Atual', 'H.T.', 'KM Anterior', 'KM Atual', 'Total KM', 'Operador']],
+      head: [['Data', 'Veículo', 'Operador', 'Empresa', 'Categoria', 'Hor. Anterior', 'Hor. Atual', 'H.T.', 'KM Anterior', 'KM Atual', 'Total KM']],
       body: tableData,
       startY: y,
       styles: { fontSize: 7, cellPadding: 2 },
@@ -505,15 +505,15 @@ export function HorimetrosPageDB() {
       columnStyles: {
         0: { cellWidth: 22 }, // Data
         1: { cellWidth: 22, fontStyle: 'bold' }, // Veículo
-        2: { cellWidth: 25 }, // Empresa
-        3: { cellWidth: 25 }, // Categoria
-        4: { cellWidth: 24, halign: 'right' }, // Hor. Anterior
-        5: { cellWidth: 22, halign: 'right' }, // Hor. Atual
-        6: { cellWidth: 18, halign: 'right', fontStyle: 'bold' }, // H.T.
-        7: { cellWidth: 24, halign: 'right' }, // KM Anterior
-        8: { cellWidth: 22, halign: 'right' }, // KM Atual
-        9: { cellWidth: 18, halign: 'right', fontStyle: 'bold' }, // Total KM
-        10: { cellWidth: 30 }, // Operador
+        2: { cellWidth: 28 }, // Operador
+        3: { cellWidth: 25 }, // Empresa
+        4: { cellWidth: 25 }, // Categoria
+        5: { cellWidth: 24, halign: 'right' }, // Hor. Anterior
+        6: { cellWidth: 22, halign: 'right' }, // Hor. Atual
+        7: { cellWidth: 18, halign: 'right', fontStyle: 'bold' }, // H.T.
+        8: { cellWidth: 24, halign: 'right' }, // KM Anterior
+        9: { cellWidth: 22, halign: 'right' }, // KM Atual
+        10: { cellWidth: 18, halign: 'right', fontStyle: 'bold' }, // Total KM
       },
     });
 
@@ -522,10 +522,6 @@ export function HorimetrosPageDB() {
     doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
     doc.text(`Total de registros: ${readingsWithInterval.length}`, 14, finalY + 10);
-    
-    const totalKmInterval = readingsWithInterval.reduce((sum, r) => sum + ((r as any).km_interval || 0), 0);
-    doc.text(`Intervalo Hor. Total: ${metrics.totalInterval.toLocaleString('pt-BR')}`, 100, finalY + 10);
-    doc.text(`Intervalo KM Total: ${totalKmInterval.toLocaleString('pt-BR')}`, 200, finalY + 10);
 
     const fileName = companyFilter !== 'all' 
       ? `horimetros_${companyFilter.replace(/\s+/g, '_')}_${format(new Date(), 'yyyy-MM-dd')}.pdf`
@@ -1006,6 +1002,7 @@ export function HorimetrosPageDB() {
                   )}
                   <TableHead>Data</TableHead>
                   <TableHead>Veículo</TableHead>
+                  <TableHead>Operador</TableHead>
                   <TableHead>Empresa</TableHead>
                   <TableHead>Categoria</TableHead>
                   <TableHead className="text-right">Hor. Anterior</TableHead>
@@ -1014,7 +1011,6 @@ export function HorimetrosPageDB() {
                   <TableHead className="text-right">KM Anterior</TableHead>
                   <TableHead className="text-right">KM Atual</TableHead>
                   <TableHead className="text-right">Total KM</TableHead>
-                  <TableHead>Operador</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
@@ -1040,6 +1036,7 @@ export function HorimetrosPageDB() {
                         {format(new Date(reading.reading_date + 'T00:00:00'), 'dd/MM/yyyy')}
                       </TableCell>
                       <TableCell className="font-medium">{reading.vehicle?.code}</TableCell>
+                      <TableCell>{reading.operator || '-'}</TableCell>
                       <TableCell>{reading.vehicle?.company || '-'}</TableCell>
                       <TableCell>{reading.vehicle?.category || '-'}</TableCell>
                       <TableCell className="text-right">
@@ -1068,7 +1065,6 @@ export function HorimetrosPageDB() {
                           ? ((reading as any).km_interval > 0 ? '+' : '') + (reading as any).km_interval.toLocaleString('pt-BR')
                           : '-'}
                       </TableCell>
-                      <TableCell>{reading.operator || '-'}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
                           <Button
