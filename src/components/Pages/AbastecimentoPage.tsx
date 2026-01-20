@@ -290,6 +290,7 @@ export function AbastecimentoPage() {
         }
       });
       
+      // Update Google Sheets
       const { error } = await supabase.functions.invoke('google-sheets', {
         body: {
           action: 'update',
@@ -300,6 +301,71 @@ export function AbastecimentoPage() {
       });
       
       if (error) throw error;
+      
+      // Also update corresponding record in field_fuel_records database
+      const vehicleCode = String(inlineEditData['VEICULO'] || '').trim();
+      const recordDate = String(inlineEditData['DATA'] || '').trim();
+      const recordTime = String(inlineEditData['HORA'] || '').trim();
+      
+      if (vehicleCode && recordDate) {
+        // Parse numbers correctly (handle Brazilian format)
+        const parseNum = (val: any) => {
+          if (!val || val === '') return null;
+          const str = String(val).replace(/\./g, '').replace(',', '.');
+          const num = parseFloat(str);
+          return isNaN(num) ? null : num;
+        };
+        
+        // Find matching record in database
+        let query = supabase
+          .from('field_fuel_records')
+          .select('id')
+          .eq('vehicle_code', vehicleCode);
+        
+        // Parse date for matching (support both DD/MM/YYYY and YYYY-MM-DD)
+        let formattedDate = recordDate;
+        if (recordDate.includes('/')) {
+          const [day, month, year] = recordDate.split('/');
+          formattedDate = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+        }
+        query = query.eq('record_date', formattedDate);
+        
+        // Add time filter if available
+        if (recordTime) {
+          query = query.eq('record_time', recordTime);
+        }
+        
+        const { data: matchingRecords } = await query.limit(1);
+        
+        if (matchingRecords && matchingRecords.length > 0) {
+          const dbRecordId = matchingRecords[0].id;
+          
+          // Update the database record
+          const updateData: Record<string, any> = {
+            fuel_quantity: parseNum(inlineEditData['QUANTIDADE']) || 0,
+            horimeter_previous: parseNum(inlineEditData['HORIMETRO ANTERIOR']),
+            horimeter_current: parseNum(inlineEditData['HORIMETRO ATUAL']),
+            km_previous: parseNum(inlineEditData['KM ANTERIOR']),
+            km_current: parseNum(inlineEditData['KM ATUAL']),
+            arla_quantity: parseNum(inlineEditData['QUANTIDADE DE ARLA']),
+            operator_name: inlineEditData['MOTORISTA'] || null,
+            location: inlineEditData['LOCAL'] || null,
+            observations: inlineEditData['OBSERVAÇÃO'] || null,
+            updated_at: new Date().toISOString()
+          };
+          
+          const { error: dbError } = await supabase
+            .from('field_fuel_records')
+            .update(updateData)
+            .eq('id', dbRecordId);
+          
+          if (dbError) {
+            console.warn('Aviso: Planilha atualizada, mas falha ao sincronizar com banco:', dbError);
+          } else {
+            console.log('Registro sincronizado com banco de dados:', dbRecordId);
+          }
+        }
+      }
       
       toast.success('Registro atualizado com sucesso!');
       setExpandedRowId(null);
@@ -3118,6 +3184,7 @@ export function AbastecimentoPage() {
                         }
                       });
                       
+                      // Update Google Sheets
                       const { error } = await supabase.functions.invoke('google-sheets', {
                         body: {
                           action: 'update',
@@ -3128,6 +3195,71 @@ export function AbastecimentoPage() {
                       });
                       
                       if (error) throw error;
+                      
+                      // Also update corresponding record in field_fuel_records database
+                      const vehicleCode = String(editingRecord['VEICULO'] || '').trim();
+                      const recordDate = String(editingRecord['DATA'] || '').trim();
+                      const recordTime = String(editingRecord['HORA'] || '').trim();
+                      
+                      if (vehicleCode && recordDate) {
+                        // Parse numbers correctly (handle Brazilian format)
+                        const parseNum = (val: any) => {
+                          if (!val || val === '') return null;
+                          const str = String(val).replace(/\./g, '').replace(',', '.');
+                          const num = parseFloat(str);
+                          return isNaN(num) ? null : num;
+                        };
+                        
+                        // Find matching record in database
+                        let query = supabase
+                          .from('field_fuel_records')
+                          .select('id')
+                          .eq('vehicle_code', vehicleCode);
+                        
+                        // Parse date for matching (support both DD/MM/YYYY and YYYY-MM-DD)
+                        let formattedDate = recordDate;
+                        if (recordDate.includes('/')) {
+                          const [day, month, year] = recordDate.split('/');
+                          formattedDate = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+                        }
+                        query = query.eq('record_date', formattedDate);
+                        
+                        // Add time filter if available
+                        if (recordTime) {
+                          query = query.eq('record_time', recordTime);
+                        }
+                        
+                        const { data: matchingRecords } = await query.limit(1);
+                        
+                        if (matchingRecords && matchingRecords.length > 0) {
+                          const dbRecordId = matchingRecords[0].id;
+                          
+                          // Update the database record
+                          const updateData: Record<string, any> = {
+                            fuel_quantity: parseNum(editingRecord['QUANTIDADE']) || 0,
+                            horimeter_previous: parseNum(editingRecord['HORIMETRO ANTERIOR']),
+                            horimeter_current: parseNum(editingRecord['HORIMETRO ATUAL']),
+                            km_previous: parseNum(editingRecord['KM ANTERIOR']),
+                            km_current: parseNum(editingRecord['KM ATUAL']),
+                            arla_quantity: parseNum(editingRecord['QUANTIDADE DE ARLA']),
+                            operator_name: editingRecord['MOTORISTA'] || null,
+                            location: editingRecord['LOCAL'] || null,
+                            observations: editingRecord['OBSERVAÇÃO'] || null,
+                            updated_at: new Date().toISOString()
+                          };
+                          
+                          const { error: dbError } = await supabase
+                            .from('field_fuel_records')
+                            .update(updateData)
+                            .eq('id', dbRecordId);
+                          
+                          if (dbError) {
+                            console.warn('Aviso: Planilha atualizada, mas falha ao sincronizar com banco:', dbError);
+                          } else {
+                            console.log('Registro sincronizado com banco de dados:', dbRecordId);
+                          }
+                        }
+                      }
                       
                       toast.success('Registro atualizado com sucesso!');
                       setShowEditModal(false);
