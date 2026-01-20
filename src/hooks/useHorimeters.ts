@@ -669,15 +669,16 @@ export function useSheetSync() {
           });
         }
         
-        // Keep hours and KM strictly separated:
-        // - current_value/previous_value are ALWAYS hours (horímetro)
-        // - current_km/previous_km are ALWAYS KM
+        // Store values EXACTLY as they appear in the spreadsheet row
+        // Each row already contains both previous and current values
+        // - current_value/previous_value = Horímetro values from the SAME row
+        // - current_km/previous_km = KM values from the SAME row
         const currentValue = horAtual;
-        const previousValue = horAnterior > 0 ? horAnterior : null;
+        const previousValue = horAnterior; // Store even if 0 (first record has 0 as previous)
 
-        // Skip only if BOTH horimeter AND km are missing/zero
+        // Skip only if BOTH horimeter AND km current values are missing/zero
         if (currentValue === 0 && kmAtual === 0) {
-          console.log(`⚠️ Skipping row ${i + 1} - no horimeter or km values`);
+          console.log(`⚠️ Skipping row ${i + 1} - no horimeter or km atual values`);
           stats.errors++;
           continue;
         }
@@ -695,12 +696,12 @@ export function useSheetSync() {
             .maybeSingle();
 
           if (existing) {
-            // Update existing - correctly map all 4 columns
+            // Update existing - store all 4 values exactly as in the sheet
             await supabase
               .from('horimeter_readings')
               .update({
                 current_value: currentValue,
-                previous_value: previousValue,
+                previous_value: previousValue, // Store exactly as in sheet (can be 0)
                 current_km: kmAtual > 0 ? kmAtual : null,
                 previous_km: kmAnterior > 0 ? kmAnterior : null,
                 operator,
@@ -710,14 +711,14 @@ export function useSheetSync() {
               .eq('id', existing.id);
             stats.readingsUpdated++;
           } else {
-            // Insert new - correctly map all 4 columns
+            // Insert new - store all 4 values exactly as in the sheet
             await supabase
               .from('horimeter_readings')
               .insert({
                 vehicle_id: vehicleId,
                 reading_date: readingDate,
                 current_value: currentValue,
-                previous_value: previousValue,
+                previous_value: previousValue, // Store exactly as in sheet (can be 0)
                 current_km: kmAtual > 0 ? kmAtual : null,
                 previous_km: kmAnterior > 0 ? kmAnterior : null,
                 operator,
