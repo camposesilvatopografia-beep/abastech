@@ -1100,6 +1100,10 @@ export function AbastecimentoPage() {
           (a.fornecedor || '').localeCompare(b.fornecedor || '', 'pt-BR')
         );
         
+        // Calculate LOCAL stock summary from records
+        const totalSaidasLocal = saidasRecords.reduce((sum, r) => sum + r.quantidade, 0);
+        const totalEntradasLocal = entradasRecords.reduce((sum, r) => sum + r.quantidade, 0);
+        
         // Add new page for each location after the first
         if (locationIndex > 0) {
           doc.addPage();
@@ -1131,53 +1135,57 @@ export function AbastecimentoPage() {
         doc.setTextColor(0, 0, 0);
         currentY = 26;
         
-        // ========== STOCK SUMMARY SECTION ==========
-        doc.setFillColor(241, 245, 249); // Light gray background
+        // ========== STOCK SUMMARY SECTION (LOCAL) ==========
+        doc.setFillColor(30, 41, 59); // Navy blue background
         doc.roundedRect(14, currentY, pageWidth - 28, 22, 2, 2, 'F');
         
         doc.setFontSize(9);
         doc.setFont('helvetica', 'bold');
-        doc.setTextColor(30, 41, 59);
+        doc.setTextColor(255, 255, 255);
         doc.text('RESUMO DE ESTOQUE', 20, currentY + 6);
         
-        const stockY = currentY + 14;
-        const colWidth = (pageWidth - 40) / 4;
+        const stockY = currentY + 15;
+        const colWidth = (pageWidth - 56) / 4;
         
-        // Stock metrics in a row
-        doc.setFontSize(8);
+        // Stock metrics in a row - data from THIS location's records
+        doc.setFontSize(9);
+        
+        // Registros
         doc.setFont('helvetica', 'normal');
-        
-        // Estoque Anterior
-        doc.setTextColor(120, 120, 120);
-        doc.text('Est. Anterior:', 20, stockY);
+        doc.setTextColor(180, 180, 180);
+        doc.text('Registros:', 20, stockY);
         doc.setFont('helvetica', 'bold');
-        doc.setTextColor(30, 41, 59);
-        doc.text(`${metricsFromGeral.estoqueAnterior.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L`, 20 + 28, stockY);
+        doc.setTextColor(255, 255, 255);
+        doc.text(`${records.length}`, 20 + 25, stockY);
         
-        // Entradas
+        // Entradas (from THIS location)
         doc.setFont('helvetica', 'normal');
-        doc.setTextColor(120, 120, 120);
+        doc.setTextColor(180, 180, 180);
         doc.text('Entradas:', 20 + colWidth, stockY);
         doc.setFont('helvetica', 'bold');
-        doc.setTextColor(34, 139, 34); // Green
-        doc.text(`+${metricsFromGeral.entrada.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L`, 20 + colWidth + 22, stockY);
+        doc.setTextColor(100, 220, 100); // Green
+        doc.text(`+${totalEntradasLocal.toLocaleString('pt-BR', { minimumFractionDigits: 1 })} L`, 20 + colWidth + 24, stockY);
         
-        // Saídas (Equip + Comboios)
-        const totalSaidas = metricsFromGeral.saidaEquipamentos + metricsFromGeral.saidaComboios;
+        // Saídas (from THIS location)
         doc.setFont('helvetica', 'normal');
-        doc.setTextColor(120, 120, 120);
+        doc.setTextColor(180, 180, 180);
         doc.text('Saídas:', 20 + colWidth * 2, stockY);
         doc.setFont('helvetica', 'bold');
-        doc.setTextColor(180, 50, 50); // Red
-        doc.text(`-${totalSaidas.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L`, 20 + colWidth * 2 + 18, stockY);
+        doc.setTextColor(255, 120, 120); // Red
+        doc.text(`-${totalSaidasLocal.toLocaleString('pt-BR', { minimumFractionDigits: 1 })} L`, 20 + colWidth * 2 + 20, stockY);
         
-        // Estoque Atual
+        // Saldo (entradas - saídas for THIS location)
+        const saldoLocal = totalEntradasLocal - totalSaidasLocal;
         doc.setFont('helvetica', 'normal');
-        doc.setTextColor(120, 120, 120);
-        doc.text('Est. Atual:', 20 + colWidth * 3, stockY);
+        doc.setTextColor(180, 180, 180);
+        doc.text('Saldo:', 20 + colWidth * 3, stockY);
         doc.setFont('helvetica', 'bold');
-        doc.setTextColor(30, 58, 138); // Blue
-        doc.text(`${metricsFromGeral.estoqueAtual.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L`, 20 + colWidth * 3 + 25, stockY);
+        if (saldoLocal >= 0) {
+          doc.setTextColor(100, 220, 100);
+        } else {
+          doc.setTextColor(255, 120, 120);
+        }
+        doc.text(`${saldoLocal >= 0 ? '+' : ''}${saldoLocal.toLocaleString('pt-BR', { minimumFractionDigits: 1 })} L`, 20 + colWidth * 3 + 16, stockY);
         
         currentY += 28;
         
@@ -1386,7 +1394,7 @@ export function AbastecimentoPage() {
     } finally {
       setIsExporting(false);
     }
-  }, [resumoPorLocal, dateRange, obraSettings, metricsFromGeral, getResponsibleForLocation]);
+  }, [resumoPorLocal, dateRange, obraSettings, getResponsibleForLocation]);
 
   // Export PDF by Company (Empresa) - formatted like the reference image
   const exportPDFPorEmpresa = useCallback(() => {
