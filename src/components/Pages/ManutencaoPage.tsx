@@ -1552,6 +1552,13 @@ export function ManutencaoPage() {
 
     const tableData = filteredRows.slice(0, 100).map((row) => {
       const company = vehicleCompanyMap.get(row.vehicle_code) || '-';
+      const entryDate = (row as any).entry_date;
+      const entryTime = (row as any).entry_time;
+      const entryFormatted = entryDate 
+        ? format(new Date(entryDate), 'dd/MM/yy') + (entryTime ? ` ${entryTime.slice(0, 5)}` : '')
+        : '-';
+      const downtime = calculateDowntime(row) || '-';
+      
       return [
         row.order_number,
         format(new Date(row.order_date), 'dd/MM/yy'),
@@ -1559,25 +1566,29 @@ export function ManutencaoPage() {
         company,
         row.problem_description || '-',
         row.mechanic_name || '-',
+        entryFormatted,
+        downtime,
         row.status
       ];
     });
 
     autoTable(doc, {
-      head: [['Nº OS', 'Data', 'Veículo', 'Empresa', 'Problema', 'Mecânico', 'Status']],
+      head: [['Nº OS', 'Data', 'Veículo', 'Empresa', 'Problema', 'Mecânico', 'Entrada', 'T. Parado', 'Status']],
       body: tableData,
       startY: y,
       styles: { fontSize: 7, cellPadding: 2, overflow: 'linebreak' },
       headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255] },
       alternateRowStyles: { fillColor: [248, 249, 250] },
       columnStyles: {
-        0: { cellWidth: 22 },  // Nº OS
-        1: { cellWidth: 18 },  // Data
-        2: { cellWidth: 20 },  // Veículo
-        3: { cellWidth: 22 },  // Empresa
+        0: { cellWidth: 18 },  // Nº OS
+        1: { cellWidth: 16 },  // Data
+        2: { cellWidth: 18 },  // Veículo
+        3: { cellWidth: 20 },  // Empresa
         4: { cellWidth: 'auto', overflow: 'linebreak' },  // Problema - quebra automática
-        5: { cellWidth: 30 },  // Mecânico
-        6: { cellWidth: 25 },  // Status
+        5: { cellWidth: 22 },  // Mecânico
+        6: { cellWidth: 22 },  // Entrada
+        7: { cellWidth: 18 },  // T. Parado
+        8: { cellWidth: 22 },  // Status
       },
     });
 
@@ -1857,6 +1868,7 @@ export function ManutencaoPage() {
                   <TableHead className="py-2 px-2 hidden lg:table-cell whitespace-nowrap">Mecânico</TableHead>
                   <TableHead className="py-2 px-2 whitespace-nowrap">Prioridade</TableHead>
                   <TableHead className="py-2 px-2 whitespace-nowrap">Status</TableHead>
+                  <TableHead className="py-2 px-2 hidden sm:table-cell whitespace-nowrap">Entrada</TableHead>
                   <TableHead className="py-2 px-2 hidden sm:table-cell whitespace-nowrap">T. Parado</TableHead>
                   <TableHead className="py-2 px-2 text-right whitespace-nowrap">Ações</TableHead>
                 </TableRow>
@@ -1864,13 +1876,13 @@ export function ManutencaoPage() {
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={10} className="text-center py-8">
+                    <TableCell colSpan={11} className="text-center py-8">
                       <RefreshCw className="w-6 h-6 animate-spin mx-auto text-muted-foreground" />
                     </TableCell>
                   </TableRow>
                 ) : filteredRows.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={11} className="text-center py-8 text-muted-foreground">
                       Nenhuma ordem de serviço encontrada
                     </TableCell>
                   </TableRow>
@@ -1913,6 +1925,16 @@ export function ManutencaoPage() {
                         <TableCell className="py-2 px-2">{getPrioridadeBadge(row.priority)}</TableCell>
                         <TableCell className="py-2 px-2">
                           {getStatusBadge(row.status)}
+                        </TableCell>
+                        <TableCell className="py-2 px-2 hidden sm:table-cell text-xs whitespace-nowrap">
+                          {(row as any).entry_date ? (
+                            <span className="font-mono">
+                              {format(new Date((row as any).entry_date), 'dd/MM/yy')}
+                              {(row as any).entry_time && (
+                                <span className="text-muted-foreground ml-1">{(row as any).entry_time.slice(0, 5)}</span>
+                              )}
+                            </span>
+                          ) : '-'}
                         </TableCell>
                         <TableCell className="py-2 px-2 hidden sm:table-cell">
                           {downtime ? (
