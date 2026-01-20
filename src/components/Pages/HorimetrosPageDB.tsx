@@ -616,29 +616,42 @@ export function HorimetrosPageDB() {
         
         {/* Auto-sync result banner */}
         {autoSyncResult && !autoSyncing && (
-          <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3 flex items-center justify-between">
-            <div className="flex items-center gap-2 text-sm">
-              <span className="text-emerald-600 font-medium">✓ Sincronizado:</span>
-              <span>{autoSyncResult.vehiclesImported} veículos</span>
-              <span>•</span>
-              <span>{autoSyncResult.readingsImported} novos</span>
-              <span>•</span>
-              <span>{autoSyncResult.readingsUpdated} atualizados</span>
-              {autoSyncResult.readingsDeleted > 0 && (
-                <>
-                  <span>•</span>
-                  <span>{autoSyncResult.readingsDeleted} removidos</span>
-                </>
-              )}
+          <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-4">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center">
+                  <span className="text-emerald-600 text-lg">✓</span>
+                </div>
+                <span className="font-medium text-emerald-700">Sincronização Concluída</span>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setAutoSyncResult(null)}
+                className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
+              >
+                <X className="w-4 h-4" />
+              </Button>
             </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setAutoSyncResult(null)}
-              className="h-6 w-6 p-0"
-            >
-              <X className="w-4 h-4" />
-            </Button>
+            
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3">
+              <div className="bg-background/50 rounded-lg p-2 text-center">
+                <p className="text-lg font-semibold text-foreground">{autoSyncResult.vehiclesImported}</p>
+                <p className="text-xs text-muted-foreground">Veículos</p>
+              </div>
+              <div className="bg-background/50 rounded-lg p-2 text-center">
+                <p className="text-lg font-semibold text-emerald-600">{autoSyncResult.readingsImported}</p>
+                <p className="text-xs text-muted-foreground">Novos</p>
+              </div>
+              <div className="bg-background/50 rounded-lg p-2 text-center">
+                <p className="text-lg font-semibold text-blue-600">{autoSyncResult.readingsUpdated}</p>
+                <p className="text-xs text-muted-foreground">Atualizados</p>
+              </div>
+              <div className="bg-background/50 rounded-lg p-2 text-center">
+                <p className="text-lg font-semibold text-amber-600">{autoSyncResult.readingsDeleted}</p>
+                <p className="text-xs text-muted-foreground">Removidos</p>
+              </div>
+            </div>
           </div>
         )}
         
