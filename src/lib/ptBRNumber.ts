@@ -6,13 +6,15 @@
  * - "6.566,90" -> 6566.9
  * - "5.127,80" -> 5127.8 (pt-BR: dot=thousand, comma=decimal)
  * - "5.127" -> 5127 (pt-BR thousand separator, common in horimeters)
+ * - "5.086.70" -> 5086.70 (multiple dots where last is decimal - 2 digits after)
+ * - "76.749.90" -> 76749.90 (KM with thousand separator and decimal)
  * - "180.072" -> 180072 (pt-BR thousand separator)
  * - "1,234.56" -> 1234.56 (en-US thousand separator)
  * - 1234.56 -> 1234.56 (number passthrough)
  * 
  * IMPORTANT: In our domain (fuel/horimeter management), values are typically
- * integers or have 1-2 decimal places. Values like "5.127" are almost always
- * meant as 5127 (pt-BR thousand separator), not 5.127 (decimal).
+ * have 1-2 decimal places. The spreadsheet often uses dots for both thousand
+ * separators AND decimals (e.g., "5.086.70" means 5086.70).
  */
 export function parsePtBRNumber(val: unknown): number {
   if (val === null || val === undefined) return 0;
@@ -47,20 +49,34 @@ export function parsePtBRNumber(val: unknown): number {
     // Only dot(s): decide between thousand separator (pt-BR) or decimal (en-US)
     // 
     // DOMAIN-SPECIFIC HEURISTICS for horimeter/fuel values:
-    // - multiple dots => always thousand separators (e.g., "1.234.567" -> 1234567)
-    // - single dot followed by exactly 2 digits at end (e.g., "89.00") => decimal
-    // - single dot followed by exactly 3 digits at end (e.g., "5.127") => thousand separator (5127)
-    // - single dot in the middle of a larger number (e.g., "5.127") => thousand separator
-    // - values less than 10 with dot (e.g., "5.5") => decimal
+    // The spreadsheet often uses "5.086.70" format where:
+    // - dots are thousand separators EXCEPT the last one if followed by 2 digits
+    // - "5.086.70" => 5086.70 (last .70 is decimal)
+    // - "5.127" => 5127 (single dot with 3 digits = thousand separator)
+    // - "89.00" => 89.00 (single dot with 2 digits = decimal)
     
     if (dotCount > 1) {
-      // Multiple dots = thousand separators
-      str = str.replace(/\./g, "");
+      // Multiple dots - check if last group has 2 digits (decimal)
+      const afterLastDot = str.substring(lastDot + 1);
+      
+      if (afterLastDot.length === 2 && /^\d{2}$/.test(afterLastDot)) {
+        // Last dot is decimal (e.g., "5.086.70" or "76.749.90")
+        // Remove all dots except the last one
+        const parts = str.split('.');
+        const decimalPart = parts.pop(); // ".70" or ".90"
+        const integerPart = parts.join(''); // "5086" or "76749"
+        str = integerPart + '.' + decimalPart;
+      } else if (afterLastDot.length === 3 && /^\d{3}$/.test(afterLastDot)) {
+        // All dots are thousand separators (e.g., "1.234.567")
+        str = str.replace(/\./g, "");
+      } else {
+        // Ambiguous - remove all dots (treat as thousand separators)
+        str = str.replace(/\./g, "");
+      }
     } else {
       // Single dot - analyze context
       const afterDot = str.substring(lastDot + 1);
       const beforeDot = str.substring(0, lastDot);
-      const beforeDotNum = parseInt(beforeDot, 10);
       
       // If exactly 3 digits after dot AND there's at least 1 digit before
       // => treat as thousand separator (pt-BR style)
@@ -68,20 +84,17 @@ export function parsePtBRNumber(val: unknown): number {
       if (afterDot.length === 3 && /^\d{3}$/.test(afterDot) && beforeDot.length >= 1) {
         str = str.replace(".", "");
       }
-      // If exactly 2 digits after dot at the end (e.g., "89.00", "123.45")
-      // AND the whole number would be reasonable as a decimal (< 1000)
+      // If exactly 2 digits after dot (e.g., "89.00", "123.45")
       // => treat as decimal
-      // BUT if beforeDot is a typical thousand separator pattern, keep as thousand sep
       else if (afterDot.length === 2 && /^\d{2}$/.test(afterDot)) {
-        // If beforeDot is 1-3 digits, likely a decimal (e.g., "89.00" = 89.00)
-        // If beforeDot is > 3 digits, ambiguous but likely decimal too
-        // We keep it as decimal (standard behavior)
-        // No change needed - dot stays as decimal
+        // Keep as decimal - no change needed
       }
-      // Default: if number before dot is very small (< 10) and after dot is 1-2 digits
-      // keep as decimal. Otherwise treat single dot with 3+ digits after as thousand sep.
+      // If 1 digit after dot (e.g., "5.5") => decimal
+      else if (afterDot.length === 1 && /^\d$/.test(afterDot)) {
+        // Keep as decimal - no change needed
+      }
+      // Default: if 3+ digits after dot = thousand separator
       else if (afterDot.length >= 3 && /^\d+$/.test(afterDot)) {
-        // 3+ digits after dot = thousand separator
         str = str.replace(".", "");
       }
       // Otherwise keep as decimal
