@@ -64,6 +64,8 @@ export function DatabaseHorimeterModal({
   const [selectedVehicleId, setSelectedVehicleId] = useState(initialVehicleId || '');
   const [horimeterValue, setHorimeterValue] = useState('');
   const [kmValue, setKmValue] = useState('');
+  const [previousHorimeterValue, setPreviousHorimeterValue] = useState('');
+  const [previousKmValue, setPreviousKmValue] = useState('');
   const [operador, setOperador] = useState('');
   const [observacao, setObservacao] = useState('');
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
@@ -109,26 +111,28 @@ export function DatabaseHorimeterModal({
     return relevantReadings[0];
   }, [selectedVehicleId, readings, isEditMode, editRecord]);
 
-  // Previous Horimeter value - ALWAYS comes from current_value column (hours)
-  // This column stores horimeter readings regardless of vehicle type
-  const previousHorimeter = useMemo(() => {
+  // Previous Horimeter value - comes from last reading or edited value
+  // In edit mode, use the editable state; in create mode, derive from last reading
+  const previousHorimeterDerived = useMemo(() => {
     if (!selectedVehicleId || !lastReading) return 0;
-    
-    // Horimeter (hours) is ALWAYS in current_value column
-    // This is the standard horimeter reading for all vehicles
     return lastReading.current_value || 0;
   }, [selectedVehicleId, lastReading]);
 
-  // Previous KM value - ALWAYS comes from current_km column (kilometers)
-  // This is a separate tracking for odometer readings
-  const previousKm = useMemo(() => {
+  // Previous KM value - comes from last reading or edited value
+  const previousKmDerived = useMemo(() => {
     if (!selectedVehicleId || !lastReading) return 0;
-    
-    // KM is ALWAYS in the dedicated current_km column
-    // After migration, all KM vehicles have their data in this column
     const reading = lastReading as any;
     return reading.current_km || 0;
   }, [selectedVehicleId, lastReading]);
+
+  // Effective previous values (editable in edit mode, derived in create mode)
+  const previousHorimeter = isEditMode 
+    ? parsePtBRNumber(previousHorimeterValue) 
+    : previousHorimeterDerived;
+  
+  const previousKm = isEditMode 
+    ? parsePtBRNumber(previousKmValue) 
+    : previousKmDerived;
 
   // Check for duplicate - improved logic for edit mode
   const hasDuplicateRecord = useMemo(() => {
@@ -215,9 +219,13 @@ export function DatabaseHorimeterModal({
         // - KM => current_km
         const km = (editRecord as any).current_km as number | null | undefined;
         const hor = editRecord.current_value;
+        const prevHor = editRecord.previous_value;
+        const prevKm = (editRecord as any).previous_km as number | null | undefined;
 
         setHorimeterValue(hor && hor > 0 ? hor.toString().replace('.', ',') : '');
         setKmValue(km && km > 0 ? km.toString().replace('.', ',') : '');
+        setPreviousHorimeterValue(prevHor && prevHor > 0 ? prevHor.toString().replace('.', ',') : '');
+        setPreviousKmValue(prevKm && prevKm > 0 ? prevKm.toString().replace('.', ',') : '');
 
         setOperador(editRecord.operator || '');
         setObservacao(editRecord.observations || '');
@@ -232,6 +240,8 @@ export function DatabaseHorimeterModal({
         }
         setHorimeterValue('');
         setKmValue('');
+        setPreviousHorimeterValue('');
+        setPreviousKmValue('');
         setOperador('');
         setObservacao('');
       }
@@ -490,25 +500,43 @@ export function DatabaseHorimeterModal({
                     </span>
                   </div>
                   
-                  {/* Previous values - both Horimeter and KM */}
+                  {/* Previous values - editable in edit mode, display-only in create mode */}
                   <div className="grid grid-cols-2 gap-2">
                     <div className="p-2 bg-amber-500/10 rounded-lg text-center">
                       <div className="text-xs text-muted-foreground flex items-center justify-center gap-1">
                         <Clock className="w-3 h-3" />
                         Horímetro Anterior
                       </div>
-                      <div className="font-semibold text-amber-600">
-                        {previousHorimeter.toLocaleString('pt-BR')}h
-                      </div>
+                      {isEditMode ? (
+                        <Input
+                          value={previousHorimeterValue}
+                          onChange={(e) => setPreviousHorimeterValue(e.target.value)}
+                          placeholder="0"
+                          className="h-7 text-center font-semibold text-amber-600 bg-transparent border-amber-300 text-sm mt-1"
+                        />
+                      ) : (
+                        <div className="font-semibold text-amber-600">
+                          {previousHorimeterDerived.toLocaleString('pt-BR')}h
+                        </div>
+                      )}
                     </div>
                     <div className="p-2 bg-blue-500/10 rounded-lg text-center">
                       <div className="text-xs text-muted-foreground flex items-center justify-center gap-1">
                         <TrendingUp className="w-3 h-3" />
                         KM Anterior
                       </div>
-                      <div className="font-semibold text-blue-600">
-                        {previousKm.toLocaleString('pt-BR')} km
-                      </div>
+                      {isEditMode ? (
+                        <Input
+                          value={previousKmValue}
+                          onChange={(e) => setPreviousKmValue(e.target.value)}
+                          placeholder="0"
+                          className="h-7 text-center font-semibold text-blue-600 bg-transparent border-blue-300 text-sm mt-1"
+                        />
+                      ) : (
+                        <div className="font-semibold text-blue-600">
+                          {previousKmDerived.toLocaleString('pt-BR')} km
+                        </div>
+                      )}
                     </div>
                   </div>
                   
