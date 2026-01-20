@@ -84,6 +84,7 @@ import { useLayoutPreferences, ColumnConfig } from '@/hooks/useLayoutPreferences
 import * as XLSX from 'xlsx';
 import { HorimeterCardView } from '@/components/Horimetros/HorimeterCardView';
 import { HorimeterDBCorrectionsTab } from '@/components/Horimetros/HorimeterDBCorrectionsTab';
+import { BatchEditModal } from '@/components/Horimetros/BatchEditModal';
 
 const TABS = [
   { id: 'registros', label: 'Registros', icon: List },
@@ -141,6 +142,7 @@ export function HorimetrosPageDB() {
   const [statusFilter, setStatusFilter] = useState<string>('ativo');
   const [showNewModal, setShowNewModal] = useState(false);
   const [showBatchModal, setShowBatchModal] = useState(false);
+  const [showBatchEditModal, setShowBatchEditModal] = useState(false);
   const [showSyncModal, setShowSyncModal] = useState(false);
   const [editingRecord, setEditingRecord] = useState<HorimeterWithVehicle | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<HorimeterWithVehicle | null>(null);
@@ -620,8 +622,18 @@ export function HorimetrosPageDB() {
               className="order-first lg:order-last"
             >
               <Layers className="w-4 h-4 mr-2" />
-              <span className="hidden sm:inline">Cadastro em Lote</span>
+              <span className="hidden sm:inline">Cadastro Lote</span>
               <span className="sm:hidden">Lote</span>
+            </Button>
+            
+            <Button 
+              variant="outline"
+              onClick={() => setShowBatchEditModal(true)}
+              className="order-first lg:order-last"
+            >
+              <Pencil className="w-4 h-4 mr-2" />
+              <span className="hidden sm:inline">Edição Lote</span>
+              <span className="sm:hidden">Editar</span>
             </Button>
             
             <Button 
@@ -1316,6 +1328,13 @@ export function HorimetrosPageDB() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Batch Edit Modal */}
+      <BatchEditModal
+        open={showBatchEditModal}
+        onOpenChange={setShowBatchEditModal}
+        onSuccess={refetchReadings}
+      />
     </div>
   );
 }
