@@ -313,15 +313,25 @@ export function HorimetrosPageDB() {
 
   // Calculate interval for each reading (horimeter and km)
   const readingsWithInterval = useMemo(() => {
-    return filteredReadings.map(reading => ({
-      ...reading,
-      interval: reading.previous_value 
+    return filteredReadings.map(reading => {
+      // Calculate horimeter interval (H.T. = Horas Trabalhadas)
+      const horInterval = reading.previous_value 
         ? reading.current_value - reading.previous_value 
-        : 0,
-      km_interval: (reading as any).previous_km && (reading as any).current_km
-        ? (reading as any).current_km - (reading as any).previous_km
-        : 0
-    }));
+        : reading.current_value > 0 ? reading.current_value : 0;
+      
+      // Calculate km interval (Total KM)
+      const prevKm = (reading as any).previous_km || 0;
+      const currKm = (reading as any).current_km || 0;
+      const kmInterval = prevKm > 0 && currKm > 0 
+        ? currKm - prevKm 
+        : 0;
+      
+      return {
+        ...reading,
+        interval: horInterval,
+        km_interval: kmInterval,
+      };
+    });
   }, [filteredReadings]);
 
   // Pagination calculations
