@@ -623,9 +623,15 @@ export function HorimetrosPageDB() {
                 <FileSpreadsheet className="w-4 h-4 sm:mr-2" />
                 <span className="hidden sm:inline">Excel</span>
               </Button>
-              <Button variant="outline" size="sm" onClick={() => setShowSyncModal(true)} className="shrink-0">
-                <Download className="w-4 h-4 sm:mr-2" />
-                <span className="hidden sm:inline">Sincronizar</span>
+              <Button 
+                variant="default"
+                size="sm" 
+                onClick={() => setShowSyncModal(true)} 
+                className="shrink-0 bg-blue-600 hover:bg-blue-700"
+              >
+                <RefreshCw className="w-4 h-4 sm:mr-2" />
+                <span className="hidden sm:inline">Sincronizar Planilha</span>
+                <span className="sm:hidden">Sync</span>
               </Button>
               <Button variant="outline" size="sm" onClick={handleRefresh} disabled={loading} className="shrink-0">
                 <RefreshCw className={cn("w-4 h-4", loading && "animate-spin")} />
