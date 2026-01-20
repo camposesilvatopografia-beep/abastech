@@ -15,6 +15,7 @@ import {
   RefreshCw,
   Search,
   Filter,
+  X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -35,6 +36,13 @@ import {
 } from '@/components/ui/collapsible';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -117,6 +125,26 @@ export function VehicleConsumptionDetailTab({ data, refetch, loading }: VehicleC
   const [expandedVehicles, setExpandedVehicles] = useState<Set<string>>(new Set());
   const [sortBy, setSortBy] = useState<'code' | 'consumption' | 'liters'>('code');
   const [groupBy, setGroupBy] = useState<GroupByType>('description');
+  const [vehicleFilter, setVehicleFilter] = useState<string>('all');
+
+  // Extract unique vehicles for the filter dropdown
+  const availableVehicles = useMemo(() => {
+    const vehicleMap = new Map<string, { code: string; description: string }>();
+    
+    data.rows.forEach(row => {
+      const code = String(row['VEICULO'] || '').trim();
+      if (!code) return;
+      
+      if (!vehicleMap.has(code)) {
+        vehicleMap.set(code, {
+          code,
+          description: String(row['DESCRICAO'] || ''),
+        });
+      }
+    });
+    
+    return Array.from(vehicleMap.values()).sort((a, b) => a.code.localeCompare(b.code));
+  }, [data.rows]);
 
   // Determine if a category is equipment (L/h) or vehicle (km/L)
   const isEquipmentCategory = (category: string): boolean => {
@@ -251,9 +279,14 @@ export function VehicleConsumptionDetailTab({ data, refetch, loading }: VehicleC
     return Array.from(vehicleMap.values());
   }, [data.rows, dateRange]);
 
-  // Filter by search term
+  // Filter by search term and vehicle filter
   const filteredSummaries = useMemo(() => {
     let result = vehicleSummaries;
+    
+    // Apply vehicle filter
+    if (vehicleFilter && vehicleFilter !== 'all') {
+      result = result.filter(v => v.vehicleCode === vehicleFilter);
+    }
     
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
@@ -278,7 +311,7 @@ export function VehicleConsumptionDetailTab({ data, refetch, loading }: VehicleC
     });
 
     return result;
-  }, [vehicleSummaries, searchTerm, sortBy]);
+  }, [vehicleSummaries, searchTerm, sortBy, vehicleFilter]);
 
   // Group summaries by description
   const groupedByDescription = useMemo(() => {
@@ -586,6 +619,39 @@ export function VehicleConsumptionDetailTab({ data, refetch, loading }: VehicleC
             </Popover>
           </div>
         )}
+
+        {/* Vehicle Filter */}
+        <div className="flex items-center gap-2">
+          <Truck className="h-4 w-4 text-muted-foreground" />
+          <Select value={vehicleFilter} onValueChange={setVehicleFilter}>
+            <SelectTrigger className="w-[200px] h-9">
+              <SelectValue placeholder="Filtrar veículo..." />
+            </SelectTrigger>
+            <SelectContent className="max-h-[300px]">
+              <SelectItem value="all">Todos os veículos</SelectItem>
+              {availableVehicles.map(vehicle => (
+                <SelectItem key={vehicle.code} value={vehicle.code}>
+                  <span className="font-bold text-primary">{vehicle.code}</span>
+                  {vehicle.description && (
+                    <span className="text-muted-foreground ml-2 text-xs">
+                      {vehicle.description}
+                    </span>
+                  )}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {vehicleFilter !== 'all' && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setVehicleFilter('all')}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
 
         <div className="flex-1" />
 
