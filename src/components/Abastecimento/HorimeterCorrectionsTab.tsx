@@ -151,6 +151,7 @@ interface AnomalyRecord {
 export function HorimeterCorrectionsTab({ data, refetch, loading }: HorimeterCorrectionsTabProps) {
   const [activeTab, setActiveTab] = useState<'pending' | 'history'>('pending');
   const [severityFilter, setSeverityFilter] = useState<'all' | 'high' | 'medium' | 'low'>('all');
+  const [vehicleFilter, setVehicleFilter] = useState<string>('all');
   const [dateFilterType, setDateFilterType] = useState<DateFilterType>('all');
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
@@ -176,6 +177,7 @@ export function HorimeterCorrectionsTab({ data, refetch, loading }: HorimeterCor
   const [correctedRowIds, setCorrectedRowIds] = useState<Set<string>>(new Set());
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [loadingLogs, setLoadingLogs] = useState(false);
+
 
   // Fetch audit logs
   const fetchAuditLogs = useCallback(async () => {
@@ -823,7 +825,22 @@ export function HorimeterCorrectionsTab({ data, refetch, loading }: HorimeterCor
     }
   };
 
-  // Filter anomalies by severity and date, excluding corrected ones
+  // Get unique vehicles from anomalies for filter dropdown
+  const vehiclesWithAnomalies = useMemo(() => {
+    const vehicleSet = new Map<string, { code: string; description: string }>();
+    const source = anomaliesWithSuggestions.length > 0 ? anomaliesWithSuggestions : anomalies;
+    source.forEach(a => {
+      if (!vehicleSet.has(a.vehicleCode)) {
+        vehicleSet.set(a.vehicleCode, { 
+          code: a.vehicleCode, 
+          description: a.vehicleDescription 
+        });
+      }
+    });
+    return Array.from(vehicleSet.values()).sort((a, b) => a.code.localeCompare(b.code));
+  }, [anomalies, anomaliesWithSuggestions]);
+
+  // Filter anomalies by severity, vehicle, and date, excluding corrected ones
   const displayedAnomalies = useMemo(() => {
     const source = anomaliesWithSuggestions.length > 0 ? anomaliesWithSuggestions : anomalies;
     return source.filter(a => {
@@ -834,9 +851,11 @@ export function HorimeterCorrectionsTab({ data, refetch, loading }: HorimeterCor
       if (!isDateInFilter(a.date)) return false;
       // Apply severity filter
       if (severityFilter !== 'all' && a.severity !== severityFilter) return false;
+      // Apply vehicle filter
+      if (vehicleFilter !== 'all' && a.vehicleCode !== vehicleFilter) return false;
       return true;
     });
-  }, [anomalies, anomaliesWithSuggestions, severityFilter, isDateInFilter, correctedRowIds]);
+  }, [anomalies, anomaliesWithSuggestions, severityFilter, vehicleFilter, isDateInFilter, correctedRowIds]);
 
   // Summary counts
   const summaryCounts = useMemo(() => ({
@@ -1215,10 +1234,37 @@ export function HorimeterCorrectionsTab({ data, refetch, loading }: HorimeterCor
         </Card>
       </div>
 
+      {/* Vehicle Filter */}
+      <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
+          <Truck className="h-4 w-4 text-muted-foreground" />
+          <span className="text-sm font-medium">Veículo:</span>
+        </div>
+        <Select value={vehicleFilter} onValueChange={setVehicleFilter}>
+          <SelectTrigger className="w-[280px]">
+            <SelectValue placeholder="Todos os veículos" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos os veículos ({vehiclesWithAnomalies.length})</SelectItem>
+            {vehiclesWithAnomalies.map(v => (
+              <SelectItem key={v.code} value={v.code}>
+                {v.code} - {v.description || 'Sem descrição'}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {vehicleFilter !== 'all' && (
+          <Button variant="ghost" size="sm" onClick={() => setVehicleFilter('all')}>
+            <X className="h-4 w-4" />
+          </Button>
+        )}
+      </div>
+
       {/* Actions Bar */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="text-sm text-muted-foreground">
           Mostrando {displayedAnomalies.length} de {anomalies.length} registros com inconsistências
+          {vehicleFilter !== 'all' && ` (filtrado: ${vehicleFilter})`}
           {summaryCounts.fixable > 0 && (
             <span className="ml-2 text-green-600 font-medium">
               ({summaryCounts.fixable} com correção sugerida)
