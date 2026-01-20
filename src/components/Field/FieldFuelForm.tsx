@@ -2371,12 +2371,13 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                   align="start"
                   sideOffset={4}
                 >
-                  <Command className="bg-popover">
+                  <Command className="bg-popover" shouldFilter={true}>
                     <div className="flex items-center border-b-2 px-3 bg-muted/50">
                       <Search className="h-5 w-5 shrink-0 text-primary mr-2" />
                       <CommandInput 
-                        placeholder="Digite código, descrição ou categoria..." 
-                        className="h-12 text-base border-0 focus:ring-0 bg-transparent"
+                        placeholder="Digite código ou descrição..." 
+                        className="h-14 text-lg font-medium border-0 focus:ring-0 bg-transparent"
+                        autoFocus
                       />
                     </div>
                     <CommandList className="max-h-[350px] overflow-auto">
