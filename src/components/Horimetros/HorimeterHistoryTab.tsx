@@ -95,18 +95,21 @@ interface VehicleSummary {
 
 function formatNumber(value: number): string {
   if (!value || value === 0) return '';
+  // Use integer formatting for whole numbers, 1 decimal for fractional
+  const hasDecimals = value % 1 !== 0;
   return value.toLocaleString('pt-BR', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+    minimumFractionDigits: hasDecimals ? 1 : 0,
+    maximumFractionDigits: hasDecimals ? 1 : 0,
   });
 }
 
 function formatInterval(value: number): string {
   if (!value || value === 0) return '';
-  // Remove + symbol, just show the number
+  // For intervals, use integer formatting for whole numbers
+  const hasDecimals = value % 1 !== 0;
   return value.toLocaleString('pt-BR', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+    minimumFractionDigits: hasDecimals ? 1 : 0,
+    maximumFractionDigits: hasDecimals ? 1 : 0,
   });
 }
 
