@@ -2270,8 +2270,8 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
               </div>
             )}
 
-            {/* Location - for quick modes (only show if user has multiple locations) */}
-            {user.assigned_locations && user.assigned_locations.length > 1 && (
+            {/* Location - for quick modes (only show selector if user has multiple locations) */}
+            {user.assigned_locations && user.assigned_locations.length > 1 ? (
               <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-xl border border-slate-200 dark:border-slate-700 p-4 space-y-3 shadow-sm">
                 <Label className="flex items-center gap-2 text-base">
                   <MapPin className="w-4 h-4" />
@@ -2289,6 +2289,12 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+            ) : user.assigned_locations?.length === 1 && (
+              <div className="flex items-center gap-2 px-3 py-2 bg-slate-100 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
+                <MapPin className="w-4 h-4 text-primary" />
+                <span className="text-sm text-muted-foreground">Local:</span>
+                <span className="text-sm font-medium text-foreground">{location}</span>
               </div>
             )}
 
@@ -3123,8 +3129,8 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
           </>
         )}
 
-        {/* Location - for Saida only (only show if user has multiple locations) */}
-        {recordType === 'saida' && user.assigned_locations && user.assigned_locations.length > 1 && (
+        {/* Location - for Saida only (only show selector if user has multiple locations) */}
+        {recordType === 'saida' && user.assigned_locations && user.assigned_locations.length > 1 ? (
           <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-xl border border-slate-200 dark:border-slate-700 p-4 space-y-3 shadow-sm">
             <Label className="flex items-center gap-2 text-base">
               <MapPin className="w-4 h-4" />
@@ -3142,6 +3148,12 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                 ))}
               </SelectContent>
             </Select>
+          </div>
+        ) : recordType === 'saida' && user.assigned_locations?.length === 1 && (
+          <div className="flex items-center gap-2 px-3 py-2 bg-slate-100 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
+            <MapPin className="w-4 h-4 text-primary" />
+            <span className="text-sm text-muted-foreground">Local:</span>
+            <span className="text-sm font-medium text-foreground">{location}</span>
           </div>
         )}
 
