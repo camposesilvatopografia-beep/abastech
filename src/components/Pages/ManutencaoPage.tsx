@@ -34,6 +34,8 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { BrazilianNumberInput } from '@/components/ui/brazilian-number-input';
+import { parsePtBRNumber, formatPtBRNumber } from '@/lib/ptBRNumber';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { MetricCard } from '@/components/Dashboard/MetricCard';
@@ -545,16 +547,16 @@ export function ManutencaoPage() {
 
   // Validate horimeter input
   const validateHorimeter = (value: string) => {
-    const currentValue = parseFloat(value);
+    const currentValue = parsePtBRNumber(value);
     if (!currentValue || !vehicleHistory?.lastHorimeter) {
       setHorimeterWarning(null);
       return;
     }
     
     if (currentValue < vehicleHistory.lastHorimeter) {
-      setHorimeterWarning(`⚠️ Valor menor que o último registro (${vehicleHistory.lastHorimeter.toLocaleString('pt-BR')}h)`);
+      setHorimeterWarning(`⚠️ Valor menor que o último registro (${formatPtBRNumber(vehicleHistory.lastHorimeter)}h)`);
     } else if (currentValue - vehicleHistory.lastHorimeter > 500) {
-      setHorimeterWarning(`⚠️ Diferença grande: +${(currentValue - vehicleHistory.lastHorimeter).toLocaleString('pt-BR')}h desde último registro`);
+      setHorimeterWarning(`⚠️ Diferença grande: +${formatPtBRNumber(currentValue - vehicleHistory.lastHorimeter)}h desde último registro`);
     } else {
       setHorimeterWarning(null);
     }
@@ -562,16 +564,16 @@ export function ManutencaoPage() {
 
   // Validate km input
   const validateKm = (value: string) => {
-    const currentValue = parseFloat(value);
+    const currentValue = parsePtBRNumber(value);
     if (!currentValue || !vehicleHistory?.lastKm) {
       setKmWarning(null);
       return;
     }
     
     if (currentValue < vehicleHistory.lastKm) {
-      setKmWarning(`⚠️ Valor menor que o último registro (${vehicleHistory.lastKm.toLocaleString('pt-BR')} km)`);
+      setKmWarning(`⚠️ Valor menor que o último registro (${formatPtBRNumber(vehicleHistory.lastKm, { decimals: 0 })} km)`);
     } else if (currentValue - vehicleHistory.lastKm > 10000) {
-      setKmWarning(`⚠️ Diferença grande: +${(currentValue - vehicleHistory.lastKm).toLocaleString('pt-BR')} km desde último registro`);
+      setKmWarning(`⚠️ Diferença grande: +${formatPtBRNumber(currentValue - vehicleHistory.lastKm, { decimals: 0 })} km desde último registro`);
     } else {
       setKmWarning(null);
     }
@@ -931,8 +933,8 @@ export function ManutencaoPage() {
         notes: formData.notes || null,
         start_date: formData.status === 'Em Andamento' && !editingOrder?.start_date ? new Date().toISOString() : editingOrder?.start_date,
         end_date: endDateValue,
-        horimeter_current: parseFloat(formData.horimeter_current) || null,
-        km_current: parseFloat(formData.km_current) || null,
+        horimeter_current: parsePtBRNumber(formData.horimeter_current) || null,
+        km_current: parsePtBRNumber(formData.km_current) || null,
         entry_date: formData.entry_date || null,
         entry_time: formData.entry_time || null,
         interval_days: formData.order_type === 'Preventiva' ? (parseInt(formData.interval_days) || 90) : null,
@@ -2427,18 +2429,18 @@ export function ManutencaoPage() {
                   Horímetro Atual
                   {vehicleHistory?.lastHorimeter && (
                     <span className="text-xs text-muted-foreground font-normal">
-                      (último: {vehicleHistory.lastHorimeter.toLocaleString('pt-BR')}h)
+                      (último: {formatPtBRNumber(vehicleHistory.lastHorimeter)}h)
                     </span>
                   )}
                 </Label>
-                <Input
-                  type="number"
-                  placeholder="Ex: 4500"
+                <BrazilianNumberInput
+                  placeholder="Ex: 4500,50"
                   value={formData.horimeter_current}
-                  onChange={(e) => {
-                    setFormData({ ...formData, horimeter_current: e.target.value });
-                    validateHorimeter(e.target.value);
+                  onChange={(val) => {
+                    setFormData({ ...formData, horimeter_current: val });
+                    validateHorimeter(val);
                   }}
+                  decimals={2}
                   className={horimeterWarning ? 'border-amber-500' : ''}
                 />
                 {horimeterWarning && (
@@ -2454,18 +2456,18 @@ export function ManutencaoPage() {
                   KM Atual
                   {vehicleHistory?.lastKm && (
                     <span className="text-xs text-muted-foreground font-normal">
-                      (último: {vehicleHistory.lastKm.toLocaleString('pt-BR')} km)
+                      (último: {formatPtBRNumber(vehicleHistory.lastKm, { decimals: 0 })} km)
                     </span>
                   )}
                 </Label>
-                <Input
-                  type="number"
+                <BrazilianNumberInput
                   placeholder="Ex: 120000"
                   value={formData.km_current}
-                  onChange={(e) => {
-                    setFormData({ ...formData, km_current: e.target.value });
-                    validateKm(e.target.value);
+                  onChange={(val) => {
+                    setFormData({ ...formData, km_current: val });
+                    validateKm(val);
                   }}
+                  decimals={0}
                   className={kmWarning ? 'border-amber-500' : ''}
                 />
                 {kmWarning && (
@@ -2525,20 +2527,20 @@ export function ManutencaoPage() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Horas Estimadas</Label>
-                <Input
-                  type="number"
-                  placeholder="Ex: 4"
+                <BrazilianNumberInput
+                  placeholder="Ex: 4,5"
                   value={formData.estimated_hours}
-                  onChange={(e) => setFormData({ ...formData, estimated_hours: e.target.value })}
+                  onChange={(val) => setFormData({ ...formData, estimated_hours: val })}
+                  decimals={1}
                 />
               </div>
               <div className="space-y-2">
                 <Label>Horas Realizadas</Label>
-                <Input
-                  type="number"
-                  placeholder="Ex: 5"
+                <BrazilianNumberInput
+                  placeholder="Ex: 5,5"
                   value={formData.actual_hours}
-                  onChange={(e) => setFormData({ ...formData, actual_hours: e.target.value })}
+                  onChange={(val) => setFormData({ ...formData, actual_hours: val })}
+                  decimals={1}
                 />
               </div>
             </div>
