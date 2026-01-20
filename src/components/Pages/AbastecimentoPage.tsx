@@ -636,6 +636,8 @@ export function AbastecimentoPage() {
       horAtual: number;
       kmAnterior: number;
       kmAtual: number;
+      tipo: string;
+      fornecedor: string;
     }>> = {};
     
     filteredRows.forEach(row => {
@@ -643,6 +645,8 @@ export function AbastecimentoPage() {
       const quantidade = parseNumber(row['QUANTIDADE']);
       const arlaQtd = parseNumber(row['QUANTIDADE DE ARLA']);
       const valor = parseNumber(row['VALOR TOTAL']);
+      const tipo = String(row['TIPO'] || row['TIPO DE OPERACAO'] || '').toLowerCase();
+      const fornecedor = String(row['FORNECEDOR'] || '').trim();
       
       if (!summary[local]) {
         summary[local] = { abastecimentos: 0, diesel: 0, arla: 0, valor: 0 };
@@ -668,6 +672,8 @@ export function AbastecimentoPage() {
         horAtual: parseNumber(row['HORIMETRO ATUAL'] || row['HOR_ATUAL'] || row['HORIMETRO'] || row['Horimetro'] || 0),
         kmAnterior: parseNumber(row['KM ANTERIOR'] || row['KM_ANTERIOR'] || 0),
         kmAtual: parseNumber(row['KM ATUAL'] || row['KM_ATUAL'] || row['KM'] || row['Km'] || 0),
+        tipo,
+        fornecedor,
       });
     });
 
@@ -1064,6 +1070,7 @@ export function AbastecimentoPage() {
   }, [resumoPorLocal, dateRange]);
 
   // Export to PDF (simple) - same format as detailed, grouped by location WITH SIGNATURE
+  // Now includes stock summary at top and separates exits/entries
   const exportPDF = useCallback(() => {
     setIsExporting(true);
     
@@ -1081,9 +1088,16 @@ export function AbastecimentoPage() {
         const records = resumoPorLocal.recordsByLocal[local];
         if (!records || records.length === 0) return;
         
+        // Separate entries from exits
+        const saidasRecords = records.filter(r => !r.fornecedor && !r.tipo.includes('entrada'));
+        const entradasRecords = records.filter(r => r.fornecedor || r.tipo.includes('entrada'));
+        
         // Sort records by description for better organization
-        const sortedRecords = [...records].sort((a, b) => 
+        const sortedSaidas = [...saidasRecords].sort((a, b) => 
           (a.descricao || '').localeCompare(b.descricao || '', 'pt-BR')
+        );
+        const sortedEntradas = [...entradasRecords].sort((a, b) => 
+          (a.fornecedor || '').localeCompare(b.fornecedor || '', 'pt-BR')
         );
         
         // Add new page for each location after the first
@@ -1115,117 +1129,240 @@ export function AbastecimentoPage() {
         doc.text(dateRangeText, pageWidth - 14, 12, { align: 'right' });
         
         doc.setTextColor(0, 0, 0);
-        currentY = 28;
+        currentY = 26;
         
-        // Prepare table data with consumption calculation
-        let totalDiesel = 0;
-        let totalConsumo = 0;
-        let countConsumo = 0;
+        // ========== STOCK SUMMARY SECTION ==========
+        doc.setFillColor(241, 245, 249); // Light gray background
+        doc.roundedRect(14, currentY, pageWidth - 28, 22, 2, 2, 'F');
         
-        const tableData = sortedRecords.map((record, index) => {
-          // Determine if using km or hours based on data
-          const usaKm = record.kmAtual > 0 || record.kmAnterior > 0;
-          const anterior = usaKm ? record.kmAnterior : record.horAnterior;
-          const atual = usaKm ? record.kmAtual : record.horAtual;
-          const intervalo = atual - anterior;
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(30, 41, 59);
+        doc.text('RESUMO DE ESTOQUE', 20, currentY + 6);
+        
+        const stockY = currentY + 14;
+        const colWidth = (pageWidth - 40) / 4;
+        
+        // Stock metrics in a row
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'normal');
+        
+        // Estoque Anterior
+        doc.setTextColor(120, 120, 120);
+        doc.text('Est. Anterior:', 20, stockY);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(30, 41, 59);
+        doc.text(`${metricsFromGeral.estoqueAnterior.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L`, 20 + 28, stockY);
+        
+        // Entradas
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(120, 120, 120);
+        doc.text('Entradas:', 20 + colWidth, stockY);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(34, 139, 34); // Green
+        doc.text(`+${metricsFromGeral.entrada.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L`, 20 + colWidth + 22, stockY);
+        
+        // Saídas (Equip + Comboios)
+        const totalSaidas = metricsFromGeral.saidaEquipamentos + metricsFromGeral.saidaComboios;
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(120, 120, 120);
+        doc.text('Saídas:', 20 + colWidth * 2, stockY);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(180, 50, 50); // Red
+        doc.text(`-${totalSaidas.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L`, 20 + colWidth * 2 + 18, stockY);
+        
+        // Estoque Atual
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(120, 120, 120);
+        doc.text('Est. Atual:', 20 + colWidth * 3, stockY);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(30, 58, 138); // Blue
+        doc.text(`${metricsFromGeral.estoqueAtual.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L`, 20 + colWidth * 3 + 25, stockY);
+        
+        currentY += 28;
+        
+        // ========== SAÍDAS TABLE ==========
+        if (sortedSaidas.length > 0) {
+          doc.setFontSize(11);
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(180, 50, 50);
+          doc.text('SAÍDAS (Abastecimentos)', 14, currentY + 4);
+          currentY += 8;
           
-          // Calculate consumption (km/l or l/h)
-          let consumo = 0;
-          if (record.quantidade > 0 && intervalo > 0) {
-            if (usaKm) {
-              // km/l = intervalo / quantidade
-              consumo = intervalo / record.quantidade;
-            } else {
-              // l/h = quantidade / intervalo
-              consumo = record.quantidade / intervalo;
+          let totalDieselSaidas = 0;
+          let totalConsumo = 0;
+          let countConsumo = 0;
+          
+          const saidasTableData = sortedSaidas.map((record, index) => {
+            const usaKm = record.kmAtual > 0 || record.kmAnterior > 0;
+            const anterior = usaKm ? record.kmAnterior : record.horAnterior;
+            const atual = usaKm ? record.kmAtual : record.horAtual;
+            const intervalo = atual - anterior;
+            
+            let consumo = 0;
+            if (record.quantidade > 0 && intervalo > 0) {
+              if (usaKm) {
+                consumo = intervalo / record.quantidade;
+              } else {
+                consumo = record.quantidade / intervalo;
+              }
+              totalConsumo += consumo;
+              countConsumo++;
             }
-            totalConsumo += consumo;
-            countConsumo++;
+            
+            totalDieselSaidas += record.quantidade;
+            
+            return [
+              (index + 1).toString() + '.',
+              record.codigo,
+              record.descricao,
+              record.motorista,
+              anterior > 0 ? anterior.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-',
+              atual > 0 ? atual.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-',
+              intervalo > 0 ? intervalo.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-',
+              consumo > 0 ? consumo.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0,00',
+              record.quantidade.toLocaleString('pt-BR', { minimumFractionDigits: 0 })
+            ];
+          });
+          
+          const mediaConsumo = countConsumo > 0 ? totalConsumo / countConsumo : 0;
+          saidasTableData.push([
+            '',
+            '',
+            '',
+            'TOTAL SAÍDAS',
+            '',
+            '',
+            '',
+            mediaConsumo > 0 ? `Média: ${mediaConsumo.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-',
+            totalDieselSaidas.toLocaleString('pt-BR', { minimumFractionDigits: 0 })
+          ]);
+          
+          autoTable(doc, {
+            startY: currentY,
+            head: [[
+              '', 
+              'Código', 
+              'Descrição', 
+              'Motorista/Operador', 
+              'Hor/Km\nAnterior', 
+              'Hor/Km\nAtual', 
+              'Intervalo\n(h/km)', 
+              'Consumo', 
+              'Qtd Diesel'
+            ]],
+            body: saidasTableData,
+            styles: { 
+              fontSize: 8,
+              cellPadding: 2,
+            },
+            headStyles: { 
+              fillColor: [180, 50, 50],
+              textColor: [255, 255, 255],
+              fontStyle: 'bold',
+              halign: 'center',
+              valign: 'middle',
+            },
+            columnStyles: {
+              0: { cellWidth: 10, halign: 'center' },
+              1: { cellWidth: 25 },
+              2: { cellWidth: 45 },
+              3: { cellWidth: 45 },
+              4: { cellWidth: 25, halign: 'right' },
+              5: { cellWidth: 28, halign: 'right' },
+              6: { cellWidth: 28, halign: 'right' },
+              7: { cellWidth: 22, halign: 'right' },
+              8: { cellWidth: 22, halign: 'right' },
+            },
+            alternateRowStyles: {
+              fillColor: [255, 245, 245]
+            },
+            didParseCell: (data) => {
+              if (data.row.index === saidasTableData.length - 1) {
+                data.cell.styles.fontStyle = 'bold';
+                data.cell.styles.fillColor = [230, 220, 220];
+              }
+            },
+            theme: 'grid',
+          });
+          
+          currentY = (doc as any).lastAutoTable?.finalY + 10 || currentY + 50;
+        }
+        
+        // ========== ENTRADAS TABLE ==========
+        if (sortedEntradas.length > 0) {
+          // Check if need new page
+          if (currentY > pageHeight - 60) {
+            doc.addPage();
+            currentY = 20;
           }
           
-          totalDiesel += record.quantidade;
+          doc.setFontSize(11);
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(34, 139, 34);
+          doc.text('ENTRADAS (Recebimentos)', 14, currentY + 4);
+          currentY += 8;
           
-          return [
-            (index + 1).toString() + '.',
-            record.codigo,
-            record.descricao,
-            record.motorista,
-            anterior > 0 ? anterior.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-',
-            atual > 0 ? atual.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-',
-            intervalo > 0 ? intervalo.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-',
-            consumo > 0 ? consumo.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0,00',
-            record.quantidade.toLocaleString('pt-BR', { minimumFractionDigits: 0 })
-          ];
-        });
+          let totalDieselEntradas = 0;
+          
+          const entradasTableData = sortedEntradas.map((record, index) => {
+            totalDieselEntradas += record.quantidade;
+            
+            return [
+              (index + 1).toString() + '.',
+              record.data,
+              record.fornecedor || 'N/I',
+              record.quantidade.toLocaleString('pt-BR', { minimumFractionDigits: 0 }) + ' L'
+            ];
+          });
+          
+          entradasTableData.push([
+            '',
+            '',
+            'TOTAL ENTRADAS',
+            totalDieselEntradas.toLocaleString('pt-BR', { minimumFractionDigits: 0 }) + ' L'
+          ]);
+          
+          autoTable(doc, {
+            startY: currentY,
+            head: [['', 'Data', 'Fornecedor', 'Quantidade']],
+            body: entradasTableData,
+            styles: { 
+              fontSize: 9,
+              cellPadding: 3,
+            },
+            headStyles: { 
+              fillColor: [34, 139, 34],
+              textColor: [255, 255, 255],
+              fontStyle: 'bold',
+              halign: 'center',
+            },
+            columnStyles: {
+              0: { cellWidth: 15, halign: 'center' },
+              1: { cellWidth: 30 },
+              2: { cellWidth: 80 },
+              3: { cellWidth: 40, halign: 'right' },
+            },
+            alternateRowStyles: {
+              fillColor: [245, 255, 245]
+            },
+            didParseCell: (data) => {
+              if (data.row.index === entradasTableData.length - 1) {
+                data.cell.styles.fontStyle = 'bold';
+                data.cell.styles.fillColor = [220, 240, 220];
+              }
+            },
+            theme: 'grid',
+          });
+          
+          currentY = (doc as any).lastAutoTable?.finalY + 10 || currentY + 50;
+        }
         
-        // Add totals row
-        const mediaConsumo = countConsumo > 0 ? totalConsumo / countConsumo : 0;
-        tableData.push([
-          '',
-          '',
-          '',
-          'TOTAL',
-          '',
-          '',
-          '',
-          mediaConsumo > 0 ? `Média: ${mediaConsumo.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-',
-          totalDiesel.toLocaleString('pt-BR', { minimumFractionDigits: 0 })
-        ]);
-        
-        autoTable(doc, {
-          startY: currentY,
-          head: [[
-            '', 
-            'Código', 
-            'Descrição', 
-            'Motorista/Operador', 
-            'Hor/Km\nAnterior', 
-            'Hor/Km\nAtual', 
-            'Intervalo\n(h/km)', 
-            'Consumo', 
-            'Qtd Diesel'
-          ]],
-          body: tableData,
-          styles: { 
-            fontSize: 8,
-            cellPadding: 2,
-          },
-          headStyles: { 
-            fillColor: [30, 41, 59],
-            textColor: [255, 255, 255],
-            fontStyle: 'bold',
-            halign: 'center',
-            valign: 'middle',
-          },
-          columnStyles: {
-            0: { cellWidth: 10, halign: 'center' },
-            1: { cellWidth: 25 },
-            2: { cellWidth: 45 },
-            3: { cellWidth: 45 },
-            4: { cellWidth: 25, halign: 'right' },
-            5: { cellWidth: 28, halign: 'right' },
-            6: { cellWidth: 28, halign: 'right' },
-            7: { cellWidth: 22, halign: 'right' },
-            8: { cellWidth: 22, halign: 'right' },
-          },
-          alternateRowStyles: {
-            fillColor: [245, 245, 245]
-          },
-          didParseCell: (data) => {
-            // Style the totals row (last row)
-            if (data.row.index === tableData.length - 1) {
-              data.cell.styles.fontStyle = 'bold';
-              data.cell.styles.fillColor = [230, 230, 230];
-            }
-          },
-          theme: 'grid',
-        });
-        
-        // Get final Y position after table
-        const finalY = (doc as any).lastAutoTable?.finalY || currentY + 100;
+        // Get final Y position after tables
+        const finalY = currentY;
         
         // Add responsible person section at bottom of each location page
-        const signatureY = Math.max(finalY + 20, pageHeight - 35);
+        const signatureY = Math.max(finalY + 10, pageHeight - 35);
         
         // Get the responsible person for this location
         const responsibleName = getResponsibleForLocation(local);
@@ -1249,7 +1386,7 @@ export function AbastecimentoPage() {
     } finally {
       setIsExporting(false);
     }
-  }, [resumoPorLocal, dateRange, obraSettings]);
+  }, [resumoPorLocal, dateRange, obraSettings, metricsFromGeral, getResponsibleForLocation]);
 
   // Export PDF by Company (Empresa) - formatted like the reference image
   const exportPDFPorEmpresa = useCallback(() => {
