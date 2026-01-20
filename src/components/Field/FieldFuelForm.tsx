@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { 
   Fuel, 
   Mic, 
@@ -1747,6 +1747,33 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
     }));
   }, [vehicles]);
 
+  // Custom filter function for vehicle search - prioritizes prefix matches
+  const vehicleSearchFilter = React.useCallback((value: string, search: string) => {
+    if (!search) return 1;
+    const searchLower = search.toLowerCase().trim();
+    const valueLower = value.toLowerCase();
+    
+    // Extract vehicle code from the value (it's the first part before space)
+    const vehicleCode = valueLower.split(' ')[0];
+    
+    // Highest priority: code starts with search term
+    if (vehicleCode.startsWith(searchLower)) {
+      return 1;
+    }
+    
+    // Second priority: code contains search term
+    if (vehicleCode.includes(searchLower)) {
+      return 0.8;
+    }
+    
+    // Third priority: description or category contains search term
+    if (valueLower.includes(searchLower)) {
+      return 0.5;
+    }
+    
+    return 0;
+  }, []);
+
   // Vehicle search combobox state
   const [vehicleSearchOpen, setVehicleSearchOpen] = useState(false);
   
@@ -2346,24 +2373,18 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                     role="combobox"
                     aria-expanded={vehicleSearchOpen}
                     className={cn(
-                      "w-full h-16 justify-between font-medium border-3 transition-all text-lg shadow-[0_4px_12px_rgba(0,0,0,0.4)] dark:shadow-[0_4px_12px_rgba(0,0,0,0.7)]",
-                      !vehicleCode && "text-muted-foreground border-blue-300 dark:border-blue-700 bg-white dark:bg-slate-900",
-                      vehicleCode && "border-blue-500 bg-blue-100 dark:bg-blue-900/50"
+                      "w-full h-16 justify-between font-bold border-3 transition-all text-lg shadow-[0_4px_12px_rgba(0,0,0,0.5)] dark:shadow-[0_4px_12px_rgba(0,0,0,0.8)]",
+                      "bg-amber-600 hover:bg-amber-700 border-amber-700 text-white",
+                      vehicleCode && "bg-amber-700 border-amber-800"
                     )}
                   >
                     <div className="flex items-center gap-3 truncate">
-                      <Truck className={cn(
-                        "h-6 w-6 shrink-0",
-                        vehicleCode ? "text-blue-600" : "text-muted-foreground"
-                      )} />
-                      <span className={cn(
-                        "truncate text-xl",
-                        vehicleCode ? "font-bold text-blue-800 dark:text-blue-200" : ""
-                      )}>
+                      <Truck className="h-6 w-6 shrink-0 text-white" />
+                      <span className="truncate text-xl font-bold text-white">
                         {vehicleCode || "Pesquisar veículo..."}
                       </span>
                     </div>
-                    <ChevronsUpDown className="ml-2 h-6 w-6 shrink-0 text-blue-500" />
+                    <ChevronsUpDown className="ml-2 h-6 w-6 shrink-0 text-white/80" />
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent 
@@ -2371,12 +2392,12 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                   align="start"
                   sideOffset={4}
                 >
-                  <Command className="bg-popover" shouldFilter={true}>
-                    <div className="flex items-center border-b-2 px-3 bg-muted/50">
-                      <Search className="h-5 w-5 shrink-0 text-primary mr-2" />
+                  <Command className="bg-popover" filter={vehicleSearchFilter}>
+                    <div className="flex items-center border-b-2 px-3 bg-amber-100 dark:bg-amber-900/30">
+                      <Search className="h-6 w-6 shrink-0 text-amber-700 dark:text-amber-400 mr-2" />
                       <CommandInput 
-                        placeholder="Digite código ou descrição..." 
-                        className="h-14 text-lg font-medium border-0 focus:ring-0 bg-transparent"
+                        placeholder="Digite o prefixo do veículo..." 
+                        className="h-14 text-xl font-bold border-0 focus:ring-0 bg-transparent placeholder:text-amber-600/60 dark:placeholder:text-amber-400/60"
                         autoFocus
                       />
                     </div>
