@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { CurrencyInput, useCurrencyInput } from '@/components/ui/currency-input';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -118,10 +119,10 @@ export function HorimeterDBCorrectionsTab({ readings, refetch, loading }: Horime
   const [endDate, setEndDate] = useState<Date | undefined>(new Date());
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editData, setEditData] = useState<{
-    horimeterPrevious: string;
-    horimeterCurrent: string;
-    kmPrevious: string;
-    kmCurrent: string;
+    horimeterPrevious: number | null;
+    horimeterCurrent: number | null;
+    kmPrevious: number | null;
+    kmCurrent: number | null;
   } | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isAutoFixing, setIsAutoFixing] = useState(false);
@@ -587,10 +588,10 @@ export function HorimeterDBCorrectionsTab({ readings, refetch, loading }: Horime
   const handleStartEdit = (anomaly: AnomalyRecord) => {
     setEditingId(anomaly.readingId);
     setEditData({
-      horimeterPrevious: anomaly.horimeterPrevious.toString(),
-      horimeterCurrent: anomaly.horimeterCurrent.toString(),
-      kmPrevious: anomaly.kmPrevious.toString(),
-      kmCurrent: anomaly.kmCurrent.toString(),
+      horimeterPrevious: anomaly.horimeterPrevious || null,
+      horimeterCurrent: anomaly.horimeterCurrent || null,
+      kmPrevious: anomaly.kmPrevious || null,
+      kmCurrent: anomaly.kmCurrent || null,
     });
   };
 
@@ -607,10 +608,10 @@ export function HorimeterDBCorrectionsTab({ readings, refetch, loading }: Horime
       const { error } = await supabase
         .from('horimeter_readings')
         .update({
-          previous_value: parseFloat(editData.horimeterPrevious) || 0,
-          current_value: parseFloat(editData.horimeterCurrent) || 0,
-          previous_km: parseFloat(editData.kmPrevious) || null,
-          current_km: parseFloat(editData.kmCurrent) || null,
+          previous_value: editData.horimeterPrevious ?? 0,
+          current_value: editData.horimeterCurrent ?? 0,
+          previous_km: editData.kmPrevious ?? null,
+          current_km: editData.kmCurrent ?? null,
         })
         .eq('id', anomaly.readingId);
 
@@ -962,9 +963,10 @@ export function HorimeterDBCorrectionsTab({ readings, refetch, loading }: Horime
                         <TableCell>{getSeverityBadge(anomaly.severity)}</TableCell>
                         <TableCell className="text-right">
                           {isEditing ? (
-                            <Input
-                              value={editData?.horimeterPrevious || ''}
-                              onChange={(e) => setEditData(prev => prev ? {...prev, horimeterPrevious: e.target.value} : null)}
+                            <CurrencyInput
+                              value={editData?.horimeterPrevious ?? null}
+                              onChange={(val) => setEditData(prev => prev ? {...prev, horimeterPrevious: val} : null)}
+                              decimals={2}
                               className="w-24 text-right"
                             />
                           ) : (
@@ -973,9 +975,10 @@ export function HorimeterDBCorrectionsTab({ readings, refetch, loading }: Horime
                         </TableCell>
                         <TableCell className="text-right">
                           {isEditing ? (
-                            <Input
-                              value={editData?.horimeterCurrent || ''}
-                              onChange={(e) => setEditData(prev => prev ? {...prev, horimeterCurrent: e.target.value} : null)}
+                            <CurrencyInput
+                              value={editData?.horimeterCurrent ?? null}
+                              onChange={(val) => setEditData(prev => prev ? {...prev, horimeterCurrent: val} : null)}
+                              decimals={2}
                               className="w-24 text-right"
                             />
                           ) : (
