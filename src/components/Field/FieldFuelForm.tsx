@@ -2346,8 +2346,8 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                     role="combobox"
                     aria-expanded={vehicleSearchOpen}
                     className={cn(
-                      "w-full h-16 justify-between font-medium border-3 transition-all text-lg",
-                      !vehicleCode && "text-muted-foreground border-blue-300 dark:border-blue-700",
+                      "w-full h-16 justify-between font-medium border-3 transition-all text-lg shadow-[0_4px_12px_rgba(0,0,0,0.4)] dark:shadow-[0_4px_12px_rgba(0,0,0,0.7)]",
+                      !vehicleCode && "text-muted-foreground border-blue-300 dark:border-blue-700 bg-white dark:bg-slate-900",
                       vehicleCode && "border-blue-500 bg-blue-100 dark:bg-blue-900/50"
                     )}
                   >
@@ -2712,7 +2712,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
             placeholder="Ex: 150"
             value={fuelQuantity}
             onChange={(e) => setFuelQuantity(e.target.value)}
-            className="h-20 text-4xl text-center font-black border-3 border-amber-300 dark:border-amber-600 bg-white dark:bg-slate-900 focus:border-amber-500 focus:ring-4 focus:ring-amber-200 dark:focus:ring-amber-800"
+            className="h-20 text-4xl text-center font-black border-3 border-amber-300 dark:border-amber-600 bg-white dark:bg-slate-900 focus:border-amber-500 focus:ring-4 focus:ring-amber-200 dark:focus:ring-amber-800 shadow-[0_4px_12px_rgba(0,0,0,0.4)] dark:shadow-[0_4px_12px_rgba(0,0,0,0.7)]"
           />
         </div>
 
@@ -2802,7 +2802,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                 setHorimeterCurrent(formatBrazilianNumber(parseBrazilianNumber(horimeterCurrent)));
               }
             }}
-            className="h-16 text-2xl text-center font-bold border-3 border-emerald-300 dark:border-emerald-600 bg-white dark:bg-slate-900 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-200 dark:focus:ring-emerald-800"
+            className="h-16 text-2xl text-center font-bold border-3 border-emerald-300 dark:border-emerald-600 bg-white dark:bg-slate-900 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-200 dark:focus:ring-emerald-800 shadow-[0_4px_12px_rgba(0,0,0,0.4)] dark:shadow-[0_4px_12px_rgba(0,0,0,0.7)]"
           />
           
           {/* Validation warning */}
