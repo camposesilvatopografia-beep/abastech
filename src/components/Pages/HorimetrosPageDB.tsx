@@ -104,6 +104,17 @@ const DEFAULT_HORIMETER_COLUMNS: ColumnConfig[] = [
   { key: 'acoes', label: 'Ações', visible: true, order: 11 },
 ];
 
+// Helper function to format numbers in Brazilian format with proper decimal handling
+const formatNumericBR = (val: number | null | undefined): string => {
+  if (val === null || val === undefined) return '-';
+  // Format with 2 decimal places for values with decimals, or 0 for whole numbers
+  const hasDecimals = val % 1 !== 0;
+  return val.toLocaleString('pt-BR', { 
+    minimumFractionDigits: hasDecimals ? 2 : 0, 
+    maximumFractionDigits: 2 
+  });
+};
+
 export function HorimetrosPageDB() {
   const isMobile = useIsMobile();
   const { vehicles, loading: vehiclesLoading, refetch: refetchVehicles } = useVehicles();
@@ -476,16 +487,25 @@ export function HorimetrosPageDB() {
     
     y += 10;
 
-    // Helper to format numbers in Brazilian format
+    // Helper to format numbers in Brazilian format - PRESERVE DECIMALS
     const formatBR = (val: number | null | undefined): string => {
-      if (val === null || val === undefined || val === 0) return '-';
-      return val.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+      if (val === null || val === undefined) return '-';
+      // Format with 2 decimal places for values with decimals, or 0 for whole numbers
+      const hasDecimals = val % 1 !== 0;
+      return val.toLocaleString('pt-BR', { 
+        minimumFractionDigits: hasDecimals ? 2 : 0, 
+        maximumFractionDigits: 2 
+      });
     };
 
     // Helper to format intervals (always positive with color indication in table)
     const formatInterval = (val: number): string => {
       if (!val || val === 0) return '-';
-      return Math.abs(val).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+      const hasDecimals = Math.abs(val) % 1 !== 0;
+      return Math.abs(val).toLocaleString('pt-BR', { 
+        minimumFractionDigits: hasDecimals ? 2 : 0, 
+        maximumFractionDigits: 2 
+      });
     };
 
     const tableData = readingsWithInterval.map(r => [
@@ -1039,29 +1059,29 @@ export function HorimetrosPageDB() {
                       <TableCell className="font-medium">{reading.vehicle?.code}</TableCell>
                       <TableCell>{reading.operator || '-'}</TableCell>
                       <TableCell className="text-right">
-                        {reading.previous_value?.toLocaleString('pt-BR') || '-'}
+                        {formatNumericBR(reading.previous_value)}
                       </TableCell>
                       <TableCell className="text-right font-medium">
-                        {reading.current_value.toLocaleString('pt-BR')}
+                        {formatNumericBR(reading.current_value)}
                       </TableCell>
                       <TableCell className={cn(
                         "text-right font-medium",
                         reading.interval > 0 ? "text-green-600" : reading.interval < 0 ? "text-red-600" : ""
                       )}>
-                        {reading.interval > 0 ? '+' : ''}{reading.interval.toLocaleString('pt-BR')}
+                        {reading.interval !== 0 ? formatNumericBR(reading.interval) : '-'}
                       </TableCell>
                       <TableCell className="text-right text-blue-600">
-                        {(reading as any).previous_km?.toLocaleString('pt-BR') || '-'}
+                        {formatNumericBR((reading as any).previous_km)}
                       </TableCell>
                       <TableCell className="text-right font-medium text-blue-600">
-                        {(reading as any).current_km?.toLocaleString('pt-BR') || '-'}
+                        {formatNumericBR((reading as any).current_km)}
                       </TableCell>
                       <TableCell className={cn(
                         "text-right font-medium text-blue-600",
                         (reading as any).km_interval > 0 ? "" : (reading as any).km_interval < 0 ? "text-red-600" : ""
                       )}>
-                        {(reading as any).km_interval 
-                          ? ((reading as any).km_interval > 0 ? '+' : '') + (reading as any).km_interval.toLocaleString('pt-BR')
+                        {(reading as any).km_interval !== 0 
+                          ? formatNumericBR((reading as any).km_interval)
                           : '-'}
                       </TableCell>
                       <TableCell className="text-right">
