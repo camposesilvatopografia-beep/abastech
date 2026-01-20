@@ -593,36 +593,97 @@ export function useSheetSync() {
           continue;
         }
 
-        // Parse values - Map columns correctly based on image:
-        // Hor_Anterior (H), Hor_Atual (I), Km_Anterior (J), Km_Atual (K)
+        // Parse values - Robust parsing for Brazilian number formats
+        // Handles: "1.234,56" (BR), "1234.56" (US), "1234,56" (EU), "1234"
         const parseNum = (val: any): number => {
-          if (!val) return 0;
-          const str = String(val).replace(/\./g, '').replace(',', '.');
-          return parseFloat(str) || 0;
+          if (!val || val === '' || val === null || val === undefined) return 0;
+          let str = String(val).trim();
+          if (!str) return 0;
+          
+          // Detect format: if has both . and , the last one is decimal separator
+          const lastDot = str.lastIndexOf('.');
+          const lastComma = str.lastIndexOf(',');
+          
+          if (lastDot > -1 && lastComma > -1) {
+            // Both present - last one is decimal separator
+            if (lastComma > lastDot) {
+              // Brazilian format: 1.234,56 -> remove dots, replace comma with dot
+              str = str.replace(/\./g, '').replace(',', '.');
+            } else {
+              // US format: 1,234.56 -> remove commas
+              str = str.replace(/,/g, '');
+            }
+          } else if (lastComma > -1 && lastDot === -1) {
+            // Only comma - could be decimal or thousand separator
+            // If comma is followed by exactly 2 digits at end, it's decimal
+            if (/,\d{2}$/.test(str)) {
+              str = str.replace(',', '.');
+            } else {
+              // Thousand separator - remove it
+              str = str.replace(/,/g, '');
+            }
+          }
+          // If only dot present, keep as is (decimal separator)
+          
+          const result = parseFloat(str) || 0;
+          return result;
         };
 
-        // Correctly map horimeter columns (Hor_Anterior, Hor_Atual)
-        const horAnterior = parseNum(row.Hor_Anterior || row.HOR_ANTERIOR || row['Hor_Anterior ']);
-        const horAtual = parseNum(row.Hor_Atual || row.HOR_ATUAL || row['Hor_Atual ']);
+        // Helper to get column value with flexible key matching
+        const getColValue = (keys: string[]): any => {
+          for (const key of keys) {
+            // Try exact match
+            if (row[key] !== undefined && row[key] !== null && row[key] !== '') return row[key];
+            // Try trimmed key
+            const trimmedKey = key.trim();
+            if (row[trimmedKey] !== undefined && row[trimmedKey] !== null && row[trimmedKey] !== '') return row[trimmedKey];
+            // Try with trailing space
+            if (row[key + ' '] !== undefined && row[key + ' '] !== null && row[key + ' '] !== '') return row[key + ' '];
+          }
+          return null;
+        };
+
+        // Map horimeter columns (Hor_Anterior, Hor_Atual)
+        const horAnteriorRaw = getColValue(['Hor_Anterior', 'HOR_ANTERIOR', 'Hor. Anterior', 'HOR. ANTERIOR']);
+        const horAtualRaw = getColValue(['Hor_Atual', 'HOR_ATUAL', 'Hor. Atual', 'HOR. ATUAL']);
         
-        // Correctly map km columns (Km_Anterior, Km_Atual)
-        const kmAnterior = parseNum(row.Km_Anterior || row.KM_ANTERIOR || row['Km_Anterior ']);
-        const kmAtual = parseNum(row.Km_Atual || row.KM_ATUAL || row['Km_Atual ']);
+        // Map km columns (Km_Anterior, Km_Atual)
+        const kmAnteriorRaw = getColValue(['Km_Anterior', 'KM_ANTERIOR', 'Km. Anterior', 'KM. ANTERIOR', 'KM Anterior']);
+        const kmAtualRaw = getColValue(['Km_Atual', 'KM_ATUAL', 'Km. Atual', 'KM. ATUAL', 'KM Atual']);
+        
+        const horAnterior = parseNum(horAnteriorRaw);
+        const horAtual = parseNum(horAtualRaw);
+        const kmAnterior = parseNum(kmAnteriorRaw);
+        const kmAtual = parseNum(kmAtualRaw);
+        
+        // Log for debugging
+        if (i < 5) {
+          console.log(`📊 Row ${i + 1}:`, {
+            veiculo: vehicleCode,
+            data: readingDate,
+            'Hor_Anterior (raw)': horAnteriorRaw,
+            'Hor_Atual (raw)': horAtualRaw,
+            'Km_Anterior (raw)': kmAnteriorRaw,
+            'Km_Atual (raw)': kmAtualRaw,
+            'Parsed values': { horAnterior, horAtual, kmAnterior, kmAtual }
+          });
+        }
         
         // Keep hours and KM strictly separated:
         // - current_value/previous_value are ALWAYS hours (horímetro)
         // - current_km/previous_km are ALWAYS KM
-        const currentValue = horAtual > 0 ? horAtual : 0;
+        const currentValue = horAtual;
         const previousValue = horAnterior > 0 ? horAnterior : null;
 
-        // Skip only if both are missing
+        // Skip only if BOTH horimeter AND km are missing/zero
         if (currentValue === 0 && kmAtual === 0) {
+          console.log(`⚠️ Skipping row ${i + 1} - no horimeter or km values`);
           stats.errors++;
           continue;
         }
 
-        const operator = String(row.OPERADOR || row.Operador || row.MOTORISTA || row['Operador '] || '').trim() || null;
-        const observations = String(row.OBSERVACAO || row.Observacao || row.OBS || row['Observacao '] || '').trim() || null;
+        const operator = String(getColValue(['Operador', 'OPERADOR', 'Motorista', 'MOTORISTA']) || '').trim() || null;
+        const observations = String(getColValue(['Observacao', 'OBSERVACAO', 'Observação', 'OBS']) || '').trim() || null;
 
         try {
           // Check if record exists
