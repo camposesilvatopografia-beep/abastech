@@ -2658,11 +2658,11 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
             </div>
 
         {/* Fuel Quantity with OCR - OPTIMIZED FOR SUNLIGHT */}
-        <div className="bg-amber-50 dark:bg-amber-950/40 rounded-2xl border-3 border-amber-400 dark:border-amber-600 p-5 space-y-4 shadow-xl">
+        <div className="bg-slate-100 dark:bg-slate-800/60 rounded-2xl border-3 border-slate-600 dark:border-slate-500 p-5 space-y-4 shadow-xl">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3 bg-amber-100 dark:bg-amber-900/60 px-4 py-2.5 rounded-xl -ml-1">
-              <Fuel className="w-6 h-6 text-amber-600 dark:text-amber-400" />
-              <span className="text-lg font-bold text-amber-800 dark:text-amber-200">
+            <div className="flex items-center gap-3 bg-slate-800 dark:bg-slate-700 px-4 py-2.5 rounded-xl -ml-1">
+              <Fuel className="w-6 h-6 text-white" />
+              <span className="text-lg font-bold text-white">
                 Quantidade (Litros)
               </span>
             </div>
@@ -2682,7 +2682,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                 variant="outline"
                 onClick={() => quantityOcrInputRef.current?.click()}
                 disabled={isProcessingQuantityOCR}
-                className="h-10 px-3 gap-1.5 border-2 border-amber-400 hover:bg-amber-100"
+                className="h-10 px-3 gap-1.5 border-2 border-slate-500 bg-slate-700 text-white hover:bg-slate-600"
                 title="Tirar foto da bomba para reconhecer valor"
               >
                 {isProcessingQuantityOCR ? (
@@ -2701,8 +2701,8 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                   variant="outline"
                   onClick={() => startVoiceForField('quantity')}
                   className={cn(
-                    "h-10 w-10 border-2 border-amber-400",
-                    activeVoiceField === 'quantity' && voice.isListening && "bg-red-100 border-red-400"
+                    "h-10 w-10 border-2 border-slate-500 bg-slate-700 text-white hover:bg-slate-600",
+                    activeVoiceField === 'quantity' && voice.isListening && "bg-red-100 border-red-400 text-red-700"
                   )}
                 >
                   <Mic className="w-5 h-5" />
@@ -2717,11 +2717,11 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
               <img 
                 src={quantityOcrPhotoPreview} 
                 alt="Analisando" 
-                className="w-full h-28 object-cover rounded-xl opacity-50 border-2 border-amber-300"
+                className="w-full h-28 object-cover rounded-xl opacity-50 border-2 border-slate-400"
               />
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="bg-white/95 dark:bg-slate-900/95 px-4 py-3 rounded-xl flex items-center gap-3 shadow-lg">
-                  <Loader2 className="w-5 h-5 animate-spin text-amber-600" />
+                  <Loader2 className="w-5 h-5 animate-spin text-slate-600" />
                   <span className="text-base font-semibold">Reconhecendo valor...</span>
                 </div>
               </div>
@@ -2734,21 +2734,21 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
             placeholder="Ex: 150"
             value={fuelQuantity}
             onChange={(e) => setFuelQuantity(e.target.value)}
-            className="h-20 text-4xl text-center font-black border-3 border-amber-300 dark:border-amber-600 bg-white dark:bg-slate-900 focus:border-amber-500 focus:ring-4 focus:ring-amber-200 dark:focus:ring-amber-800 shadow-[0_4px_12px_rgba(0,0,0,0.4)] dark:shadow-[0_4px_12px_rgba(0,0,0,0.7)]"
+            className="h-20 text-4xl text-center font-black border-3 border-slate-400 dark:border-slate-500 bg-white dark:bg-slate-900 focus:border-slate-600 focus:ring-4 focus:ring-slate-200 dark:focus:ring-slate-700 shadow-[0_4px_12px_rgba(0,0,0,0.4)] dark:shadow-[0_4px_12px_rgba(0,0,0,0.7)]"
           />
         </div>
 
         {/* Horimeter with OCR - Hide for comboio tank refuel mode - OPTIMIZED FOR SUNLIGHT */}
         {quickEntryMode !== 'comboio_tank_refuel' && (
-        <div className="bg-emerald-50 dark:bg-emerald-950/40 rounded-2xl border-3 border-emerald-400 dark:border-emerald-600 p-5 space-y-4 shadow-xl">
+        <div className="bg-slate-100 dark:bg-slate-800/60 rounded-2xl border-3 border-slate-600 dark:border-slate-500 p-5 space-y-4 shadow-xl">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3 bg-emerald-100 dark:bg-emerald-900/60 px-4 py-2.5 rounded-xl -ml-1">
-              <Gauge className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
-              <span className="text-lg font-bold text-emerald-800 dark:text-emerald-200">
+            <div className="flex items-center gap-3 bg-slate-800 dark:bg-slate-700 px-4 py-2.5 rounded-xl -ml-1">
+              <Gauge className="w-6 h-6 text-white" />
+              <span className="text-lg font-bold text-white">
                 Horímetro / KM Atual
               </span>
               {isEquipment && recordType === 'saida' && (
-                <span className="text-red-500 text-2xl font-bold">*</span>
+                <span className="text-red-400 text-2xl font-bold">*</span>
               )}
             </div>
             <div className="flex items-center gap-2">
@@ -2767,7 +2767,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                 variant="outline"
                 onClick={() => ocrInputRef.current?.click()}
                 disabled={isProcessingOCR}
-                className="h-10 px-3 gap-1.5 border-2 border-emerald-400 hover:bg-emerald-100"
+                className="h-10 px-3 gap-1.5 border-2 border-slate-500 bg-slate-700 text-white hover:bg-slate-600"
                 title="Tirar foto para reconhecer valor"
               >
                 {isProcessingOCR ? (
@@ -2786,8 +2786,8 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                   variant="outline"
                   onClick={() => startVoiceForField('horimeter')}
                   className={cn(
-                    "h-10 w-10 border-2 border-emerald-400",
-                    activeVoiceField === 'horimeter' && voice.isListening && "bg-red-100 border-red-400"
+                    "h-10 w-10 border-2 border-slate-500 bg-slate-700 text-white hover:bg-slate-600",
+                    activeVoiceField === 'horimeter' && voice.isListening && "bg-red-100 border-red-400 text-red-700"
                   )}
                 >
                   <Mic className="w-5 h-5" />
@@ -2802,11 +2802,11 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
               <img 
                 src={ocrPhotoPreview} 
                 alt="Analisando" 
-                className="w-full h-28 object-cover rounded-xl opacity-50 border-2 border-emerald-300"
+                className="w-full h-28 object-cover rounded-xl opacity-50 border-2 border-slate-400"
               />
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="bg-white/95 dark:bg-slate-900/95 px-4 py-3 rounded-xl flex items-center gap-3 shadow-lg">
-                  <Loader2 className="w-5 h-5 animate-spin text-emerald-600" />
+                  <Loader2 className="w-5 h-5 animate-spin text-slate-600" />
                   <span className="text-base font-semibold">Reconhecendo valor...</span>
                 </div>
               </div>
@@ -2824,7 +2824,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                 setHorimeterCurrent(formatBrazilianNumber(parseBrazilianNumber(horimeterCurrent)));
               }
             }}
-            className="h-16 text-2xl text-center font-bold border-3 border-emerald-300 dark:border-emerald-600 bg-white dark:bg-slate-900 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-200 dark:focus:ring-emerald-800 shadow-[0_4px_12px_rgba(0,0,0,0.4)] dark:shadow-[0_4px_12px_rgba(0,0,0,0.7)]"
+            className="h-16 text-2xl text-center font-bold border-3 border-slate-400 dark:border-slate-500 bg-white dark:bg-slate-900 focus:border-slate-600 focus:ring-4 focus:ring-slate-200 dark:focus:ring-slate-700 shadow-[0_4px_12px_rgba(0,0,0,0.4)] dark:shadow-[0_4px_12px_rgba(0,0,0,0.7)]"
           />
           
           {/* Validation warning */}

@@ -459,12 +459,13 @@ export function FieldPage() {
             </Popover>
             
             <Button 
-              variant="ghost" 
-              size="icon" 
+              variant="outline" 
+              size="sm"
               onClick={handleLogout}
-              className="text-white hover:bg-white/20"
+              className="h-10 px-4 gap-2 bg-red-600 hover:bg-red-700 border-red-700 text-white font-bold shadow-lg"
             >
-              <LogOut className="w-5 h-5" />
+              <LogOut className="w-4 h-4" />
+              <span>Sair</span>
             </Button>
           </div>
         </div>
