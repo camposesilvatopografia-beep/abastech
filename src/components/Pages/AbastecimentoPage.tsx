@@ -1139,60 +1139,6 @@ export function AbastecimentoPage() {
         doc.setTextColor(0, 0, 0);
         currentY = 26;
         
-        // ========== STOCK SUMMARY SECTION (LOCAL) ==========
-        doc.setFillColor(30, 41, 59); // Navy blue background
-        doc.roundedRect(14, currentY, pageWidth - 28, 22, 2, 2, 'F');
-        
-        doc.setFontSize(9);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(255, 255, 255);
-        doc.text('RESUMO DE ESTOQUE', 20, currentY + 6);
-        
-        const stockY = currentY + 15;
-        const colWidth = (pageWidth - 56) / 4;
-        
-        // Stock metrics in a row - data from THIS location's records
-        doc.setFontSize(9);
-        
-        // Registros
-        doc.setFont('helvetica', 'normal');
-        doc.setTextColor(180, 180, 180);
-        doc.text('Registros:', 20, stockY);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(255, 255, 255);
-        doc.text(`${records.length}`, 20 + 25, stockY);
-        
-        // Entradas (from THIS location)
-        doc.setFont('helvetica', 'normal');
-        doc.setTextColor(180, 180, 180);
-        doc.text('Entradas:', 20 + colWidth, stockY);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(100, 220, 100); // Green
-        doc.text(`+${totalEntradasLocal.toLocaleString('pt-BR', { minimumFractionDigits: 1 })} L`, 20 + colWidth + 24, stockY);
-        
-        // Saídas (from THIS location)
-        doc.setFont('helvetica', 'normal');
-        doc.setTextColor(180, 180, 180);
-        doc.text('Saídas:', 20 + colWidth * 2, stockY);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(255, 120, 120); // Red
-        doc.text(`-${totalSaidasLocal.toLocaleString('pt-BR', { minimumFractionDigits: 1 })} L`, 20 + colWidth * 2 + 20, stockY);
-        
-        // Saldo (entradas - saídas for THIS location)
-        const saldoLocal = totalEntradasLocal - totalSaidasLocal;
-        doc.setFont('helvetica', 'normal');
-        doc.setTextColor(180, 180, 180);
-        doc.text('Saldo:', 20 + colWidth * 3, stockY);
-        doc.setFont('helvetica', 'bold');
-        if (saldoLocal >= 0) {
-          doc.setTextColor(100, 220, 100);
-        } else {
-          doc.setTextColor(255, 120, 120);
-        }
-        doc.text(`${saldoLocal >= 0 ? '+' : ''}${saldoLocal.toLocaleString('pt-BR', { minimumFractionDigits: 1 })} L`, 20 + colWidth * 3 + 16, stockY);
-        
-        currentY += 28;
-        
         // ========== SAÍDAS TABLE ==========
         if (sortedSaidas.length > 0) {
           doc.setFontSize(11);
@@ -1317,18 +1263,41 @@ export function AbastecimentoPage() {
           
           let totalDieselEntradas = 0;
           
+          // Determine if this is a Tanque location (shows Fornecedor) or Comboio (shows Local de Entrada)
+          const isTanqueLocation = local.toLowerCase().includes('tanque');
+          const isComboioLocation = local.toLowerCase().includes('comboio');
+          
           const entradasTableData = sortedEntradas.map((record, index) => {
             totalDieselEntradas += record.quantidade;
             
-            // Use LOCAL DE ENTRADA (column AB) from the spreadsheet - e.g., "Comboio 01", "Comboio 02"
-            const entryLocation = (record as any).localEntrada || 'N/I';
-            
-            return [
-              (index + 1).toString() + '.',
-              record.data,
-              entryLocation,
-              record.quantidade.toLocaleString('pt-BR', { minimumFractionDigits: 0 }) + ' L'
-            ];
+            if (isTanqueLocation) {
+              // For Tanque Canteiro 01/02: show Fornecedor
+              const fornecedor = record.fornecedor || 'N/I';
+              return [
+                (index + 1).toString() + '.',
+                record.data,
+                fornecedor,
+                record.quantidade.toLocaleString('pt-BR', { minimumFractionDigits: 0 }) + ' L'
+              ];
+            } else if (isComboioLocation) {
+              // For Comboios: show Local de Entrada (Tanque 01 or Tanque 02)
+              const entryLocation = (record as any).localEntrada || 'N/I';
+              return [
+                (index + 1).toString() + '.',
+                record.data,
+                entryLocation,
+                record.quantidade.toLocaleString('pt-BR', { minimumFractionDigits: 0 }) + ' L'
+              ];
+            } else {
+              // Default: show Local de Entrada
+              const entryLocation = (record as any).localEntrada || 'N/I';
+              return [
+                (index + 1).toString() + '.',
+                record.data,
+                entryLocation,
+                record.quantidade.toLocaleString('pt-BR', { minimumFractionDigits: 0 }) + ' L'
+              ];
+            }
           });
           
           entradasTableData.push([
@@ -1338,9 +1307,12 @@ export function AbastecimentoPage() {
             totalDieselEntradas.toLocaleString('pt-BR', { minimumFractionDigits: 0 }) + ' L'
           ]);
           
+          // Dynamic header based on location type
+          const thirdColumnHeader = isTanqueLocation ? 'Fornecedor' : 'Local de Entrada';
+          
           autoTable(doc, {
             startY: currentY,
-            head: [['', 'Data', 'Local de Entrada', 'Quantidade']],
+            head: [['', 'Data', thirdColumnHeader, 'Quantidade']],
             body: entradasTableData,
             styles: { 
               fontSize: 9,
