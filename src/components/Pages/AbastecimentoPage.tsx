@@ -1375,18 +1375,42 @@ export function AbastecimentoPage() {
     }
   }, [resumoPorLocal, dateRange, obraSettings, getResponsibleForLocation]);
 
-  // Export PDF by Company (Empresa) - formatted like the reference image
+  // Export PDF by Company (Empresa) - unified table without category separation
   const exportPDFPorEmpresa = useCallback(() => {
     setIsExporting(true);
     
     try {
       const doc = new jsPDF('landscape');
       const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
       const empresas = Object.keys(resumoPorEmpresa).sort();
       
       empresas.forEach((empresa, empresaIndex) => {
         const empresaData = resumoPorEmpresa[empresa];
         if (!empresaData) return;
+        
+        // Merge all records from all categories into one array
+        const allRecords: Array<{
+          codigo: string;
+          descricao: string;
+          motorista: string;
+          quantidade: number;
+          horAnterior: number;
+          horAtual: number;
+          kmAnterior: number;
+          kmAtual: number;
+        }> = [];
+        
+        Object.values(empresaData.categorias).forEach((records) => {
+          allRecords.push(...records);
+        });
+        
+        if (allRecords.length === 0) return;
+        
+        // Sort all records by description for better organization
+        const sortedRecords = [...allRecords].sort((a, b) => 
+          (a.descricao || '').localeCompare(b.descricao || '', 'pt-BR')
+        );
         
         // Add new page for each company after the first
         if (empresaIndex > 0) {
@@ -1417,141 +1441,109 @@ export function AbastecimentoPage() {
         doc.text(dateRangeText, pageWidth - 14, 12, { align: 'right' });
         
         doc.setTextColor(0, 0, 0);
-        currentY = 28;
+        currentY = 26;
         
-        // Iterate through each category (Equipamentos, Veículos, etc.)
-        const categorias = Object.keys(empresaData.categorias).sort();
+        // Prepare table data with consumption calculation - unified table
+        let totalDiesel = 0;
+        let totalConsumo = 0;
+        let countConsumo = 0;
         
-        categorias.forEach((categoria) => {
-          const records = empresaData.categorias[categoria];
-          if (!records || records.length === 0) return;
+        const tableData = sortedRecords.map((record, index) => {
+          // Determine if using km or hours based on data
+          const usaKm = record.kmAtual > 0 || record.kmAnterior > 0;
+          const anterior = usaKm ? record.kmAnterior : record.horAnterior;
+          const atual = usaKm ? record.kmAtual : record.horAtual;
+          const intervalo = atual - anterior;
           
-          // Sort records by description for better organization
-          const sortedRecords = [...records].sort((a, b) => 
-            (a.descricao || '').localeCompare(b.descricao || '', 'pt-BR')
-          );
-          
-          // Check if we need a new page
-          if (currentY > 180) {
-            doc.addPage();
-            currentY = 20;
+          // Calculate consumption (km/l or l/h)
+          let consumo = 0;
+          if (record.quantidade > 0 && intervalo > 0) {
+            if (usaKm) {
+              consumo = intervalo / record.quantidade;
+            } else {
+              consumo = record.quantidade / intervalo;
+            }
+            totalConsumo += consumo;
+            countConsumo++;
           }
           
-          // Category title (navy blue style)
-          doc.setFontSize(12);
-          doc.setFont('helvetica', 'bold');
-          doc.setTextColor(30, 41, 59);
-          doc.text(categoria.charAt(0).toUpperCase() + categoria.slice(1), pageWidth / 2, currentY, { align: 'center' });
-          doc.setTextColor(0, 0, 0);
-          currentY += 6;
+          totalDiesel += record.quantidade;
           
-          // Prepare table data with consumption calculation
-          let totalDiesel = 0;
-          let totalConsumo = 0;
-          let countConsumo = 0;
-          
-          const tableData = sortedRecords.map((record, index) => {
-            // Determine if using km or hours based on data
-            const usaKm = record.kmAtual > 0 || record.kmAnterior > 0;
-            const anterior = usaKm ? record.kmAnterior : record.horAnterior;
-            const atual = usaKm ? record.kmAtual : record.horAtual;
-            const intervalo = atual - anterior;
-            
-            // Calculate consumption (km/l or l/h)
-            let consumo = 0;
-            if (record.quantidade > 0 && intervalo > 0) {
-              if (usaKm) {
-                consumo = intervalo / record.quantidade;
-              } else {
-                consumo = record.quantidade / intervalo;
-              }
-              totalConsumo += consumo;
-              countConsumo++;
+          return [
+            (index + 1).toString() + '.',
+            record.codigo,
+            record.descricao.length > 22 ? record.descricao.substring(0, 19) + '...' : record.descricao,
+            record.motorista.length > 22 ? record.motorista.substring(0, 19) + '...' : record.motorista,
+            anterior > 0 ? anterior.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-',
+            atual > 0 ? atual.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-',
+            intervalo > 0 ? intervalo.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-',
+            consumo > 0 ? consumo.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0,00',
+            record.quantidade.toLocaleString('pt-BR', { minimumFractionDigits: 0 })
+          ];
+        });
+        
+        // Add totals row
+        const mediaConsumo = countConsumo > 0 ? totalConsumo / countConsumo : 0;
+        tableData.push([
+          '',
+          '',
+          '',
+          'TOTAL',
+          '',
+          '',
+          '',
+          mediaConsumo > 0 ? `Média: ${mediaConsumo.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-',
+          totalDiesel.toLocaleString('pt-BR', { minimumFractionDigits: 0 })
+        ]);
+        
+        autoTable(doc, {
+          startY: currentY,
+          head: [[
+            '', 
+            'Veículo', 
+            'Descrição', 
+            'Motorista/Operador', 
+            'Hor./Km.\nAnterior', 
+            'Hor./Km.\nAtual', 
+            'Intervalo\n(h/km)', 
+            'Consumo', 
+            'Qtd.\nDiesel'
+          ]],
+          body: tableData,
+          styles: { 
+            fontSize: 8,
+            cellPadding: 2,
+          },
+          headStyles: { 
+            fillColor: [30, 41, 59],
+            textColor: [255, 255, 255],
+            fontStyle: 'bold',
+            halign: 'center',
+            valign: 'middle',
+          },
+          columnStyles: {
+            0: { cellWidth: 12, halign: 'center' },
+            1: { cellWidth: 28 },
+            2: { cellWidth: 42 },
+            3: { cellWidth: 48 },
+            4: { cellWidth: 26, halign: 'right' },
+            5: { cellWidth: 26, halign: 'right' },
+            6: { cellWidth: 24, halign: 'right' },
+            7: { cellWidth: 22, halign: 'right' },
+            8: { cellWidth: 20, halign: 'right' },
+          },
+          alternateRowStyles: {
+            fillColor: [250, 250, 250]
+          },
+          theme: 'grid',
+          margin: { left: 14, right: 14 },
+          didParseCell: (data) => {
+            // Style the totals row (last row)
+            if (data.row.index === tableData.length - 1) {
+              data.cell.styles.fontStyle = 'bold';
+              data.cell.styles.fillColor = [230, 230, 230];
             }
-            
-            totalDiesel += record.quantidade;
-            
-            return [
-              (index + 1).toString() + '.',
-              record.codigo,
-              record.descricao.length > 20 ? record.descricao.substring(0, 17) + '...' : record.descricao,
-              record.motorista,
-              anterior > 0 ? anterior.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-',
-              atual > 0 ? atual.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-',
-              intervalo > 0 ? intervalo.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-',
-              consumo > 0 ? consumo.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0,00',
-              record.quantidade.toLocaleString('pt-BR', { minimumFractionDigits: 0 })
-            ];
-          });
-          
-          // Add totals row
-          const mediaConsumo = countConsumo > 0 ? totalConsumo / countConsumo : 0;
-          tableData.push([
-            '',
-            '',
-            '',
-            'TOTAL',
-            '',
-            '',
-            '',
-            mediaConsumo > 0 ? `Média: ${mediaConsumo.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-',
-            totalDiesel.toLocaleString('pt-BR', { minimumFractionDigits: 0 })
-          ]);
-          
-          autoTable(doc, {
-            startY: currentY,
-            head: [[
-              '', 
-              'Veículo', 
-              'Descrição', 
-              'Motorista/Operador', 
-              'Hor./Km.\nAnterior', 
-              'Hor./Km.\nAtual', 
-              'Intervalo\n(h/km)', 
-              'Consumo', 
-              'Qtd.\nDiesel'
-            ]],
-            body: tableData,
-            styles: { 
-              fontSize: 8,
-              cellPadding: 2,
-            },
-            headStyles: { 
-              fillColor: [30, 41, 59],
-              textColor: [255, 255, 255],
-              fontStyle: 'bold',
-              halign: 'center',
-              valign: 'middle',
-            },
-            columnStyles: {
-              0: { cellWidth: 10, halign: 'center' },
-              1: { cellWidth: 25 },
-              2: { cellWidth: 40 },
-              3: { cellWidth: 50 },
-              4: { cellWidth: 25, halign: 'right' },
-              5: { cellWidth: 25, halign: 'right' },
-              6: { cellWidth: 22, halign: 'right' },
-              7: { cellWidth: 22, halign: 'right' },
-              8: { cellWidth: 18, halign: 'right' },
-            },
-            alternateRowStyles: {
-              fillColor: [255, 255, 255]
-            },
-            theme: 'grid',
-            didParseCell: (data) => {
-              // Style the totals row (last row)
-              if (data.row.index === tableData.length - 1) {
-                data.cell.styles.fontStyle = 'bold';
-                data.cell.styles.fillColor = [230, 230, 230];
-              }
-            },
-            didDrawPage: (data) => {
-              currentY = (data.cursor?.y || currentY) + 10;
-            }
-          });
-          
-          // Update currentY after table
-          currentY = (doc as any).lastAutoTable?.finalY + 15 || currentY + 50;
+          },
         });
       });
       
@@ -1561,7 +1553,7 @@ export function AbastecimentoPage() {
     } finally {
       setIsExporting(false);
     }
-  }, [resumoPorEmpresa, dateRange]);
+  }, [resumoPorEmpresa, dateRange, obraSettings]);
 
   // Helper to get stock data for a location from its sheet
   const getStockDataFromSheet = useCallback((sheetData: { rows: any[] }, targetDate: string) => {
