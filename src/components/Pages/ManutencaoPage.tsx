@@ -26,6 +26,7 @@ import {
   Download,
   Upload,
   Cloud,
+  FileSpreadsheet,
   CloudOff,
   Play,
   Pause,
@@ -67,6 +68,7 @@ import { format, startOfDay, endOfDay, isWithinInterval, subDays, startOfMonth, 
 import { ptBR } from 'date-fns/locale';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import * as XLSX from 'xlsx';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { supabase } from '@/integrations/supabase/client';
@@ -1148,6 +1150,24 @@ export function ManutencaoPage() {
   const confirmFinalization = () => {
     if (!statusChangeOrder) return;
     
+    // Validate exit date/time is after entry date/time
+    const entryDate = (statusChangeOrder as any).entry_date;
+    const entryTime = (statusChangeOrder as any).entry_time;
+    
+    if (entryDate && exitDate) {
+      const entryDateTime = entryTime 
+        ? new Date(`${entryDate}T${entryTime}`)
+        : new Date(`${entryDate}T00:00`);
+      const exitDateTime = exitTime 
+        ? new Date(`${exitDate}T${exitTime}`)
+        : new Date(`${exitDate}T00:00`);
+      
+      if (exitDateTime <= entryDateTime) {
+        toast.error('Data/Hora de Saída deve ser posterior à Data/Hora de Entrada');
+        return;
+      }
+    }
+    
     applyQuickStatusChange(statusChangeOrder, 'Finalizada', { date: exitDate, time: exitTime });
     setIsStatusModalOpen(false);
     setStatusChangeOrder(null);
@@ -1601,6 +1621,63 @@ export function ManutencaoPage() {
     doc.save(fileName);
   };
 
+  // Export list to XLSX
+  const exportListToXLSX = () => {
+    const xlsxData = filteredRows.map((row) => {
+      const company = vehicleCompanyMap.get(row.vehicle_code) || '-';
+      const entryDate = (row as any).entry_date;
+      const entryTime = (row as any).entry_time;
+      const entryFormatted = entryDate 
+        ? format(new Date(entryDate), 'dd/MM/yyyy') + (entryTime ? ` ${entryTime.slice(0, 5)}` : '')
+        : '-';
+      const downtime = calculateDowntime(row) || '-';
+      
+      return {
+        'Nº OS': row.order_number,
+        'Data': format(new Date(row.order_date), 'dd/MM/yyyy'),
+        'Veículo': row.vehicle_code,
+        'Descrição': row.vehicle_description || '-',
+        'Empresa': company,
+        'Tipo': row.order_type,
+        'Prioridade': row.priority,
+        'Problema': row.problem_description || '-',
+        'Solução': row.solution_description || '-',
+        'Mecânico': row.mechanic_name || '-',
+        'Entrada': entryFormatted,
+        'T. Parado': downtime,
+        'Status': row.status,
+      };
+    });
+
+    const ws = XLSX.utils.json_to_sheet(xlsxData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Ordens de Serviço');
+    
+    // Set column widths
+    ws['!cols'] = [
+      { wch: 15 }, // Nº OS
+      { wch: 12 }, // Data
+      { wch: 12 }, // Veículo
+      { wch: 25 }, // Descrição
+      { wch: 15 }, // Empresa
+      { wch: 12 }, // Tipo
+      { wch: 12 }, // Prioridade
+      { wch: 40 }, // Problema
+      { wch: 40 }, // Solução
+      { wch: 20 }, // Mecânico
+      { wch: 18 }, // Entrada
+      { wch: 12 }, // T. Parado
+      { wch: 15 }, // Status
+    ];
+
+    const fileName = companyFilter !== 'all' 
+      ? `ordens_servico_${companyFilter.replace(/\s+/g, '_')}_${format(new Date(), 'yyyyMMdd')}.xlsx`
+      : `ordens_servico_${format(new Date(), 'yyyyMMdd_HHmmss')}.xlsx`;
+    
+    XLSX.writeFile(wb, fileName);
+    toast.success('Relatório Excel exportado!');
+  };
+
   // Vehicles from sheet
   const vehicles = useMemo(() => {
     return vehiclesData.rows.map(v => ({
@@ -1642,6 +1719,10 @@ export function ManutencaoPage() {
             <Button variant="outline" size="sm" onClick={exportListToPDF}>
               <FileText className="w-4 h-4 sm:mr-2" />
               <span className="hidden sm:inline">PDF</span>
+            </Button>
+            <Button variant="outline" size="sm" onClick={exportListToXLSX}>
+              <FileSpreadsheet className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Excel</span>
             </Button>
             <Button className="bg-primary hover:bg-primary/90" onClick={handleNewOrder}>
               <Plus className="w-4 h-4 sm:mr-2" />
