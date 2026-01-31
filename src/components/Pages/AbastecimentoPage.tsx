@@ -62,6 +62,7 @@ import { format, parse, isValid, startOfDay, endOfDay, isWithinInterval, subDays
 import { ptBR } from 'date-fns/locale';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import * as XLSX from 'xlsx';
 import { toast } from 'sonner';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -192,6 +193,7 @@ export function AbastecimentoPage() {
   const [editingRecord, setEditingRecord] = useState<any>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [sortByDescription, setSortByDescription] = useState(false);
   
   // Inline editing state for expanded rows
   const [expandedRowId, setExpandedRowId] = useState<number | null>(null);
@@ -418,7 +420,7 @@ export function AbastecimentoPage() {
 
   // Filter rows by date and other filters
   const filteredRows = useMemo(() => {
-    return data.rows.filter(row => {
+    let rows = data.rows.filter(row => {
       const rowDate = parseDate(String(row['DATA'] || ''));
       
       // Date filter
@@ -454,7 +456,18 @@ export function AbastecimentoPage() {
       
       return true;
     });
-  }, [data.rows, dateRange, search, localFilter, tipoFilter, combustivelFilter, empresaFilter]);
+
+    // Sort by description if enabled
+    if (sortByDescription) {
+      rows = [...rows].sort((a, b) => {
+        const descA = String(a['DESCRICAO'] || a['DESCRIÇÃO'] || a['Descricao'] || '').toLowerCase();
+        const descB = String(b['DESCRICAO'] || b['DESCRIÇÃO'] || b['Descricao'] || '').toLowerCase();
+        return descA.localeCompare(descB, 'pt-BR');
+      });
+    }
+
+    return rows;
+  }, [data.rows, dateRange, search, localFilter, tipoFilter, combustivelFilter, empresaFilter, sortByDescription]);
 
   // Calculate metrics from GERAL sheet based on date filter
   // IMPORTANT: Estoque Atual should be CALCULATED using the formula:
@@ -884,6 +897,160 @@ export function AbastecimentoPage() {
     setStartDate(new Date());
     setEndDate(new Date());
   }, []);
+
+  // Export to XLSX (Excel)
+  const exportToXLSX = useCallback(() => {
+    setIsExporting(true);
+    
+    try {
+      // Apply sorting if enabled
+      let rowsToExport = [...filteredRows];
+      if (sortByDescription) {
+        rowsToExport = rowsToExport.sort((a, b) => {
+          const descA = String(a['DESCRICAO'] || a['DESCRIÇÃO'] || '').toLowerCase();
+          const descB = String(b['DESCRICAO'] || b['DESCRIÇÃO'] || '').toLowerCase();
+          return descA.localeCompare(descB, 'pt-BR');
+        });
+      }
+
+      const xlsxData = rowsToExport.map((row) => ({
+        'Data': String(row['DATA'] || ''),
+        'Hora': String(row['HORA'] || ''),
+        'Veículo': String(row['VEICULO'] || ''),
+        'Descrição': String(row['DESCRICAO'] || row['DESCRIÇÃO'] || ''),
+        'Motorista': String(row['MOTORISTA'] || ''),
+        'Categoria': String(row['CATEGORIA'] || ''),
+        'Empresa': String(row['EMPRESA'] || ''),
+        'Local': String(row['LOCAL'] || ''),
+        'Hor. Anterior': parseNumber(row['HORIMETRO ANTERIOR']),
+        'Hor. Atual': parseNumber(row['HORIMETRO ATUAL']),
+        'Km Anterior': parseNumber(row['KM ANTERIOR']),
+        'Km Atual': parseNumber(row['KM ATUAL']),
+        'Diesel (L)': parseNumber(row['QUANTIDADE']),
+        'Arla (L)': parseNumber(row['QUANTIDADE DE ARLA']),
+        'Valor Total': parseNumber(row['VALOR TOTAL']),
+        'Observação': String(row['OBSERVAÇÃO'] || ''),
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(xlsxData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Abastecimentos');
+      
+      // Set column widths
+      ws['!cols'] = [
+        { wch: 12 }, // Data
+        { wch: 8 },  // Hora
+        { wch: 12 }, // Veículo
+        { wch: 30 }, // Descrição
+        { wch: 20 }, // Motorista
+        { wch: 15 }, // Categoria
+        { wch: 15 }, // Empresa
+        { wch: 18 }, // Local
+        { wch: 14 }, // Hor. Anterior
+        { wch: 12 }, // Hor. Atual
+        { wch: 12 }, // Km Anterior
+        { wch: 10 }, // Km Atual
+        { wch: 12 }, // Diesel
+        { wch: 10 }, // Arla
+        { wch: 12 }, // Valor Total
+        { wch: 30 }, // Observação
+      ];
+
+      const dateStr = format(new Date(), 'yyyyMMdd_HHmmss');
+      const localSuffix = localFilter !== 'all' ? `_${localFilter.replace(/\s+/g, '_')}` : '';
+      const fileName = `abastecimentos${localSuffix}_${dateStr}.xlsx`;
+      
+      XLSX.writeFile(wb, fileName);
+      toast.success('Relatório Excel exportado!');
+    } catch (err) {
+      console.error('Erro ao exportar XLSX:', err);
+      toast.error('Erro ao exportar Excel');
+    } finally {
+      setIsExporting(false);
+    }
+  }, [filteredRows, localFilter, sortByDescription]);
+
+  // Export by Company to XLSX
+  const exportPorEmpresaToXLSX = useCallback(() => {
+    setIsExporting(true);
+    
+    try {
+      const allRecords: Array<{
+        empresa: string;
+        codigo: string;
+        descricao: string;
+        motorista: string;
+        horAnterior: number;
+        horAtual: number;
+        kmAnterior: number;
+        kmAtual: number;
+        consumo: number;
+        quantidade: number;
+      }> = [];
+
+      Object.entries(resumoPorEmpresa).forEach(([empresa, empresaData]) => {
+        Object.values(empresaData.categorias).forEach((records) => {
+          records.forEach((record: any) => {
+            allRecords.push({
+              empresa,
+              codigo: record.codigo,
+              descricao: record.descricao,
+              motorista: record.motorista,
+              horAnterior: record.horAnterior,
+              horAtual: record.horAtual,
+              kmAnterior: record.kmAnterior,
+              kmAtual: record.kmAtual,
+              consumo: record.consumo,
+              quantidade: record.quantidade,
+            });
+          });
+        });
+      });
+
+      // Sort by description
+      const sortedRecords = allRecords.sort((a, b) => 
+        (a.descricao || '').localeCompare(b.descricao || '', 'pt-BR')
+      );
+
+      const xlsxData = sortedRecords.map((record) => ({
+        'Empresa': record.empresa,
+        'Código': record.codigo,
+        'Descrição': record.descricao,
+        'Motorista/Operador': record.motorista,
+        'Hor./Km Anterior': record.horAnterior > 0 ? record.horAnterior : record.kmAnterior,
+        'Hor./Km Atual': record.horAtual > 0 ? record.horAtual : record.kmAtual,
+        'Intervalo': (record.horAtual || record.kmAtual) - (record.horAnterior || record.kmAnterior),
+        'Consumo': record.consumo,
+        'Qtd. Diesel': record.quantidade,
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(xlsxData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Por Empresa');
+      
+      ws['!cols'] = [
+        { wch: 15 },
+        { wch: 12 },
+        { wch: 30 },
+        { wch: 20 },
+        { wch: 15 },
+        { wch: 15 },
+        { wch: 12 },
+        { wch: 12 },
+        { wch: 12 },
+      ];
+
+      const fileName = `abastecimentos_por_empresa_${format(new Date(), 'yyyyMMdd')}.xlsx`;
+      
+      XLSX.writeFile(wb, fileName);
+      toast.success('Relatório por Empresa exportado!');
+    } catch (err) {
+      console.error('Erro ao exportar XLSX:', err);
+      toast.error('Erro ao exportar Excel');
+    } finally {
+      setIsExporting(false);
+    }
+  }, [resumoPorEmpresa]);
 
   // Export detailed PDF with filters - grouped by location (Tanques) WITH SIGNATURE
   const exportDetailedPDF = useCallback(() => {
@@ -2797,26 +2964,38 @@ export function AbastecimentoPage() {
                     <p className="text-sm text-muted-foreground">Por local de abastecimento</p>
                   </div>
                 </div>
-                <Button className="w-full" onClick={exportPDF} disabled={isExporting}>
-                  <FileText className="w-4 h-4 mr-2" />
-                  Exportar PDF
-                </Button>
+                <div className="flex gap-2">
+                  <Button className="flex-1" onClick={exportPDF} disabled={isExporting}>
+                    <FileText className="w-4 h-4 mr-1" />
+                    PDF
+                  </Button>
+                  <Button variant="outline" className="flex-1" onClick={exportToXLSX} disabled={isExporting}>
+                    <FileSpreadsheet className="w-4 h-4 mr-1" />
+                    Excel
+                  </Button>
+                </div>
               </div>
 
               <div className="bg-card rounded-lg border border-border p-6 space-y-4">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-red-500/10 flex items-center justify-center">
-                    <Building2 className="w-5 h-5 text-red-500" />
+                  <div className="w-10 h-10 rounded-lg bg-destructive/10 flex items-center justify-center">
+                    <Building2 className="w-5 h-5 text-destructive" />
                   </div>
                   <div>
                     <h3 className="font-semibold">Relatório por Empresa</h3>
-                    <p className="text-sm text-muted-foreground">Agrupado por empresa e categoria</p>
+                    <p className="text-sm text-muted-foreground">Agrupado por empresa</p>
                   </div>
                 </div>
-                <Button className="w-full bg-red-600 hover:bg-red-700" onClick={exportPDFPorEmpresa} disabled={isExporting}>
-                  <Building2 className="w-4 h-4 mr-2" />
-                  Exportar PDF
-                </Button>
+                <div className="flex gap-2">
+                  <Button className="flex-1 bg-destructive hover:bg-destructive/90" onClick={exportPDFPorEmpresa} disabled={isExporting}>
+                    <Building2 className="w-4 h-4 mr-1" />
+                    PDF
+                  </Button>
+                  <Button variant="outline" className="flex-1" onClick={exportPorEmpresaToXLSX} disabled={isExporting}>
+                    <FileSpreadsheet className="w-4 h-4 mr-1" />
+                    Excel
+                  </Button>
+                </div>
               </div>
 
               <div className="bg-card rounded-lg border border-border p-6 space-y-4">
@@ -2849,6 +3028,27 @@ export function AbastecimentoPage() {
                   <MapPin className="w-4 h-4 mr-2" />
                   Exportar PDF
                 </Button>
+              </div>
+            </div>
+
+            {/* Sort Options */}
+            <div className="bg-card rounded-lg border border-border p-4">
+              <div className="flex items-center gap-4 flex-wrap">
+                <span className="text-sm font-medium text-muted-foreground">Opções de Ordenação:</span>
+                <Button
+                  variant={sortByDescription ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setSortByDescription(!sortByDescription)}
+                  className="gap-2"
+                >
+                  <ArrowDownUp className="w-4 h-4" />
+                  {sortByDescription ? 'Ordenando por Descrição' : 'Ordenar por Descrição'}
+                </Button>
+                {sortByDescription && (
+                  <span className="text-xs text-muted-foreground">
+                    ✓ Relatórios serão ordenados alfabeticamente pela descrição do veículo
+                  </span>
+                )}
               </div>
             </div>
           </div>
