@@ -235,7 +235,6 @@ export function ManutencaoPage() {
     exit_date: '',
     exit_time: '',
     interval_days: '90', // Default 90 days for preventive maintenance
-    order_date: '', // Date of the order
   });
 
   // Fetch service orders
@@ -245,7 +244,7 @@ export function ManutencaoPage() {
       const { data, error } = await supabase
         .from('service_orders')
         .select('*')
-        .order('order_date', { ascending: false })
+        .order('entry_date', { ascending: false })
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -700,20 +699,24 @@ export function ManutencaoPage() {
       
       let matchesDate = true;
       if (startDate || endDate) {
-        // Parse date properly to avoid timezone issues
-        // order_date is in format YYYY-MM-DD
-        const [year, month, day] = row.order_date.split('-').map(Number);
-        const rowDate = new Date(year, month - 1, day); // Create date in local timezone
-        
-        if (startDate && endDate) {
-          matchesDate = isWithinInterval(rowDate, {
-            start: startOfDay(startDate),
-            end: endOfDay(endDate)
-          });
-        } else if (startDate) {
-          matchesDate = rowDate >= startOfDay(startDate);
-        } else if (endDate) {
-          matchesDate = rowDate <= endOfDay(endDate);
+        // Use entry_date as the primary date for filtering
+        const dateStr = (row as any).entry_date || row.order_date;
+        if (!dateStr) {
+          matchesDate = false;
+        } else {
+          const [year, month, day] = dateStr.split('-').map(Number);
+          const rowDate = new Date(year, month - 1, day);
+          
+          if (startDate && endDate) {
+            matchesDate = isWithinInterval(rowDate, {
+              start: startOfDay(startDate),
+              end: endOfDay(endDate)
+            });
+          } else if (startDate) {
+            matchesDate = rowDate >= startOfDay(startDate);
+          } else if (endDate) {
+            matchesDate = rowDate <= endOfDay(endDate);
+          }
         }
       }
       
@@ -822,7 +825,6 @@ export function ManutencaoPage() {
       exit_date: '',
       exit_time: '',
       interval_days: '90',
-      order_date: format(now, 'yyyy-MM-dd'),
     });
     setIsModalOpen(true);
   };
@@ -868,12 +870,11 @@ export function ManutencaoPage() {
       notes: order.notes || '',
       horimeter_current: (order as any).horimeter_current?.toString() || '',
       km_current: (order as any).km_current?.toString() || '',
-      entry_date: (order as any).entry_date || '',
+      entry_date: (order as any).entry_date || order.order_date || '',
       entry_time: (order as any).entry_time || '',
       exit_date: exitDateVal,
       exit_time: exitTimeVal,
       interval_days: (order as any).interval_days?.toString() || '90',
-      order_date: order.order_date || '',
     });
     fetchVehicleHistory(order.vehicle_code);
     setIsModalOpen(true);
@@ -950,13 +951,13 @@ export function ManutencaoPage() {
           .from('service_orders')
           .update({
             ...orderData,
-            order_date: formData.order_date || editingOrder.order_date, // Allow date editing
+            order_date: formData.entry_date || editingOrder.order_date, // Use entry_date as primary date
           })
           .eq('id', editingOrder.id);
         
         if (error) throw error;
         savedOrderNumber = editingOrder.order_number;
-        savedOrderDate = formData.order_date || editingOrder.order_date;
+        savedOrderDate = formData.entry_date || editingOrder.order_date;
         toast.success('Ordem de serviço atualizada!');
         
         // Sync to Google Sheets - get company from vehicle data
@@ -1574,7 +1575,7 @@ export function ManutencaoPage() {
 
     const tableData = filteredRows.slice(0, 100).map((row) => {
       const company = vehicleCompanyMap.get(row.vehicle_code) || '-';
-      const entryDate = (row as any).entry_date;
+      const entryDate = (row as any).entry_date || row.order_date;
       const entryTime = (row as any).entry_time;
       const entryFormatted = entryDate 
         ? format(new Date(entryDate), 'dd/MM/yy') + (entryTime ? ` ${entryTime.slice(0, 5)}` : '')
@@ -1583,7 +1584,6 @@ export function ManutencaoPage() {
       
       return [
         row.order_number,
-        format(new Date(row.order_date), 'dd/MM/yy'),
         row.vehicle_code,
         company,
         row.problem_description || '-',
@@ -1595,7 +1595,7 @@ export function ManutencaoPage() {
     });
 
     autoTable(doc, {
-      head: [['Nº OS', 'Data', 'Veículo', 'Empresa', 'Problema', 'Mecânico', 'Entrada', 'T. Parado', 'Status']],
+      head: [['Nº OS', 'Veículo', 'Empresa', 'Problema', 'Mecânico', 'Entrada', 'T. Parado', 'Status']],
       body: tableData,
       startY: y,
       styles: { fontSize: 7, cellPadding: 2, overflow: 'linebreak' },
@@ -1603,14 +1603,13 @@ export function ManutencaoPage() {
       alternateRowStyles: { fillColor: [248, 249, 250] },
       columnStyles: {
         0: { cellWidth: 18 },  // Nº OS
-        1: { cellWidth: 16 },  // Data
-        2: { cellWidth: 18 },  // Veículo
-        3: { cellWidth: 20 },  // Empresa
-        4: { cellWidth: 'auto', overflow: 'linebreak' },  // Problema - quebra automática
-        5: { cellWidth: 22 },  // Mecânico
-        6: { cellWidth: 22 },  // Entrada
-        7: { cellWidth: 18 },  // T. Parado
-        8: { cellWidth: 22 },  // Status
+        1: { cellWidth: 18 },  // Veículo
+        2: { cellWidth: 20 },  // Empresa
+        3: { cellWidth: 'auto', overflow: 'linebreak' },  // Problema - quebra automática
+        4: { cellWidth: 22 },  // Mecânico
+        5: { cellWidth: 24 },  // Entrada
+        6: { cellWidth: 18 },  // T. Parado
+        7: { cellWidth: 22 },  // Status
       },
     });
 
@@ -1625,7 +1624,7 @@ export function ManutencaoPage() {
   const exportListToXLSX = () => {
     const xlsxData = filteredRows.map((row) => {
       const company = vehicleCompanyMap.get(row.vehicle_code) || '-';
-      const entryDate = (row as any).entry_date;
+      const entryDate = (row as any).entry_date || row.order_date;
       const entryTime = (row as any).entry_time;
       const entryFormatted = entryDate 
         ? format(new Date(entryDate), 'dd/MM/yyyy') + (entryTime ? ` ${entryTime.slice(0, 5)}` : '')
@@ -1634,7 +1633,6 @@ export function ManutencaoPage() {
       
       return {
         'Nº OS': row.order_number,
-        'Data': format(new Date(row.order_date), 'dd/MM/yyyy'),
         'Veículo': row.vehicle_code,
         'Descrição': row.vehicle_description || '-',
         'Empresa': company,
@@ -1643,7 +1641,7 @@ export function ManutencaoPage() {
         'Problema': row.problem_description || '-',
         'Solução': row.solution_description || '-',
         'Mecânico': row.mechanic_name || '-',
-        'Entrada': entryFormatted,
+        'Data de Entrada': entryFormatted,
         'T. Parado': downtime,
         'Status': row.status,
       };
@@ -1656,7 +1654,6 @@ export function ManutencaoPage() {
     // Set column widths
     ws['!cols'] = [
       { wch: 15 }, // Nº OS
-      { wch: 12 }, // Data
       { wch: 12 }, // Veículo
       { wch: 25 }, // Descrição
       { wch: 15 }, // Empresa
@@ -1665,7 +1662,7 @@ export function ManutencaoPage() {
       { wch: 40 }, // Problema
       { wch: 40 }, // Solução
       { wch: 20 }, // Mecânico
-      { wch: 18 }, // Entrada
+      { wch: 18 }, // Data de Entrada
       { wch: 12 }, // T. Parado
       { wch: 15 }, // Status
     ];
@@ -1944,14 +1941,13 @@ export function ManutencaoPage() {
               <TableHeader>
                 <TableRow className="bg-muted/50">
                   <TableHead className="py-2 px-2 whitespace-nowrap">Nº OS</TableHead>
-                  <TableHead className="py-2 px-2 whitespace-nowrap">Data</TableHead>
                   <TableHead className="py-2 px-2 whitespace-nowrap">Veículo</TableHead>
                   <TableHead className="py-2 px-2 whitespace-nowrap">Tipo</TableHead>
                   <TableHead className="py-2 px-2 hidden md:table-cell">Problema</TableHead>
                   <TableHead className="py-2 px-2 hidden lg:table-cell whitespace-nowrap">Mecânico</TableHead>
                   <TableHead className="py-2 px-2 whitespace-nowrap">Prioridade</TableHead>
                   <TableHead className="py-2 px-2 whitespace-nowrap">Status</TableHead>
-                  <TableHead className="py-2 px-2 hidden sm:table-cell whitespace-nowrap">Entrada</TableHead>
+                  <TableHead className="py-2 px-2 whitespace-nowrap">Entrada</TableHead>
                   <TableHead className="py-2 px-2 hidden sm:table-cell whitespace-nowrap">T. Parado</TableHead>
                   <TableHead className="py-2 px-2 text-right whitespace-nowrap">Ações</TableHead>
                 </TableRow>
@@ -1959,13 +1955,13 @@ export function ManutencaoPage() {
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={11} className="text-center py-8">
+                    <TableCell colSpan={10} className="text-center py-8">
                       <RefreshCw className="w-6 h-6 animate-spin mx-auto text-muted-foreground" />
                     </TableCell>
                   </TableRow>
                 ) : filteredRows.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={11} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
                       Nenhuma ordem de serviço encontrada
                     </TableCell>
                   </TableRow>
@@ -1977,7 +1973,6 @@ export function ManutencaoPage() {
                     return (
                       <TableRow key={row.id} className="hover:bg-muted/30">
                         <TableCell className="py-2 px-2 font-mono font-medium text-xs">{row.order_number}</TableCell>
-                        <TableCell className="py-2 px-2 text-xs whitespace-nowrap">{format(new Date(row.order_date), 'dd/MM/yy')}</TableCell>
                         <TableCell className="py-2 px-2 font-medium text-xs">{row.vehicle_code}</TableCell>
                         <TableCell className="py-2 px-2">
                           <div className="flex flex-col gap-0.5">
@@ -2009,10 +2004,10 @@ export function ManutencaoPage() {
                         <TableCell className="py-2 px-2">
                           {getStatusBadge(row.status)}
                         </TableCell>
-                        <TableCell className="py-2 px-2 hidden sm:table-cell text-xs whitespace-nowrap">
-                          {(row as any).entry_date ? (
+                        <TableCell className="py-2 px-2 text-xs whitespace-nowrap">
+                          {((row as any).entry_date || row.order_date) ? (
                             <span className="font-mono">
-                              {format(new Date((row as any).entry_date), 'dd/MM/yy')}
+                              {format(new Date((row as any).entry_date || row.order_date), 'dd/MM/yy')}
                               {(row as any).entry_time && (
                                 <span className="text-muted-foreground ml-1">{(row as any).entry_time.slice(0, 5)}</span>
                               )}
@@ -2264,20 +2259,7 @@ export function ManutencaoPage() {
               </div>
             )}
 
-            {/* Order Date */}
-            <div className="space-y-2">
-              <Label className="flex items-center gap-2">
-                <CalendarDays className="w-4 h-4 text-primary" />
-                Data da OS <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                type="date"
-                value={formData.order_date}
-                disabled
-                readOnly
-                className="bg-muted/40 border-border text-muted-foreground cursor-not-allowed"
-              />
-            </div>
+            {/* Entry Date is now the primary date - Order Date section removed */}
 
             {/* Entry Date and Time */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
