@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { 
   Truck,
   RefreshCw,
@@ -63,16 +63,39 @@ import { toast } from 'sonner';
 import { VehicleHistoryModal } from '@/components/Frota/VehicleHistoryModal';
 import { VehicleFormModal } from '@/components/Frota/VehicleFormModal';
 import { MobilizedEquipmentsView } from '@/components/Frota/MobilizedEquipmentsView';
+import { exportMobilizacaoPDF, exportEfetivoPDF } from '@/components/Frota/FrotaReportGenerators';
+import { useObraSettings } from '@/hooks/useObraSettings';
 import { ColumnConfigModal } from '@/components/Layout/ColumnConfigModal';
 import { useLayoutPreferences, ColumnConfig } from '@/hooks/useLayoutPreferences';
 
 const SHEET_NAME = 'Veiculo';
 
-const STATUS_LABELS: Record<string, { label: string; color: string }> = {
+const CUSTOM_STATUSES_KEY = 'frota-custom-statuses';
+
+const DEFAULT_STATUS_LABELS: Record<string, { label: string; color: string }> = {
   ativo: { label: 'Ativo', color: 'bg-emerald-100 text-emerald-700 border-emerald-300' },
   inativo: { label: 'Inativo', color: 'bg-gray-100 text-gray-700 border-gray-300' },
   manutencao: { label: 'Manutenção', color: 'bg-amber-100 text-amber-700 border-amber-300' },
+  mobilizado: { label: 'Mobilizado', color: 'bg-blue-100 text-blue-700 border-blue-300' },
+  desmobilizado: { label: 'Desmobilizado', color: 'bg-red-100 text-red-700 border-red-300' },
+  'em transito': { label: 'Em Trânsito', color: 'bg-cyan-100 text-cyan-700 border-cyan-300' },
+  reserva: { label: 'Reserva', color: 'bg-purple-100 text-purple-700 border-purple-300' },
 };
+
+function loadCustomStatuses(): Record<string, { label: string; color: string }> {
+  try {
+    const saved = localStorage.getItem(CUSTOM_STATUSES_KEY);
+    return saved ? JSON.parse(saved) : {};
+  } catch { return {}; }
+}
+
+function saveCustomStatuses(statuses: Record<string, { label: string; color: string }>) {
+  localStorage.setItem(CUSTOM_STATUSES_KEY, JSON.stringify(statuses));
+}
+
+function getAllStatusLabels(): Record<string, { label: string; color: string }> {
+  return { ...DEFAULT_STATUS_LABELS, ...loadCustomStatuses() };
+}
 
 // Default columns configuration
 const DEFAULT_COLUMNS: ColumnConfig[] = [
@@ -114,11 +137,70 @@ export function FrotaPage() {
   const [groupBy, setGroupBy] = useState<'categoria' | 'empresa' | 'descricao'>('categoria');
   const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
   const [viewMode, setViewMode] = useState<'list' | 'mobilized'>('list');
+  const { settings: obraSettings } = useObraSettings();
   
   // Layout preferences
   const { columnConfig, visibleColumns, savePreferences, resetToDefaults, saving: savingLayout } = 
     useLayoutPreferences('frota', DEFAULT_COLUMNS);
   const [columnConfigModalOpen, setColumnConfigModalOpen] = useState(false);
+  
+  // Maintenance KPI - real-time from service_orders
+  const [maintenanceCount, setMaintenanceCount] = useState(0);
+  const [maintenanceOrders, setMaintenanceOrders] = useState<Array<{
+    vehicle_code: string;
+    vehicle_description: string | null;
+    problem_description: string | null;
+    status: string;
+    entry_date: string | null;
+    mechanic_name: string | null;
+  }>>([]);
+  
+  // Custom statuses management
+  const [customStatuses, setCustomStatuses] = useState<Record<string, { label: string; color: string }>>(loadCustomStatuses());
+  const [showAddStatus, setShowAddStatus] = useState(false);
+  const [newStatusName, setNewStatusName] = useState('');
+
+  // Fetch maintenance orders for KPI
+  useEffect(() => {
+    const fetchMaintenance = async () => {
+      const { data: orders } = await supabase
+        .from('service_orders')
+        .select('vehicle_code, vehicle_description, problem_description, status, entry_date, mechanic_name')
+        .in('status', ['Em Manutenção', 'Em Andamento', 'Aberta', 'Aguardando Peças']);
+      
+      if (orders) {
+        setMaintenanceCount(orders.length);
+        setMaintenanceOrders(orders);
+      }
+    };
+    fetchMaintenance();
+
+    // Subscribe to real-time changes
+    const channel = supabase
+      .channel('frota-maintenance')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'service_orders',
+      }, () => {
+        fetchMaintenance();
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, []);
+
+  const addCustomStatus = useCallback(() => {
+    if (!newStatusName.trim()) return;
+    const key = newStatusName.trim().toLowerCase();
+    const label = newStatusName.trim();
+    const newStatus = { label, color: 'bg-indigo-100 text-indigo-700 border-indigo-300' };
+    const updated = { ...customStatuses, [key]: newStatus };
+    setCustomStatuses(updated);
+    saveCustomStatuses(updated);
+    setNewStatusName('');
+    setShowAddStatus(false);
+  }, [newStatusName, customStatuses]);
   
   // Vehicle form modal state
   const [vehicleFormOpen, setVehicleFormOpen] = useState(false);
@@ -249,6 +331,8 @@ export function FrotaPage() {
     let ativos = 0;
     let inativos = 0;
     let emManutencao = 0;
+    let mobilizados = 0;
+    let desmobilizados = 0;
     
     filteredRows.forEach(row => {
       const empresa = getRowValue(row as any, ['EMPRESA', 'Empresa', 'empresa']).trim();
@@ -266,7 +350,9 @@ export function FrotaPage() {
       
       if (status === 'ativo') ativos++;
       else if (status === 'inativo') inativos++;
-      else if (status === 'manutencao') emManutencao++;
+      else if (status === 'manutencao' || status === 'manutenção') emManutencao++;
+      else if (status === 'mobilizado') mobilizados++;
+      else if (status === 'desmobilizado') desmobilizados++;
     });
 
     return {
@@ -277,7 +363,9 @@ export function FrotaPage() {
       categorias: categorias.size,
       ativos,
       inativos,
-      emManutencao
+      emManutencao,
+      mobilizados,
+      desmobilizados,
     };
   }, [filteredRows]);
 
@@ -444,7 +532,7 @@ export function FrotaPage() {
           .map(item => [
             item.codigo,
             item.categoria,
-            STATUS_LABELS[item.status?.toLowerCase() || 'ativo']?.label || 'Ativo'
+            getAllStatusLabels()[item.status?.toLowerCase() || 'ativo']?.label || 'Ativo'
           ]);
 
         autoTable(doc, {
@@ -485,7 +573,7 @@ export function FrotaPage() {
       'Descrição': getRowValue(row as any, ['DESCRICAO', 'DESCRIÇÃO', 'Descricao', 'descrição', 'descricao']),
       'Categoria': getRowValue(row as any, ['CATEGORIA', 'Categoria', 'categoria', 'TIPO', 'Tipo', 'tipo']),
       'Empresa': getRowValue(row as any, ['EMPRESA', 'Empresa', 'empresa']),
-      'Status': STATUS_LABELS[(getRowValue(row as any, ['STATUS', 'Status', 'status']) || 'ativo').toLowerCase()]?.label || 'Ativo',
+      'Status': getAllStatusLabels()[(getRowValue(row as any, ['STATUS', 'Status', 'status']) || 'ativo').toLowerCase()]?.label || 'Ativo',
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(excelData);
@@ -570,11 +658,48 @@ export function FrotaPage() {
                 </Button>
               </>
             )}
+            {/* Mobilização / Efetivo PDFs */}
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => {
+                const allVehicles = filteredRows.map(row => ({
+                  codigo: getRowValue(row as any, ['CODIGO', 'Codigo', 'codigo', 'VEICULO', 'Veiculo', 'veiculo']),
+                  descricao: getRowValue(row as any, ['DESCRICAO', 'DESCRIÇÃO', 'Descricao', 'descrição', 'descricao']),
+                  empresa: getRowValue(row as any, ['EMPRESA', 'Empresa', 'empresa']),
+                  categoria: getRowValue(row as any, ['CATEGORIA', 'Categoria', 'categoria', 'TIPO', 'Tipo', 'tipo']),
+                  status: getRowValue(row as any, ['STATUS', 'Status', 'status']) || 'ativo',
+                }));
+                exportMobilizacaoPDF(allVehicles, selectedDate, obraSettings);
+              }}
+              className="bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200"
+            >
+              <FileText className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Mobilização</span>
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => {
+                const allVehicles = filteredRows.map(row => ({
+                  codigo: getRowValue(row as any, ['CODIGO', 'Codigo', 'codigo', 'VEICULO', 'Veiculo', 'veiculo']),
+                  descricao: getRowValue(row as any, ['DESCRICAO', 'DESCRIÇÃO', 'Descricao', 'descrição', 'descricao']),
+                  empresa: getRowValue(row as any, ['EMPRESA', 'Empresa', 'empresa']),
+                  categoria: getRowValue(row as any, ['CATEGORIA', 'Categoria', 'categoria', 'TIPO', 'Tipo', 'tipo']),
+                  status: getRowValue(row as any, ['STATUS', 'Status', 'status']) || 'ativo',
+                }));
+                exportEfetivoPDF(allVehicles, selectedDate, maintenanceOrders, obraSettings);
+              }}
+              className="bg-teal-50 hover:bg-teal-100 text-teal-700 border-teal-200"
+            >
+              <FileText className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Efetivo</span>
+            </Button>
           </div>
         </div>
 
-        {/* KPI Cards - Improved Visual */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-4">
+        {/* KPI Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-3 md:gap-4">
           {/* Total - Blue */}
           <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-4 text-white shadow-lg">
             <div className="flex items-center justify-between">
@@ -623,7 +748,7 @@ export function FrotaPage() {
             </div>
           </div>
 
-          {/* Em Manutenção - Amber */}
+          {/* Em Manutenção - Amber - LINKED TO SERVICE_ORDERS */}
           <div 
             className={cn(
               "bg-gradient-to-br from-amber-500 to-amber-600 rounded-xl p-4 text-white shadow-lg cursor-pointer transition-transform hover:scale-105",
@@ -634,34 +759,46 @@ export function FrotaPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs font-medium text-amber-100 uppercase tracking-wide">MANUTENÇÃO</p>
-                <p className="text-3xl font-bold mt-1">{metrics.emManutencao}</p>
-                <p className="text-xs text-amber-200 mt-1">Em reparo</p>
+                <p className="text-3xl font-bold mt-1">{maintenanceCount}</p>
+                <p className="text-xs text-amber-200 mt-1">OS ativas</p>
               </div>
               <Cog className="w-8 h-8 text-amber-200" />
             </div>
           </div>
 
-          {/* Equipamentos - Teal */}
-          <div className="bg-gradient-to-br from-teal-500 to-teal-600 rounded-xl p-4 text-white shadow-lg">
+          {/* Mobilizados - Blue */}
+          <div 
+            className={cn(
+              "bg-gradient-to-br from-blue-400 to-blue-500 rounded-xl p-4 text-white shadow-lg cursor-pointer transition-transform hover:scale-105",
+              statusFilter === 'mobilizado' && "ring-2 ring-white ring-offset-2 ring-offset-blue-400"
+            )}
+            onClick={() => setStatusFilter(statusFilter === 'mobilizado' ? 'all' : 'mobilizado')}
+          >
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs font-medium text-teal-100 uppercase tracking-wide">EQUIPAMENTOS</p>
-                <p className="text-3xl font-bold mt-1">{metrics.equipamentos}</p>
-                <p className="text-xs text-teal-200 mt-1">Máquinas</p>
+                <p className="text-xs font-medium text-blue-100 uppercase tracking-wide">MOBILIZADOS</p>
+                <p className="text-3xl font-bold mt-1">{metrics.mobilizados}</p>
+                <p className="text-xs text-blue-200 mt-1">Em campo</p>
               </div>
-              <Settings className="w-8 h-8 text-teal-200" />
+              <Truck className="w-8 h-8 text-blue-200" />
             </div>
           </div>
 
-          {/* Veículos - Purple */}
-          <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl p-4 text-white shadow-lg">
+          {/* Desmobilizados - Red */}
+          <div 
+            className={cn(
+              "bg-gradient-to-br from-red-400 to-red-500 rounded-xl p-4 text-white shadow-lg cursor-pointer transition-transform hover:scale-105",
+              statusFilter === 'desmobilizado' && "ring-2 ring-white ring-offset-2 ring-offset-red-400"
+            )}
+            onClick={() => setStatusFilter(statusFilter === 'desmobilizado' ? 'all' : 'desmobilizado')}
+          >
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs font-medium text-purple-100 uppercase tracking-wide">VEÍCULOS</p>
-                <p className="text-3xl font-bold mt-1">{metrics.veiculos}</p>
-                <p className="text-xs text-purple-200 mt-1">Carros/Caminhões</p>
+                <p className="text-xs font-medium text-red-100 uppercase tracking-wide">DESMOB.</p>
+                <p className="text-3xl font-bold mt-1">{metrics.desmobilizados}</p>
+                <p className="text-xs text-red-200 mt-1">Retirados</p>
               </div>
-              <Car className="w-8 h-8 text-purple-200" />
+              <X className="w-8 h-8 text-red-200" />
             </div>
           </div>
         </div>
@@ -758,14 +895,14 @@ export function FrotaPage() {
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-medium text-muted-foreground">Status:</span>
                   <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="w-[150px]">
+                    <SelectTrigger className="w-[180px]">
                       <SelectValue placeholder="Todos Status" />
                     </SelectTrigger>
                     <SelectContent className="bg-background">
                       <SelectItem value="all">Todos Status</SelectItem>
-                      <SelectItem value="ativo">Ativo</SelectItem>
-                      <SelectItem value="inativo">Inativo</SelectItem>
-                      <SelectItem value="manutencao">Manutenção</SelectItem>
+                      {Object.entries(getAllStatusLabels()).map(([key, val]) => (
+                        <SelectItem key={key} value={key}>{val.label}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -895,7 +1032,8 @@ export function FrotaPage() {
                         </TableHeader>
                         <TableBody>
                           {group.items.map((item, idx) => {
-                            const statusInfo = STATUS_LABELS[item.status?.toLowerCase() || 'ativo'] || STATUS_LABELS.ativo;
+                            const allStatuses = getAllStatusLabels();
+                            const statusInfo = allStatuses[item.status?.toLowerCase() || 'ativo'] || allStatuses.ativo;
                             return (
                               <TableRow key={idx} className="hover:bg-muted/30">
                                 {visibleColumns.map((col) => {
