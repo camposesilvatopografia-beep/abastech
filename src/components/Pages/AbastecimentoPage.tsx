@@ -81,6 +81,7 @@ import { Package2, Wrench, BarChart } from 'lucide-react';
 import { useObraSettings } from '@/hooks/useObraSettings';
 import { HorimeterCorrectionsTab } from '@/components/Abastecimento/HorimeterCorrectionsTab';
 import { VehicleConsumptionDetailTab } from '@/components/Abastecimento/VehicleConsumptionDetailTab';
+import { exportTanquesComboiosPDF, exportTanquesComboiosXLSX } from '@/components/Abastecimento/TanquesComboiosReport';
 
 const TABS = [
   { id: 'painel', label: 'Painel de Estoque', icon: Package2 },
@@ -3028,6 +3029,38 @@ export function AbastecimentoPage() {
                   <MapPin className="w-4 h-4 mr-2" />
                   Exportar PDF
                 </Button>
+              </div>
+
+              {/* Tanques / Comboios Report */}
+              <div className="bg-card rounded-lg border border-border p-6 space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+                    <Fuel className="w-5 h-5 text-emerald-500" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold">Tanques / Comboios</h3>
+                    <p className="text-sm text-muted-foreground">Separado por local</p>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button 
+                    className="flex-1 bg-emerald-600 hover:bg-emerald-700" 
+                    onClick={() => exportTanquesComboiosPDF(filteredRows, startDate || new Date(), obraSettings, sortByDescription)} 
+                    disabled={isExporting}
+                  >
+                    <FileText className="w-4 h-4 mr-1" />
+                    PDF
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    className="flex-1" 
+                    onClick={() => exportTanquesComboiosXLSX(filteredRows, startDate || new Date(), sortByDescription)} 
+                    disabled={isExporting}
+                  >
+                    <FileSpreadsheet className="w-4 h-4 mr-1" />
+                    Excel
+                  </Button>
+                </div>
               </div>
             </div>
 

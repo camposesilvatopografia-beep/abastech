@@ -969,7 +969,7 @@ export function ManutencaoPage() {
         }, String(vehicleInfo?.['Empresa'] || ''));
       } else {
         const newOrderNumber = await generateOrderNumber();
-        const newOrderDate = formData.order_date || new Date().toISOString().split('T')[0];
+        const newOrderDate = formData.entry_date || new Date().toISOString().split('T')[0];
         
         const { error } = await supabase
           .from('service_orders')

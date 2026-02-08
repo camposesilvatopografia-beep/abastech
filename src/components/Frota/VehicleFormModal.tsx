@@ -42,6 +42,10 @@ const STATUS_OPTIONS = [
   { value: 'ativo', label: 'Ativo' },
   { value: 'inativo', label: 'Inativo' },
   { value: 'manutencao', label: 'Manutenção' },
+  { value: 'mobilizado', label: 'Mobilizado' },
+  { value: 'desmobilizado', label: 'Desmobilizado' },
+  { value: 'em transito', label: 'Em Trânsito' },
+  { value: 'reserva', label: 'Reserva' },
 ];
 
 const DEFAULT_CATEGORIAS = [
