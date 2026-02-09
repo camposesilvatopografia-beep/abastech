@@ -327,10 +327,9 @@ export function FieldServiceOrderForm({ user, onBack }: FieldServiceOrderFormPro
       const isFinalized = orderData.status === 'Finalizada';
 
       const rowData: Record<string, string> = {
-        'IdOrdem': orderData.order_number ? orderData.order_number.replace('OS-', '').substring(0, 8) : '',
         'Data': formatDateForSheet(orderData.entry_date || orderData.order_date),
         'Veiculo': orderData.vehicle_code || '',
-        'Empresa': orderData.vehicle_description || form.vehicle_company || '',
+        'Empresa': orderData.vehicle_company || form.vehicle_company || '',
         'Motorista': orderData.created_by || '',
         'Potencia': orderData.vehicle_description || '',
         'Problema': orderData.problem_description || '',
