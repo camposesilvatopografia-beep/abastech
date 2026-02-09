@@ -698,6 +698,62 @@ export function FieldDashboard({ user, onNavigateToForm, onNavigateToHorimeter, 
 
   return (
     <div className="space-y-4 p-4 relative">
+      {/* User Header - Always on top */}
+      <div className="bg-gradient-to-r from-blue-900 to-blue-800 rounded-xl p-4 text-white">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center text-lg font-bold">
+              {user.name.charAt(0).toUpperCase()}
+            </div>
+            <div>
+              <h2 className="text-lg font-bold">Olá, {user.name}!</h2>
+              <p className="text-xs opacity-80">
+                {hasMultipleLocations 
+                  ? `${user.assigned_locations?.length} locais atribuídos`
+                  : user.assigned_locations?.[0] || 'Nenhum local atribuído'
+                }
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              className={cn(
+                "h-8 border-0",
+                notifyOnUpdate 
+                  ? "bg-green-500/30 text-white hover:bg-green-500/40" 
+                  : "bg-white/20 text-white hover:bg-white/30"
+              )}
+              onClick={toggleNotifications}
+              title={notifyOnUpdate ? "Desativar notificações" : "Ativar notificações de atualização"}
+            >
+              {notifyOnUpdate ? <Bell className="w-4 h-4" /> : <BellOff className="w-4 h-4" />}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              className="h-8 bg-white/20 text-white hover:bg-white/30 border-0"
+              onClick={async () => {
+                triggerUpdatePulse('Atualizando...', false);
+                await fetchTodayRecords();
+                refreshStockCards();
+                toast.success('Atualizado!');
+              }}
+              title="Atualizar agora"
+            >
+              <RefreshCw className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 text-sm bg-white/10 px-3 py-1.5 rounded-lg w-fit">
+          <Calendar className="w-4 h-4" />
+          {todayStr}
+        </div>
+      </div>
+
       {/* Menu Cards */}
       <div className="grid grid-cols-1 gap-3">
         <button
@@ -876,53 +932,27 @@ export function FieldDashboard({ user, onNavigateToForm, onNavigateToHorimeter, 
         </div>
       )}
 
-      {/* Welcome Header */}
-      <div className="bg-gradient-to-r from-blue-900 to-blue-800 rounded-xl p-4 text-white">
-        <div className="flex items-center justify-between mb-2">
-          <h2 className="text-lg font-bold">Olá, {user.name}!</h2>
-          <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              className={cn(
-                "h-8 border-0",
-                notifyOnUpdate 
-                  ? "bg-green-500/30 text-white hover:bg-green-500/40" 
-                  : "bg-white/20 text-white hover:bg-white/30"
-              )}
-              onClick={toggleNotifications}
-              title={notifyOnUpdate ? "Desativar notificações" : "Ativar notificações de atualização"}
-            >
-              {notifyOnUpdate ? <Bell className="w-4 h-4" /> : <BellOff className="w-4 h-4" />}
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              className="h-8 bg-white/20 text-white hover:bg-white/30 border-0"
-              onClick={async () => {
-                triggerUpdatePulse('Atualizando...', false);
-                await fetchTodayRecords();
-                refreshStockCards();
-                toast.success('Atualizado!');
-              }}
-              title="Atualizar agora"
-            >
-              <RefreshCw className="w-4 h-4" />
-            </Button>
-            <div className="flex items-center gap-1 text-sm bg-white/20 px-2 py-1 rounded">
-              <Calendar className="w-4 h-4" />
-              {todayStr}
-            </div>
+      {/* Today's Stats Summary */}
+      <div className={cn(
+        "rounded-xl p-4 border",
+        theme === 'dark' 
+          ? "bg-slate-800/80 border-slate-700" 
+          : "bg-white border-slate-200 shadow-sm"
+      )}>
+        <div className="grid grid-cols-3 gap-3 text-center">
+          <div>
+            <p className={cn("text-2xl font-bold", theme === 'dark' ? "text-white" : "text-slate-800")}>{todayStats.totalRecords}</p>
+            <p className="text-xs text-muted-foreground">Registros</p>
+          </div>
+          <div>
+            <p className="text-2xl font-bold text-red-500">{todayStats.totalLiters.toLocaleString('pt-BR')}L</p>
+            <p className="text-xs text-muted-foreground">Combustível</p>
+          </div>
+          <div>
+            <p className="text-2xl font-bold text-cyan-500">{todayStats.totalArla.toLocaleString('pt-BR')}L</p>
+            <p className="text-xs text-muted-foreground">ARLA</p>
           </div>
         </div>
-        <p className="text-sm opacity-90">
-          {hasMultipleLocations 
-            ? `${user.assigned_locations?.length} locais atribuídos`
-            : user.assigned_locations?.[0] || 'Nenhum local atribuído'
-          }
-        </p>
       </div>
 
       {/* Location Selector for Multiple Locations */}

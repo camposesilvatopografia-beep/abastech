@@ -376,28 +376,46 @@ export function FieldHorimeterForm({ user, onBack }: FieldHorimeterFormProps) {
         if (vehicle) {
           const [year, month, day] = readingDate.split('-');
           const formattedDate = `${day}/${month}/${year}`;
-          await supabase.functions.invoke('google-sheets', {
+          
+          // Map to exact sheet headers (B1:ZZ1 in the Horimetros sheet)
+          // Headers must match exactly what's in the sheet
+          const sheetData: Record<string, string> = {
+            'Data': formattedDate,
+            'Codigo': vehicle.code || '',
+            'Veiculo': vehicle.code || '',
+            'Categoria': vehicle.category || '',
+            'Descricao': vehicle.name || '',
+            'Empresa': vehicle.company || '',
+            'Operador': operador || '',
+            'Hor_Anterior': previousHorimeter ? previousHorimeter.toString().replace('.', ',') : '',
+            'Hor_Atual': horNum > 0 ? horNum.toString().replace('.', ',') : '',
+            'H.T': intervalHor > 0 ? intervalHor.toString().replace('.', ',') : '',
+            'Km_Anterior': previousKm ? previousKm.toString().replace('.', ',') : '',
+            'Km_Atual': kmNum > 0 ? kmNum.toString().replace('.', ',') : '',
+            'Total KM': intervalKm > 0 ? intervalKm.toString().replace('.', ',') : '',
+            'Observacao': observacao || '',
+          };
+
+          console.log('Syncing horimeter to sheet with data:', JSON.stringify(sheetData));
+          
+          const { data: syncResult, error: syncError } = await supabase.functions.invoke('google-sheets', {
             body: {
               action: 'create',
               sheetName: 'Horimetros',
-              data: {
-                'Data': formattedDate,
-                'Veiculo': vehicle.code,
-                'Categoria': vehicle.category || '',
-                'Descricao': vehicle.name || '',
-                'Empresa': vehicle.company || '',
-                'Operador': operador || '',
-                'Hor_Anterior': previousHorimeter ? previousHorimeter.toString().replace('.', ',') : '',
-                'Hor_Atual': horNum > 0 ? horNum.toString().replace('.', ',') : '',
-                'Km_Anterior': previousKm ? previousKm.toString().replace('.', ',') : '',
-                'Km_Atual': kmNum > 0 ? kmNum.toString().replace('.', ',') : '',
-                'Observacao': observacao || '',
-              },
+              data: sheetData,
             },
           });
+
+          if (syncError) {
+            console.error('Erro ao sincronizar com planilha:', syncError);
+            toast.error('Registro salvo, mas falhou ao sincronizar com a planilha Horimetros.');
+          } else {
+            console.log('Horimeter synced to sheet successfully:', syncResult);
+          }
         }
       } catch (syncErr) {
         console.error('Erro ao sincronizar com planilha:', syncErr);
+        toast.error('Registro salvo, mas falhou ao sincronizar com a planilha. Verifique se a aba "Horimetros" existe.');
       }
 
       // Success feedback
