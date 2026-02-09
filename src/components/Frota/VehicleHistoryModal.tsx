@@ -165,7 +165,7 @@ export function VehicleHistoryModal({
   const [fuelRecords, setFuelRecords] = useState<FuelRecord[]>([]);
   const [horimeterReadings, setHorimeterReadings] = useState<HorimeterReading[]>([]);
   const [serviceOrders, setServiceOrders] = useState<ServiceOrder[]>([]);
-  const [activeTab, setActiveTab] = useState('timeline');
+  const [activeTab, setActiveTab] = useState('horimetro');
   const [showColumnConfig, setShowColumnConfig] = useState(false);
   const { settings: obraSettings } = useObraSettings();
   
@@ -719,7 +719,7 @@ export function VehicleHistoryModal({
     yPos += cardH + 6;
 
     // ─── Timeline Table ───
-    yPos = drawSectionTitle(yPos, `LINHA DO TEMPO — DIA A DIA`, [15, 23, 42], activeDays.length);
+    yPos = drawSectionTitle(yPos, `HORÍMETROS / KM — DIA A DIA`, [15, 23, 42], activeDays.length);
 
     const timelineHeaders = ['Data', 'Diesel (L)', 'ARLA (L)', 'Óleo (L)', 'Horímetro', 'KM', 'H.T.', 'OS', 'Status OS', 'Operador'];
     
@@ -1175,26 +1175,22 @@ export function VehicleHistoryModal({
 
           {/* Content */}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden">
-            <TabsList className="shrink-0 grid w-full grid-cols-5">
-              <TabsTrigger value="timeline" className="gap-2">
-                <List className="w-4 h-4" />
-                <span className="hidden sm:inline">Linha do Tempo</span>
-              </TabsTrigger>
-              <TabsTrigger value="resumo" className="gap-2">
-                <TrendingUp className="w-4 h-4" />
-                <span className="hidden sm:inline">Resumo</span>
+            <TabsList className="shrink-0 grid w-full grid-cols-4">
+              <TabsTrigger value="horimetro" className="gap-2">
+                <Gauge className="w-4 h-4" />
+                <span className="hidden sm:inline">Horímetros/KM</span>
               </TabsTrigger>
               <TabsTrigger value="abastecimento" className="gap-2">
                 <Fuel className="w-4 h-4" />
                 <span className="hidden sm:inline">Abastecimentos</span>
               </TabsTrigger>
-              <TabsTrigger value="horimetro" className="gap-2">
-                <Gauge className="w-4 h-4" />
-                <span className="hidden sm:inline">Horímetros</span>
-              </TabsTrigger>
               <TabsTrigger value="manutencao" className="gap-2">
                 <Wrench className="w-4 h-4" />
                 <span className="hidden sm:inline">Manutenção</span>
+              </TabsTrigger>
+              <TabsTrigger value="resumo" className="gap-2">
+                <TrendingUp className="w-4 h-4" />
+                <span className="hidden sm:inline">Resumo</span>
               </TabsTrigger>
             </TabsList>
 
@@ -1205,195 +1201,62 @@ export function VehicleHistoryModal({
                 </div>
               ) : (
                 <>
-                  {/* Timeline Tab - DETAILED DAY-BY-DAY VIEW */}
-                  <TabsContent value="timeline" className="m-0">
-                    {activeDays.length === 0 ? (
+                  {/* Horímetro/KM Tab - PRIMARY VIEW */}
+                  <TabsContent value="horimetro" className="m-0">
+                    {horimeterReadings.length === 0 ? (
                       <div className="text-center py-12 text-muted-foreground">
-                        Nenhuma atividade registrada no período
+                        Nenhuma leitura de horímetro no período
                       </div>
                     ) : (
-                      <div className="space-y-3">
-                        {activeDays.map((day) => (
-                          <div key={day.dateStr} className="border rounded-lg overflow-hidden">
-                            {/* Day Header */}
-                            <div className={cn(
-                              "flex items-center justify-between px-4 py-2 font-medium text-sm",
-                              day.osCount > 0 
-                                ? "bg-amber-100 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200" 
-                                : "bg-muted/60"
-                            )}>
-                              <div className="flex items-center gap-3">
-                                <Calendar className="w-4 h-4" />
-                                <span className="font-bold">{format(day.date, "EEEE, dd/MM/yyyy", { locale: ptBR })}</span>
-                              </div>
-                              <div className="flex items-center gap-3 text-xs">
-                                {day.totalDiesel > 0 && (
-                                  <span className="flex items-center gap-1 text-red-600">
-                                    <Fuel className="w-3 h-3" /> {day.totalDiesel.toFixed(1)} L
-                                  </span>
-                                )}
-                                {day.horimeterInterval > 0 && (
-                                  <span className="flex items-center gap-1 text-emerald-600">
-                                    <Gauge className="w-3 h-3" /> +{day.horimeterInterval.toFixed(0)} h
-                                  </span>
-                                )}
-                                {day.dailyConsumption != null && (
-                                  <span className="flex items-center gap-1 text-green-700 dark:text-green-400 font-semibold bg-green-100 dark:bg-green-950/40 px-1.5 py-0.5 rounded">
-                                    <TrendingUp className="w-3 h-3" /> {day.dailyConsumption.toFixed(2)} L/h
-                                  </span>
-                                )}
-                                {day.osCount > 0 && (
-                                  <span className="flex items-center gap-1 text-amber-600">
-                                    <Wrench className="w-3 h-3" /> {day.osCount} OS
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-
-                            {/* Day Content - Individual Records */}
-                            <div className="divide-y">
-                              {/* Fuel Records */}
-                              {day.fuelRecords.map((record) => (
-                                <div key={record.id} className="px-4 py-2 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm hover:bg-muted/30">
-                                  <div className="flex items-center gap-2 min-w-[90px]">
-                                    <Fuel className="w-3.5 h-3.5 text-red-500" />
-                                    <span className="text-xs text-muted-foreground">{record.record_time?.substring(0, 5) || '--:--'}</span>
-                                    <Badge variant={record.record_type === 'saida' ? 'destructive' : 'default'} className="text-[10px] h-5">
-                                      {record.record_type === 'saida' ? 'Saída' : 'Entrada'}
-                                    </Badge>
-                                  </div>
-                                  <div className="flex items-center gap-1">
-                                    <span className="text-xs text-muted-foreground">Diesel:</span>
-                                    <span className="font-semibold text-red-600">{record.fuel_quantity?.toFixed(1) || '-'} L</span>
-                                  </div>
-                                  {(record.arla_quantity ?? 0) > 0 && (
-                                    <div className="flex items-center gap-1">
-                                      <span className="text-xs text-muted-foreground">ARLA:</span>
-                                      <span className="font-medium">{record.arla_quantity?.toFixed(1)} L</span>
-                                    </div>
-                                  )}
-                                  {(record.oil_quantity ?? 0) > 0 && (
-                                    <div className="flex items-center gap-1">
-                                      <span className="text-xs text-muted-foreground">Óleo:</span>
-                                      <span className="font-medium">{record.oil_quantity?.toFixed(1)} L</span>
-                                    </div>
-                                  )}
-                                  {record.horimeter_previous != null && (
-                                    <div className="flex items-center gap-1">
-                                      <span className="text-xs text-muted-foreground">Hor:</span>
-                                      <span className="text-muted-foreground">{record.horimeter_previous?.toFixed(0)}</span>
-                                      <span className="text-xs">→</span>
-                                      <span className="font-medium">{record.horimeter_current?.toFixed(0)}</span>
-                                      {record.horimeter_current && record.horimeter_previous && (
-                                        <span className="text-emerald-600 text-xs font-medium">
-                                          (+{(record.horimeter_current - record.horimeter_previous).toFixed(0)})
-                                        </span>
-                                      )}
-                                    </div>
-                                  )}
-                                  {record.km_previous != null && (
-                                    <div className="flex items-center gap-1">
-                                      <span className="text-xs text-muted-foreground">KM:</span>
-                                      <span className="text-muted-foreground">{record.km_previous?.toFixed(0)}</span>
-                                      <span className="text-xs">→</span>
-                                      <span className="font-medium">{record.km_current?.toFixed(0)}</span>
-                                      {record.km_current && record.km_previous && (
-                                        <span className="text-blue-600 text-xs font-medium">
-                                          (+{(record.km_current - record.km_previous).toFixed(0)})
-                                        </span>
-                                      )}
-                                    </div>
-                                  )}
-                                  {record.operator_name && (
-                                    <div className="flex items-center gap-1">
-                                      <span className="text-xs text-muted-foreground">Op:</span>
-                                      <span className="text-xs truncate max-w-[100px]">{record.operator_name}</span>
-                                    </div>
-                                  )}
-                                  {record.location && (
-                                    <div className="flex items-center gap-1">
-                                      <span className="text-xs text-muted-foreground">Local:</span>
-                                      <span className="text-xs truncate max-w-[80px]">{record.location}</span>
-                                    </div>
-                                  )}
-                                </div>
-                              ))}
-
-                              {/* Horimeter Readings (not from fuel) */}
-                              {day.horimeterReadings.map((reading) => (
-                                <div key={reading.id} className="px-4 py-2 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm hover:bg-muted/30 bg-blue-50/30 dark:bg-blue-950/10">
-                                  <div className="flex items-center gap-2 min-w-[90px]">
-                                    <Gauge className="w-3.5 h-3.5 text-blue-500" />
-                                    <span className="text-xs font-medium text-blue-700 dark:text-blue-400">Leitura</span>
-                                  </div>
-                                  <div className="flex items-center gap-1">
-                                    <span className="text-xs text-muted-foreground">Hor:</span>
-                                    <span className="text-muted-foreground">{reading.previous_value?.toFixed(0) || '-'}</span>
-                                    <span className="text-xs">→</span>
-                                    <span className="font-semibold">{reading.current_value?.toFixed(0)}</span>
-                                    {reading.previous_value != null && (
-                                      <span className="text-emerald-600 text-xs font-medium">
-                                        (+{(reading.current_value - (reading.previous_value || 0)).toFixed(0)})
-                                      </span>
-                                    )}
-                                  </div>
-                                  {reading.current_km != null && (
-                                    <div className="flex items-center gap-1">
-                                      <span className="text-xs text-muted-foreground">KM:</span>
-                                      <span className="text-muted-foreground">{reading.previous_km?.toFixed(0) || '-'}</span>
-                                      <span className="text-xs">→</span>
-                                      <span className="font-medium">{reading.current_km?.toFixed(0)}</span>
-                                      {reading.previous_km != null && (
-                                        <span className="text-blue-600 text-xs font-medium">
-                                          (+{(reading.current_km - (reading.previous_km || 0)).toFixed(0)})
-                                        </span>
-                                      )}
-                                    </div>
-                                  )}
-                                  {reading.operator && (
-                                    <div className="flex items-center gap-1">
-                                      <span className="text-xs text-muted-foreground">Op:</span>
-                                      <span className="text-xs">{reading.operator}</span>
-                                    </div>
-                                  )}
-                                  {reading.observations && (
-                                    <div className="flex items-center gap-1">
-                                      <span className="text-xs text-muted-foreground">Obs:</span>
-                                      <span className="text-xs truncate max-w-[150px]">{reading.observations}</span>
-                                    </div>
-                                  )}
-                                </div>
-                              ))}
-
-                              {/* Service Orders */}
-                              {day.serviceOrders.map((order) => (
-                                <div key={order.id} className="px-4 py-2 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm hover:bg-muted/30 bg-amber-50/30 dark:bg-amber-950/10">
-                                  <div className="flex items-center gap-2 min-w-[90px]">
-                                    <Wrench className="w-3.5 h-3.5 text-amber-500" />
-                                    <span className="font-bold text-xs">{order.order_number}</span>
-                                  </div>
-                                  {getStatusBadge(order.status)}
-                                  <div className="flex items-center gap-1">
-                                    <span className="text-xs text-muted-foreground">Tipo:</span>
-                                    <span className="text-xs">{order.order_type}</span>
-                                  </div>
-                                  {order.problem_description && (
-                                    <div className="flex items-center gap-1 flex-1 min-w-[150px]">
-                                      <span className="text-xs text-muted-foreground">Problema:</span>
-                                      <span className="text-xs truncate">{order.problem_description}</span>
-                                    </div>
-                                  )}
-                                  {order.mechanic_name && (
-                                    <div className="flex items-center gap-1">
-                                      <span className="text-xs text-muted-foreground">Mecânico:</span>
-                                      <span className="text-xs">{order.mechanic_name}</span>
-                                    </div>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        ))}
+                      <div className="border rounded-lg overflow-hidden">
+                        <Table>
+                          <TableHeader>
+                            <TableRow className="bg-muted/50">
+                              <TableHead>Data</TableHead>
+                              <TableHead className="text-right">Hor. Anterior</TableHead>
+                              <TableHead className="text-right">Hor. Atual</TableHead>
+                              <TableHead className="text-right">H.T.</TableHead>
+                              <TableHead className="text-right">KM Anterior</TableHead>
+                              <TableHead className="text-right">KM Atual</TableHead>
+                              <TableHead className="text-right">Total KM</TableHead>
+                              <TableHead>Operador</TableHead>
+                              <TableHead>Observações</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {horimeterReadings.map((reading) => {
+                              const ht = (reading.current_value || 0) - (reading.previous_value || 0);
+                              const totalKm = (reading.current_km || 0) - (reading.previous_km || 0);
+                              return (
+                                <TableRow key={reading.id}>
+                                  <TableCell>{format(new Date(reading.reading_date), 'dd/MM/yyyy')}</TableCell>
+                                  <TableCell className="text-right text-muted-foreground">
+                                    {reading.previous_value != null ? reading.previous_value.toLocaleString('pt-BR', { maximumFractionDigits: 0 }) : '-'}
+                                  </TableCell>
+                                  <TableCell className="text-right font-semibold">
+                                    {reading.current_value?.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}
+                                  </TableCell>
+                                  <TableCell className="text-right font-semibold text-emerald-600">
+                                    {ht > 0 ? ht.toLocaleString('pt-BR', { maximumFractionDigits: 0 }) : '-'}
+                                  </TableCell>
+                                  <TableCell className="text-right text-muted-foreground">
+                                    {reading.previous_km != null ? reading.previous_km.toLocaleString('pt-BR', { maximumFractionDigits: 0 }) : '-'}
+                                  </TableCell>
+                                  <TableCell className="text-right font-medium text-blue-600">
+                                    {reading.current_km != null ? reading.current_km.toLocaleString('pt-BR', { maximumFractionDigits: 0 }) : '-'}
+                                  </TableCell>
+                                  <TableCell className="text-right font-semibold text-blue-600">
+                                    {totalKm > 0 ? totalKm.toLocaleString('pt-BR', { maximumFractionDigits: 0 }) : '-'}
+                                  </TableCell>
+                                  <TableCell className="max-w-[120px] truncate">{reading.operator || '-'}</TableCell>
+                                  <TableCell className="max-w-[150px] truncate text-muted-foreground">
+                                    {reading.observations || '-'}
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })}
+                          </TableBody>
+                        </Table>
                       </div>
                     )}
                   </TabsContent>
@@ -1539,59 +1402,6 @@ export function VehicleHistoryModal({
                     )}
                   </TabsContent>
 
-                  {/* Horímetro Tab */}
-                  <TabsContent value="horimetro" className="m-0">
-                    {horimeterReadings.length === 0 ? (
-                      <div className="text-center py-12 text-muted-foreground">
-                        Nenhuma leitura de horímetro no período
-                      </div>
-                    ) : (
-                      <div className="border rounded-lg overflow-hidden">
-                        <Table>
-                          <TableHeader>
-                            <TableRow className="bg-muted/50">
-                              <TableHead>Data</TableHead>
-                              <TableHead className="text-right">Anterior</TableHead>
-                              <TableHead className="text-right">Atual</TableHead>
-                              <TableHead className="text-right">Intervalo</TableHead>
-                              <TableHead className="text-right">KM Anterior</TableHead>
-                              <TableHead className="text-right">KM Atual</TableHead>
-                              <TableHead>Operador</TableHead>
-                              <TableHead>Observações</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {horimeterReadings.map((reading) => (
-                              <TableRow key={reading.id}>
-                                <TableCell>{format(new Date(reading.reading_date), 'dd/MM/yyyy')}</TableCell>
-                                <TableCell className="text-right">
-                                  {reading.previous_value?.toFixed(0) || '-'}
-                                </TableCell>
-                                <TableCell className="text-right font-medium">
-                                  {reading.current_value?.toFixed(0)}
-                                </TableCell>
-                                <TableCell className="text-right text-emerald-600 font-medium">
-                                  +{((reading.current_value || 0) - (reading.previous_value || 0)).toFixed(0)}
-                                </TableCell>
-                                <TableCell className="text-right text-muted-foreground">
-                                  {reading.previous_km?.toFixed(0) || '-'}
-                                </TableCell>
-                                <TableCell className="text-right font-medium text-blue-600">
-                                  {reading.current_km?.toFixed(0) || '-'}
-                                </TableCell>
-                                <TableCell>{reading.operator || '-'}</TableCell>
-                                <TableCell className="max-w-[150px] truncate">
-                                  {reading.observations || '-'}
-                                </TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </div>
-                    )}
-                  </TabsContent>
-
-                  {/* Manutenção Tab */}
                   <TabsContent value="manutencao" className="m-0">
                     {serviceOrders.length === 0 ? (
                       <div className="text-center py-12 text-muted-foreground">
