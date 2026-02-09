@@ -327,18 +327,21 @@ export function FieldServiceOrderForm({ user, onBack }: FieldServiceOrderFormPro
       const isFinalized = orderData.status === 'Finalizada';
 
       const rowData: Record<string, string> = {
-        'DATA': formatDateForSheet(orderData.entry_date || orderData.order_date),
-        'VEICULO': orderData.vehicle_code || '',
-        'EMPRESA': orderData.vehicle_description || form.vehicle_company || '',
-        'MOTORISTA': orderData.created_by || '',
-        'POTENCIA': orderData.vehicle_description || '',
-        'PROBLEMA': orderData.problem_description || '',
-        'SERVICO': orderData.solution_description || '',
-        'MECANICO': orderData.mechanic_name || '',
-        'DATA_ENTRADA': formatDateForSheet(orderData.entry_date),
-        'DATA_SAIDA': isFinalized ? formatDateForSheet(orderData.end_date || new Date().toISOString()) : '',
-        'HORA_ENTRADA': formatTimeForSheet(orderData.entry_time, null),
-        'HORA_SAIDA': isFinalized ? formatTimeForSheet(null, orderData.end_date) : '',
+        'IdOrdem': orderData.order_number ? orderData.order_number.replace('OS-', '').substring(0, 8) : '',
+        'Data': formatDateForSheet(orderData.entry_date || orderData.order_date),
+        'Veiculo': orderData.vehicle_code || '',
+        'Empresa': orderData.vehicle_description || form.vehicle_company || '',
+        'Motorista': orderData.created_by || '',
+        'Potencia': orderData.vehicle_description || '',
+        'Problema': orderData.problem_description || '',
+        'Servico': orderData.solution_description || '',
+        'Mecanico': orderData.mechanic_name || '',
+        'Data_Entrada': formatDateForSheet(orderData.entry_date),
+        'Data_Saida': isFinalized ? formatDateForSheet(orderData.end_date || new Date().toISOString()) : '',
+        'Hora_Entrada': formatTimeForSheet(orderData.entry_time, null),
+        'Hora_Saida': isFinalized ? formatTimeForSheet(null, orderData.end_date) : '',
+        'Observacao': orderData.notes || '',
+        'Status': orderData.status || '',
       };
 
       console.log('Syncing OS to sheet with data:', JSON.stringify(rowData));
