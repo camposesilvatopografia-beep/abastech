@@ -81,7 +81,7 @@ import { Package2, Wrench, BarChart } from 'lucide-react';
 import { useObraSettings } from '@/hooks/useObraSettings';
 import { HorimeterCorrectionsTab } from '@/components/Abastecimento/HorimeterCorrectionsTab';
 import { VehicleConsumptionDetailTab } from '@/components/Abastecimento/VehicleConsumptionDetailTab';
-import { exportTanquesComboiosPDF, exportTanquesComboiosXLSX, exportTanquesPDF, exportTanquesXLSX, exportComboiosPDF, exportComboiosXLSX } from '@/components/Abastecimento/TanquesComboiosReport';
+import { exportTanquesComboiosPDF, exportTanquesComboiosXLSX, exportTanquesPDF, exportTanquesXLSX, exportComboiosPDF, exportComboiosXLSX, type TanquesComboiosStockData } from '@/components/Abastecimento/TanquesComboiosReport';
 
 const TABS = [
   { id: 'painel', label: 'Painel de Estoque', icon: Package2 },
@@ -1758,6 +1758,18 @@ export function AbastecimentoPage() {
     };
   }, []);
 
+  // Build stock data object for Tanques/Comboios report
+  const buildStockData = useCallback((): TanquesComboiosStockData => {
+    const targetDate = format(startDate || new Date(), 'dd/MM/yyyy');
+    return {
+      canteiro01: getStockDataFromSheet(estoqueCanteiro01Data, targetDate),
+      canteiro02: getStockDataFromSheet(estoqueCanteiro02Data, targetDate),
+      comboio01: getStockDataFromSheet(estoqueComboio01Data, targetDate),
+      comboio02: getStockDataFromSheet(estoqueComboio02Data, targetDate),
+      comboio03: getStockDataFromSheet(estoqueComboio03Data, targetDate),
+    };
+  }, [getStockDataFromSheet, estoqueCanteiro01Data, estoqueCanteiro02Data, estoqueComboio01Data, estoqueComboio02Data, estoqueComboio03Data, startDate]);
+
   // Export General PDF with Summary (Resumo Geral) - Format like the reference image
   const exportPDFResumoGeral = useCallback(() => {
     setIsExporting(true);
@@ -3045,7 +3057,7 @@ export function AbastecimentoPage() {
                 <div className="flex gap-2">
                   <Button 
                     className="flex-1 bg-blue-600 hover:bg-blue-700" 
-                    onClick={() => exportTanquesPDF(filteredRows, startDate || new Date(), obraSettings, sortByDescription)} 
+                    onClick={() => exportTanquesPDF(filteredRows, startDate || new Date(), buildStockData(), obraSettings, sortByDescription)} 
                     disabled={isExporting}
                   >
                     <FileText className="w-4 h-4 mr-1" />
@@ -3077,7 +3089,7 @@ export function AbastecimentoPage() {
                 <div className="flex gap-2">
                   <Button 
                     className="flex-1 bg-emerald-600 hover:bg-emerald-700" 
-                    onClick={() => exportComboiosPDF(filteredRows, startDate || new Date(), obraSettings, sortByDescription)} 
+                    onClick={() => exportComboiosPDF(filteredRows, startDate || new Date(), buildStockData(), obraSettings, sortByDescription)} 
                     disabled={isExporting}
                   >
                     <FileText className="w-4 h-4 mr-1" />
@@ -3110,7 +3122,7 @@ export function AbastecimentoPage() {
                   <Button 
                     className="flex-1" 
                     variant="outline"
-                    onClick={() => exportTanquesComboiosPDF(filteredRows, startDate || new Date(), obraSettings, sortByDescription)} 
+                    onClick={() => exportTanquesComboiosPDF(filteredRows, startDate || new Date(), buildStockData(), obraSettings, sortByDescription)} 
                     disabled={isExporting}
                   >
                     <FileText className="w-4 h-4 mr-1" />
