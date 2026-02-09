@@ -14,6 +14,10 @@ import {
   CalendarIcon,
   TrendingUp,
   History,
+  Plus,
+  List,
+  ArrowRight,
+  ChevronLeft,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -81,6 +85,9 @@ export function FieldHorimeterForm({ user, onBack }: FieldHorimeterFormProps) {
   const { theme } = useTheme();
   const { settings } = useFieldSettings();
   const isDark = theme === 'dark';
+  const [subView, setSubView] = useState<'menu' | 'form' | 'records'>('menu');
+  const [allReadings, setAllReadings] = useState<HorimeterReading[]>([]);
+  const [loadingReadings, setLoadingReadings] = useState(false);
 
   // Form state
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -309,13 +316,163 @@ export function FieldHorimeterForm({ user, onBack }: FieldHorimeterFormProps) {
     }
   };
 
+  // Fetch all recent readings for Records view
+  const fetchAllReadings = useCallback(async () => {
+    setLoadingReadings(true);
+    try {
+      const { data, error } = await supabase
+        .from('horimeter_readings')
+        .select('id, vehicle_id, reading_date, current_value, previous_value, current_km, previous_km, operator, observations')
+        .order('reading_date', { ascending: false })
+        .order('created_at', { ascending: false })
+        .limit(100);
+      if (!error && data) {
+        setAllReadings(data as HorimeterReading[]);
+      }
+    } catch (err) {
+      console.error('Error fetching readings:', err);
+    } finally {
+      setLoadingReadings(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (subView === 'records') {
+      fetchAllReadings();
+    }
+  }, [subView, fetchAllReadings]);
+
   const sectionClass = (color: string) => cn(
     "rounded-xl p-4 space-y-3 shadow-md",
     isDark ? `bg-slate-800/80 border border-slate-700` : `bg-white border border-slate-200`
   );
 
+  const getVehicleCode = (vehicleId: string) => {
+    const v = vehicles.find(veh => veh.id === vehicleId);
+    return v ? v.code : vehicleId.slice(0, 8);
+  };
+
+  const getVehicleName = (vehicleId: string) => {
+    const v = vehicles.find(veh => veh.id === vehicleId);
+    return v ? v.name : '';
+  };
+
+  // MENU VIEW
+  if (subView === 'menu') {
+    return (
+      <div className={cn("p-4 space-y-4", isDark ? "text-white" : "text-slate-900")}>
+        <div className="space-y-3">
+          <button
+            onClick={() => setSubView('form')}
+            className="w-full flex items-center gap-4 p-4 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-700 text-white shadow-lg shadow-amber-500/30 active:scale-[0.98] transition-transform text-left"
+          >
+            <div className="w-14 h-14 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center shrink-0">
+              <Plus className="w-7 h-7" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <span className="text-base font-bold block">Lançar Horímetro</span>
+              <span className="text-xs opacity-80">Registrar nova leitura de horímetro/KM</span>
+            </div>
+            <ArrowRight className="w-5 h-5 opacity-60 shrink-0" />
+          </button>
+
+          <button
+            onClick={() => setSubView('records')}
+            className="w-full flex items-center gap-4 p-4 rounded-2xl bg-gradient-to-r from-blue-500 to-blue-700 text-white shadow-lg shadow-blue-500/30 active:scale-[0.98] transition-transform text-left"
+          >
+            <div className="w-14 h-14 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center shrink-0">
+              <List className="w-7 h-7" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <span className="text-base font-bold block">Registros</span>
+              <span className="text-xs opacity-80">Consultar lançamentos de horímetro</span>
+            </div>
+            <ArrowRight className="w-5 h-5 opacity-60 shrink-0" />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // RECORDS VIEW
+  if (subView === 'records') {
+    return (
+      <div className={cn("p-4 space-y-4 pb-8", isDark ? "text-white" : "text-slate-900")}>
+        <button
+          onClick={() => setSubView('menu')}
+          className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <ChevronLeft className="w-4 h-4" />
+          Voltar
+        </button>
+
+        <h2 className="text-lg font-bold flex items-center gap-2">
+          <List className="w-5 h-5 text-blue-500" />
+          Registros de Horímetro
+        </h2>
+
+        {loadingReadings ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : allReadings.length === 0 ? (
+          <div className="text-center py-12 text-muted-foreground text-sm">
+            Nenhum registro encontrado
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {allReadings.map((r) => (
+              <div
+                key={r.id}
+                className={cn(
+                  "rounded-xl p-3 space-y-1 shadow-sm border",
+                  isDark ? "bg-slate-800/80 border-slate-700" : "bg-white border-slate-200"
+                )}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-sm text-amber-500">{getVehicleCode(r.vehicle_id)}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {format(new Date(r.reading_date + 'T12:00:00'), 'dd/MM/yyyy', { locale: ptBR })}
+                  </span>
+                </div>
+                <div className="text-xs text-muted-foreground truncate">{getVehicleName(r.vehicle_id)}</div>
+                <div className="flex items-center gap-4 text-sm">
+                  {r.current_value > 0 && (
+                    <span className="flex items-center gap-1">
+                      <Clock className="w-3.5 h-3.5 text-amber-500" />
+                      <strong>{r.current_value.toLocaleString('pt-BR')}h</strong>
+                    </span>
+                  )}
+                  {(r.current_km ?? 0) > 0 && (
+                    <span className="flex items-center gap-1">
+                      <Gauge className="w-3.5 h-3.5 text-blue-500" />
+                      <strong>{(r.current_km ?? 0).toLocaleString('pt-BR')} km</strong>
+                    </span>
+                  )}
+                </div>
+                {r.operator && (
+                  <div className="text-xs text-muted-foreground flex items-center gap-1">
+                    <User className="w-3 h-3" /> {r.operator}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // FORM VIEW
   return (
     <div className={cn("p-4 pb-24 space-y-4", isDark ? "text-white" : "text-slate-900")}>
+      <button
+        onClick={() => setSubView('menu')}
+        className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+      >
+        <ChevronLeft className="w-4 h-4" />
+        Voltar
+      </button>
       {/* Vehicle Selection */}
       <div className={sectionClass('blue')}>
         <div className="flex items-center gap-2 mb-2">
