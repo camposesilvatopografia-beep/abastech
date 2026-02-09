@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { FieldLoginPage } from '@/components/Field/FieldLoginPage';
 import { FieldFuelForm } from '@/components/Field/FieldFuelForm';
 import { FieldDashboard } from '@/components/Field/FieldDashboard';
+import { FieldHorimeterForm } from '@/components/Field/FieldHorimeterForm';
 import { 
   LayoutDashboard, 
   Fuel, 
@@ -20,6 +21,7 @@ import {
   Bell,
   BellOff,
   Database,
+  Clock,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
@@ -49,7 +51,7 @@ interface FieldUser {
 
 const STORAGE_KEY = 'abastech_field_user';
 
-type FieldView = 'dashboard' | 'form';
+type FieldView = 'dashboard' | 'form' | 'horimeter';
 
 export function FieldPage() {
   const [user, setUser] = useState<FieldUser | null>(null);
@@ -473,7 +475,7 @@ export function FieldPage() {
 
       {/* Navigation Tabs - Right below header */}
       <nav className={cn(
-        "backdrop-blur-sm border-b px-4 py-2 flex gap-2",
+        "backdrop-blur-sm border-b px-2 py-2 flex gap-1.5",
         theme === 'dark' 
           ? "bg-slate-800/90 border-slate-700" 
           : "bg-white/90 border-slate-200"
@@ -481,7 +483,7 @@ export function FieldPage() {
         <Button
           variant={currentView === 'dashboard' ? 'default' : 'ghost'}
           className={cn(
-            "flex-1 h-11 gap-2",
+            "flex-1 h-11 gap-1.5 px-2",
             currentView === 'dashboard' 
               ? "bg-amber-500 hover:bg-amber-600 text-white" 
               : theme === 'dark'
@@ -491,20 +493,35 @@ export function FieldPage() {
           onClick={() => setCurrentView('dashboard')}
         >
           <LayoutDashboard className="w-4 h-4" />
-          <span className="text-sm font-medium">Dashboard</span>
+          <span className="text-xs font-medium">Dashboard</span>
         </Button>
         <Button
           variant={currentView === 'form' ? 'default' : 'ghost'}
           className={cn(
-            "flex-1 h-11 gap-2 font-semibold transition-all",
+            "flex-1 h-11 gap-1.5 px-2 font-semibold transition-all",
             currentView === 'form' 
               ? "bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/30" 
               : "bg-emerald-500 hover:bg-emerald-600 text-white shadow-md shadow-emerald-500/20 animate-pulse-glow"
           )}
           onClick={() => setCurrentView('form')}
         >
-          <Plus className="w-5 h-5" />
-          <span className="text-sm font-bold">Novo Apontamento</span>
+          <Plus className="w-4 h-4" />
+          <span className="text-xs font-bold">Abastecimento</span>
+        </Button>
+        <Button
+          variant={currentView === 'horimeter' ? 'default' : 'ghost'}
+          className={cn(
+            "flex-1 h-11 gap-1.5 px-2",
+            currentView === 'horimeter' 
+              ? "bg-amber-600 hover:bg-amber-700 text-white shadow-lg shadow-amber-600/30" 
+              : theme === 'dark'
+                ? "text-slate-400 hover:text-white hover:bg-slate-700"
+                : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+          )}
+          onClick={() => setCurrentView('horimeter')}
+        >
+          <Clock className="w-4 h-4" />
+          <span className="text-xs font-medium">Horímetro</span>
         </Button>
       </nav>
 
@@ -549,6 +566,11 @@ export function FieldPage() {
           <FieldDashboard 
             user={user} 
             onNavigateToForm={() => setCurrentView('form')} 
+          />
+        ) : currentView === 'horimeter' ? (
+          <FieldHorimeterForm
+            user={user}
+            onBack={() => setCurrentView('dashboard')}
           />
         ) : (
           <FieldFuelForm 
