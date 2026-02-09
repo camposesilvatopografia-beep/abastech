@@ -42,7 +42,7 @@ import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { CurrencyInput } from '@/components/ui/currency-input';
 import { supabase } from '@/integrations/supabase/client';
 import { getSheetData } from '@/lib/googleSheets';
-import { parsePtBRNumber } from '@/lib/ptBRNumber';
+import { parsePtBRNumber, formatPtBRNumber } from '@/lib/ptBRNumber';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { format, startOfDay, isAfter, isSameDay } from 'date-fns';
@@ -271,6 +271,23 @@ export function FieldHorimeterForm({ user, onBack }: FieldHorimeterFormProps) {
       if (!vehicle) return;
       const targetCode = normalizeVehicleCode(vehicle.code);
 
+      // Fetch operator from the "Veiculo" sheet's "Motorista" column
+      let sheetMotorista = '';
+      try {
+        const veiculoSheet = await getSheetData('Veiculo', { noCache: false });
+        const veiculoRow = (veiculoSheet.rows || []).find(row => {
+          const code = normalizeVehicleCode(
+            getByNormalizedKey(row as any, ['CODIGO', 'CÓDIGO', 'COD', 'VEICULO', 'VEÍCULO']) ?? ''
+          );
+          return code === targetCode;
+        });
+        if (veiculoRow) {
+          sheetMotorista = String(
+            getByNormalizedKey(veiculoRow as any, ['MOTORISTA', 'OPERADOR']) ?? ''
+          ).trim();
+        }
+      } catch (e) { console.error('Error fetching Veiculo sheet for Motorista:', e); }
+
       // 1) horimeter_readings (DB)
       const { data: horData } = await supabase
         .from('horimeter_readings')
@@ -374,7 +391,11 @@ export function FieldHorimeterForm({ user, onBack }: FieldHorimeterFormProps) {
 
         setPreviousHorimeter(finalHor);
         setPreviousKm(finalKm);
-        setOperador(winner.operator || user.name);
+        // Priority: Motorista from Veiculo sheet > operator from last record > user name
+        setOperador(sheetMotorista || winner.operator || user.name);
+      } else if (sheetMotorista) {
+        // No previous records, but we have a driver from the Veiculo sheet
+        setOperador(sheetMotorista);
       }
 
       setVehicleHistory(horData || []);
@@ -499,10 +520,9 @@ export function FieldHorimeterForm({ user, onBack }: FieldHorimeterFormProps) {
           const [year, month, day] = readingDate.split('-');
           const formattedDate = `${day}/${month}/${year}`;
           
-          // Map to exact sheet headers from B1:ZZ1 in the Horimetros sheet
-          // The edge function trims headers, so ' Data' -> 'Data'
-          // Headers (B onwards): Data, Veiculo, Categoria, Descricao, Empresa, Operador,
-          //   Horimetro Anterior, Horimetro Atual, Intervalo H, Km Anterior, Km Atual, Total Km
+          // Format numbers in pt-BR (e.g., 1.150,27) for the spreadsheet
+          const fmtNum = (v: number) => v > 0 ? formatPtBRNumber(v, { decimals: 2 }) : '';
+          
           const sheetData: Record<string, string> = {
             'Data': formattedDate,
             'Veiculo': vehicle.code || '',
@@ -510,12 +530,12 @@ export function FieldHorimeterForm({ user, onBack }: FieldHorimeterFormProps) {
             'Descricao': vehicle.name || '',
             'Empresa': vehicle.company || '',
             'Operador': operador || '',
-            'Horimetro Anterior': previousHorimeter ? previousHorimeter.toString().replace('.', ',') : '',
-            'Horimetro Atual': horNum > 0 ? horNum.toString().replace('.', ',') : '',
-            'Intervalo H': intervalHor > 0 ? intervalHor.toString().replace('.', ',') : '',
-            'Km Anterior': previousKm ? previousKm.toString().replace('.', ',') : '',
-            'Km Atual': kmNum > 0 ? kmNum.toString().replace('.', ',') : '',
-            'Total Km': intervalKm > 0 ? intervalKm.toString().replace('.', ',') : '',
+            'Horimetro Anterior': previousHorimeter ? fmtNum(previousHorimeter) : '',
+            'Horimetro Atual': fmtNum(horNum),
+            'Intervalo H': fmtNum(intervalHor),
+            'Km Anterior': previousKm ? fmtNum(previousKm) : '',
+            'Km Atual': fmtNum(kmNum),
+            'Total Km': fmtNum(intervalKm),
           };
 
           console.log('Syncing horimeter to sheet with data:', JSON.stringify(sheetData));
