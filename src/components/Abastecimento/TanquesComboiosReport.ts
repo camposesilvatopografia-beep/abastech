@@ -177,11 +177,9 @@ function buildFuelTableData(records: FuelRecord[]) {
     ];
   });
 
-  const mediaConsumo = countConsumo > 0 ? totalConsumo / countConsumo : 0;
   body.push([
     '', '', '', 'TOTAL',
-    '', '', '',
-    mediaConsumo > 0 ? `Média: ${fmtPtBR(mediaConsumo)}` : '-',
+    '', '', '', '',
     totalDiesel > 0 ? totalDiesel.toLocaleString('pt-BR', { minimumFractionDigits: 0 }) + ' L' : '-',
   ]);
 
@@ -196,13 +194,11 @@ function renderSaidasTable(doc: jsPDF, records: FuelRecord[], currentY: number, 
     currentY = 15;
   }
 
-  // Section title with red accent
-  doc.setFillColor(180, 50, 50);
-  doc.roundedRect(PAGE_MARGIN, currentY - 1, 4, 7, 1, 1, 'F');
+  // Section title
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(180, 50, 50);
-  doc.text(`SAÍDAS (Abastecimentos) — ${records.length} registros`, PAGE_MARGIN + 7, currentY + 4);
+  doc.setTextColor(30, 41, 59);
+  doc.text(`SAÍDAS (Abastecimentos) — ${records.length} registros`, PAGE_MARGIN, currentY + 4);
   currentY += 10;
 
   const { body } = buildFuelTableData(records);
@@ -297,13 +293,11 @@ function renderEntradasTable(
     currentY = 15;
   }
 
-  // Section title with green accent
-  doc.setFillColor(34, 139, 34);
-  doc.roundedRect(PAGE_MARGIN, currentY - 1, 4, 7, 1, 1, 'F');
+  // Section title
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(34, 139, 34);
-  doc.text(`ENTRADAS (Recebimentos) — ${records.length} registros`, PAGE_MARGIN + 7, currentY + 4);
+  doc.setTextColor(30, 41, 59);
+  doc.text(`ENTRADAS (Recebimentos) — ${records.length} registros`, PAGE_MARGIN, currentY + 4);
   currentY += 10;
 
   const thirdCol = locationType === 'tanque' ? 'Fornecedor' : 'Local de Entrada';
