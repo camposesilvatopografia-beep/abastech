@@ -20,6 +20,7 @@ import {
   Bell,
   BellOff,
   Truck,
+  Wrench,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
@@ -65,6 +66,8 @@ interface FieldUser {
 interface FieldDashboardProps {
   user: FieldUser;
   onNavigateToForm: () => void;
+  onNavigateToHorimeter?: () => void;
+  onNavigateToOS?: () => void;
 }
 
 interface RecentRecord {
@@ -89,7 +92,7 @@ interface DeleteConfirmation {
   reason: string;
 }
 
-export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) {
+export function FieldDashboard({ user, onNavigateToForm, onNavigateToHorimeter, onNavigateToOS }: FieldDashboardProps) {
   const { theme } = useTheme();
   const navigate = useNavigate();
   const [todayRecords, setTodayRecords] = useState<RecentRecord[]>([]);
@@ -695,6 +698,30 @@ export function FieldDashboard({ user, onNavigateToForm }: FieldDashboardProps) 
 
   return (
     <div className="space-y-4 p-4 relative">
+      {/* Menu Cards */}
+      <div className="grid grid-cols-3 gap-3">
+        <button
+          onClick={onNavigateToForm}
+          className="flex flex-col items-center gap-2 p-4 rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-700 text-white shadow-lg shadow-emerald-500/30 active:scale-95 transition-transform"
+        >
+          <Fuel className="w-8 h-8" />
+          <span className="text-xs font-bold leading-tight text-center">Abastecimento</span>
+        </button>
+        <button
+          onClick={onNavigateToHorimeter}
+          className="flex flex-col items-center gap-2 p-4 rounded-2xl bg-gradient-to-br from-amber-500 to-amber-700 text-white shadow-lg shadow-amber-500/30 active:scale-95 transition-transform"
+        >
+          <Clock className="w-8 h-8" />
+          <span className="text-xs font-bold leading-tight text-center">Horímetro</span>
+        </button>
+        <button
+          onClick={onNavigateToOS}
+          className="flex flex-col items-center gap-2 p-4 rounded-2xl bg-gradient-to-br from-purple-500 to-purple-700 text-white shadow-lg shadow-purple-500/30 active:scale-95 transition-transform"
+        >
+          <Wrench className="w-8 h-8" />
+          <span className="text-xs font-bold leading-tight text-center">Ordem de Serviço</span>
+        </button>
+      </div>
       {/* Visual Update Indicator - Blinking Banner */}
       {showUpdatePulse && (
         <div className="fixed top-0 left-0 right-0 z-50 animate-pulse">
