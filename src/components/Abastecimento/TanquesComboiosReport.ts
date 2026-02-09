@@ -58,6 +58,13 @@ function filterByType(rows: FuelRecord[], type: 'tanque' | 'comboio'): FuelRecor
   return rows.filter(row => classifyLocation(String(row['LOCAL'] || '')) === type);
 }
 
+function isEntradaRecord(row: FuelRecord): boolean {
+  const tipo = String(row['TIPO'] || row['tipo'] || '').toLowerCase();
+  const fornecedor = String(row['FORNECEDOR'] || row['fornecedor'] || '').trim();
+  const localEntrada = String(row['LOCAL DE ENTRADA'] || row['LOCAL_ENTRADA'] || '').trim();
+  return tipo.includes('entrada') || fornecedor.length > 0 || localEntrada.length > 0;
+}
+
 function sortRecords(records: FuelRecord[], sortByDescription?: boolean): FuelRecord[] {
   if (!sortByDescription) return records;
   return [...records].sort((a, b) =>
@@ -139,6 +146,96 @@ function buildFuelTableData(records: FuelRecord[]) {
   ]);
 
   return { body, totalDiesel };
+}
+
+function buildEntradasTableData(records: FuelRecord[], locationType: 'tanque' | 'comboio') {
+  let totalDiesel = 0;
+
+  const body = records.map((row, index) => {
+    const qty = parseNumber(row['QUANTIDADE']);
+    totalDiesel += qty;
+
+    const data = String(row['DATA'] || row['data'] || '');
+    if (locationType === 'tanque') {
+      const fornecedor = String(row['FORNECEDOR'] || row['fornecedor'] || 'N/I');
+      return [
+        (index + 1).toString() + '.',
+        data,
+        fornecedor,
+        qty > 0 ? qty.toLocaleString('pt-BR', { minimumFractionDigits: 0 }) + ' L' : '-',
+      ];
+    } else {
+      const localEntrada = String(row['LOCAL DE ENTRADA'] || row['LOCAL_ENTRADA'] || 'N/I');
+      return [
+        (index + 1).toString() + '.',
+        data,
+        localEntrada,
+        qty > 0 ? qty.toLocaleString('pt-BR', { minimumFractionDigits: 0 }) + ' L' : '-',
+      ];
+    }
+  });
+
+  body.push([
+    '', '', 'TOTAL ENTRADAS',
+    totalDiesel.toLocaleString('pt-BR', { minimumFractionDigits: 0 }) + ' L',
+  ]);
+
+  return { body, totalDiesel };
+}
+
+function renderEntradasTable(
+  doc: jsPDF,
+  records: FuelRecord[],
+  currentY: number,
+  locationType: 'tanque' | 'comboio',
+  pageHeight: number,
+): number {
+  if (records.length === 0) return currentY;
+
+  // Check if need new page
+  if (currentY > pageHeight - 60) {
+    doc.addPage();
+    currentY = 20;
+  }
+
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(34, 139, 34);
+  doc.text('ENTRADAS (Recebimentos)', 14, currentY + 4);
+  currentY += 8;
+
+  const thirdCol = locationType === 'tanque' ? 'Fornecedor' : 'Local de Entrada';
+  const { body } = buildEntradasTableData(records, locationType);
+
+  autoTable(doc, {
+    startY: currentY,
+    head: [['', 'Data', thirdCol, 'Quantidade']],
+    body,
+    styles: { fontSize: 9, cellPadding: 3 },
+    headStyles: {
+      fillColor: [34, 139, 34],
+      textColor: [255, 255, 255],
+      fontStyle: 'bold',
+      halign: 'center',
+    },
+    columnStyles: {
+      0: { cellWidth: 15, halign: 'center' },
+      1: { cellWidth: 30 },
+      2: { cellWidth: 80 },
+      3: { cellWidth: 40, halign: 'right' },
+    },
+    alternateRowStyles: { fillColor: [245, 255, 245] },
+    didParseCell: (data) => {
+      if (data.row.index === body.length - 1) {
+        data.cell.styles.fontStyle = 'bold';
+        data.cell.styles.fillColor = [220, 240, 220];
+      }
+    },
+    theme: 'grid',
+    margin: { left: 14, right: 14 },
+  });
+
+  return (doc as any).lastAutoTable.finalY + 10;
 }
 
 function addPageFooters(doc: jsPDF) {
@@ -266,20 +363,21 @@ function renderTanquesPage(
   });
 
   let currentY = (doc as any).lastAutoTable.finalY + 10;
+  const pageHeight = doc.internal.pageSize.getHeight();
 
-  // ── Fuel records detail ──
-  const sorted = sortRecords(fuelRecords, sortByDescription);
+  // ── Separate Saídas and Entradas ──
+  const saidas = sortRecords(fuelRecords.filter(r => !isEntradaRecord(r)), sortByDescription);
+  const entradas = sortRecords(fuelRecords.filter(r => isEntradaRecord(r)), sortByDescription);
 
-  if (sorted.length > 0) {
-    doc.setFillColor(color[0], color[1], color[2]);
-    doc.rect(14, currentY, pageWidth - 28, 8, 'F');
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(10);
+  // ── SAÍDAS (Abastecimentos) ──
+  if (saidas.length > 0) {
+    doc.setFontSize(11);
     doc.setFont('helvetica', 'bold');
-    doc.text(`TANQUES 01 e 02 — ${sorted.length} registros`, 16, currentY + 5.5);
-    currentY += 10;
+    doc.setTextColor(180, 50, 50);
+    doc.text(`SAÍDAS (Abastecimentos) — ${saidas.length} registros`, 14, currentY + 4);
+    currentY += 8;
 
-    const { body } = buildFuelTableData(sorted);
+    const { body } = buildFuelTableData(saidas);
 
     autoTable(doc, {
       startY: currentY,
@@ -288,8 +386,8 @@ function renderTanquesPage(
       theme: 'grid',
       styles: { fontSize: 8, cellPadding: 2 },
       headStyles: {
-        fillColor: [color[0], color[1], color[2]],
-        textColor: 255,
+        fillColor: [180, 50, 50],
+        textColor: [255, 255, 255],
         fontStyle: 'bold',
         fontSize: 8,
         halign: 'center',
@@ -297,15 +395,22 @@ function renderTanquesPage(
       },
       columnStyles: FUEL_COL_STYLES,
       margin: { left: 14, right: 14 },
-      alternateRowStyles: { fillColor: [248, 250, 252] },
+      alternateRowStyles: { fillColor: [255, 245, 245] },
       didParseCell: (data) => {
         if (data.row.index === body.length - 1) {
           data.cell.styles.fontStyle = 'bold';
-          data.cell.styles.fillColor = [230, 230, 240];
+          data.cell.styles.fillColor = [230, 220, 220];
         }
       },
     });
-  } else {
+
+    currentY = (doc as any).lastAutoTable.finalY + 10;
+  }
+
+  // ── ENTRADAS (Recebimentos) ──
+  currentY = renderEntradasTable(doc, entradas, currentY, 'tanque', pageHeight);
+
+  if (saidas.length === 0 && entradas.length === 0) {
     doc.setTextColor(100, 100, 100);
     doc.setFontSize(9);
     doc.setFont('helvetica', 'italic');
@@ -391,20 +496,21 @@ function renderComboiosPage(
   });
 
   let currentY = (doc as any).lastAutoTable.finalY + 10;
+  const pageHeight = doc.internal.pageSize.getHeight();
 
-  // ── Fuel records detail ──
-  const sorted = sortRecords(fuelRecords, sortByDescription);
+  // ── Separate Saídas and Entradas ──
+  const saidas = sortRecords(fuelRecords.filter(r => !isEntradaRecord(r)), sortByDescription);
+  const entradas = sortRecords(fuelRecords.filter(r => isEntradaRecord(r)), sortByDescription);
 
-  if (sorted.length > 0) {
-    doc.setFillColor(color[0], color[1], color[2]);
-    doc.rect(14, currentY, pageWidth - 28, 8, 'F');
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(10);
+  // ── SAÍDAS (Abastecimentos) ──
+  if (saidas.length > 0) {
+    doc.setFontSize(11);
     doc.setFont('helvetica', 'bold');
-    doc.text(`COMBOIOS 01, 02 e 03 — ${sorted.length} registros`, 16, currentY + 5.5);
-    currentY += 10;
+    doc.setTextColor(180, 50, 50);
+    doc.text(`SAÍDAS (Abastecimentos) — ${saidas.length} registros`, 14, currentY + 4);
+    currentY += 8;
 
-    const { body } = buildFuelTableData(sorted);
+    const { body } = buildFuelTableData(saidas);
 
     autoTable(doc, {
       startY: currentY,
@@ -413,8 +519,8 @@ function renderComboiosPage(
       theme: 'grid',
       styles: { fontSize: 8, cellPadding: 2 },
       headStyles: {
-        fillColor: [color[0], color[1], color[2]],
-        textColor: 255,
+        fillColor: [180, 50, 50],
+        textColor: [255, 255, 255],
         fontStyle: 'bold',
         fontSize: 8,
         halign: 'center',
@@ -422,15 +528,22 @@ function renderComboiosPage(
       },
       columnStyles: FUEL_COL_STYLES,
       margin: { left: 14, right: 14 },
-      alternateRowStyles: { fillColor: [248, 250, 252] },
+      alternateRowStyles: { fillColor: [255, 245, 245] },
       didParseCell: (data) => {
         if (data.row.index === body.length - 1) {
           data.cell.styles.fontStyle = 'bold';
-          data.cell.styles.fillColor = [230, 230, 240];
+          data.cell.styles.fillColor = [230, 220, 220];
         }
       },
     });
-  } else {
+
+    currentY = (doc as any).lastAutoTable.finalY + 10;
+  }
+
+  // ── ENTRADAS (Recebimentos) ──
+  currentY = renderEntradasTable(doc, entradas, currentY, 'comboio', pageHeight);
+
+  if (saidas.length === 0 && entradas.length === 0) {
     doc.setTextColor(100, 100, 100);
     doc.setFontSize(9);
     doc.setFont('helvetica', 'italic');
