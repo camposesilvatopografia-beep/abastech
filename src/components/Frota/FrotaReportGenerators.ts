@@ -458,6 +458,74 @@ export function exportEfetivoPDF(
 
   let afterTableY = (doc as any).lastAutoTable.finalY + 8;
 
+  // ─── PAGE 2: Detalhamento dos Códigos por Descrição ───
+  doc.addPage();
+  let detailY = 15;
+
+  doc.setFillColor(30, 41, 59);
+  doc.rect(0, 0, pageWidth, 18, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.text('DETALHAMENTO POR TIPO DE EQUIPAMENTO', pageWidth / 2, 12, { align: 'center' });
+  detailY = 22;
+
+  sortedDescs.forEach(desc => {
+    const items = descGroups.get(desc)!;
+    const sorted = [...items].sort((a, b) => a.empresa.localeCompare(b.empresa) || a.codigo.localeCompare(b.codigo));
+
+    if (detailY > pageHeight - 40) { doc.addPage(); detailY = 15; }
+
+    // Description sub-header
+    doc.setFillColor(71, 85, 105);
+    doc.rect(14, detailY, pageWidth - 28, 7, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`${desc.toUpperCase()} (${items.length})`, 16, detailY + 5);
+    detailY += 9;
+
+    const detailData = sorted.map((item, idx) => {
+      const inMaintenance = maintenanceVehicleCodes.has(item.codigo);
+      return [
+        (idx + 1).toString(),
+        item.codigo,
+        item.empresa,
+        item.categoria || '-',
+        (item.status || 'Ativo').toUpperCase(),
+        inMaintenance ? 'SIM' : '',
+      ];
+    });
+
+    autoTable(doc, {
+      startY: detailY,
+      head: [['ITEM', 'CÓDIGO', 'PROPRIETÁRIO', 'CATEGORIA', 'STATUS', 'MANUTENÇÃO']],
+      body: detailData,
+      theme: 'grid',
+      styles: { fontSize: 6.5, cellPadding: 1.5 },
+      headStyles: { fillColor: [148, 163, 184], textColor: 0, fontStyle: 'bold', fontSize: 7 },
+      columnStyles: {
+        0: { cellWidth: 12, halign: 'center' },
+        1: { cellWidth: 25 },
+        2: { cellWidth: 45 },
+        3: { cellWidth: 35 },
+        4: { cellWidth: 25, halign: 'center' },
+        5: { cellWidth: 22, halign: 'center' },
+      },
+      margin: { left: 14, right: 14 },
+      alternateRowStyles: { fillColor: [249, 250, 251] },
+      didParseCell: (data) => {
+        // Red for maintenance items
+        if (data.column.index === 5 && data.section === 'body' && data.cell.text[0] === 'SIM') {
+          data.cell.styles.textColor = [220, 38, 38];
+          data.cell.styles.fontStyle = 'bold';
+        }
+      },
+    });
+
+    detailY = (doc as any).lastAutoTable.finalY + 6;
+  });
+
   // ─── Maintenance Summary (compact list matching PDF template) ───
   const activeMaintenanceOrders = maintenanceOrders.filter(
     o => ['Em Manutenção', 'Em Andamento', 'Aberta', 'Aguardando Peças'].includes(o.status)
@@ -469,19 +537,21 @@ export function exportEfetivoPDF(
       afterTableY = 20;
     }
 
+    // Go back to the first page's afterTableY for maintenance summary
+    // Actually, append to the detail pages
+    if (detailY > pageHeight - 50) {
+      doc.addPage();
+      detailY = 20;
+    }
+
     // Section header
     doc.setFillColor(245, 158, 11);
-    doc.rect(14, afterTableY, pageWidth - 28, 8, 'F');
+    doc.rect(14, detailY, pageWidth - 28, 8, 'F');
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(9);
     doc.setFont('helvetica', 'bold');
-    doc.text(`RELATÓRIO SIMPLIFICADO DE MANUTENÇÃO (${activeMaintenanceOrders.length})`, 16, afterTableY + 5.5);
-    afterTableY += 12;
-
-    // Compact list format: CODE | EMPRESA | DESCRIÇÃO | PROBLEMA | DATA
-    doc.setTextColor(30, 41, 59);
-    doc.setFontSize(7);
-    doc.setFont('helvetica', 'normal');
+    doc.text(`RELATÓRIO SIMPLIFICADO DE MANUTENÇÃO (${activeMaintenanceOrders.length})`, 16, detailY + 5.5);
+    detailY += 12;
 
     // Find the company for each maintenance vehicle
     const vehicleCompanyMap = new Map<string, string>();
@@ -489,27 +559,387 @@ export function exportEfetivoPDF(
       vehicleCompanyMap.set(v.codigo, v.empresa || '');
     });
 
-    activeMaintenanceOrders.forEach(o => {
-      if (afterTableY > pageHeight - 15) {
-        doc.addPage();
-        afterTableY = 20;
-      }
-
+    const maintenanceTableData = activeMaintenanceOrders.map((o, idx) => {
       const company = vehicleCompanyMap.get(o.vehicle_code) || '';
-      const problem = (o.problem_description || '-').substring(0, 50);
-      const entryDate = o.entry_date || '-';
+      return [
+        (idx + 1).toString(),
+        o.vehicle_code,
+        (o.vehicle_description || '').substring(0, 25),
+        company,
+        (o.problem_description || '-').substring(0, 40),
+        o.mechanic_name || '-',
+        o.entry_date || '-',
+      ];
+    });
 
-      // Bullet point style
-      doc.setFont('helvetica', 'bold');
-      doc.text('•', 16, afterTableY);
-      doc.setFont('helvetica', 'normal');
-
-      const line = `${o.vehicle_code}  ${company.toUpperCase()}  ${(o.vehicle_description || '').toUpperCase()}  ${problem.toUpperCase()}  ${entryDate}`;
-      doc.text(line, 20, afterTableY);
-      afterTableY += 5;
+    autoTable(doc, {
+      startY: detailY,
+      head: [['#', 'CÓDIGO', 'EQUIPAMENTO', 'EMPRESA', 'PROBLEMA', 'MECÂNICO', 'ENTRADA']],
+      body: maintenanceTableData,
+      theme: 'grid',
+      styles: { fontSize: 6.5, cellPadding: 1.5 },
+      headStyles: { fillColor: [217, 119, 6], textColor: 255, fontStyle: 'bold', fontSize: 7 },
+      columnStyles: {
+        0: { cellWidth: 10, halign: 'center' },
+        1: { cellWidth: 22 },
+        2: { cellWidth: 35 },
+        3: { cellWidth: 35 },
+        4: { cellWidth: 55 },
+        5: { cellWidth: 30 },
+        6: { cellWidth: 20, halign: 'center' },
+      },
+      margin: { left: 14, right: 14 },
+      alternateRowStyles: { fillColor: [254, 252, 232] },
     });
   }
 
   addPageFooters(doc);
   doc.save(`Efetivo_Equipamentos_${format(selectedDate, 'dd-MM-yyyy')}.pdf`);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// MOBILIZADOS PDF - Equipment with status mobilizado/ativo
+// ═══════════════════════════════════════════════════════════════════════
+
+export function exportMobilizadosPDF(
+  vehicles: VehicleData[],
+  selectedDate: Date,
+  obraSettings?: ObraSettings | null
+) {
+  const mobilized = vehicles.filter(v => {
+    const s = (v.status || 'ativo').toLowerCase();
+    return s === 'mobilizado' || s === 'ativo';
+  });
+
+  const doc = new jsPDF('landscape');
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+
+  renderNavyHeader(
+    doc,
+    obraSettings?.nome?.toUpperCase() || 'CONSÓRCIO AERO MARAGOGI',
+    'RELATÓRIO DE EQUIPAMENTOS MOBILIZADOS',
+    `${format(selectedDate, 'dd/MM/yyyy')} — Total: ${mobilized.length} equipamentos`
+  );
+
+  // ─── Summary by Company ───
+  doc.setTextColor(30, 41, 59);
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.text('RESUMO POR EMPRESA', 14, 35);
+
+  const companyMap = new Map<string, Map<string, VehicleData[]>>();
+  mobilized.forEach(v => {
+    const emp = v.empresa || 'Não informada';
+    const desc = v.descricao || v.categoria || 'Outros';
+    if (!companyMap.has(emp)) companyMap.set(emp, new Map());
+    const descMap = companyMap.get(emp)!;
+    if (!descMap.has(desc)) descMap.set(desc, []);
+    descMap.get(desc)!.push(v);
+  });
+
+  // Summary table
+  const summaryRows: string[][] = [];
+  let grandTotal = 0;
+
+  Array.from(companyMap.keys())
+    .sort((a, b) => a.localeCompare(b, 'pt-BR'))
+    .forEach(emp => {
+      const descMap = companyMap.get(emp)!;
+      const empTotal = Array.from(descMap.values()).reduce((s, arr) => s + arr.length, 0);
+      grandTotal += empTotal;
+      let isFirst = true;
+      Array.from(descMap.keys()).sort().forEach(desc => {
+        const count = descMap.get(desc)!.length;
+        summaryRows.push([
+          isFirst ? emp : '',
+          desc,
+          count.toString(),
+        ]);
+        isFirst = false;
+      });
+      summaryRows.push(['', `Subtotal ${emp}`, empTotal.toString()]);
+    });
+
+  summaryRows.push(['TOTAL GERAL', '', grandTotal.toString()]);
+
+  autoTable(doc, {
+    startY: 40,
+    head: [['EMPRESA', 'DESCRIÇÃO', 'QTD']],
+    body: summaryRows,
+    theme: 'grid',
+    styles: { fontSize: 7, cellPadding: 2 },
+    headStyles: { fillColor: [30, 41, 59], textColor: 255, fontStyle: 'bold', fontSize: 8 },
+    columnStyles: {
+      0: { cellWidth: 65, fontStyle: 'bold' },
+      1: { cellWidth: 80 },
+      2: { cellWidth: 20, halign: 'center', fontStyle: 'bold' },
+    },
+    margin: { left: 14, right: 14 },
+    alternateRowStyles: { fillColor: [248, 250, 252] },
+    didParseCell: (data) => {
+      const lastRow = summaryRows.length - 1;
+      // Total row
+      if (data.row.index === lastRow) {
+        data.cell.styles.fillColor = [30, 41, 59];
+        data.cell.styles.textColor = 255;
+        data.cell.styles.fontStyle = 'bold';
+      }
+      // Subtotal rows
+      const rowText = summaryRows[data.row.index]?.[1] || '';
+      if (rowText.startsWith('Subtotal')) {
+        data.cell.styles.fillColor = [226, 232, 240];
+        data.cell.styles.fontStyle = 'bold';
+      }
+    },
+  });
+
+  // ─── Detail pages: by Company -> Description -> Vehicle codes ───
+  doc.addPage();
+  let currentY = 15;
+
+  doc.setFillColor(30, 41, 59);
+  doc.rect(0, 0, pageWidth, 18, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.text('DETALHAMENTO DOS EQUIPAMENTOS MOBILIZADOS', pageWidth / 2, 12, { align: 'center' });
+  currentY = 22;
+
+  Array.from(companyMap.keys())
+    .sort((a, b) => a.localeCompare(b, 'pt-BR'))
+    .forEach(emp => {
+      const descMap = companyMap.get(emp)!;
+
+      if (currentY > pageHeight - 40) { doc.addPage(); currentY = 15; }
+
+      // Company header
+      doc.setFillColor(30, 41, 59);
+      doc.rect(14, currentY, pageWidth - 28, 8, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      const empTotal = Array.from(descMap.values()).reduce((s, arr) => s + arr.length, 0);
+      doc.text(`${emp.toUpperCase()} (${empTotal})`, 16, currentY + 5.5);
+      currentY += 11;
+
+      Array.from(descMap.keys()).sort().forEach(desc => {
+        const items = descMap.get(desc)!;
+        const sorted = [...items].sort((a, b) => a.codigo.localeCompare(b.codigo));
+
+        if (currentY > pageHeight - 30) { doc.addPage(); currentY = 15; }
+
+        doc.setFillColor(71, 85, 105);
+        doc.rect(14, currentY, pageWidth - 28, 7, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`${desc.toUpperCase()} (${items.length})`, 16, currentY + 5);
+        currentY += 9;
+
+        const tableData = sorted.map((item, idx) => [
+          (idx + 1).toString(),
+          item.codigo,
+          item.descricao,
+          item.categoria || '-',
+        ]);
+
+        autoTable(doc, {
+          startY: currentY,
+          head: [['#', 'CÓDIGO', 'EQUIPAMENTO', 'CATEGORIA']],
+          body: tableData,
+          theme: 'grid',
+          styles: { fontSize: 6.5, cellPadding: 1.5 },
+          headStyles: { fillColor: [148, 163, 184], textColor: 0, fontStyle: 'bold', fontSize: 7 },
+          columnStyles: {
+            0: { cellWidth: 10, halign: 'center' },
+            1: { cellWidth: 25 },
+            2: { cellWidth: 65 },
+            3: { cellWidth: 35 },
+          },
+          margin: { left: 14, right: 14 },
+          alternateRowStyles: { fillColor: [249, 250, 251] },
+        });
+
+        currentY = (doc as any).lastAutoTable.finalY + 5;
+      });
+
+      currentY += 4;
+    });
+
+  addPageFooters(doc);
+  doc.save(`Mobilizados_${format(selectedDate, 'dd-MM-yyyy')}.pdf`);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// DESMOBILIZADOS PDF - Equipment with status desmobilizado/inativo
+// ═══════════════════════════════════════════════════════════════════════
+
+export function exportDesmobilizadosPDF(
+  vehicles: VehicleData[],
+  selectedDate: Date,
+  obraSettings?: ObraSettings | null
+) {
+  const demobilized = vehicles.filter(v => {
+    const s = (v.status || '').toLowerCase();
+    return s === 'desmobilizado' || s === 'inativo';
+  });
+
+  if (demobilized.length === 0) {
+    return false; // Signal no data
+  }
+
+  const doc = new jsPDF('landscape');
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+
+  renderNavyHeader(
+    doc,
+    obraSettings?.nome?.toUpperCase() || 'CONSÓRCIO AERO MARAGOGI',
+    'RELATÓRIO DE EQUIPAMENTOS DESMOBILIZADOS',
+    `${format(selectedDate, 'dd/MM/yyyy')} — Total: ${demobilized.length} equipamentos`
+  );
+
+  // ─── Summary by Company ───
+  doc.setTextColor(30, 41, 59);
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.text('RESUMO POR EMPRESA', 14, 35);
+
+  const companyMap = new Map<string, Map<string, VehicleData[]>>();
+  demobilized.forEach(v => {
+    const emp = v.empresa || 'Não informada';
+    const desc = v.descricao || v.categoria || 'Outros';
+    if (!companyMap.has(emp)) companyMap.set(emp, new Map());
+    const descMap = companyMap.get(emp)!;
+    if (!descMap.has(desc)) descMap.set(desc, []);
+    descMap.get(desc)!.push(v);
+  });
+
+  const summaryRows: string[][] = [];
+  let grandTotal = 0;
+
+  Array.from(companyMap.keys())
+    .sort((a, b) => a.localeCompare(b, 'pt-BR'))
+    .forEach(emp => {
+      const descMap = companyMap.get(emp)!;
+      const empTotal = Array.from(descMap.values()).reduce((s, arr) => s + arr.length, 0);
+      grandTotal += empTotal;
+      let isFirst = true;
+      Array.from(descMap.keys()).sort().forEach(desc => {
+        const count = descMap.get(desc)!.length;
+        summaryRows.push([
+          isFirst ? emp : '',
+          desc,
+          count.toString(),
+          '', // Status column
+        ]);
+        isFirst = false;
+      });
+    });
+
+  summaryRows.push(['TOTAL GERAL', '', grandTotal.toString(), '']);
+
+  autoTable(doc, {
+    startY: 40,
+    head: [['EMPRESA', 'DESCRIÇÃO', 'QTD', 'STATUS']],
+    body: summaryRows,
+    theme: 'grid',
+    styles: { fontSize: 7, cellPadding: 2 },
+    headStyles: { fillColor: [153, 27, 27], textColor: 255, fontStyle: 'bold', fontSize: 8 },
+    columnStyles: {
+      0: { cellWidth: 60, fontStyle: 'bold' },
+      1: { cellWidth: 70 },
+      2: { cellWidth: 18, halign: 'center', fontStyle: 'bold' },
+      3: { cellWidth: 25, halign: 'center' },
+    },
+    margin: { left: 14, right: 14 },
+    alternateRowStyles: { fillColor: [254, 242, 242] },
+    didParseCell: (data) => {
+      if (data.row.index === summaryRows.length - 1) {
+        data.cell.styles.fillColor = [153, 27, 27];
+        data.cell.styles.textColor = 255;
+        data.cell.styles.fontStyle = 'bold';
+      }
+    },
+  });
+
+  // ─── Detail pages ───
+  doc.addPage();
+  let currentY = 15;
+
+  doc.setFillColor(153, 27, 27);
+  doc.rect(0, 0, pageWidth, 18, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.text('DETALHAMENTO DOS EQUIPAMENTOS DESMOBILIZADOS', pageWidth / 2, 12, { align: 'center' });
+  currentY = 22;
+
+  Array.from(companyMap.keys())
+    .sort((a, b) => a.localeCompare(b, 'pt-BR'))
+    .forEach(emp => {
+      const descMap = companyMap.get(emp)!;
+
+      if (currentY > pageHeight - 40) { doc.addPage(); currentY = 15; }
+
+      // Company header - dark red theme
+      doc.setFillColor(153, 27, 27);
+      doc.rect(14, currentY, pageWidth - 28, 8, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      const empTotal = Array.from(descMap.values()).reduce((s, arr) => s + arr.length, 0);
+      doc.text(`${emp.toUpperCase()} (${empTotal})`, 16, currentY + 5.5);
+      currentY += 11;
+
+      Array.from(descMap.keys()).sort().forEach(desc => {
+        const items = descMap.get(desc)!;
+        const sorted = [...items].sort((a, b) => a.codigo.localeCompare(b.codigo));
+
+        if (currentY > pageHeight - 30) { doc.addPage(); currentY = 15; }
+
+        doc.setFillColor(185, 28, 28);
+        doc.rect(14, currentY, pageWidth - 28, 7, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`${desc.toUpperCase()} (${items.length})`, 16, currentY + 5);
+        currentY += 9;
+
+        const tableData = sorted.map((item, idx) => [
+          (idx + 1).toString(),
+          item.codigo,
+          item.descricao,
+          item.categoria || '-',
+          (item.status || '-').toUpperCase(),
+        ]);
+
+        autoTable(doc, {
+          startY: currentY,
+          head: [['#', 'CÓDIGO', 'EQUIPAMENTO', 'CATEGORIA', 'STATUS']],
+          body: tableData,
+          theme: 'grid',
+          styles: { fontSize: 6.5, cellPadding: 1.5 },
+          headStyles: { fillColor: [220, 38, 38], textColor: 255, fontStyle: 'bold', fontSize: 7 },
+          columnStyles: {
+            0: { cellWidth: 10, halign: 'center' },
+            1: { cellWidth: 25 },
+            2: { cellWidth: 60 },
+            3: { cellWidth: 30 },
+            4: { cellWidth: 25, halign: 'center' },
+          },
+          margin: { left: 14, right: 14 },
+          alternateRowStyles: { fillColor: [254, 242, 242] },
+        });
+
+        currentY = (doc as any).lastAutoTable.finalY + 5;
+      });
+
+      currentY += 4;
+    });
+
+  addPageFooters(doc);
+  doc.save(`Desmobilizados_${format(selectedDate, 'dd-MM-yyyy')}.pdf`);
+  return true;
 }
