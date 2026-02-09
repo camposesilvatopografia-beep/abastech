@@ -199,6 +199,12 @@ export function useHorimeterReadings(vehicleId?: string) {
           // Use provided values or fallback to current_value
           const horimeterVal = _horimeterValue || reading.current_value || 0;
           const kmVal = _kmValue || reading.current_km || 0;
+          const prevHor = reading.previous_value || 0;
+          const prevKm = reading.previous_km || 0;
+          
+          // Calculate intervals
+          const intervaloH = (horimeterVal > 0 && prevHor > 0) ? horimeterVal - prevHor : 0;
+          const totalKm = (kmVal > 0 && prevKm > 0) ? kmVal - prevKm : 0;
           
           // Format numbers in pt-BR (e.g., 1.150,27) for the spreadsheet
           const fmtNum = (v: number) => v > 0 ? formatPtBRNumber(v, { decimals: 2 }) : '';
@@ -210,11 +216,12 @@ export function useHorimeterReadings(vehicleId?: string) {
             'Descricao': vehicle.name || '',
             'Empresa': vehicle.company || '',
             'Operador': reading.operator || '',
-            'Hor_Anterior': reading.previous_value ? fmtNum(reading.previous_value) : '',
-            'Hor_Atual': fmtNum(horimeterVal),
-            'Km_Anterior': reading.previous_km ? fmtNum(reading.previous_km) : '',
-            'Km_Atual': fmtNum(kmVal),
-            'Observacao': reading.observations || '',
+            'Horímetro Anterior': prevHor > 0 ? fmtNum(prevHor) : '',
+            'Horímetro Atual': fmtNum(horimeterVal),
+            'Intervalo H': intervaloH > 0 ? fmtNum(intervaloH) : '',
+            'Km Anterior': prevKm > 0 ? fmtNum(prevKm) : '',
+            'Km Atual': kmVal > 0 ? fmtNum(kmVal) : '',
+            'Total Km': totalKm > 0 ? fmtNum(totalKm) : '',
           };
           
           console.log('Sincronizando com planilha Horimetros:', rowData);
@@ -315,6 +322,12 @@ export function useHorimeterReadings(vehicleId?: string) {
             // Use provided horimeter/km values if available
             const horimeterVal = _horimeterValue || currentValue || 0;
             const kmVal = _kmValue || currentKm || 0;
+            const prevHor = previousValue || 0;
+            const prevKmVal = previousKm || 0;
+            
+            // Calculate intervals
+            const intervaloH = (horimeterVal > 0 && prevHor > 0) ? horimeterVal - prevHor : 0;
+            const totalKm = (kmVal > 0 && prevKmVal > 0) ? kmVal - prevKmVal : 0;
             
             // Format numbers in pt-BR for the spreadsheet
             const fmtNum = (v: number) => v > 0 ? formatPtBRNumber(v, { decimals: 2 }) : '';
@@ -326,11 +339,12 @@ export function useHorimeterReadings(vehicleId?: string) {
               'Descricao': vehicle.name || '',
               'Empresa': vehicle.company || '',
               'Operador': operator || '',
-              'Hor_Anterior': previousValue ? fmtNum(previousValue) : '',
-              'Hor_Atual': fmtNum(horimeterVal),
-              'Km_Anterior': previousKm ? fmtNum(previousKm) : '',
-              'Km_Atual': fmtNum(kmVal),
-              'Observacao': updates.observations ?? data.observations ?? '',
+              'Horímetro Anterior': prevHor > 0 ? fmtNum(prevHor) : '',
+              'Horímetro Atual': fmtNum(horimeterVal),
+              'Intervalo H': intervaloH > 0 ? fmtNum(intervaloH) : '',
+              'Km Anterior': prevKmVal > 0 ? fmtNum(prevKmVal) : '',
+              'Km Atual': kmVal > 0 ? fmtNum(kmVal) : '',
+              'Total Km': totalKm > 0 ? fmtNum(totalKm) : '',
             };
             
             await supabase.functions.invoke('google-sheets', {
@@ -617,13 +631,13 @@ export function useSheetSync() {
           return null;
         };
 
-        // Map horimeter columns (Hor_Anterior, Hor_Atual)
-        const horAnteriorRaw = getColValue(['Hor_Anterior', 'HOR_ANTERIOR', 'Hor. Anterior', 'HOR. ANTERIOR']);
-        const horAtualRaw = getColValue(['Hor_Atual', 'HOR_ATUAL', 'Hor. Atual', 'HOR. ATUAL']);
+        // Map horimeter columns - support multiple header variants
+        const horAnteriorRaw = getColValue(['Horímetro Anterior', 'Horimetro Anterior', 'Hor_Anterior', 'HOR_ANTERIOR', 'Hor. Anterior', 'HOR. ANTERIOR']);
+        const horAtualRaw = getColValue(['Horímetro Atual', 'Horimetro Atual', 'Hor_Atual', 'HOR_ATUAL', 'Hor. Atual', 'HOR. ATUAL']);
         
-        // Map km columns (Km_Anterior, Km_Atual)
-        const kmAnteriorRaw = getColValue(['Km_Anterior', 'KM_ANTERIOR', 'Km. Anterior', 'KM. ANTERIOR', 'KM Anterior']);
-        const kmAtualRaw = getColValue(['Km_Atual', 'KM_ATUAL', 'Km. Atual', 'KM. ATUAL', 'KM Atual']);
+        // Map km columns
+        const kmAnteriorRaw = getColValue(['Km Anterior', 'KM Anterior', 'Km_Anterior', 'KM_ANTERIOR', 'Km. Anterior', 'KM. ANTERIOR']);
+        const kmAtualRaw = getColValue(['Km Atual', 'KM Atual', 'Km_Atual', 'KM_ATUAL', 'Km. Atual', 'KM. ATUAL']);
         
         const horAnterior = parseNum(horAnteriorRaw);
         const horAtual = parseNum(horAtualRaw);
@@ -808,6 +822,14 @@ export function useSheetSync() {
         const formattedDate = `${day}/${month}/${year}`;
 
         // Use correct column mapping: current_value=Hor, current_km=KM
+        const prevHor = reading.previous_value || 0;
+        const currHor = reading.current_value || 0;
+        const prevKm = reading.previous_km || 0;
+        const currKm = reading.current_km || 0;
+        const intervaloH = (currHor > 0 && prevHor > 0) ? currHor - prevHor : 0;
+        const totalKm = (currKm > 0 && prevKm > 0) ? currKm - prevKm : 0;
+        const fmtNum = (v: number) => v > 0 ? formatPtBRNumber(v, { decimals: 2 }) : '';
+        
         const rowData = {
           DATA: formattedDate,
           HORA: new Date(reading.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
@@ -816,11 +838,12 @@ export function useSheetSync() {
           DESCRICAO: vehicle.name || '',
           EMPRESA: vehicle.company || '',
           OPERADOR: reading.operator || '',
-          Hor_Anterior: reading.previous_value ? reading.previous_value.toString().replace('.', ',') : '',
-          Hor_Atual: reading.current_value > 0 ? reading.current_value.toString().replace('.', ',') : '',
-          Km_Anterior: reading.previous_km ? reading.previous_km.toString().replace('.', ',') : '',
-          Km_Atual: reading.current_km && reading.current_km > 0 ? reading.current_km.toString().replace('.', ',') : '',
-          OBSERVACAO: reading.observations || '',
+          'Horímetro Anterior': prevHor > 0 ? fmtNum(prevHor) : '',
+          'Horímetro Atual': currHor > 0 ? fmtNum(currHor) : '',
+          'Intervalo H': intervaloH > 0 ? fmtNum(intervaloH) : '',
+          'Km Anterior': prevKm > 0 ? fmtNum(prevKm) : '',
+          'Km Atual': currKm > 0 ? fmtNum(currKm) : '',
+          'Total Km': totalKm > 0 ? fmtNum(totalKm) : '',
         };
 
         try {
