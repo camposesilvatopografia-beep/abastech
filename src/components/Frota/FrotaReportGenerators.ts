@@ -480,14 +480,14 @@ export async function exportEfetivoPDF(
   );
   tableData.push(totalRow);
 
-  // ─── Column widths ───
+  // ─── Column widths — fit within page ───
   const availWidth = pageWidth - 28; // 14mm margin each side
-  const itemW = 12;
-  const descW = 48;
-  const totalMobW = 20;
+  const itemW = 10;
+  const descW = 44;
+  const totalMobW = 18;
   const fixedW = itemW + descW + totalMobW;
   const dynamicCols = orderedCompanies.length + (hasTerceiros ? 1 : 0) + 2;
-  const dynamicW = Math.max(18, Math.min(32, (availWidth - fixedW) / dynamicCols));
+  const dynamicW = Math.max(12, (availWidth - fixedW) / dynamicCols);
 
   const columnStyles: Record<number, any> = {
     0: { cellWidth: itemW, halign: 'center' },
@@ -515,9 +515,10 @@ export async function exportEfetivoPDF(
     head: [headers],
     body: tableData,
     theme: 'grid',
+    tableWidth: availWidth,
     styles: {
-      fontSize: 9,
-      cellPadding: 3.5,
+      fontSize: dynamicCols > 8 ? 7 : 8,
+      cellPadding: dynamicCols > 8 ? 2 : 3,
       lineColor: [160, 170, 180],
       lineWidth: 0.3,
       textColor: [0, 0, 0],
@@ -530,11 +531,11 @@ export async function exportEfetivoPDF(
       fillColor: [30, 41, 59],
       textColor: [255, 255, 255],
       fontStyle: 'bold',
-      fontSize: 8.5,
+      fontSize: dynamicCols > 8 ? 6.5 : 7.5,
       halign: 'center',
       lineColor: [51, 65, 85],
       lineWidth: 0.3,
-      cellPadding: 4,
+      cellPadding: dynamicCols > 8 ? 2 : 3,
     },
     columnStyles: {
       ...columnStyles,
