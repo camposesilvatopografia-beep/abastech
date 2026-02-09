@@ -269,7 +269,12 @@ export function exportMobilizacaoPDF(
 
 // ═══════════════════════════════════════════════════════════════════════
 // EFETIVO / APONTAMENTO DIÁRIO DE EQUIPAMENTOS
-// Matches the user-uploaded PDF template exactly
+// Matches the user-uploaded PDF template exactly:
+// - Plain header (obra name left, date right)
+// - Single main table: Item | Descrição | Total Mobilizado | ...empresas... | Terceiros | Manutenção | Disponível no dia
+// - Total row at bottom
+// - "Relatório Simplificado de Manutenção" section below (same page)
+// - No second page with detail breakdown
 // ═══════════════════════════════════════════════════════════════════════
 
 export function exportEfetivoPDF(
@@ -280,33 +285,38 @@ export function exportEfetivoPDF(
 ) {
   const doc = new jsPDF('landscape');
   const pageWidth = doc.internal.pageSize.getWidth();
-  const pageHeight = doc.internal.pageSize.getHeight();
 
-  // ─── Header ───
-  doc.setFillColor(30, 41, 59);
-  doc.rect(0, 0, pageWidth, 22, 'F');
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(13);
+  // ─── Plain header (matches template: obra name left, date right) ───
+  doc.setFillColor(240, 240, 240);
+  doc.rect(0, 0, pageWidth, 24, 'F');
+  doc.setDrawColor(180, 180, 180);
+  doc.line(0, 24, pageWidth, 24);
+
+  doc.setTextColor(0, 0, 0);
+  doc.setFontSize(12);
   doc.setFont('helvetica', 'bold');
-  doc.text(obraSettings?.nome?.toUpperCase() || 'AEROPORTO MARAGOGI', pageWidth / 2, 10, { align: 'center' });
-  doc.setFontSize(10);
-  doc.text('APONTAMENTOS DIÁRIOS DE EQUIPAMENTOS', pageWidth / 2, 18, { align: 'center' });
+  doc.text(obraSettings?.nome?.toUpperCase() || 'AEROPORTO MARAGOGI', 10, 10);
 
-  // Date line
-  doc.setTextColor(30, 41, 59);
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  doc.text('APONTAMENTOS DIÁRIOS DE EQUIPAMENTOS', 10, 18);
+
+  // Date on the right
   doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
-  doc.text(`Data: ${format(selectedDate, "EEEE, d 'de' MMMM 'de' yyyy", { locale: ptBR })}`, 14, 30);
+  doc.text('Data:', pageWidth - 70, 10);
+  doc.text(format(selectedDate, "EEEE, d 'de' MMMM 'de' yyyy", { locale: ptBR }), pageWidth - 70, 17);
 
   // ─── Classify companies ───
   const { mainCompanies, terceirosCodes } = classifyCompanies(vehicles);
   const hasTerceiros = terceirosCodes.size > 0;
 
-  // Build column headers: Item | Descrição | Total | ...companies... | (Terceiros) | Manutenção | Disponível no dia
-  const headers: string[] = ['Item', 'Descrição', 'Total'];
+  // Build column headers matching template:
+  // Item | Descrição | Total Mobilizado | ...companies... | (Terceiros) | Manutenção | Disponível no dia
+  const headers: string[] = ['Item', 'Descrição', 'Total\nMobilizado'];
   mainCompanies.forEach(c => headers.push(c));
   if (hasTerceiros) headers.push('Terceiros');
-  headers.push('Manutenção', 'Disponível no dia');
+  headers.push('Manutenção', 'Disponível no\ndia');
 
   // Maintenance vehicle codes
   const maintenanceVehicleCodes = new Set(
@@ -378,8 +388,8 @@ export function exportEfetivoPDF(
 
   // Total row
   const totalRow: string[] = [
-    'Total',
     '',
+    'Total',
     totalGeneral > 0 ? totalGeneral.toString() : '',
     ...mainCompanies.map(c => {
       const val = companyTotals.get(c) || 0;
@@ -394,18 +404,18 @@ export function exportEfetivoPDF(
   tableData.push(totalRow);
 
   // ─── Column widths ───
-  const availWidth = pageWidth - 28;
+  const availWidth = pageWidth - 20; // 10mm margin each side
   const itemW = 12;
-  const descW = 50;
-  const totalW = 14;
-  const fixedW = itemW + descW + totalW;
+  const descW = 55;
+  const totalMobW = 18;
+  const fixedW = itemW + descW + totalMobW;
   const dynamicCols = mainCompanies.length + (hasTerceiros ? 1 : 0) + 2; // + Manutenção + Disponível
-  const dynamicW = Math.max(18, (availWidth - fixedW) / dynamicCols);
+  const dynamicW = Math.max(18, Math.min(28, (availWidth - fixedW) / dynamicCols));
 
   const columnStyles: Record<number, any> = {
     0: { cellWidth: itemW, halign: 'center' },
     1: { cellWidth: descW },
-    2: { cellWidth: totalW, halign: 'center', fontStyle: 'bold' },
+    2: { cellWidth: totalMobW, halign: 'center', fontStyle: 'bold' },
   };
 
   let colIdx = 3;
@@ -420,29 +430,31 @@ export function exportEfetivoPDF(
   const maintenanceColIdx = colIdx;
   columnStyles[colIdx] = { cellWidth: dynamicW, halign: 'center' };
   colIdx++;
-  columnStyles[colIdx] = { cellWidth: dynamicW, halign: 'center' };
+  columnStyles[colIdx] = { cellWidth: dynamicW, halign: 'center', fontStyle: 'bold' };
 
   autoTable(doc, {
-    startY: 35,
+    startY: 28,
     head: [headers],
     body: tableData,
     theme: 'grid',
-    styles: { fontSize: 6.5, cellPadding: 2 },
+    styles: { fontSize: 7, cellPadding: 1.5, lineColor: [180, 180, 180], lineWidth: 0.2 },
     headStyles: {
-      fillColor: [30, 41, 59],
-      textColor: 255,
+      fillColor: [220, 220, 220],
+      textColor: [0, 0, 0],
       fontStyle: 'bold',
       fontSize: 7,
       halign: 'center',
+      lineColor: [150, 150, 150],
+      lineWidth: 0.3,
     },
     columnStyles,
-    margin: { left: 14, right: 14 },
-    alternateRowStyles: { fillColor: [248, 250, 252] },
+    margin: { left: 10, right: 10 },
+    alternateRowStyles: { fillColor: [250, 250, 250] },
     didParseCell: (data) => {
-      // Bold total row
+      // Bold total row with grey background
       if (data.row.index === tableData.length - 1) {
-        data.cell.styles.fillColor = [30, 41, 59];
-        data.cell.styles.textColor = 255;
+        data.cell.styles.fillColor = [220, 220, 220];
+        data.cell.styles.textColor = [0, 0, 0];
         data.cell.styles.fontStyle = 'bold';
       }
       // Red text for Manutenção column values > 0
@@ -456,140 +468,56 @@ export function exportEfetivoPDF(
     },
   });
 
-  let afterTableY = (doc as any).lastAutoTable.finalY + 8;
+  let afterTableY = (doc as any).lastAutoTable.finalY + 4;
 
-  // ─── PAGE 2: Detalhamento dos Códigos por Descrição ───
-  doc.addPage();
-  let detailY = 15;
-
-  doc.setFillColor(30, 41, 59);
-  doc.rect(0, 0, pageWidth, 18, 'F');
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(11);
-  doc.setFont('helvetica', 'bold');
-  doc.text('DETALHAMENTO POR TIPO DE EQUIPAMENTO', pageWidth / 2, 12, { align: 'center' });
-  detailY = 22;
-
-  sortedDescs.forEach(desc => {
-    const items = descGroups.get(desc)!;
-    const sorted = [...items].sort((a, b) => a.empresa.localeCompare(b.empresa) || a.codigo.localeCompare(b.codigo));
-
-    if (detailY > pageHeight - 40) { doc.addPage(); detailY = 15; }
-
-    // Description sub-header
-    doc.setFillColor(71, 85, 105);
-    doc.rect(14, detailY, pageWidth - 28, 7, 'F');
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'bold');
-    doc.text(`${desc.toUpperCase()} (${items.length})`, 16, detailY + 5);
-    detailY += 9;
-
-    const detailData = sorted.map((item, idx) => {
-      const inMaintenance = maintenanceVehicleCodes.has(item.codigo);
-      return [
-        (idx + 1).toString(),
-        item.codigo,
-        item.empresa,
-        item.categoria || '-',
-        (item.status || 'Ativo').toUpperCase(),
-        inMaintenance ? 'SIM' : '',
-      ];
-    });
-
-    autoTable(doc, {
-      startY: detailY,
-      head: [['ITEM', 'CÓDIGO', 'PROPRIETÁRIO', 'CATEGORIA', 'STATUS', 'MANUTENÇÃO']],
-      body: detailData,
-      theme: 'grid',
-      styles: { fontSize: 6.5, cellPadding: 1.5 },
-      headStyles: { fillColor: [148, 163, 184], textColor: 0, fontStyle: 'bold', fontSize: 7 },
-      columnStyles: {
-        0: { cellWidth: 12, halign: 'center' },
-        1: { cellWidth: 25 },
-        2: { cellWidth: 45 },
-        3: { cellWidth: 35 },
-        4: { cellWidth: 25, halign: 'center' },
-        5: { cellWidth: 22, halign: 'center' },
-      },
-      margin: { left: 14, right: 14 },
-      alternateRowStyles: { fillColor: [249, 250, 251] },
-      didParseCell: (data) => {
-        // Red for maintenance items
-        if (data.column.index === 5 && data.section === 'body' && data.cell.text[0] === 'SIM') {
-          data.cell.styles.textColor = [220, 38, 38];
-          data.cell.styles.fontStyle = 'bold';
-        }
-      },
-    });
-
-    detailY = (doc as any).lastAutoTable.finalY + 6;
-  });
-
-  // ─── Maintenance Summary (compact list matching PDF template) ───
+  // ─── Relatório Simplificado de Manutenção (on same page) ───
   const activeMaintenanceOrders = maintenanceOrders.filter(
     o => ['Em Manutenção', 'Em Andamento', 'Aberta', 'Aguardando Peças'].includes(o.status)
   );
 
   if (activeMaintenanceOrders.length > 0) {
-    if (afterTableY > pageHeight - 50) {
-      doc.addPage();
-      afterTableY = 20;
-    }
-
-    // Go back to the first page's afterTableY for maintenance summary
-    // Actually, append to the detail pages
-    if (detailY > pageHeight - 50) {
-      doc.addPage();
-      detailY = 20;
-    }
-
     // Section header
-    doc.setFillColor(245, 158, 11);
-    doc.rect(14, detailY, pageWidth - 28, 8, 'F');
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(9);
+    doc.setFillColor(200, 200, 200);
+    doc.rect(10, afterTableY, pageWidth - 20, 7, 'F');
+    doc.setDrawColor(150, 150, 150);
+    doc.rect(10, afterTableY, pageWidth - 20, 7, 'S');
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(8);
     doc.setFont('helvetica', 'bold');
-    doc.text(`RELATÓRIO SIMPLIFICADO DE MANUTENÇÃO (${activeMaintenanceOrders.length})`, 16, detailY + 5.5);
-    detailY += 12;
+    doc.text('Relatório Simplificado de Manutenção', 12, afterTableY + 5);
+    afterTableY += 9;
 
-    // Find the company for each maintenance vehicle
-    const vehicleCompanyMap = new Map<string, string>();
+    // Find the company and description for each maintenance vehicle
+    const vehicleInfoMap = new Map<string, { empresa: string; descricao: string }>();
     vehicles.forEach(v => {
-      vehicleCompanyMap.set(v.codigo, v.empresa || '');
+      vehicleInfoMap.set(v.codigo, { empresa: v.empresa || '', descricao: v.descricao || '' });
     });
 
-    const maintenanceTableData = activeMaintenanceOrders.map((o, idx) => {
-      const company = vehicleCompanyMap.get(o.vehicle_code) || '';
+    const maintenanceTableData = activeMaintenanceOrders.map(o => {
+      const info = vehicleInfoMap.get(o.vehicle_code);
       return [
-        (idx + 1).toString(),
         o.vehicle_code,
-        (o.vehicle_description || '').substring(0, 25),
-        company,
-        (o.problem_description || '-').substring(0, 40),
-        o.mechanic_name || '-',
-        o.entry_date || '-',
+        info?.empresa || '',
+        info?.descricao || o.vehicle_description || '',
+        o.problem_description || '-',
+        o.entry_date ? format(new Date(o.entry_date + 'T12:00:00'), 'dd/MM/yyyy') : '-',
       ];
     });
 
     autoTable(doc, {
-      startY: detailY,
-      head: [['#', 'CÓDIGO', 'EQUIPAMENTO', 'EMPRESA', 'PROBLEMA', 'MECÂNICO', 'ENTRADA']],
+      startY: afterTableY,
       body: maintenanceTableData,
       theme: 'grid',
-      styles: { fontSize: 6.5, cellPadding: 1.5 },
-      headStyles: { fillColor: [217, 119, 6], textColor: 255, fontStyle: 'bold', fontSize: 7 },
+      styles: { fontSize: 6.5, cellPadding: 1.5, lineColor: [180, 180, 180], lineWidth: 0.2 },
       columnStyles: {
-        0: { cellWidth: 10, halign: 'center' },
-        1: { cellWidth: 22 },
-        2: { cellWidth: 35 },
-        3: { cellWidth: 35 },
-        4: { cellWidth: 55 },
-        5: { cellWidth: 30 },
-        6: { cellWidth: 20, halign: 'center' },
+        0: { cellWidth: 22, fontStyle: 'bold' },
+        1: { cellWidth: 40 },
+        2: { cellWidth: 45 },
+        3: { cellWidth: 'auto' },
+        4: { cellWidth: 22, halign: 'center' },
       },
-      margin: { left: 14, right: 14 },
-      alternateRowStyles: { fillColor: [254, 252, 232] },
+      margin: { left: 10, right: 10 },
+      alternateRowStyles: { fillColor: [250, 250, 250] },
     });
   }
 
