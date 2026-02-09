@@ -472,19 +472,22 @@ export function ManutencaoPage() {
       };
 
       // Map to correct column headers as specified
+      const isFinalized = order.status.includes('Finalizada');
       const rowData: Record<string, string> = {
-        'DATA': formatDateForSheet(order.order_date),
-        'VEICULO': order.vehicle_code,
-        'EMPRESA': company || '',
-        'MOTORISTA': order.created_by || '',
-        'POTENCIA': order.vehicle_description || '',
-        'PROBLEMA': order.problem_description || '',
-        'SERVICO': order.solution_description || '',
-        'MECANICO': order.mechanic_name || '',
-        'DATA_ENTRADA': formatDateForSheet(order.entry_date),
-        'DATA_SAIDA': order.status.includes('Finalizada') ? formatDateForSheet(order.end_date || new Date().toISOString()) : '',
-        'HORA_ENTRADA': formatTimeForSheet(order.entry_time, null),
-        'HORA_SAIDA': order.status.includes('Finalizada') ? formatTimeForSheet(null, order.end_date) : '',
+        'Data': formatDateForSheet(order.entry_date || order.order_date),
+        'Veiculo': order.vehicle_code,
+        'Empresa': company || '',
+        'Motorista': order.created_by || '',
+        'Potencia': order.vehicle_description || '',
+        'Problema': order.problem_description || '',
+        'Servico': order.solution_description || '',
+        'Mecanico': order.mechanic_name || '',
+        'Data_Entrada': formatDateForSheet(order.entry_date),
+        'Data_Saida': isFinalized ? formatDateForSheet(order.end_date || new Date().toISOString()) : '',
+        'Hora_Entrada': formatTimeForSheet(order.entry_time, null),
+        'Hora_Saida': isFinalized ? formatTimeForSheet(null, order.end_date) : '',
+        'Observacao': order.notes || '',
+        'Status': order.status || '',
       };
 
       await createRow(ORDEM_SERVICO_SHEET, rowData);
