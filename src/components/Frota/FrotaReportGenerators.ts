@@ -303,7 +303,8 @@ export async function exportEfetivoPDF(
   vehicles: VehicleData[],
   selectedDate: Date,
   maintenanceOrders: ServiceOrderData[],
-  obraSettings?: ObraSettings | null
+  obraSettings?: ObraSettings | null,
+  selectedCompanyColumns?: { key: string; label: string; visible: boolean; order: number }[]
 ) {
   const doc = new jsPDF('landscape');
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -360,12 +361,38 @@ export async function exportEfetivoPDF(
   doc.text(`Gerado: ${format(new Date(), 'dd/MM/yyyy HH:mm')}`, pageWidth - 14, 18, { align: 'right' });
 
   // ─── Classify companies ───
-  const { mainCompanies, terceirosCodes } = classifyCompanies(vehicles);
-  const hasTerceiros = terceirosCodes.size > 0;
+  let orderedCompanies: string[];
+  let terceirosCodes = new Set<string>();
+  let hasTerceiros = false;
+
+  if (selectedCompanyColumns && selectedCompanyColumns.length > 0) {
+    // Use user-selected columns
+    const visibleCols = selectedCompanyColumns
+      .filter(c => c.visible)
+      .sort((a, b) => a.order - b.order);
+    
+    const isTerceiros = (name: string) => name.toLowerCase() === 'terceiros';
+    orderedCompanies = visibleCols.filter(c => !isTerceiros(c.key)).map(c => c.key);
+    hasTerceiros = visibleCols.some(c => isTerceiros(c.key));
+    
+    if (hasTerceiros) {
+      // Terceiros = companies not in orderedCompanies
+      const orderedSet = new Set(orderedCompanies);
+      vehicles.forEach(v => {
+        const emp = v.empresa || 'Não informada';
+        if (!orderedSet.has(emp)) terceirosCodes.add(v.codigo);
+      });
+    }
+  } else {
+    const classified = classifyCompanies(vehicles);
+    orderedCompanies = classified.mainCompanies;
+    terceirosCodes = classified.terceirosCodes;
+    hasTerceiros = terceirosCodes.size > 0;
+  }
 
   // Build column headers
   const headers: string[] = ['Item', 'Descrição', 'Total\nMobilizado'];
-  mainCompanies.forEach(c => headers.push(c));
+  orderedCompanies.forEach(c => headers.push(c));
   if (hasTerceiros) headers.push('Terceiros');
   headers.push('Manutenção', 'Disponível\nno dia');
 
@@ -397,7 +424,7 @@ export async function exportEfetivoPDF(
   const tableData: string[][] = [];
   let totalGeneral = 0;
   const companyTotals = new Map<string, number>();
-  mainCompanies.forEach(c => companyTotals.set(c, 0));
+  orderedCompanies.forEach(c => companyTotals.set(c, 0));
   let totalTerceiros = 0;
   let totalMaintenance = 0;
   let totalAvailable = 0;
@@ -407,7 +434,7 @@ export async function exportEfetivoPDF(
     const total = items.length;
     totalGeneral += total;
 
-    const companyCounts: number[] = mainCompanies.map(company => {
+    const companyCounts: number[] = orderedCompanies.map(company => {
       const count = items.filter(v => v.empresa === company).length;
       companyTotals.set(company, (companyTotals.get(company) || 0) + count);
       return count;
@@ -441,7 +468,7 @@ export async function exportEfetivoPDF(
     '',
     'TOTAL GERAL',
     totalGeneral > 0 ? totalGeneral.toString() : '',
-    ...mainCompanies.map(c => {
+    ...orderedCompanies.map(c => {
       const val = companyTotals.get(c) || 0;
       return val > 0 ? val.toString() : '';
     }),
@@ -456,11 +483,11 @@ export async function exportEfetivoPDF(
   // ─── Column widths ───
   const availWidth = pageWidth - 28; // 14mm margin each side
   const itemW = 12;
-  const descW = 52;
+  const descW = 48;
   const totalMobW = 20;
   const fixedW = itemW + descW + totalMobW;
-  const dynamicCols = mainCompanies.length + (hasTerceiros ? 1 : 0) + 2;
-  const dynamicW = Math.max(18, Math.min(30, (availWidth - fixedW) / dynamicCols));
+  const dynamicCols = orderedCompanies.length + (hasTerceiros ? 1 : 0) + 2;
+  const dynamicW = Math.max(18, Math.min(32, (availWidth - fixedW) / dynamicCols));
 
   const columnStyles: Record<number, any> = {
     0: { cellWidth: itemW, halign: 'center' },
@@ -469,7 +496,7 @@ export async function exportEfetivoPDF(
   };
 
   let colIdx = 3;
-  mainCompanies.forEach(() => {
+  orderedCompanies.forEach(() => {
     columnStyles[colIdx] = { cellWidth: dynamicW, halign: 'center' };
     colIdx++;
   });
@@ -489,24 +516,25 @@ export async function exportEfetivoPDF(
     body: tableData,
     theme: 'grid',
     styles: {
-      fontSize: 8,
-      cellPadding: 3,
-      lineColor: [180, 180, 180],
+      fontSize: 9,
+      cellPadding: 3.5,
+      lineColor: [160, 170, 180],
       lineWidth: 0.3,
       textColor: [0, 0, 0],
       font: 'helvetica',
       halign: 'center',
       valign: 'middle',
+      overflow: 'linebreak',
     },
     headStyles: {
       fillColor: [30, 41, 59],
       textColor: [255, 255, 255],
       fontStyle: 'bold',
-      fontSize: 8,
+      fontSize: 8.5,
       halign: 'center',
       lineColor: [51, 65, 85],
       lineWidth: 0.3,
-      cellPadding: 3.5,
+      cellPadding: 4,
     },
     columnStyles: {
       ...columnStyles,
@@ -520,7 +548,7 @@ export async function exportEfetivoPDF(
         data.cell.styles.fillColor = [30, 41, 59];
         data.cell.styles.textColor = [255, 255, 255];
         data.cell.styles.fontStyle = 'bold';
-        data.cell.styles.fontSize = 8.5;
+        data.cell.styles.fontSize = 9;
       }
       // Manutenção column - red accent for values > 0
       if (data.column.index === maintenanceColIdx && data.section === 'body') {
@@ -549,31 +577,41 @@ export async function exportEfetivoPDF(
     },
   });
 
-  let afterTableY = (doc as any).lastAutoTable.finalY + 6;
-
-  // ─── Relatório Simplificado de Manutenção ───
+  // ─── Relatório Simplificado de Manutenção (SEPARATE PAGE) ───
   const activeMaintenanceOrders = maintenanceOrders.filter(
     o => ['Em Manutenção', 'Em Andamento', 'Aberta', 'Aguardando Peças'].includes(o.status)
   );
 
   if (activeMaintenanceOrders.length > 0) {
-    // Section header with red accent
-    doc.setFillColor(185, 28, 28);
-    doc.rect(14, afterTableY, pageWidth - 28, 8, 'F');
+    doc.addPage();
+
+    // Red header for maintenance page
+    const maintHeaderH = 22;
+    doc.setFillColor(153, 27, 27);
+    doc.rect(0, 0, pageWidth, maintHeaderH, 'F');
+    doc.setFillColor(239, 68, 68);
+    doc.rect(0, maintHeaderH, pageWidth, 1.5, 'F');
+
     doc.setTextColor(255, 255, 255);
-    doc.setFontSize(8);
+    doc.setFontSize(12);
     doc.setFont('helvetica', 'bold');
-    doc.text(`RELATÓRIO SIMPLIFICADO DE MANUTENÇÃO (${activeMaintenanceOrders.length})`, 17, afterTableY + 5.5);
-    afterTableY += 10;
+    doc.text('RELATÓRIO SIMPLIFICADO DE MANUTENÇÃO', pageWidth / 2, 10, { align: 'center' });
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.text(
+      `${activeMaintenanceOrders.length} equipamento(s) em manutenção — ${format(selectedDate, 'dd/MM/yyyy')}`,
+      pageWidth / 2, 18, { align: 'center' }
+    );
 
     const vehicleInfoMap = new Map<string, { empresa: string; descricao: string }>();
     vehicles.forEach(v => {
       vehicleInfoMap.set(v.codigo, { empresa: v.empresa || '', descricao: v.descricao || '' });
     });
 
-    const maintenanceTableData = activeMaintenanceOrders.map(o => {
+    const maintenanceTableData = activeMaintenanceOrders.map((o, idx) => {
       const info = vehicleInfoMap.get(o.vehicle_code);
       return [
+        (idx + 1).toString(),
         o.vehicle_code,
         info?.empresa || '',
         info?.descricao || o.vehicle_description || '',
@@ -583,33 +621,36 @@ export async function exportEfetivoPDF(
     });
 
     autoTable(doc, {
-      startY: afterTableY,
-      head: [['Código', 'Empresa', 'Equipamento', 'Problema', 'Entrada']],
+      startY: maintHeaderH + 6,
+      head: [['#', 'Código', 'Empresa', 'Equipamento', 'Problema', 'Entrada']],
       body: maintenanceTableData,
       theme: 'grid',
       styles: {
-        fontSize: 7.5,
-        cellPadding: 2.5,
+        fontSize: 8,
+        cellPadding: 3,
         lineColor: [180, 180, 180],
         lineWidth: 0.25,
         textColor: [0, 0, 0],
         halign: 'center',
         valign: 'middle',
+        overflow: 'linebreak',
       },
       headStyles: {
         fillColor: [185, 28, 28],
         textColor: [255, 255, 255],
         fontStyle: 'bold',
-        fontSize: 7.5,
+        fontSize: 8.5,
         lineColor: [153, 27, 27],
         halign: 'center',
+        cellPadding: 3.5,
       },
       columnStyles: {
-        0: { cellWidth: 24, fontStyle: 'bold' },
-        1: { cellWidth: 40 },
-        2: { cellWidth: 48, halign: 'left' },
-        3: { cellWidth: 'auto', halign: 'left' },
-        4: { cellWidth: 22, halign: 'center' },
+        0: { cellWidth: 12, halign: 'center' },
+        1: { cellWidth: 26, fontStyle: 'bold' },
+        2: { cellWidth: 36 },
+        3: { cellWidth: 44, halign: 'left' },
+        4: { cellWidth: 'auto', halign: 'left' },
+        5: { cellWidth: 24, halign: 'center' },
       },
       margin: { left: 14, right: 14 },
       alternateRowStyles: { fillColor: [254, 245, 245] },

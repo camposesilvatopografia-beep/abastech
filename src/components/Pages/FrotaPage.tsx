@@ -64,6 +64,7 @@ import { VehicleHistoryModal } from '@/components/Frota/VehicleHistoryModal';
 import { VehicleFormModal } from '@/components/Frota/VehicleFormModal';
 import { MobilizedEquipmentsView } from '@/components/Frota/MobilizedEquipmentsView';
 import { exportMobilizacaoPDF, exportEfetivoPDF, exportMobilizadosPDF, exportDesmobilizadosPDF } from '@/components/Frota/FrotaReportGenerators';
+import { EfetivoColumnSelectorModal, type EfetivoColumn } from '@/components/Frota/EfetivoColumnSelectorModal';
 import { useObraSettings } from '@/hooks/useObraSettings';
 import { ColumnConfigModal } from '@/components/Layout/ColumnConfigModal';
 import { useLayoutPreferences, ColumnConfig } from '@/hooks/useLayoutPreferences';
@@ -144,6 +145,7 @@ export function FrotaPage() {
   const { columnConfig, visibleColumns, savePreferences, resetToDefaults, saving: savingLayout } = 
     useLayoutPreferences('frota', DEFAULT_COLUMNS);
   const [columnConfigModalOpen, setColumnConfigModalOpen] = useState(false);
+  const [efetivoColumnModalOpen, setEfetivoColumnModalOpen] = useState(false);
   
   // Maintenance KPI - real-time from service_orders
   const [maintenanceCount, setMaintenanceCount] = useState(0);
@@ -719,16 +721,7 @@ export function FrotaPage() {
             <Button 
               variant="outline" 
               size="sm"
-              onClick={async () => {
-                const allVehicles = filteredRows.map(row => ({
-                  codigo: getRowValue(row as any, ['CODIGO', 'Codigo', 'codigo', 'VEICULO', 'Veiculo', 'veiculo']),
-                  descricao: getRowValue(row as any, ['DESCRICAO', 'DESCRIÇÃO', 'Descricao', 'descrição', 'descricao']),
-                  empresa: getRowValue(row as any, ['EMPRESA', 'Empresa', 'empresa']),
-                  categoria: getRowValue(row as any, ['CATEGORIA', 'Categoria', 'categoria', 'TIPO', 'Tipo', 'tipo']),
-                  status: getRowValue(row as any, ['STATUS', 'Status', 'status']) || 'ativo',
-                }));
-                await exportEfetivoPDF(allVehicles, selectedDate, maintenanceOrders, obraSettings);
-              }}
+              onClick={() => setEfetivoColumnModalOpen(true)}
               className="bg-teal-50 hover:bg-teal-100 text-teal-700 border-teal-200"
             >
               <FileText className="w-4 h-4 sm:mr-2" />
@@ -1328,6 +1321,31 @@ export function FrotaPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      {/* Efetivo Column Selector Modal */}
+      <EfetivoColumnSelectorModal
+        open={efetivoColumnModalOpen}
+        onClose={() => setEfetivoColumnModalOpen(false)}
+        companies={(() => {
+          const empSet = new Set<string>();
+          filteredRows.forEach(row => {
+            const emp = getRowValue(row as any, ['EMPRESA', 'Empresa', 'empresa']);
+            if (emp) empSet.add(emp);
+          });
+          return Array.from(empSet);
+        })()}
+        onGenerate={async (selectedColumns) => {
+          const allVehicles = filteredRows.map(row => ({
+            codigo: getRowValue(row as any, ['CODIGO', 'Codigo', 'codigo', 'VEICULO', 'Veiculo', 'veiculo']),
+            descricao: getRowValue(row as any, ['DESCRICAO', 'DESCRIÇÃO', 'Descricao', 'descrição', 'descricao']),
+            empresa: getRowValue(row as any, ['EMPRESA', 'Empresa', 'empresa']),
+            categoria: getRowValue(row as any, ['CATEGORIA', 'Categoria', 'categoria', 'TIPO', 'Tipo', 'tipo']),
+            status: getRowValue(row as any, ['STATUS', 'Status', 'status']) || 'ativo',
+          }));
+          await exportEfetivoPDF(allVehicles, selectedDate, maintenanceOrders, obraSettings, selectedColumns);
+          setEfetivoColumnModalOpen(false);
+          toast.success('PDF de Efetivo gerado!');
+        }}
+      />
       {/* KPI Detail Modal */}
       <FrotaKpiDetailModal
         open={kpiDetailOpen}
