@@ -387,12 +387,12 @@ export function FieldHorimeterForm({ user, onBack }: FieldHorimeterFormProps) {
           const [year, month, day] = readingDate.split('-');
           const formattedDate = `${day}/${month}/${year}`;
           
-          // Map to exact sheet headers (B1:ZZ1 in the Horimetros sheet)
-          // Headers: ID, ' Data', Veiculo, Categoria, Descricao, Empresa, Operador,
-          //          Horimetro Anterior, Horimetro Atual, Intervalo H, Km Anterior, Km Atual, Total Km
+          // Map to exact sheet headers from B1:ZZ1 in the Horimetros sheet
+          // The edge function trims headers, so ' Data' -> 'Data'
+          // Headers (B onwards): Data, Veiculo, Categoria, Descricao, Empresa, Operador,
+          //   Horimetro Anterior, Horimetro Atual, Intervalo H, Km Anterior, Km Atual, Total Km
           const sheetData: Record<string, string> = {
-            'ID': data.id ? data.id.substring(0, 8) : '',
-            ' Data': formattedDate,
+            'Data': formattedDate,
             'Veiculo': vehicle.code || '',
             'Categoria': vehicle.category || '',
             'Descricao': vehicle.name || '',
