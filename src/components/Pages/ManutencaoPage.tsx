@@ -488,8 +488,8 @@ export function ManutencaoPage() {
     }
   };
 
-  // Fetch vehicle maintenance history
-  const fetchVehicleHistory = (vehicleCode: string) => {
+  // Fetch vehicle maintenance history + latest horimeter/KM from ALL sources
+  const fetchVehicleHistory = async (vehicleCode: string) => {
     if (!vehicleCode) {
       setVehicleHistory(null);
       setHorimeterWarning(null);
@@ -516,7 +516,6 @@ export function ManutencaoPage() {
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
         totalDays += diffDays;
       } else if (order.start_date && order.status !== 'Finalizada') {
-        // Still in maintenance
         const start = new Date(order.start_date);
         const now = new Date();
         const diffTime = Math.abs(now.getTime() - start.getTime());
@@ -528,11 +527,90 @@ export function ManutencaoPage() {
     // Get last order
     const lastOrder = vehicleOrders.length > 0 ? vehicleOrders[0] : null;
     
-    // Get last horimeter and km from orders
-    const ordersWithHorimeter = vehicleOrders.filter(o => (o as any).horimeter_current);
-    const ordersWithKm = vehicleOrders.filter(o => (o as any).km_current);
-    const lastHorimeter = ordersWithHorimeter.length > 0 ? (ordersWithHorimeter[0] as any).horimeter_current : null;
-    const lastKm = ordersWithKm.length > 0 ? (ordersWithKm[0] as any).km_current : null;
+    // --- Fetch last horimeter/KM from ALL sources (service_orders, field_fuel_records, horimeter_readings) ---
+    let lastHorimeter: number | null = null;
+    let lastKm: number | null = null;
+
+    try {
+      // 1. From service_orders (already loaded)
+      const ordersWithHorimeter = vehicleOrders.filter(o => (o as any).horimeter_current);
+      const ordersWithKm = vehicleOrders.filter(o => (o as any).km_current);
+      const osHorimeter = ordersWithHorimeter.length > 0 ? Number((ordersWithHorimeter[0] as any).horimeter_current) : null;
+      const osKm = ordersWithKm.length > 0 ? Number((ordersWithKm[0] as any).km_current) : null;
+      const osDate = ordersWithHorimeter.length > 0 ? ((ordersWithHorimeter[0] as any).entry_date || ordersWithHorimeter[0].order_date) : null;
+      const osKmDate = ordersWithKm.length > 0 ? ((ordersWithKm[0] as any).entry_date || ordersWithKm[0].order_date) : null;
+
+      // 2. From field_fuel_records - get the most recent record with horimeter or km
+      const { data: fuelRecords } = await supabase
+        .from('field_fuel_records')
+        .select('horimeter_current, km_current, record_date, record_time')
+        .eq('vehicle_code', vehicleCode)
+        .order('record_date', { ascending: false })
+        .order('record_time', { ascending: false })
+        .limit(5);
+
+      const fuelWithHorimeter = fuelRecords?.find(r => r.horimeter_current && Number(r.horimeter_current) > 0);
+      const fuelWithKm = fuelRecords?.find(r => r.km_current && Number(r.km_current) > 0);
+      const fuelHorimeter = fuelWithHorimeter ? Number(fuelWithHorimeter.horimeter_current) : null;
+      const fuelKm = fuelWithKm ? Number(fuelWithKm.km_current) : null;
+      const fuelHorimeterDate = fuelWithHorimeter?.record_date || null;
+      const fuelKmDate = fuelWithKm?.record_date || null;
+
+      // 3. From horimeter_readings - need the vehicle id first
+      const { data: vehicleRecord } = await supabase
+        .from('vehicles')
+        .select('id')
+        .eq('code', vehicleCode)
+        .maybeSingle();
+
+      let readingHorimeter: number | null = null;
+      let readingKm: number | null = null;
+      let readingDate: string | null = null;
+
+      if (vehicleRecord?.id) {
+        const { data: readings } = await supabase
+          .from('horimeter_readings')
+          .select('current_value, current_km, reading_date')
+          .eq('vehicle_id', vehicleRecord.id)
+          .order('reading_date', { ascending: false })
+          .limit(1);
+
+        if (readings && readings.length > 0) {
+          readingHorimeter = readings[0].current_value ? Number(readings[0].current_value) : null;
+          readingKm = readings[0].current_km ? Number(readings[0].current_km) : null;
+          readingDate = readings[0].reading_date;
+        }
+      }
+
+      // 4. Pick the most recent value across all sources
+      // Compare by date, pick the latest
+      const horimeterCandidates: { value: number; date: string }[] = [];
+      if (osHorimeter && osDate) horimeterCandidates.push({ value: osHorimeter, date: osDate });
+      if (fuelHorimeter && fuelHorimeterDate) horimeterCandidates.push({ value: fuelHorimeter, date: fuelHorimeterDate });
+      if (readingHorimeter && readingDate) horimeterCandidates.push({ value: readingHorimeter, date: readingDate });
+
+      if (horimeterCandidates.length > 0) {
+        horimeterCandidates.sort((a, b) => b.date.localeCompare(a.date));
+        lastHorimeter = horimeterCandidates[0].value;
+      }
+
+      const kmCandidates: { value: number; date: string }[] = [];
+      if (osKm && osKmDate) kmCandidates.push({ value: osKm, date: osKmDate });
+      if (fuelKm && fuelKmDate) kmCandidates.push({ value: fuelKm, date: fuelKmDate });
+      if (readingKm && readingDate) kmCandidates.push({ value: readingKm, date: readingDate });
+
+      if (kmCandidates.length > 0) {
+        kmCandidates.sort((a, b) => b.date.localeCompare(a.date));
+        lastKm = kmCandidates[0].value;
+      }
+    } catch (err) {
+      console.error('Error fetching last horimeter/km:', err);
+      // Fallback to service_orders only
+      const ordersWithHorimeter = vehicleOrders.filter(o => (o as any).horimeter_current);
+      const ordersWithKm = vehicleOrders.filter(o => (o as any).km_current);
+      lastHorimeter = ordersWithHorimeter.length > 0 ? Number((ordersWithHorimeter[0] as any).horimeter_current) : null;
+      lastKm = ordersWithKm.length > 0 ? Number((ordersWithKm[0] as any).km_current) : null;
+    }
     
     setVehicleHistory({
       totalOrders: vehicleOrders.length,
