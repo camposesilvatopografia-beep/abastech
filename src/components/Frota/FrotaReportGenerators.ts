@@ -553,8 +553,8 @@ export async function exportEfetivoPDF(
   );
 
   if (activeMaintenanceOrders.length > 0) {
-    // Section header with navy accent
-    doc.setFillColor(51, 65, 85);
+    // Section header with red accent
+    doc.setFillColor(185, 28, 28);
     doc.rect(14, afterTableY, pageWidth - 28, 8, 'F');
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(8);
@@ -586,16 +586,16 @@ export async function exportEfetivoPDF(
       styles: {
         fontSize: 7,
         cellPadding: 2,
-        lineColor: [203, 213, 225],
+        lineColor: [220, 170, 170],
         lineWidth: 0.2,
-        textColor: [30, 41, 59],
+        textColor: [127, 29, 29],
       },
       headStyles: {
-        fillColor: [71, 85, 105],
+        fillColor: [220, 38, 38],
         textColor: [255, 255, 255],
         fontStyle: 'bold',
         fontSize: 7,
-        lineColor: [51, 65, 85],
+        lineColor: [185, 28, 28],
       },
       columnStyles: {
         0: { cellWidth: 24, fontStyle: 'bold' },
@@ -605,7 +605,7 @@ export async function exportEfetivoPDF(
         4: { cellWidth: 22, halign: 'center' },
       },
       margin: { left: 14, right: 14 },
-      alternateRowStyles: { fillColor: [241, 245, 249] },
+      alternateRowStyles: { fillColor: [254, 242, 242] },
     });
   }
 
