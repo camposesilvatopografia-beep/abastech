@@ -51,6 +51,8 @@ import {
   Settings
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { getSheetData } from '@/lib/googleSheets';
+import { parsePtBRNumber } from '@/lib/ptBRNumber';
 import { format, subDays, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -222,60 +224,181 @@ export function VehicleHistoryModal({
       const startDate = format(dateRange.start, 'yyyy-MM-dd');
       const endDate = format(dateRange.end, 'yyyy-MM-dd');
 
-      // Fetch fuel records
-      const { data: fuelData } = await supabase
-        .from('field_fuel_records')
-        .select('*')
-        .eq('vehicle_code', vehicleCode)
-        .gte('record_date', startDate)
-        .lte('record_date', endDate)
-        .order('record_date', { ascending: false })
-        .order('record_time', { ascending: false });
+      // Helper to normalize vehicle codes for comparison
+      const normalizeCode = (code: string) => code.replace(/\s+/g, '').trim().toUpperCase();
+      const normalizedVehicleCode = normalizeCode(vehicleCode);
 
-      // Fetch horimeter readings - need to find vehicle_id first
-      const { data: vehicleData } = await supabase
-        .from('vehicles')
-        .select('id')
-        .eq('code', vehicleCode)
-        .maybeSingle();
+      // Helper to parse sheet dates (dd/MM/yyyy or yyyy-MM-dd)
+      const parseSheetDate = (dateVal: any): string | null => {
+        if (!dateVal) return null;
+        const str = String(dateVal).trim();
+        // dd/MM/yyyy
+        const match = str.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+        if (match) return `${match[3]}-${match[2]}-${match[1]}`;
+        // yyyy-MM-dd
+        if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+        // Google Sheets serial number
+        const num = Number(str);
+        if (num > 40000 && num < 60000) {
+          const d = new Date((num - 25569) * 86400000);
+          return format(d, 'yyyy-MM-dd');
+        }
+        return null;
+      };
 
-      let horimeterData: HorimeterReading[] = [];
-      if (vehicleData?.id) {
+      // ─── 1. Fetch from Supabase (DB) ───
+      const [fuelDbResult, vehicleDbResult, serviceByEntryResult, serviceByOrderResult] = await Promise.all([
+        supabase
+          .from('field_fuel_records')
+          .select('*')
+          .eq('vehicle_code', vehicleCode)
+          .gte('record_date', startDate)
+          .lte('record_date', endDate)
+          .order('record_date', { ascending: false })
+          .order('record_time', { ascending: false }),
+        supabase
+          .from('vehicles')
+          .select('id')
+          .eq('code', vehicleCode)
+          .maybeSingle(),
+        supabase
+          .from('service_orders')
+          .select('*')
+          .eq('vehicle_code', vehicleCode)
+          .gte('entry_date', startDate)
+          .lte('entry_date', endDate)
+          .order('entry_date', { ascending: false }),
+        supabase
+          .from('service_orders')
+          .select('*')
+          .eq('vehicle_code', vehicleCode)
+          .is('entry_date', null)
+          .gte('order_date', startDate)
+          .lte('order_date', endDate)
+          .order('order_date', { ascending: false }),
+      ]);
+
+      let horimeterDbData: HorimeterReading[] = [];
+      if (vehicleDbResult.data?.id) {
         const { data } = await supabase
           .from('horimeter_readings')
           .select('*')
-          .eq('vehicle_id', vehicleData.id)
+          .eq('vehicle_id', vehicleDbResult.data.id)
           .gte('reading_date', startDate)
           .lte('reading_date', endDate)
           .order('reading_date', { ascending: false });
-        horimeterData = (data || []) as HorimeterReading[];
+        horimeterDbData = (data || []) as HorimeterReading[];
       }
 
-      // Fetch service orders - by entry_date (primary) OR order_date
-      const { data: serviceByEntry } = await supabase
-        .from('service_orders')
-        .select('*')
-        .eq('vehicle_code', vehicleCode)
-        .gte('entry_date', startDate)
-        .lte('entry_date', endDate)
-        .order('entry_date', { ascending: false });
+      // ─── 2. Fetch from Google Sheets ───
+      let sheetFuelRecords: FuelRecord[] = [];
+      let sheetHorimeterReadings: HorimeterReading[] = [];
 
-      // Also fetch by order_date for those without entry_date
-      const { data: serviceByOrder } = await supabase
-        .from('service_orders')
-        .select('*')
-        .eq('vehicle_code', vehicleCode)
-        .is('entry_date', null)
-        .gte('order_date', startDate)
-        .lte('order_date', endDate)
-        .order('order_date', { ascending: false });
+      try {
+        const [abastSheet, horSheet] = await Promise.all([
+          getSheetData('AbastecimentoCanteiro01', { noCache: true }),
+          getSheetData('Horimetros', { noCache: true }),
+        ]);
 
-      // Merge and deduplicate
-      const allOrders = [...(serviceByEntry || []), ...(serviceByOrder || [])];
+        // Parse AbastecimentoCanteiro01 rows
+        const pn = parsePtBRNumber;
+        for (const row of (abastSheet.rows || [])) {
+          const rowCode = normalizeCode(String(row['VEICULO'] || row['Veiculo'] || row['CODIGO'] || ''));
+          if (rowCode !== normalizedVehicleCode) continue;
+
+          const recordDate = parseSheetDate(row['DATA'] || row['Data']);
+          if (!recordDate || recordDate < startDate || recordDate > endDate) continue;
+
+          const recordTime = String(row['HORA'] || row['Hora'] || row['HORARIO'] || '').trim().substring(0, 5) || '00:00';
+          const tipoOp = String(row['TIPO'] || row['TIPO DE OPERACAO'] || '').toLowerCase();
+
+          sheetFuelRecords.push({
+            id: `sheet-fuel-${recordDate}-${recordTime}-${rowCode}`,
+            record_date: recordDate,
+            record_time: recordTime,
+            fuel_quantity: pn(row['QUANTIDADE'] || row['Quantidade'] || 0),
+            arla_quantity: pn(row['QUANTIDADE DE ARLA'] || row['ARLA'] || 0) || null,
+            horimeter_current: pn(row['HORIMETRO ATUAL'] || row['HOR_ATUAL'] || 0) || null,
+            horimeter_previous: pn(row['HORIMETRO ANTERIOR'] || row['HOR_ANTERIOR'] || 0) || null,
+            km_current: pn(row['KM ATUAL'] || row['KM_ATUAL'] || 0) || null,
+            km_previous: pn(row['KM ANTERIOR'] || row['KM_ANTERIOR'] || 0) || null,
+            oil_type: String(row['TIPO DE OLEO'] || '').trim() || null,
+            oil_quantity: pn(row['QUANTIDADE DE OLEO'] || 0) || null,
+            lubricant: String(row['LUBRIFICANTE'] || '').trim() || null,
+            filter_blow_quantity: pn(row['SOPRA FILTRO'] || 0) || null,
+            operator_name: String(row['MOTORISTA'] || row['OPERADOR'] || '').trim() || null,
+            location: String(row['LOCAL'] || '').trim() || null,
+            record_type: tipoOp.includes('entrada') ? 'entrada' : 'saida',
+          });
+        }
+
+        // Parse Horimetros rows
+        for (const row of (horSheet.rows || [])) {
+          const rowCode = normalizeCode(String(row['VEICULO'] || row['Veiculo'] || row['EQUIPAMENTO'] || ''));
+          if (rowCode !== normalizedVehicleCode) continue;
+
+          const readingDate = parseSheetDate(row['DATA'] || row['Data'] || row[' Data']);
+          if (!readingDate || readingDate < startDate || readingDate > endDate) continue;
+
+          const getCol = (keys: string[]): any => {
+            for (const key of keys) {
+              if (row[key] !== undefined && row[key] !== null && row[key] !== '') return row[key];
+              if (row[key.trim()] !== undefined && row[key.trim()] !== null && row[key.trim()] !== '') return row[key.trim()];
+            }
+            return null;
+          };
+
+          sheetHorimeterReadings.push({
+            id: `sheet-hor-${readingDate}-${rowCode}`,
+            reading_date: readingDate,
+            current_value: pn(getCol(['Hor_Atual', 'HOR_ATUAL', 'Hor. Atual'])),
+            previous_value: pn(getCol(['Hor_Anterior', 'HOR_ANTERIOR', 'Hor. Anterior'])) || null,
+            current_km: pn(getCol(['Km_Atual', 'KM_ATUAL', 'Km. Atual', 'KM Atual'])) || null,
+            previous_km: pn(getCol(['Km_Anterior', 'KM_ANTERIOR', 'Km. Anterior', 'KM Anterior'])) || null,
+            operator: String(row['OPERADOR'] || row['Operador'] || '').trim() || null,
+            observations: String(row['OBS'] || row['Observacoes'] || '').trim() || null,
+          });
+        }
+      } catch (sheetError) {
+        console.warn('Could not fetch Google Sheets data for history, using DB only:', sheetError);
+      }
+
+      // ─── 3. Merge & Deduplicate ───
+      // For fuel records: merge DB + sheet, dedupe by date+time+code
+      const dbFuelRecords = (fuelDbResult.data || []) as FuelRecord[];
+      const fuelDedupeMap = new Map<string, FuelRecord>();
+      // DB records take priority
+      for (const r of dbFuelRecords) {
+        fuelDedupeMap.set(`${r.record_date}|${r.record_time}|${r.fuel_quantity}`, r);
+      }
+      for (const r of sheetFuelRecords) {
+        const key = `${r.record_date}|${r.record_time}|${r.fuel_quantity}`;
+        if (!fuelDedupeMap.has(key)) {
+          fuelDedupeMap.set(key, r);
+        }
+      }
+      const mergedFuel = Array.from(fuelDedupeMap.values())
+        .sort((a, b) => b.record_date.localeCompare(a.record_date) || (b.record_time || '').localeCompare(a.record_time || ''));
+
+      // For horimeter readings: merge DB + sheet, dedupe by date
+      const horDedupeMap = new Map<string, HorimeterReading>();
+      for (const r of horimeterDbData) {
+        horDedupeMap.set(r.reading_date, r);
+      }
+      for (const r of sheetHorimeterReadings) {
+        if (!horDedupeMap.has(r.reading_date)) {
+          horDedupeMap.set(r.reading_date, r);
+        }
+      }
+      const mergedHorimeters = Array.from(horDedupeMap.values())
+        .sort((a, b) => b.reading_date.localeCompare(a.reading_date));
+
+      // Service orders (DB only)
+      const allOrders = [...(serviceByEntryResult.data || []), ...(serviceByOrderResult.data || [])];
       const uniqueOrders = Array.from(new Map(allOrders.map(o => [o.id, o])).values());
 
-      setFuelRecords(fuelData || []);
-      setHorimeterReadings(horimeterData);
+      setFuelRecords(mergedFuel);
+      setHorimeterReadings(mergedHorimeters);
       setServiceOrders(uniqueOrders as ServiceOrder[]);
     } catch (error) {
       console.error('Error fetching vehicle history:', error);
