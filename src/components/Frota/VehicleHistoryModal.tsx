@@ -566,7 +566,7 @@ export function VehicleHistoryModal({
     }
   };
 
-  const exportToPDF = async () => {
+  const exportToPDF = async (sections: ('abastecimento' | 'horimetro' | 'manutencao')[]) => {
     const doc = new jsPDF('landscape');
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
@@ -654,7 +654,7 @@ export function VehicleHistoryModal({
     // ═══════════════════════════════════════════════════
     // PAGE 1: Abastecimentos Detail
     // ═══════════════════════════════════════════════════
-    if (fuelRecords.length > 0) {
+    if (sections.includes('abastecimento') && fuelRecords.length > 0) {
       if (!isFirstPage) doc.addPage(); else isFirstPage = false;
       let fuelY = drawPageHeader(
         'RELATÓRIO DE ABASTECIMENTOS',
@@ -739,7 +739,7 @@ export function VehicleHistoryModal({
     // ═══════════════════════════════════════════════════
     // PAGE 2: Horímetros / KM Detail
     // ═══════════════════════════════════════════════════
-    if (horimeterReadings.length > 0) {
+    if (sections.includes('horimetro') && horimeterReadings.length > 0) {
       if (!isFirstPage) doc.addPage(); else isFirstPage = false;
       let horY = drawPageHeader(
         'RELATÓRIO DE HORÍMETROS',
@@ -817,7 +817,7 @@ export function VehicleHistoryModal({
     // ═══════════════════════════════════════════════════
     // PAGE 3: Manutenção Detail
     // ═══════════════════════════════════════════════════
-    if (serviceOrders.length > 0) {
+    if (sections.includes('manutencao') && serviceOrders.length > 0) {
       if (!isFirstPage) doc.addPage(); else isFirstPage = false;
       let osY = drawPageHeader(
         'RELATÓRIO DE MANUTENÇÃO',
@@ -964,10 +964,34 @@ export function VehicleHistoryModal({
                   <Settings className="w-4 h-4" />
                   <span className="hidden sm:inline">Colunas</span>
                 </Button>
-                <Button variant="outline" size="sm" onClick={exportToPDF} className="gap-2">
-                  <Download className="w-4 h-4" />
-                  PDF
-                </Button>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className="gap-2">
+                      <Download className="w-4 h-4" />
+                      PDF
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-48 p-1 bg-background" align="end">
+                    <div className="flex flex-col">
+                      <Button variant="ghost" size="sm" className="justify-start text-xs" onClick={() => exportToPDF(['abastecimento', 'horimetro', 'manutencao'])}>
+                        <FileText className="w-3.5 h-3.5 mr-2" />
+                        Todos
+                      </Button>
+                      <Button variant="ghost" size="sm" className="justify-start text-xs" onClick={() => exportToPDF(['abastecimento'])}>
+                        <Fuel className="w-3.5 h-3.5 mr-2" />
+                        Abastecimentos
+                      </Button>
+                      <Button variant="ghost" size="sm" className="justify-start text-xs" onClick={() => exportToPDF(['horimetro'])}>
+                        <Gauge className="w-3.5 h-3.5 mr-2" />
+                        Horímetros/KM
+                      </Button>
+                      <Button variant="ghost" size="sm" className="justify-start text-xs" onClick={() => exportToPDF(['manutencao'])}>
+                        <Wrench className="w-3.5 h-3.5 mr-2" />
+                        Manutenção
+                      </Button>
+                    </div>
+                  </PopoverContent>
+                </Popover>
               </div>
             </div>
           </DialogHeader>
