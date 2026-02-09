@@ -48,8 +48,15 @@ import {
   Car,
   Download,
   List,
-  Settings
+  Settings,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
 import { supabase } from '@/integrations/supabase/client';
 import { getSheetData } from '@/lib/googleSheets';
 import { parsePtBRNumber } from '@/lib/ptBRNumber';
@@ -639,162 +646,13 @@ export function VehicleHistoryModal({
       return yPos + 10;
     };
 
-    // ═══════════════════════════════════════════════════
-    // PAGE 1: Cover + Summary + Timeline
-    // ═══════════════════════════════════════════════════
-    let yPos = drawPageHeader(
-      obraSettings?.nome ? `${obraSettings.nome.toUpperCase()}` : 'HISTÓRICO DO EQUIPAMENTO',
-      `${vehicleCode} — ${vehicleDescription}`
-    );
-
-    // Vehicle info card
-    doc.setFillColor(248, 250, 252);
-    doc.roundedRect(margin, yPos, contentWidth, 14, 2, 2, 'F');
-    doc.setDrawColor(226, 232, 240);
-    doc.roundedRect(margin, yPos, contentWidth, 14, 2, 2, 'S');
-
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(30, 41, 59);
-
-    const infoItems = [
-      { label: 'Código', value: vehicleCode },
-      { label: 'Descrição', value: vehicleDescription },
-      { label: 'Categoria', value: vehicleCategory },
-      { label: 'Empresa', value: vehicleEmpresa },
-    ];
-    const infoColW = contentWidth / infoItems.length;
-    infoItems.forEach((item, i) => {
-      const x = margin + infoColW * i + 4;
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(100, 116, 139);
-      doc.setFontSize(7);
-      doc.text(item.label.toUpperCase(), x, yPos + 5);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(15, 23, 42);
-      doc.setFontSize(9);
-      doc.text(item.value || '-', x, yPos + 11);
-    });
-
-    yPos += 18;
-
-    // ─── KPI Summary Cards ───
-    yPos = drawSectionTitle(yPos, 'RESUMO DO PERÍODO', [30, 41, 59]);
-
-    const kpiCards = [
-      { label: 'Diesel', value: `${summary.totalDiesel.toFixed(1)} L`, sub: `${summary.fuelRecordCount} abast.`, color: [220, 38, 38] as [number, number, number] },
-      { label: 'ARLA', value: `${summary.totalArla.toFixed(1)} L`, sub: '', color: [234, 179, 8] as [number, number, number] },
-      { label: 'Óleo', value: `${summary.totalOil.toFixed(1)} L`, sub: `${summary.lubricantCount} lubrif.`, color: [217, 119, 6] as [number, number, number] },
-      { label: 'Horímetro', value: `${summary.latestHorimeter.toFixed(0)} h`, sub: `+${summary.horimeterInterval.toFixed(0)} h período`, color: [37, 99, 235] as [number, number, number] },
-      { label: 'Consumo', value: `${summary.consumption.toFixed(2)} L/h`, sub: '', color: [22, 163, 74] as [number, number, number] },
-      { label: 'OS', value: `${summary.osCount}`, sub: `${summary.osCompleted} finalizadas`, color: [147, 51, 234] as [number, number, number] },
-      { label: 'Dias Ativos', value: `${summary.daysWithActivity}`, sub: 'com atividade', color: [20, 184, 166] as [number, number, number] },
-      { label: 'Leituras', value: `${summary.horimeterReadingCount}`, sub: 'horímetros', color: [100, 116, 139] as [number, number, number] },
-    ];
-
-    const cardW = (contentWidth - 7 * 3) / 8; // 8 cards, 3px gap
-    const cardH = 18;
-    kpiCards.forEach((card, i) => {
-      const x = margin + i * (cardW + 3);
-      // Card background
-      doc.setFillColor(card.color[0], card.color[1], card.color[2]);
-      doc.roundedRect(x, yPos, cardW, cardH, 1.5, 1.5, 'F');
-      // Label
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(6);
-      doc.setFont('helvetica', 'normal');
-      doc.text(card.label.toUpperCase(), x + 2.5, yPos + 4.5);
-      // Value
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'bold');
-      doc.text(card.value, x + 2.5, yPos + 11);
-      // Sub
-      if (card.sub) {
-        doc.setFontSize(5.5);
-        doc.setFont('helvetica', 'normal');
-        doc.text(card.sub, x + 2.5, yPos + 15.5);
-      }
-    });
-
-    yPos += cardH + 6;
-
-    // ─── Timeline Table ───
-    yPos = drawSectionTitle(yPos, `HORÍMETROS / KM — DIA A DIA`, [15, 23, 42], activeDays.length);
-
-    const timelineHeaders = ['Data', 'Diesel (L)', 'ARLA (L)', 'Óleo (L)', 'Horímetro', 'KM', 'H.T.', 'OS', 'Status OS', 'Operador'];
-    
-    const timelineData = activeDays.map(day => {
-      const operators = [...new Set([
-        ...day.fuelRecords.map(r => r.operator_name).filter(Boolean),
-        ...day.horimeterReadings.map(r => r.operator).filter(Boolean),
-      ])];
-      return [
-        format(day.date, 'dd/MM/yyyy'),
-        day.totalDiesel > 0 ? day.totalDiesel.toFixed(1) : '-',
-        day.totalArla > 0 ? day.totalArla.toFixed(1) : '-',
-        day.totalOil > 0 ? day.totalOil.toFixed(1) : '-',
-        day.horimeterValue ? day.horimeterValue.toFixed(0) : '-',
-        day.kmValue ? day.kmValue.toFixed(0) : '-',
-        day.horimeterInterval > 0 ? `${day.horimeterInterval.toFixed(0)}` : '-',
-        day.osCount > 0 ? day.osCount.toString() : '-',
-        day.osStatus || '-',
-        (operators[0] || '-').substring(0, 18),
-      ];
-    });
-
-    autoTable(doc, {
-      head: [timelineHeaders],
-      body: timelineData,
-      startY: yPos,
-      styles: { fontSize: 6.5, cellPadding: 1.8, lineColor: [226, 232, 240], lineWidth: 0.2 },
-      headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: 'bold', fontSize: 7 },
-      alternateRowStyles: { fillColor: [248, 250, 252] },
-      margin: { left: margin, right: margin },
-      columnStyles: {
-        0: { cellWidth: 22 },
-        1: { halign: 'right', cellWidth: 20 },
-        2: { halign: 'right', cellWidth: 18 },
-        3: { halign: 'right', cellWidth: 16 },
-        4: { halign: 'right', cellWidth: 22 },
-        5: { halign: 'right', cellWidth: 20 },
-        6: { halign: 'center', cellWidth: 16 },
-        7: { halign: 'center', cellWidth: 12 },
-        8: { cellWidth: 28 },
-      },
-      didParseCell: (data) => {
-        if (data.section !== 'body') return;
-        // Diesel in red
-        if (data.column.index === 1 && data.cell.text[0] !== '-') {
-          data.cell.styles.textColor = [220, 38, 38];
-          data.cell.styles.fontStyle = 'bold';
-        }
-        // H.T. in green
-        if (data.column.index === 6 && data.cell.text[0] !== '-') {
-          data.cell.styles.textColor = [22, 163, 74];
-          data.cell.styles.fontStyle = 'bold';
-        }
-        // OS count in purple
-        if (data.column.index === 7 && data.cell.text[0] !== '-') {
-          data.cell.styles.textColor = [147, 51, 234];
-          data.cell.styles.fontStyle = 'bold';
-        }
-        // Status colors
-        if (data.column.index === 8) {
-          const status = data.cell.text[0];
-          if (status === 'Finalizada') data.cell.styles.textColor = [22, 163, 74];
-          else if (['Aberta', 'Em Andamento', 'Aguardando Peças'].includes(status)) {
-            data.cell.styles.textColor = [220, 38, 38];
-            data.cell.styles.fontStyle = 'bold';
-          }
-        }
-      },
-    });
+    let isFirstPage = true;
 
     // ═══════════════════════════════════════════════════
-    // PAGE 2: Abastecimentos Detail
+    // PAGE 1: Abastecimentos Detail
     // ═══════════════════════════════════════════════════
     if (fuelRecords.length > 0) {
-      doc.addPage();
+      if (!isFirstPage) doc.addPage(); else isFirstPage = false;
       let fuelY = drawPageHeader(
         'RELATÓRIO DE ABASTECIMENTOS',
         `${vehicleCode} — ${vehicleDescription}`
@@ -876,10 +734,10 @@ export function VehicleHistoryModal({
     }
 
     // ═══════════════════════════════════════════════════
-    // PAGE 3: Horímetros Detail
+    // PAGE 2: Horímetros / KM Detail
     // ═══════════════════════════════════════════════════
     if (horimeterReadings.length > 0) {
-      doc.addPage();
+      if (!isFirstPage) doc.addPage(); else isFirstPage = false;
       let horY = drawPageHeader(
         'RELATÓRIO DE HORÍMETROS',
         `${vehicleCode} — ${vehicleDescription}`
@@ -954,10 +812,10 @@ export function VehicleHistoryModal({
     }
 
     // ═══════════════════════════════════════════════════
-    // PAGE 4: Manutenção Detail
+    // PAGE 3: Manutenção Detail
     // ═══════════════════════════════════════════════════
     if (serviceOrders.length > 0) {
-      doc.addPage();
+      if (!isFirstPage) doc.addPage(); else isFirstPage = false;
       let osY = drawPageHeader(
         'RELATÓRIO DE MANUTENÇÃO',
         `${vehicleCode} — ${vehicleDescription}`
@@ -1175,7 +1033,7 @@ export function VehicleHistoryModal({
 
           {/* Content */}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden">
-            <TabsList className="shrink-0 grid w-full grid-cols-2">
+            <TabsList className="shrink-0 grid w-full grid-cols-3">
               <TabsTrigger value="abastecimento" className="gap-2">
                 <Fuel className="w-4 h-4" />
                 <span className="hidden sm:inline">Abastecimentos</span>
@@ -1183,6 +1041,10 @@ export function VehicleHistoryModal({
               <TabsTrigger value="horimetro" className="gap-2">
                 <Gauge className="w-4 h-4" />
                 <span className="hidden sm:inline">Horímetros/KM</span>
+              </TabsTrigger>
+              <TabsTrigger value="manutencao" className="gap-2">
+                <Wrench className="w-4 h-4" />
+                <span className="hidden sm:inline">Manutenção</span>
               </TabsTrigger>
             </TabsList>
 
@@ -1193,7 +1055,7 @@ export function VehicleHistoryModal({
                 </div>
               ) : (
                 <>
-                  {/* Horímetro/KM Tab - PRIMARY VIEW */}
+                  {/* Horímetro/KM Tab */}
                   <TabsContent value="horimetro" className="m-0">
                     {horimeterReadings.length === 0 ? (
                       <div className="text-center py-12 text-muted-foreground">
@@ -1253,9 +1115,6 @@ export function VehicleHistoryModal({
                     )}
                   </TabsContent>
 
-
-
-
                   {/* Abastecimento Tab */}
                   <TabsContent value="abastecimento" className="m-0">
                     {fuelRecords.length === 0 ? (
@@ -1314,8 +1173,90 @@ export function VehicleHistoryModal({
                     )}
                   </TabsContent>
 
-
-
+                  {/* Manutenção Tab */}
+                  <TabsContent value="manutencao" className="m-0">
+                    {serviceOrders.length === 0 ? (
+                      <div className="text-center py-12 text-muted-foreground">
+                        Nenhuma ordem de serviço no período
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {serviceOrders.map((os) => {
+                          const entryDate = os.entry_date ? format(new Date(os.entry_date), 'dd/MM/yyyy') : '-';
+                          const endDate = os.end_date ? format(new Date(os.end_date), 'dd/MM/yyyy') : '-';
+                          return (
+                            <Collapsible key={os.id}>
+                              <CollapsibleTrigger className="w-full">
+                                <div className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors">
+                                  <div className="flex items-center gap-3">
+                                    <div className="font-semibold text-sm">OS {os.order_number}</div>
+                                    {getStatusBadge(os.status)}
+                                    <span className="text-xs text-muted-foreground">{entryDate}</span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs text-muted-foreground truncate max-w-[200px]">
+                                      {os.problem_description || 'Sem descrição'}
+                                    </span>
+                                    <ChevronDown className="w-4 h-4 text-muted-foreground transition-transform [[data-state=open]_&]:rotate-180" />
+                                  </div>
+                                </div>
+                              </CollapsibleTrigger>
+                              <CollapsibleContent>
+                                <div className="mt-1 p-4 border rounded-lg bg-muted/30 space-y-3">
+                                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+                                    <div>
+                                      <span className="text-muted-foreground text-xs">Tipo</span>
+                                      <p className="font-medium">{os.order_type || '-'}</p>
+                                    </div>
+                                    <div>
+                                      <span className="text-muted-foreground text-xs">Prioridade</span>
+                                      <p className="font-medium">{os.priority || '-'}</p>
+                                    </div>
+                                    <div>
+                                      <span className="text-muted-foreground text-xs">Entrada</span>
+                                      <p className="font-medium">{entryDate}</p>
+                                    </div>
+                                    <div>
+                                      <span className="text-muted-foreground text-xs">Saída</span>
+                                      <p className="font-medium">{endDate}</p>
+                                    </div>
+                                    <div>
+                                      <span className="text-muted-foreground text-xs">Mecânico</span>
+                                      <p className="font-medium">{os.mechanic_name || '-'}</p>
+                                    </div>
+                                    <div>
+                                      <span className="text-muted-foreground text-xs">Horímetro</span>
+                                      <p className="font-medium">{os.horimeter_current?.toFixed(0) || '-'}</p>
+                                    </div>
+                                    <div>
+                                      <span className="text-muted-foreground text-xs">KM</span>
+                                      <p className="font-medium">{os.km_current?.toFixed(0) || '-'}</p>
+                                    </div>
+                                    <div>
+                                      <span className="text-muted-foreground text-xs">Peças</span>
+                                      <p className="font-medium">{os.parts_used || '-'}</p>
+                                    </div>
+                                  </div>
+                                  {os.problem_description && (
+                                    <div>
+                                      <span className="text-muted-foreground text-xs">Problema</span>
+                                      <p className="text-sm mt-0.5">{os.problem_description}</p>
+                                    </div>
+                                  )}
+                                  {os.solution_description && (
+                                    <div>
+                                      <span className="text-muted-foreground text-xs">Solução</span>
+                                      <p className="text-sm mt-0.5">{os.solution_description}</p>
+                                    </div>
+                                  )}
+                                </div>
+                              </CollapsibleContent>
+                            </Collapsible>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </TabsContent>
                 </>
               )}
             </ScrollArea>
