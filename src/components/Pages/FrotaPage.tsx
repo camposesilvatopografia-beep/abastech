@@ -63,7 +63,7 @@ import { toast } from 'sonner';
 import { VehicleHistoryModal } from '@/components/Frota/VehicleHistoryModal';
 import { VehicleFormModal } from '@/components/Frota/VehicleFormModal';
 import { MobilizedEquipmentsView } from '@/components/Frota/MobilizedEquipmentsView';
-import { exportMobilizacaoPDF, exportEfetivoPDF } from '@/components/Frota/FrotaReportGenerators';
+import { exportMobilizacaoPDF, exportEfetivoPDF, exportMobilizadosPDF, exportDesmobilizadosPDF } from '@/components/Frota/FrotaReportGenerators';
 import { useObraSettings } from '@/hooks/useObraSettings';
 import { ColumnConfigModal } from '@/components/Layout/ColumnConfigModal';
 import { useLayoutPreferences, ColumnConfig } from '@/hooks/useLayoutPreferences';
@@ -724,6 +724,48 @@ export function FrotaPage() {
             >
               <FileText className="w-4 h-4 sm:mr-2" />
               <span className="hidden sm:inline">Efetivo</span>
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => {
+                const allVehicles = data.rows.map(row => ({
+                  codigo: getRowValue(row as any, ['CODIGO', 'Codigo', 'codigo', 'VEICULO', 'Veiculo', 'veiculo']),
+                  descricao: getRowValue(row as any, ['DESCRICAO', 'DESCRIÇÃO', 'Descricao', 'descrição', 'descricao']),
+                  empresa: getRowValue(row as any, ['EMPRESA', 'Empresa', 'empresa']),
+                  categoria: getRowValue(row as any, ['CATEGORIA', 'Categoria', 'categoria', 'TIPO', 'Tipo', 'tipo']),
+                  status: getRowValue(row as any, ['STATUS', 'Status', 'status']) || 'ativo',
+                }));
+                exportMobilizadosPDF(allVehicles, selectedDate, obraSettings);
+                toast.success('PDF de Mobilizados gerado!');
+              }}
+              className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200"
+            >
+              <FileText className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Mobilizados</span>
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => {
+                const allVehicles = data.rows.map(row => ({
+                  codigo: getRowValue(row as any, ['CODIGO', 'Codigo', 'codigo', 'VEICULO', 'Veiculo', 'veiculo']),
+                  descricao: getRowValue(row as any, ['DESCRICAO', 'DESCRIÇÃO', 'Descricao', 'descrição', 'descricao']),
+                  empresa: getRowValue(row as any, ['EMPRESA', 'Empresa', 'empresa']),
+                  categoria: getRowValue(row as any, ['CATEGORIA', 'Categoria', 'categoria', 'TIPO', 'Tipo', 'tipo']),
+                  status: getRowValue(row as any, ['STATUS', 'Status', 'status']) || 'ativo',
+                }));
+                const result = exportDesmobilizadosPDF(allVehicles, selectedDate, obraSettings);
+                if (result === false) {
+                  toast.info('Nenhum equipamento desmobilizado encontrado.');
+                } else {
+                  toast.success('PDF de Desmobilizados gerado!');
+                }
+              }}
+              className="bg-red-50 hover:bg-red-100 text-red-700 border-red-200"
+            >
+              <FileText className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">Desmobilizados</span>
             </Button>
           </div>
         </div>
