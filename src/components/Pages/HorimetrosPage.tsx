@@ -350,10 +350,10 @@ export function HorimetrosPage() {
       const descricao = getRowValue(row as any, ['Descricao', 'DESCRICAO', 'DESCRIÇÃO', 'Descrição']);
       const categoria = getRowValue(row as any, ['Categoria', 'CATEGORIA', 'TIPO', 'Tipo']);
       
-      const horAnterior = parseNumber(getRowValue(row as any, ['Hor_Anterior', 'HOR_ANTERIOR', 'HORIMETRO_ANTERIOR']));
-      const horAtual = parseNumber(getRowValue(row as any, ['Hor_Atual', 'HOR_ATUAL', 'HORIMETRO_ATUAL', 'HORIMETRO', 'HORAS']));
-      const kmAnterior = parseNumber(getRowValue(row as any, ['Km_Anterior', 'KM_ANTERIOR', 'QUILOMETRAGEM_ANTERIOR']));
-      const kmAtual = parseNumber(getRowValue(row as any, ['Km_Atual', 'KM_ATUAL', 'QUILOMETRAGEM_ATUAL', 'KM']));
+      const horAnterior = parseNumber(getRowValue(row as any, ['Horímetro Anterior', 'Horimetro Anterior', 'Hor_Anterior', 'HOR_ANTERIOR', 'HORIMETRO_ANTERIOR']));
+      const horAtual = parseNumber(getRowValue(row as any, ['Horímetro Atual', 'Horimetro Atual', 'Hor_Atual', 'HOR_ATUAL', 'HORIMETRO_ATUAL', 'HORIMETRO', 'HORAS']));
+      const kmAnterior = parseNumber(getRowValue(row as any, ['Km Anterior', 'KM Anterior', 'Km_Anterior', 'KM_ANTERIOR', 'QUILOMETRAGEM_ANTERIOR']));
+      const kmAtual = parseNumber(getRowValue(row as any, ['Km Atual', 'KM Atual', 'Km_Atual', 'KM_ATUAL', 'QUILOMETRAGEM_ATUAL', 'KM']));
 
       // Determine if uses KM based on category: "Veículo" uses km, "Equipamento" uses h
       const categoriaLower = categoria.toLowerCase();
@@ -421,11 +421,11 @@ export function HorimetrosPage() {
 
   const COLUMN_CANDIDATES = useMemo(() => {
     return {
-      // As seen in the user's sheet screenshot
-      horAtual: ['Hor_Atual', 'HOR_ATUAL', 'HORATUAL', 'HORIMETRO_ATUAL', 'HORIMETROATUAL', 'HORÍMETRO_ATUAL', 'HORÍMETROATUAL'],
-      horAnterior: ['Hor_Anterior', 'HOR_ANTERIOR', 'HORANTERIOR', 'HORIMETRO_ANTERIOR', 'HORIMETROANTERIOR', 'HORÍMETRO_ANTERIOR', 'HORÍMETROANTERIOR'],
-      kmAtual: ['Km_Atual', 'KM_ATUAL', 'KMATUAL', 'QUILOMETRAGEM_ATUAL', 'QUILOMETRAGEMATUAL'],
-      kmAnterior: ['Km_Anterior', 'KM_ANTERIOR', 'KMANTERIOR', 'QUILOMETRAGEM_ANTERIOR', 'QUILOMETRAGEMANTERIOR'],
+      // Match the actual spreadsheet headers (with accents and spaces)
+      horAtual: ['Horímetro Atual', 'Horimetro Atual', 'Hor_Atual', 'HOR_ATUAL', 'HORATUAL', 'HORIMETRO_ATUAL', 'HORIMETROATUAL', 'HORÍMETRO_ATUAL', 'HORÍMETROATUAL'],
+      horAnterior: ['Horímetro Anterior', 'Horimetro Anterior', 'Hor_Anterior', 'HOR_ANTERIOR', 'HORANTERIOR', 'HORIMETRO_ANTERIOR', 'HORIMETROANTERIOR', 'HORÍMETRO_ANTERIOR', 'HORÍMETROANTERIOR'],
+      kmAtual: ['Km Atual', 'KM Atual', 'Km_Atual', 'KM_ATUAL', 'KMATUAL', 'QUILOMETRAGEM_ATUAL', 'QUILOMETRAGEMATUAL'],
+      kmAnterior: ['Km Anterior', 'KM Anterior', 'Km_Anterior', 'KM_ANTERIOR', 'KMANTERIOR', 'QUILOMETRAGEM_ANTERIOR', 'QUILOMETRAGEMANTERIOR'],
 
       // Fallbacks found in older versions
       readingGeneric: ['HORAS', 'HORIMETRO', 'HORÍMETRO', 'KM', 'QUILOMETRAGEM', 'KILOMETRAGEM'],
@@ -683,8 +683,8 @@ export function HorimetrosPage() {
     const tableData = filteredRows.map(row => [
       getRowValue(row as any, ['VEICULO', 'EQUIPAMENTO', 'Veiculo', 'Equipamento']),
       getRowValue(row as any, ['DATA', 'Data']),
-      getRowValue(row as any, ['Hor_Anterior', 'HOR_ANTERIOR', 'HORIMETRO_ANTERIOR', 'Km_Anterior', 'KM_ANTERIOR']) || '-',
-      getRowValue(row as any, ['Hor_Atual', 'HOR_ATUAL', 'HORIMETRO', 'HORAS', 'Km_Atual', 'KM_ATUAL', 'KM']) || '-',
+      getRowValue(row as any, ['Horímetro Anterior', 'Horimetro Anterior', 'Hor_Anterior', 'HOR_ANTERIOR', 'HORIMETRO_ANTERIOR', 'Km Anterior', 'Km_Anterior', 'KM_ANTERIOR']) || '-',
+      getRowValue(row as any, ['Horímetro Atual', 'Horimetro Atual', 'Hor_Atual', 'HOR_ATUAL', 'HORIMETRO', 'HORAS', 'Km Atual', 'Km_Atual', 'KM_ATUAL', 'KM']) || '-',
       getRowValue(row as any, ['OPERADOR', 'Operador', 'MOTORISTA', 'Motorista']) || '-'
     ]);
 
@@ -710,10 +710,10 @@ export function HorimetrosPage() {
       'Categoria': getRowValue(row as any, ['CATEGORIA', 'Categoria', 'TIPO', 'Tipo']),
       'Data': getRowValue(row as any, ['DATA', 'Data']),
       'Hora': getRowValue(row as any, ['HORA', 'Hora']),
-      'Hor. Anterior': getRowValue(row as any, ['Hor_Anterior', 'HOR_ANTERIOR', 'HORIMETRO_ANTERIOR']) || '',
-      'Hor. Atual': getRowValue(row as any, ['Hor_Atual', 'HOR_ATUAL', 'HORIMETRO', 'HORAS']) || '',
-      'KM Anterior': getRowValue(row as any, ['Km_Anterior', 'KM_ANTERIOR']) || '',
-      'KM Atual': getRowValue(row as any, ['Km_Atual', 'KM_ATUAL', 'KM']) || '',
+      'Hor. Anterior': getRowValue(row as any, ['Horímetro Anterior', 'Horimetro Anterior', 'Hor_Anterior', 'HOR_ANTERIOR', 'HORIMETRO_ANTERIOR']) || '',
+      'Hor. Atual': getRowValue(row as any, ['Horímetro Atual', 'Horimetro Atual', 'Hor_Atual', 'HOR_ATUAL', 'HORIMETRO', 'HORAS']) || '',
+      'KM Anterior': getRowValue(row as any, ['Km Anterior', 'KM Anterior', 'Km_Anterior', 'KM_ANTERIOR']) || '',
+      'KM Atual': getRowValue(row as any, ['Km Atual', 'KM Atual', 'Km_Atual', 'KM_ATUAL', 'KM']) || '',
       'Operador': getRowValue(row as any, ['OPERADOR', 'Operador', 'MOTORISTA', 'Motorista']) || '',
       'Observação': getRowValue(row as any, ['OBSERVACAO', 'OBSERVAÇÃO', 'Observacao', 'observacao']) || '',
       'Empresa': getRowValue(row as any, ['EMPRESA', 'Empresa']) || '',
@@ -1283,8 +1283,8 @@ export function HorimetrosPage() {
                     </TableRow>
                   ) : (
                     filteredRows.slice(0, 50).map((row, idx) => {
-                      const horasAtual = parseNumber(getRowValue(row as any, ['HORAS', 'HORIMETRO', 'Horimetro', 'Hor_Atual', 'KM', 'Km_Atual']));
-                      const horasAnterior = parseNumber(getRowValue(row as any, ['HORIMETRO_ANTERIOR', 'Hor_Anterior', 'HOR_ANTERIOR', 'KM_ANTERIOR', 'Km_Anterior']));
+                      const horasAtual = parseNumber(getRowValue(row as any, ['Horímetro Atual', 'Horimetro Atual', 'HORAS', 'HORIMETRO', 'Horimetro', 'Hor_Atual', 'KM', 'Km Atual', 'Km_Atual']));
+                      const horasAnterior = parseNumber(getRowValue(row as any, ['Horímetro Anterior', 'Horimetro Anterior', 'HORIMETRO_ANTERIOR', 'Hor_Anterior', 'HOR_ANTERIOR', 'KM_ANTERIOR', 'Km Anterior', 'Km_Anterior']));
                       const intervalo = horasAnterior > 0 ? horasAtual - horasAnterior : 0;
                       const isZeroed = horasAtual === 0;
                       const rowIndex = (row as any)._rowIndex;
