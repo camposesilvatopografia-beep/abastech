@@ -201,6 +201,7 @@ export function FieldHorimeterForm({ user, onBack }: FieldHorimeterFormProps) {
       setPreviousHorimeter(0);
       setPreviousKm(0);
       setVehicleHistory([]);
+      setOperador(user.name);
       return;
     }
 
@@ -219,11 +220,12 @@ export function FieldHorimeterForm({ user, onBack }: FieldHorimeterFormProps) {
       let fuelHorimeter = 0;
       let fuelKm = 0;
       let fuelDate = '';
+      let fuelOperator = '';
 
       if (vehicle) {
         const { data: fuelData } = await supabase
           .from('field_fuel_records')
-          .select('horimeter_current, km_current, record_date, record_time')
+          .select('horimeter_current, km_current, record_date, record_time, operator_name')
           .eq('vehicle_code', vehicle.code)
           .order('record_date', { ascending: false })
           .order('record_time', { ascending: false })
@@ -233,34 +235,42 @@ export function FieldHorimeterForm({ user, onBack }: FieldHorimeterFormProps) {
           fuelHorimeter = fuelData[0].horimeter_current || 0;
           fuelKm = fuelData[0].km_current || 0;
           fuelDate = fuelData[0].record_date || '';
+          fuelOperator = fuelData[0].operator_name || '';
         }
       }
 
-      // Determine the latest values across sources
+      // Determine the latest values and operator across sources
       let bestHor = 0;
       let bestKm = 0;
+      let bestOperator = '';
 
       if (horData && horData.length > 0) {
         bestHor = horData[0].current_value || 0;
         bestKm = horData[0].current_km || 0;
+        bestOperator = horData[0].operator || '';
         const horDate = horData[0].reading_date || '';
 
         // If fuel record is more recent, use its values
         if (fuelDate > horDate) {
           if (fuelHorimeter > 0) bestHor = Math.max(bestHor, fuelHorimeter);
           if (fuelKm > 0) bestKm = Math.max(bestKm, fuelKm);
+          if (fuelOperator) bestOperator = fuelOperator;
         }
       } else {
         bestHor = fuelHorimeter;
         bestKm = fuelKm;
+        bestOperator = fuelOperator;
       }
 
       setPreviousHorimeter(bestHor);
       setPreviousKm(bestKm);
       setVehicleHistory(horData || []);
+
+      // Auto-fill operator from the most recent record, fallback to logged-in user
+      setOperador(bestOperator || user.name);
     };
     fetchPrevious();
-  }, [selectedVehicleId, vehicles]);
+  }, [selectedVehicleId, vehicles, user.name]);
 
   // Filtered vehicles for search
   const filteredVehicles = useMemo(() => {
