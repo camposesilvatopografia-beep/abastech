@@ -85,9 +85,9 @@ import { exportTanquesComboiosPDF, exportTanquesComboiosXLSX, exportTanquesPDF, 
 import { ReportsTab } from '@/components/Abastecimento/ReportsTab';
 
 const TABS = [
-  { id: 'painel', label: 'Painel de Estoque', icon: Package2 },
+  { id: 'painel', label: 'Estoque', icon: Package2 },
   { id: 'resumo', label: 'Resumo', icon: BarChart3 },
-  { id: 'detalhamento', label: 'Detalhamento', icon: List },
+  { id: 'detalhamento', label: 'Lançamentos', icon: List },
   { id: 'consumo', label: 'Consumo', icon: BarChart },
   { id: 'saneamento', label: 'Saneamento', icon: Droplet },
   { id: 'entradas', label: 'Entradas', icon: ArrowDownUp },
