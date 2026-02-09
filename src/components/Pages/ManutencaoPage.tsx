@@ -75,7 +75,7 @@ import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useSheetData, useSheetData as useGoogleSheetData } from '@/hooks/useGoogleSheets';
-import { createRow } from '@/lib/googleSheets';
+import { createRow, updateRow, deleteRow, getSheetData } from '@/lib/googleSheets';
 import { RecurringProblemsTab } from '@/components/Maintenance/RecurringProblemsTab';
 import { MaintenanceRankingTab } from '@/components/Maintenance/MaintenanceRankingTab';
 import { OSPhotoUpload } from '@/components/Maintenance/OSPhotoUpload';
@@ -113,6 +113,16 @@ interface ServiceOrder {
   notes: string | null;
   created_by: string | null;
   created_at: string;
+  entry_date: string | null;
+  entry_time: string | null;
+  horimeter_current: number | null;
+  km_current: number | null;
+  interval_days: number | null;
+  photo_before_url: string | null;
+  photo_after_url: string | null;
+  photo_parts_url: string | null;
+  photo_4_url: string | null;
+  photo_5_url: string | null;
 }
 
 interface Mechanic {
@@ -428,10 +438,32 @@ export function ManutencaoPage() {
     }
   };
 
-  // Sync a single order to Google Sheets - Mapped to correct columns:
-  // B - DATA, C - VEICULO, D - EMPRESA, E - MOTORISTA, F - POTENCIA, G - PROBLEMA,
-  // H - SERVICO, I - MECANICO, J - DATA_ENTRADA, K - DATA_SAIDA, L - HORA_ENTRADA, M - HORA_SAIDA
-  const syncOrderToSheet = async (order: {
+  // Format helpers for sheet sync
+  const formatDateForSheet = (dateStr: string | null | undefined): string => {
+    if (!dateStr) return '';
+    try {
+      const date = new Date(dateStr);
+      return format(date, 'dd/MM/yyyy');
+    } catch {
+      return '';
+    }
+  };
+
+  const formatTimeForSheet = (timeStr: string | null | undefined, dateStr: string | null | undefined): string => {
+    if (timeStr) return timeStr.length === 5 ? timeStr : timeStr.substring(0, 5);
+    if (dateStr) {
+      try {
+        const date = new Date(dateStr);
+        return format(date, 'HH:mm');
+      } catch {
+        return '';
+      }
+    }
+    return '';
+  };
+
+  // Build row data for sheet
+  const buildSheetRowData = (order: {
     order_number: string;
     order_date: string;
     vehicle_code: string;
@@ -445,56 +477,85 @@ export function ManutencaoPage() {
     entry_time?: string | null;
     end_date?: string | null;
     created_by?: string | null;
-  }, company?: string) => {
+  }, company?: string): Record<string, string> => {
+    const isFinalized = order.status.includes('Finalizada');
+    return {
+      'Data': formatDateForSheet(order.entry_date || order.order_date),
+      'Veiculo': order.vehicle_code,
+      'Empresa': company || '',
+      'Motorista': order.created_by || '',
+      'Potencia': order.vehicle_description || '',
+      'Problema': order.problem_description || '',
+      'Servico': order.solution_description || '',
+      'Mecanico': order.mechanic_name || '',
+      'Data_Entrada': formatDateForSheet(order.entry_date),
+      'Data_Saida': isFinalized ? formatDateForSheet(order.end_date || new Date().toISOString()) : '',
+      'Hora_Entrada': formatTimeForSheet(order.entry_time, null),
+      'Hora_Saida': isFinalized ? formatTimeForSheet(null, order.end_date) : '',
+      'Observacao': order.notes || '',
+      'Status': order.status || '',
+    };
+  };
+
+  // Find sheet row index for an order by matching vehicle code + entry date
+  const findSheetRowIndex = async (vehicleCode: string, entryDate: string | null): Promise<number> => {
     try {
-      // Format dates for sheet
-      const formatDateForSheet = (dateStr: string | null | undefined): string => {
-        if (!dateStr) return '';
-        try {
-          const date = new Date(dateStr);
-          return format(date, 'dd/MM/yyyy');
-        } catch {
-          return '';
-        }
-      };
+      const sheetData = await getSheetData(ORDEM_SERVICO_SHEET, { noCache: true });
+      const rows = sheetData.rows || [];
+      const formattedDate = formatDateForSheet(entryDate);
+      
+      const idx = rows.findIndex((row: any) => {
+        const rowVehicle = String(row['Veiculo'] || row['VEICULO'] || '').trim();
+        const rowDate = String(row['Data_Entrada'] || row['DATA_ENTRADA'] || '').trim();
+        return rowVehicle === vehicleCode && rowDate === formattedDate;
+      });
+      
+      return idx >= 0 ? idx + 2 : -1; // +1 header, +1 for 1-based
+    } catch {
+      return -1;
+    }
+  };
 
-      const formatTimeForSheet = (timeStr: string | null | undefined, dateStr: string | null | undefined): string => {
-        if (timeStr) return timeStr.length === 5 ? timeStr : timeStr.substring(0, 5);
-        if (dateStr) {
-          try {
-            const date = new Date(dateStr);
-            return format(date, 'HH:mm');
-          } catch {
-            return '';
-          }
-        }
-        return '';
-      };
-
-      // Map to correct column headers as specified
-      const isFinalized = order.status.includes('Finalizada');
-      const rowData: Record<string, string> = {
-        'Data': formatDateForSheet(order.entry_date || order.order_date),
-        'Veiculo': order.vehicle_code,
-        'Empresa': company || '',
-        'Motorista': order.created_by || '',
-        'Potencia': order.vehicle_description || '',
-        'Problema': order.problem_description || '',
-        'Servico': order.solution_description || '',
-        'Mecanico': order.mechanic_name || '',
-        'Data_Entrada': formatDateForSheet(order.entry_date),
-        'Data_Saida': isFinalized ? formatDateForSheet(order.end_date || new Date().toISOString()) : '',
-        'Hora_Entrada': formatTimeForSheet(order.entry_time, null),
-        'Hora_Saida': isFinalized ? formatTimeForSheet(null, order.end_date) : '',
-        'Observacao': order.notes || '',
-        'Status': order.status || '',
-      };
-
+  // Sync a single order to Google Sheets (CREATE - append new row)
+  const syncOrderToSheetCreate = async (order: Parameters<typeof buildSheetRowData>[0], company?: string) => {
+    try {
+      const rowData = buildSheetRowData(order, company);
       await createRow(ORDEM_SERVICO_SHEET, rowData);
-      console.log('Order synced to sheet:', order.order_number);
+      console.log('Order created in sheet:', order.order_number);
     } catch (err) {
       console.error('Error syncing order to sheet:', err);
-      // Don't throw - sync is secondary
+    }
+  };
+
+  // Sync a single order to Google Sheets (UPDATE - find and update existing row)
+  const syncOrderToSheetUpdate = async (order: Parameters<typeof buildSheetRowData>[0], company?: string, oldEntryDate?: string | null) => {
+    try {
+      const rowData = buildSheetRowData(order, company);
+      const sheetRowIndex = await findSheetRowIndex(order.vehicle_code, oldEntryDate || order.entry_date);
+      
+      if (sheetRowIndex > 0) {
+        await updateRow(ORDEM_SERVICO_SHEET, sheetRowIndex, rowData);
+        console.log('Order updated in sheet:', order.order_number);
+      } else {
+        // Row not found - append as new
+        await createRow(ORDEM_SERVICO_SHEET, rowData);
+        console.log('Order appended to sheet (not found for update):', order.order_number);
+      }
+    } catch (err) {
+      console.error('Error syncing order update to sheet:', err);
+    }
+  };
+
+  // Sync order deletion to Google Sheets
+  const syncOrderDeleteFromSheet = async (vehicleCode: string, entryDate: string | null) => {
+    try {
+      const sheetRowIndex = await findSheetRowIndex(vehicleCode, entryDate);
+      if (sheetRowIndex > 0) {
+        await deleteRow(ORDEM_SERVICO_SHEET, sheetRowIndex);
+        console.log('Order deleted from sheet');
+      }
+    } catch (err) {
+      console.error('Error deleting order from sheet:', err);
     }
   };
 
@@ -925,11 +986,24 @@ export function ManutencaoPage() {
   // Handle vehicle selection in modal
   const handleVehicleSelect = (vehicleCode: string) => {
     const vehicle = vehicles.find(v => v.code === vehicleCode);
+    
+    // Auto-fill Motorista from Veiculo sheet
+    const vehicleInfo = vehiclesData.rows.find(v => String(v['Codigo'] || '') === vehicleCode);
+    const motorista = String(vehicleInfo?.['Motorista'] || vehicleInfo?.['MOTORISTA'] || '').trim();
+    
     setFormData({ 
       ...formData, 
       vehicle_code: vehicleCode,
-      vehicle_description: vehicle?.description || ''
+      vehicle_description: vehicle?.description || '',
+      notes: formData.notes, // keep existing
     });
+    
+    // Store motorista for sync (created_by field in DB)
+    if (motorista && !editingOrder) {
+      // For new orders, we'll pass motorista via the save handler
+      (window as any).__osMotorista = motorista;
+    }
+    
     fetchVehicleHistory(vehicleCode);
   };
 
@@ -1063,15 +1137,16 @@ export function ManutencaoPage() {
         savedOrderDate = formData.entry_date || editingOrder.order_date;
         toast.success('Ordem de serviço atualizada!');
         
-        // Sync to Google Sheets - get company and motorista from vehicle data
+        // Sync UPDATE to Google Sheets
         const vehicleInfo = vehiclesData.rows.find(v => String(v['Codigo'] || '') === formData.vehicle_code);
         const motorista = String(vehicleInfo?.['Motorista'] || vehicleInfo?.['MOTORISTA'] || '').trim();
-        syncOrderToSheet({
+        const oldEntryDate = editingOrder.entry_date || editingOrder.order_date;
+        syncOrderToSheetUpdate({
           ...orderData,
           order_number: savedOrderNumber,
           order_date: savedOrderDate,
           created_by: motorista || null,
-        }, String(vehicleInfo?.['Empresa'] || ''));
+        }, String(vehicleInfo?.['Empresa'] || ''), oldEntryDate);
       } else {
         const newOrderNumber = await generateOrderNumber();
         const newOrderDate = formData.entry_date || new Date().toISOString().split('T')[0];
@@ -1089,10 +1164,10 @@ export function ManutencaoPage() {
         savedOrderDate = newOrderDate;
         toast.success('Ordem de serviço criada!');
         
-        // Sync new order to Google Sheets - get company and motorista from vehicle data
+        // Sync CREATE to Google Sheets
         const vehicleInfo = vehiclesData.rows.find(v => String(v['Codigo'] || '') === formData.vehicle_code);
         const motorista = String(vehicleInfo?.['Motorista'] || vehicleInfo?.['MOTORISTA'] || '').trim();
-        syncOrderToSheet({
+        syncOrderToSheetCreate({
           ...orderData,
           order_number: savedOrderNumber,
           order_date: savedOrderDate,
@@ -1121,6 +1196,10 @@ export function ManutencaoPage() {
         .eq('id', order.id);
 
       if (error) throw error;
+      
+      // Sync deletion to Google Sheets
+      syncOrderDeleteFromSheet(order.vehicle_code, (order as any).entry_date || order.order_date);
+      
       toast.success('Ordem de serviço excluída!');
       fetchOrders();
     } catch (err) {
@@ -1243,11 +1322,14 @@ export function ManutencaoPage() {
         }
       }
       
-      // Sync to sheet
-      syncOrderToSheet({
+      // Sync status update to sheet
+      const vehicleInfo = vehiclesData.rows.find(v => String(v['Codigo'] || '') === order.vehicle_code);
+      const motorista = String(vehicleInfo?.['Motorista'] || vehicleInfo?.['MOTORISTA'] || '').trim();
+      syncOrderToSheetUpdate({
         ...order,
         ...updateData,
-      });
+        created_by: motorista || order.created_by || '',
+      }, String(vehicleInfo?.['Empresa'] || ''), (order as any).entry_date);
     } catch (err) {
       console.error('Error updating status:', err);
       toast.error('Erro ao alterar status');
