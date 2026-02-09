@@ -489,41 +489,45 @@ export async function exportEfetivoPDF(
     body: tableData,
     theme: 'grid',
     styles: {
-      fontSize: 7.5,
-      cellPadding: 2,
-      lineColor: [203, 213, 225],
-      lineWidth: 0.25,
-      textColor: [30, 41, 59],
+      fontSize: 8,
+      cellPadding: 3,
+      lineColor: [180, 180, 180],
+      lineWidth: 0.3,
+      textColor: [0, 0, 0],
       font: 'helvetica',
+      halign: 'center',
+      valign: 'middle',
     },
     headStyles: {
       fillColor: [30, 41, 59],
       textColor: [255, 255, 255],
       fontStyle: 'bold',
-      fontSize: 7.5,
+      fontSize: 8,
       halign: 'center',
       lineColor: [51, 65, 85],
       lineWidth: 0.3,
-      cellPadding: 2.5,
+      cellPadding: 3.5,
     },
-    columnStyles,
+    columnStyles: {
+      ...columnStyles,
+      1: { cellWidth: descW, fontStyle: 'bold', halign: 'left' },
+    },
     margin: { left: 14, right: 14 },
-    alternateRowStyles: { fillColor: [241, 245, 249] },
+    alternateRowStyles: { fillColor: [245, 247, 250] },
     didParseCell: (data) => {
       // Total row - navy background
       if (data.row.index === tableData.length - 1) {
         data.cell.styles.fillColor = [30, 41, 59];
         data.cell.styles.textColor = [255, 255, 255];
         data.cell.styles.fontStyle = 'bold';
-        data.cell.styles.fontSize = 8;
+        data.cell.styles.fontSize = 8.5;
       }
       // Manutenção column - red accent for values > 0
       if (data.column.index === maintenanceColIdx && data.section === 'body') {
         const val = parseInt(data.cell.text[0] || '0');
         if (val > 0 && data.row.index !== tableData.length - 1) {
-          data.cell.styles.textColor = [220, 38, 38];
+          data.cell.styles.textColor = [200, 30, 30];
           data.cell.styles.fontStyle = 'bold';
-          data.cell.styles.fillColor = [254, 242, 242];
         }
       }
       // Disponível column - green accent for values > 0
@@ -534,7 +538,7 @@ export async function exportEfetivoPDF(
           data.cell.styles.fontStyle = 'bold';
         }
       }
-      // Total Mobilizado column - blue accent
+      // Total Mobilizado column - bold blue
       if (data.column.index === 2 && data.section === 'body' && data.row.index !== tableData.length - 1) {
         const val = parseInt(data.cell.text[0] || '0');
         if (val > 0) {
@@ -584,28 +588,31 @@ export async function exportEfetivoPDF(
       body: maintenanceTableData,
       theme: 'grid',
       styles: {
-        fontSize: 7,
-        cellPadding: 2,
-        lineColor: [220, 170, 170],
-        lineWidth: 0.2,
-        textColor: [127, 29, 29],
+        fontSize: 7.5,
+        cellPadding: 2.5,
+        lineColor: [180, 180, 180],
+        lineWidth: 0.25,
+        textColor: [0, 0, 0],
+        halign: 'center',
+        valign: 'middle',
       },
       headStyles: {
-        fillColor: [220, 38, 38],
+        fillColor: [185, 28, 28],
         textColor: [255, 255, 255],
         fontStyle: 'bold',
-        fontSize: 7,
-        lineColor: [185, 28, 28],
+        fontSize: 7.5,
+        lineColor: [153, 27, 27],
+        halign: 'center',
       },
       columnStyles: {
         0: { cellWidth: 24, fontStyle: 'bold' },
         1: { cellWidth: 40 },
-        2: { cellWidth: 48 },
-        3: { cellWidth: 'auto' },
+        2: { cellWidth: 48, halign: 'left' },
+        3: { cellWidth: 'auto', halign: 'left' },
         4: { cellWidth: 22, halign: 'center' },
       },
       margin: { left: 14, right: 14 },
-      alternateRowStyles: { fillColor: [254, 242, 242] },
+      alternateRowStyles: { fillColor: [254, 245, 245] },
     });
   }
 
