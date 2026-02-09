@@ -67,6 +67,7 @@ import { exportMobilizacaoPDF, exportEfetivoPDF } from '@/components/Frota/Frota
 import { useObraSettings } from '@/hooks/useObraSettings';
 import { ColumnConfigModal } from '@/components/Layout/ColumnConfigModal';
 import { useLayoutPreferences, ColumnConfig } from '@/hooks/useLayoutPreferences';
+import { FrotaKpiDetailModal, type KpiType } from '@/components/Frota/FrotaKpiDetailModal';
 
 const SHEET_NAME = 'Veiculo';
 
@@ -235,6 +236,26 @@ export function FrotaPage() {
     categoria: string;
     empresa: string;
   } | null>(null);
+
+  // KPI detail modal state
+  const [kpiDetailOpen, setKpiDetailOpen] = useState(false);
+  const [selectedKpi, setSelectedKpi] = useState<KpiType>('total');
+
+  const handleKpiClick = (kpi: KpiType) => {
+    setSelectedKpi(kpi);
+    setKpiDetailOpen(true);
+  };
+
+  // Build vehicle items for KPI modal
+  const allVehicleItems = useMemo(() => {
+    return data.rows.map(row => ({
+      codigo: getRowValue(row as any, ['CODIGO', 'Codigo', 'codigo', 'VEICULO', 'Veiculo', 'veiculo']),
+      descricao: getRowValue(row as any, ['DESCRICAO', 'DESCRIÇÃO', 'Descricao', 'descrição', 'descricao']),
+      empresa: getRowValue(row as any, ['EMPRESA', 'Empresa', 'empresa']),
+      categoria: getRowValue(row as any, ['CATEGORIA', 'Categoria', 'categoria', 'TIPO', 'Tipo', 'tipo']),
+      status: getRowValue(row as any, ['STATUS', 'Status', 'status']) || 'ativo',
+    }));
+  }, [data.rows]);
 
   const openVehicleHistory = (vehicle: { codigo: string; descricao: string; categoria: string; empresa: string }) => {
     setSelectedVehicle(vehicle);
@@ -710,7 +731,10 @@ export function FrotaPage() {
         {/* KPI Cards */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-3 md:gap-4">
           {/* Total - Blue */}
-          <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-4 text-white shadow-lg">
+          <div 
+            className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-4 text-white shadow-lg cursor-pointer transition-transform hover:scale-105"
+            onClick={() => handleKpiClick('total')}
+          >
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs font-medium text-blue-100 uppercase tracking-wide">TOTAL</p>
@@ -727,7 +751,7 @@ export function FrotaPage() {
               "bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-xl p-4 text-white shadow-lg cursor-pointer transition-transform hover:scale-105",
               statusFilter === 'ativo' && "ring-2 ring-white ring-offset-2 ring-offset-emerald-500"
             )}
-            onClick={() => setStatusFilter(statusFilter === 'ativo' ? 'all' : 'ativo')}
+            onClick={() => handleKpiClick('ativos')}
           >
             <div className="flex items-center justify-between">
               <div>
@@ -745,7 +769,7 @@ export function FrotaPage() {
               "bg-gradient-to-br from-gray-400 to-gray-500 rounded-xl p-4 text-white shadow-lg cursor-pointer transition-transform hover:scale-105",
               statusFilter === 'inativo' && "ring-2 ring-white ring-offset-2 ring-offset-gray-400"
             )}
-            onClick={() => setStatusFilter(statusFilter === 'inativo' ? 'all' : 'inativo')}
+            onClick={() => handleKpiClick('inativos')}
           >
             <div className="flex items-center justify-between">
               <div>
@@ -763,7 +787,7 @@ export function FrotaPage() {
               "bg-gradient-to-br from-amber-500 to-amber-600 rounded-xl p-4 text-white shadow-lg cursor-pointer transition-transform hover:scale-105",
               statusFilter === 'manutencao' && "ring-2 ring-white ring-offset-2 ring-offset-amber-500"
             )}
-            onClick={() => setStatusFilter(statusFilter === 'manutencao' ? 'all' : 'manutencao')}
+            onClick={() => handleKpiClick('manutencao')}
           >
             <div className="flex items-center justify-between">
               <div>
@@ -781,7 +805,7 @@ export function FrotaPage() {
               "bg-gradient-to-br from-blue-400 to-blue-500 rounded-xl p-4 text-white shadow-lg cursor-pointer transition-transform hover:scale-105",
               statusFilter === 'mobilizado' && "ring-2 ring-white ring-offset-2 ring-offset-blue-400"
             )}
-            onClick={() => setStatusFilter(statusFilter === 'mobilizado' ? 'all' : 'mobilizado')}
+            onClick={() => handleKpiClick('mobilizados')}
           >
             <div className="flex items-center justify-between">
               <div>
@@ -799,7 +823,7 @@ export function FrotaPage() {
               "bg-gradient-to-br from-red-400 to-red-500 rounded-xl p-4 text-white shadow-lg cursor-pointer transition-transform hover:scale-105",
               statusFilter === 'desmobilizado' && "ring-2 ring-white ring-offset-2 ring-offset-red-400"
             )}
-            onClick={() => setStatusFilter(statusFilter === 'desmobilizado' ? 'all' : 'desmobilizado')}
+            onClick={() => handleKpiClick('desmobilizados')}
           >
             <div className="flex items-center justify-between">
               <div>
@@ -1178,6 +1202,23 @@ export function FrotaPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      {/* KPI Detail Modal */}
+      <FrotaKpiDetailModal
+        open={kpiDetailOpen}
+        onClose={() => setKpiDetailOpen(false)}
+        kpiType={selectedKpi}
+        vehicles={allVehicleItems}
+        maintenanceOrders={maintenanceOrders}
+        onVehicleClick={(vehicle) => {
+          setKpiDetailOpen(false);
+          openVehicleHistory({
+            codigo: vehicle.codigo,
+            descricao: vehicle.descricao,
+            categoria: vehicle.categoria,
+            empresa: vehicle.empresa,
+          });
+        }}
+      />
     </div>
   );
 }
