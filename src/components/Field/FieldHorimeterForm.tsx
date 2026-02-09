@@ -41,6 +41,8 @@ import {
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { CurrencyInput } from '@/components/ui/currency-input';
 import { supabase } from '@/integrations/supabase/client';
+import { getSheetData } from '@/lib/googleSheets';
+import { parsePtBRNumber } from '@/lib/ptBRNumber';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { format, startOfDay, isAfter, isSameDay } from 'date-fns';
@@ -205,8 +207,71 @@ export function FieldHorimeterForm({ user, onBack }: FieldHorimeterFormProps) {
       return;
     }
 
+    let cancelled = false;
+
+    const normalizeVehicleCode = (v: any) =>
+      String(v ?? '').replace(/\u00A0/g, ' ').trim().toUpperCase().replace(/[–—]/g, '-').replace(/\s+/g, '');
+
+    const normalizeKey = (k: string) =>
+      k.trim().toUpperCase().normalize('NFD').replace(/\p{Diacritic}/gu, '').replace(/\s+/g, ' ');
+
+    const getByNormalizedKey = (row: Record<string, any>, wanted: string[]) => {
+      const wantedSet = new Set(wanted.map(normalizeKey));
+      for (const [k, v] of Object.entries(row)) {
+        if (wantedSet.has(normalizeKey(k))) return v;
+      }
+      return undefined;
+    };
+
+    const parseSheetDateTime = (rawDate: any, rawTime?: any): Date | null => {
+      const toDateFromSerial = (serial: number): Date => {
+        const utcMs = (serial - 25569) * 86400 * 1000;
+        return new Date(utcMs);
+      };
+      let base: Date | null = null;
+      if (typeof rawDate === 'number' && Number.isFinite(rawDate)) {
+        base = toDateFromSerial(rawDate);
+      } else {
+        const dateStr = String(rawDate ?? '').trim();
+        if (!dateStr) return null;
+        if (/^\d+(\.\d+)?$/.test(dateStr)) {
+          const serial = Number(dateStr);
+          if (Number.isFinite(serial)) base = toDateFromSerial(serial);
+        } else if (dateStr.includes('/')) {
+          const [day, month, year] = dateStr.split('/').map(n => Number(n));
+          if (!day || !month || !year) return null;
+          base = new Date(year, month - 1, day, 12, 0, 0);
+        } else {
+          const parsed = new Date(dateStr);
+          if (Number.isNaN(parsed.getTime())) return null;
+          base = new Date(parsed);
+        }
+      }
+      if (!base || Number.isNaN(base.getTime())) return null;
+      base.setHours(12, 0, 0, 0);
+      if (typeof rawTime === 'number' && Number.isFinite(rawTime) && rawTime >= 0 && rawTime < 1) {
+        const totalMinutes = Math.round(rawTime * 24 * 60);
+        base.setHours(Math.floor(totalMinutes / 60), totalMinutes % 60, 0, 0);
+      } else {
+        const timeStr = String(rawTime ?? '').trim();
+        if (timeStr) {
+          const parts = timeStr.split(':');
+          const h = Number(parts[0]);
+          const m = Number(parts[1] ?? 0);
+          if (!Number.isNaN(h)) base.setHours(h || 0, m || 0, 0, 0);
+        }
+      }
+      return Number.isNaN(base.getTime()) ? null : base;
+    };
+
     const fetchPrevious = async () => {
-      // 1. Horimeter readings table
+      interface Candidate { date: Date; hor: number; km: number; source: string; operator?: string; }
+      const candidates: Candidate[] = [];
+      const vehicle = vehicles.find(v => v.id === selectedVehicleId);
+      if (!vehicle) return;
+      const targetCode = normalizeVehicleCode(vehicle.code);
+
+      // 1) horimeter_readings (DB)
       const { data: horData } = await supabase
         .from('horimeter_readings')
         .select('id, vehicle_id, reading_date, current_value, previous_value, current_km, previous_km, operator, observations')
@@ -215,61 +280,108 @@ export function FieldHorimeterForm({ user, onBack }: FieldHorimeterFormProps) {
         .order('created_at', { ascending: false })
         .limit(5);
 
-      // 2. Also check field_fuel_records for the same vehicle code
-      const vehicle = vehicles.find(v => v.id === selectedVehicleId);
-      let fuelHorimeter = 0;
-      let fuelKm = 0;
-      let fuelDate = '';
-      let fuelOperator = '';
+      if (horData && horData.length > 0) {
+        const r = horData[0];
+        candidates.push({
+          date: new Date(r.reading_date + 'T12:00:00'),
+          hor: r.current_value > 0 ? r.current_value : 0,
+          km: (r.current_km ?? 0) > 0 ? r.current_km! : 0,
+          source: 'db_horimeter',
+          operator: r.operator || '',
+        });
+      }
 
-      if (vehicle) {
+      // 2) field_fuel_records (DB)
+      try {
         const { data: fuelData } = await supabase
           .from('field_fuel_records')
-          .select('horimeter_current, km_current, record_date, record_time, operator_name')
+          .select('record_date, record_time, horimeter_current, km_current, operator_name')
           .eq('vehicle_code', vehicle.code)
           .order('record_date', { ascending: false })
           .order('record_time', { ascending: false })
           .limit(1);
-
-        if (fuelData && fuelData.length > 0) {
-          fuelHorimeter = fuelData[0].horimeter_current || 0;
-          fuelKm = fuelData[0].km_current || 0;
-          fuelDate = fuelData[0].record_date || '';
-          fuelOperator = fuelData[0].operator_name || '';
+        if (fuelData?.[0]) {
+          const fr = fuelData[0];
+          candidates.push({
+            date: new Date(fr.record_date + 'T' + (fr.record_time || '12:00') + ':00'),
+            hor: fr.horimeter_current ?? 0,
+            km: fr.km_current ?? 0,
+            source: 'db_fuel',
+            operator: fr.operator_name || '',
+          });
         }
+      } catch (e) { console.error('Error fetching fuel records:', e); }
+
+      // 3) Google Sheets "AbastecimentoCanteiro01"
+      try {
+        const sheetData = await getSheetData('AbastecimentoCanteiro01', { noCache: true });
+        const vehicleRecords = (sheetData.rows || [])
+          .filter(row => normalizeVehicleCode(getByNormalizedKey(row as any, ['VEICULO', 'VEÍCULO', 'CODIGO', 'CÓDIGO', 'COD'])) === targetCode)
+          .map(row => {
+            const dateTime = parseSheetDateTime(
+              getByNormalizedKey(row as any, ['DATA', 'DATE']),
+              getByNormalizedKey(row as any, ['HORA', 'TIME'])
+            );
+            return {
+              dateTime,
+              hor: parsePtBRNumber(String(getByNormalizedKey(row as any, ['HORIMETRO ATUAL', 'HORIMETRO ATUA', 'HOR_ATUAL', 'HORIMETRO']) || '0')),
+              km: parsePtBRNumber(String(getByNormalizedKey(row as any, ['KM ATUAL', 'KM_ATUAL', 'KM']) || '0')),
+            };
+          })
+          .filter(r => !!r.dateTime && (r.hor > 0 || r.km > 0))
+          .sort((a, b) => (b.dateTime!.getTime()) - (a.dateTime!.getTime()));
+        if (vehicleRecords.length > 0) {
+          candidates.push({ date: vehicleRecords[0].dateTime!, hor: vehicleRecords[0].hor, km: vehicleRecords[0].km, source: 'sheet_abastecimento' });
+        }
+      } catch (e) { console.error('Error fetching AbastecimentoCanteiro01:', e); }
+
+      // 4) Google Sheets "Horimetros"
+      try {
+        const sheetData = await getSheetData('Horimetros', { noCache: true });
+        const vehicleRows = (sheetData.rows || [])
+          .filter(row => normalizeVehicleCode(getByNormalizedKey(row as any, ['VEICULO', 'VEÍCULO', 'CODIGO', 'CÓDIGO']) ?? '') === targetCode)
+          .map(row => {
+            const dateTime = parseSheetDateTime(getByNormalizedKey(row as any, ['DATA', 'DATE']));
+            return {
+              dateTime,
+              hor: parsePtBRNumber(String(getByNormalizedKey(row as any, ['HORIMETRO ATUAL']) || '0')),
+              km: parsePtBRNumber(String(getByNormalizedKey(row as any, ['KM ATUAL']) || '0')),
+            };
+          })
+          .filter(r => !!r.dateTime && (r.hor > 0 || r.km > 0))
+          .sort((a, b) => (b.dateTime!.getTime()) - (a.dateTime!.getTime()));
+        if (vehicleRows.length > 0) {
+          candidates.push({ date: vehicleRows[0].dateTime!, hor: vehicleRows[0].hor, km: vehicleRows[0].km, source: 'sheet_horimetros' });
+        }
+      } catch (e) { console.error('Error fetching Horimetros sheet:', e); }
+
+      // Pick most recent candidate (sheets win ties)
+      if (!cancelled && candidates.length > 0) {
+        const sheetPriority: Record<string, number> = {
+          'sheet_abastecimento': 2, 'sheet_horimetros': 2, 'db_fuel': 1, 'db_horimeter': 0,
+        };
+        candidates.sort((a, b) => {
+          const timeDiff = b.date.getTime() - a.date.getTime();
+          if (timeDiff !== 0) return timeDiff;
+          return (sheetPriority[b.source] ?? 0) - (sheetPriority[a.source] ?? 0);
+        });
+
+        const winner = candidates[0];
+        let finalHor = winner.hor;
+        let finalKm = winner.km;
+        if (finalHor <= 0) finalHor = candidates.find(c => c.hor > 0)?.hor || 0;
+        if (finalKm <= 0) finalKm = candidates.find(c => c.km > 0)?.km || 0;
+
+        setPreviousHorimeter(finalHor);
+        setPreviousKm(finalKm);
+        setOperador(winner.operator || user.name);
       }
 
-      // Determine the latest values and operator across sources
-      let bestHor = 0;
-      let bestKm = 0;
-      let bestOperator = '';
-
-      if (horData && horData.length > 0) {
-        bestHor = horData[0].current_value || 0;
-        bestKm = horData[0].current_km || 0;
-        bestOperator = horData[0].operator || '';
-        const horDate = horData[0].reading_date || '';
-
-        // If fuel record is more recent, use its values
-        if (fuelDate > horDate) {
-          if (fuelHorimeter > 0) bestHor = Math.max(bestHor, fuelHorimeter);
-          if (fuelKm > 0) bestKm = Math.max(bestKm, fuelKm);
-          if (fuelOperator) bestOperator = fuelOperator;
-        }
-      } else {
-        bestHor = fuelHorimeter;
-        bestKm = fuelKm;
-        bestOperator = fuelOperator;
-      }
-
-      setPreviousHorimeter(bestHor);
-      setPreviousKm(bestKm);
       setVehicleHistory(horData || []);
-
-      // Auto-fill operator from the most recent record, fallback to logged-in user
-      setOperador(bestOperator || user.name);
     };
+
     fetchPrevious();
+    return () => { cancelled = true; };
   }, [selectedVehicleId, vehicles, user.name]);
 
   // Filtered vehicles for search
