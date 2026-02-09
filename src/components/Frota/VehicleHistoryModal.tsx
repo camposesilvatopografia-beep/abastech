@@ -1082,7 +1082,7 @@ export function VehicleHistoryModal({
   return (
     <>
       <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-        <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogContent className="max-w-6xl max-h-[95vh] flex flex-col overflow-y-auto">
           <DialogHeader className="shrink-0">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
