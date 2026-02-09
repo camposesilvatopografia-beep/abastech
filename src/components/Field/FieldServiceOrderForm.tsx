@@ -261,30 +261,51 @@ export function FieldServiceOrderForm({ user, onBack }: FieldServiceOrderFormPro
     return `OS-${year}-${String(next).padStart(5, '0')}`;
   }, []);
 
-  // Sync to Google Sheets
+  // Sync to Google Sheets - Mapped to correct columns:
+  // B - DATA, C - VEICULO, D - EMPRESA, E - MOTORISTA, F - POTENCIA, G - PROBLEMA,
+  // H - SERVICO, I - MECANICO, J - DATA_ENTRADA, K - DATA_SAIDA, L - HORA_ENTRADA, M - HORA_SAIDA
   const syncToSheet = async (orderData: any) => {
     try {
-      const formatDate = (d: string | null) => {
-        if (!d) return '';
-        try { return format(new Date(d), 'dd/MM/yyyy'); } catch { return ''; }
+      const formatDateForSheet = (dateStr: string | null | undefined): string => {
+        if (!dateStr) return '';
+        try {
+          const date = new Date(dateStr);
+          return format(date, 'dd/MM/yyyy');
+        } catch {
+          return '';
+        }
+      };
+
+      const formatTimeForSheet = (timeStr: string | null | undefined, dateStr: string | null | undefined): string => {
+        if (timeStr) return timeStr.length === 5 ? timeStr : timeStr.substring(0, 5);
+        if (dateStr) {
+          try {
+            const date = new Date(dateStr);
+            return format(date, 'HH:mm');
+          } catch {
+            return '';
+          }
+        }
+        return '';
       };
 
       const rowData: Record<string, string> = {
-        'DATA': formatDate(orderData.order_date),
-        'VEICULO': orderData.vehicle_code,
+        'DATA': formatDateForSheet(orderData.order_date),
+        'VEICULO': orderData.vehicle_code || '',
         'EMPRESA': form.vehicle_company || '',
-        'MOTORISTA': form.created_by || '',
-        'POTENCIA': form.vehicle_description || '',
-        'PROBLEMA': form.problem_description || '',
-        'SERVICO': form.solution_description || '',
-        'MECANICO': form.mechanic_name || '',
-        'DATA_ENTRADA': formatDate(form.entry_date),
-        'DATA_SAIDA': form.status === 'Finalizada' ? formatDate(form.exit_date || new Date().toISOString()) : '',
-        'HORA_ENTRADA': form.entry_time || '',
-        'HORA_SAIDA': form.status === 'Finalizada' ? (form.exit_time || format(new Date(), 'HH:mm')) : '',
+        'MOTORISTA': orderData.created_by || '',
+        'POTENCIA': orderData.vehicle_description || '',
+        'PROBLEMA': orderData.problem_description || '',
+        'SERVICO': orderData.solution_description || '',
+        'MECANICO': orderData.mechanic_name || '',
+        'DATA_ENTRADA': formatDateForSheet(orderData.entry_date),
+        'DATA_SAIDA': orderData.status?.includes('Finalizada') ? formatDateForSheet(orderData.end_date || new Date().toISOString()) : '',
+        'HORA_ENTRADA': formatTimeForSheet(orderData.entry_time, null),
+        'HORA_SAIDA': orderData.status?.includes('Finalizada') ? formatTimeForSheet(null, orderData.end_date) : '',
       };
 
       await createRow(ORDEM_SERVICO_SHEET, rowData);
+      console.log('OS synced to sheet:', orderData.order_number);
     } catch (err) {
       console.error('Erro ao sincronizar OS com planilha:', err);
     }
