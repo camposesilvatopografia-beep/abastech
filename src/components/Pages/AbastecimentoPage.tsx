@@ -82,6 +82,7 @@ import { useObraSettings } from '@/hooks/useObraSettings';
 import { HorimeterCorrectionsTab } from '@/components/Abastecimento/HorimeterCorrectionsTab';
 import { VehicleConsumptionDetailTab } from '@/components/Abastecimento/VehicleConsumptionDetailTab';
 import { exportTanquesComboiosPDF, exportTanquesComboiosXLSX, exportTanquesPDF, exportTanquesXLSX, exportComboiosPDF, exportComboiosXLSX, type TanquesComboiosStockData } from '@/components/Abastecimento/TanquesComboiosReport';
+import { ReportsTab } from '@/components/Abastecimento/ReportsTab';
 
 const TABS = [
   { id: 'painel', label: 'Painel de Estoque', icon: Package2 },
@@ -2960,208 +2961,25 @@ export function AbastecimentoPage() {
         )}
 
         {activeTab === 'relatorios' && (
-          <div className="space-y-6">
-            <div className="flex items-center gap-2">
-              <FileSpreadsheet className="w-5 h-5 text-primary" />
-              <h2 className="text-lg font-semibold">Relatórios Disponíveis</h2>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="bg-card rounded-lg border border-border p-6 space-y-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                    <FileText className="w-5 h-5 text-primary" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold">Relatório Completo</h3>
-                    <p className="text-sm text-muted-foreground">Por local de abastecimento</p>
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <Button className="flex-1" onClick={exportPDF} disabled={isExporting}>
-                    <FileText className="w-4 h-4 mr-1" />
-                    PDF
-                  </Button>
-                  <Button variant="outline" className="flex-1" onClick={exportToXLSX} disabled={isExporting}>
-                    <FileSpreadsheet className="w-4 h-4 mr-1" />
-                    Excel
-                  </Button>
-                </div>
-              </div>
-
-              <div className="bg-card rounded-lg border border-border p-6 space-y-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-destructive/10 flex items-center justify-center">
-                    <Building2 className="w-5 h-5 text-destructive" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold">Relatório por Empresa</h3>
-                    <p className="text-sm text-muted-foreground">Agrupado por empresa</p>
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <Button className="flex-1 bg-destructive hover:bg-destructive/90" onClick={exportPDFPorEmpresa} disabled={isExporting}>
-                    <Building2 className="w-4 h-4 mr-1" />
-                    PDF
-                  </Button>
-                  <Button variant="outline" className="flex-1" onClick={exportPorEmpresaToXLSX} disabled={isExporting}>
-                    <FileSpreadsheet className="w-4 h-4 mr-1" />
-                    Excel
-                  </Button>
-                </div>
-              </div>
-
-              <div className="bg-card rounded-lg border border-border p-6 space-y-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
-                    <Download className="w-5 h-5 text-blue-500" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold">Relatório Detalhado</h3>
-                    <p className="text-sm text-muted-foreground">Com filtros aplicados</p>
-                  </div>
-                </div>
-                <Button className="w-full" variant="outline" onClick={exportDetailedPDF} disabled={isExporting}>
-                  <Download className="w-4 h-4 mr-2" />
-                  Exportar PDF Detalhado
-                </Button>
-              </div>
-
-              <div className="bg-card rounded-lg border border-border p-6 space-y-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-amber-500/10 flex items-center justify-center">
-                    <MapPin className="w-5 h-5 text-amber-500" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold">Relatório por Local</h3>
-                    <p className="text-sm text-muted-foreground">Resumo por ponto de abastecimento</p>
-                  </div>
-                </div>
-                <Button className="w-full" variant="outline" onClick={exportPDF} disabled={isExporting}>
-                  <MapPin className="w-4 h-4 mr-2" />
-                  Exportar PDF
-                </Button>
-              </div>
-
-              {/* Tanques Report */}
-              <div className="bg-card rounded-lg border border-border p-6 space-y-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
-                    <Fuel className="w-5 h-5 text-blue-500" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold">Tanques (01 e 02)</h3>
-                    <p className="text-sm text-muted-foreground">Abastecimentos nos tanques fixos</p>
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <Button 
-                    className="flex-1 bg-blue-600 hover:bg-blue-700" 
-                    onClick={() => exportTanquesPDF(filteredRows, startDate || new Date(), buildStockData(), obraSettings, sortByDescription)} 
-                    disabled={isExporting}
-                  >
-                    <FileText className="w-4 h-4 mr-1" />
-                    PDF
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    className="flex-1" 
-                    onClick={() => exportTanquesXLSX(filteredRows, startDate || new Date(), sortByDescription)} 
-                    disabled={isExporting}
-                  >
-                    <FileSpreadsheet className="w-4 h-4 mr-1" />
-                    Excel
-                  </Button>
-                </div>
-              </div>
-
-              {/* Comboios Report */}
-              <div className="bg-card rounded-lg border border-border p-6 space-y-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center">
-                    <Truck className="w-5 h-5 text-emerald-500" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold">Comboios (01, 02 e 03)</h3>
-                    <p className="text-sm text-muted-foreground">Abastecimentos nos comboios móveis</p>
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <Button 
-                    className="flex-1 bg-emerald-600 hover:bg-emerald-700" 
-                    onClick={() => exportComboiosPDF(filteredRows, startDate || new Date(), buildStockData(), obraSettings, sortByDescription)} 
-                    disabled={isExporting}
-                  >
-                    <FileText className="w-4 h-4 mr-1" />
-                    PDF
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    className="flex-1" 
-                    onClick={() => exportComboiosXLSX(filteredRows, startDate || new Date(), sortByDescription)} 
-                    disabled={isExporting}
-                  >
-                    <FileSpreadsheet className="w-4 h-4 mr-1" />
-                    Excel
-                  </Button>
-                </div>
-              </div>
-
-              {/* Tanques + Comboios Combined */}
-              <div className="bg-card rounded-lg border border-border p-6 space-y-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-slate-500/10 flex items-center justify-center">
-                    <Fuel className="w-5 h-5 text-slate-500" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold">Tanques + Comboios</h3>
-                    <p className="text-sm text-muted-foreground">Relatório combinado completo</p>
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <Button 
-                    className="flex-1" 
-                    variant="outline"
-                    onClick={() => exportTanquesComboiosPDF(filteredRows, startDate || new Date(), buildStockData(), obraSettings, sortByDescription)} 
-                    disabled={isExporting}
-                  >
-                    <FileText className="w-4 h-4 mr-1" />
-                    PDF
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    className="flex-1" 
-                    onClick={() => exportTanquesComboiosXLSX(filteredRows, startDate || new Date(), sortByDescription)} 
-                    disabled={isExporting}
-                  >
-                    <FileSpreadsheet className="w-4 h-4 mr-1" />
-                    Excel
-                  </Button>
-                </div>
-              </div>
-            </div>
-
-            {/* Sort Options */}
-            <div className="bg-card rounded-lg border border-border p-4">
-              <div className="flex items-center gap-4 flex-wrap">
-                <span className="text-sm font-medium text-muted-foreground">Opções de Ordenação:</span>
-                <Button
-                  variant={sortByDescription ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setSortByDescription(!sortByDescription)}
-                  className="gap-2"
-                >
-                  <ArrowDownUp className="w-4 h-4" />
-                  {sortByDescription ? 'Ordenando por Descrição' : 'Ordenar por Descrição'}
-                </Button>
-                {sortByDescription && (
-                  <span className="text-xs text-muted-foreground">
-                    ✓ Relatórios serão ordenados alfabeticamente pela descrição do veículo
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
+          <ReportsTab
+            isExporting={isExporting}
+            filteredRowsCount={filteredRows.length}
+            startDate={startDate}
+            endDate={endDate}
+            sortByDescription={sortByDescription}
+            onToggleSortByDescription={() => setSortByDescription(!sortByDescription)}
+            onExportPDF={exportPDF}
+            onExportXLSX={exportToXLSX}
+            onExportPDFPorEmpresa={exportPDFPorEmpresa}
+            onExportPorEmpresaXLSX={exportPorEmpresaToXLSX}
+            onExportDetailedPDF={exportDetailedPDF}
+            onExportTanquesPDF={() => exportTanquesPDF(filteredRows, startDate || new Date(), buildStockData(), obraSettings, sortByDescription)}
+            onExportTanquesXLSX={() => exportTanquesXLSX(filteredRows, startDate || new Date(), sortByDescription)}
+            onExportComboiosPDF={() => exportComboiosPDF(filteredRows, startDate || new Date(), buildStockData(), obraSettings, sortByDescription)}
+            onExportComboiosXLSX={() => exportComboiosXLSX(filteredRows, startDate || new Date(), sortByDescription)}
+            onExportTanquesComboiosPDF={() => exportTanquesComboiosPDF(filteredRows, startDate || new Date(), buildStockData(), obraSettings, sortByDescription)}
+            onExportTanquesComboiosXLSX={() => exportTanquesComboiosXLSX(filteredRows, startDate || new Date(), sortByDescription)}
+          />
         )}
       </div>
 
