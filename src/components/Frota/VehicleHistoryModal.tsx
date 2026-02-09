@@ -135,7 +135,7 @@ interface DailyRecord {
   hasActivity: boolean;
 }
 
-type PeriodFilter = 'today' | 'yesterday' | '7days' | '30days' | 'month' | 'custom';
+type PeriodFilter = 'today' | 'yesterday' | '7days' | '30days' | '90days' | 'all' | 'month' | 'custom';
 
 const DEFAULT_TIMELINE_COLUMNS: ColumnConfig[] = [
   { key: 'data', label: 'Data', visible: true, order: 0 },
@@ -174,7 +174,7 @@ export function VehicleHistoryModal({
   } = useLayoutPreferences('vehicle-history-timeline', DEFAULT_TIMELINE_COLUMNS);
   
   // Period filter
-  const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('30days');
+  const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('90days');
   const [customDateStart, setCustomDateStart] = useState<Date | undefined>();
   const [customDateEnd, setCustomDateEnd] = useState<Date | undefined>();
 
@@ -197,6 +197,10 @@ export function VehicleHistoryModal({
         return { start: subDays(today, 7), end: today };
       case '30days':
         return { start: subDays(today, 30), end: today };
+      case '90days':
+        return { start: subDays(today, 90), end: today };
+      case 'all':
+        return { start: new Date('2020-01-01'), end: today };
       case 'month':
         return { start: startOfMonth(today), end: endOfMonth(today) };
       case 'custom':
@@ -246,18 +250,32 @@ export function VehicleHistoryModal({
         horimeterData = (data || []) as HorimeterReading[];
       }
 
-      // Fetch service orders
-      const { data: serviceData } = await supabase
+      // Fetch service orders - by entry_date (primary) OR order_date
+      const { data: serviceByEntry } = await supabase
         .from('service_orders')
         .select('*')
         .eq('vehicle_code', vehicleCode)
+        .gte('entry_date', startDate)
+        .lte('entry_date', endDate)
+        .order('entry_date', { ascending: false });
+
+      // Also fetch by order_date for those without entry_date
+      const { data: serviceByOrder } = await supabase
+        .from('service_orders')
+        .select('*')
+        .eq('vehicle_code', vehicleCode)
+        .is('entry_date', null)
         .gte('order_date', startDate)
         .lte('order_date', endDate)
         .order('order_date', { ascending: false });
 
+      // Merge and deduplicate
+      const allOrders = [...(serviceByEntry || []), ...(serviceByOrder || [])];
+      const uniqueOrders = Array.from(new Map(allOrders.map(o => [o.id, o])).values());
+
       setFuelRecords(fuelData || []);
       setHorimeterReadings(horimeterData);
-      setServiceOrders(serviceData || []);
+      setServiceOrders(uniqueOrders as ServiceOrder[]);
     } catch (error) {
       console.error('Error fetching vehicle history:', error);
     } finally {
@@ -281,7 +299,7 @@ export function VehicleHistoryModal({
       // Filter records for this day
       const dayFuelRecords = fuelRecords.filter(r => r.record_date === dateStr);
       const dayHorimeterReadings = horimeterReadings.filter(r => r.reading_date === dateStr);
-      const dayServiceOrders = serviceOrders.filter(r => r.order_date === dateStr);
+      const dayServiceOrders = serviceOrders.filter(r => (r.entry_date || r.order_date) === dateStr);
       
       // Aggregate fuel data
       const totalDiesel = dayFuelRecords
@@ -396,8 +414,9 @@ export function VehicleHistoryModal({
   const exportToPDF = () => {
     const doc = new jsPDF('landscape');
     const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
     
-    // Navy header bar (matching system theme)
+    // ─── Page 1: Header + Summary + Timeline ───
     doc.setFillColor(30, 41, 59);
     doc.rect(0, 0, pageWidth, 28, 'F');
     
@@ -415,110 +434,278 @@ export function VehicleHistoryModal({
     doc.text(`Empresa: ${vehicleEmpresa}`, pageWidth - 80, 12);
     doc.text(`Categoria: ${vehicleCategory}`, pageWidth - 80, 22);
     
-    doc.setTextColor(0, 0, 0);
+    doc.setTextColor(30, 41, 59);
     doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
     
-    let yPos = 38;
+    let yPos = 36;
     
     // Period info
     doc.text(`Período: ${format(dateRange.start, 'dd/MM/yyyy')} a ${format(dateRange.end, 'dd/MM/yyyy')}`, 14, yPos);
     doc.text(`Gerado em: ${format(new Date(), 'dd/MM/yyyy HH:mm')}`, pageWidth - 60, yPos);
     
-    yPos += 10;
+    yPos += 8;
 
-    // Summary KPIs - horizontal layout
+    // ─── Summary KPIs as table ───
+    doc.setFillColor(71, 85, 105);
+    doc.rect(14, yPos, pageWidth - 28, 7, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(9);
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(10);
-    doc.text('RESUMO DO PERÍODO', 14, yPos);
-    
-    yPos += 6;
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
-    
-    const kpiTexts = [
-      `Diesel: ${summary.totalDiesel.toFixed(1)}L`,
-      `ARLA: ${summary.totalArla.toFixed(1)}L`,
-      `Óleo: ${summary.totalOil.toFixed(1)}L`,
-      `Horímetro: ${summary.latestHorimeter.toFixed(0)}h`,
-      `Intervalo: +${summary.horimeterInterval.toFixed(0)}h`,
-      `Consumo: ${summary.consumption.toFixed(2)}L/h`,
-      `OS: ${summary.osCount}`,
-      `Dias ativos: ${summary.daysWithActivity}`,
+    doc.text('RESUMO DO PERÍODO', 16, yPos + 5);
+    yPos += 9;
+
+    const kpiData = [
+      ['Total Diesel', `${summary.totalDiesel.toFixed(1)} L`, 'Total ARLA', `${summary.totalArla.toFixed(1)} L`],
+      ['Total Óleo', `${summary.totalOil.toFixed(1)} L`, 'Consumo Médio', `${summary.consumption.toFixed(2)} L/h`],
+      ['Horímetro Atual', `${summary.latestHorimeter.toFixed(0)} h`, 'Intervalo Período', `${summary.horimeterInterval.toFixed(0)} h`],
+      ['Abastecimentos', `${summary.fuelRecordCount}`, 'Leituras Hor.', `${summary.horimeterReadingCount}`],
+      ['Ordens Serviço', `${summary.osCount} (${summary.osCompleted} finalizadas)`, 'Dias Ativos', `${summary.daysWithActivity}`],
     ];
-    
-    doc.text(kpiTexts.join('  |  '), 14, yPos);
-    
-    yPos += 12;
 
-    // Daily timeline table
+    autoTable(doc, {
+      startY: yPos,
+      body: kpiData,
+      theme: 'grid',
+      styles: { fontSize: 7.5, cellPadding: 2 },
+      columnStyles: {
+        0: { fontStyle: 'bold', cellWidth: 35, fillColor: [241, 245, 249] },
+        1: { cellWidth: (pageWidth - 28) / 2 - 35 },
+        2: { fontStyle: 'bold', cellWidth: 35, fillColor: [241, 245, 249] },
+        3: { cellWidth: (pageWidth - 28) / 2 - 35 },
+      },
+      margin: { left: 14, right: 14 },
+    });
+
+    yPos = (doc as any).lastAutoTable.finalY + 8;
+
+    // ─── Timeline Table ───
+    if (yPos > pageHeight - 50) { doc.addPage(); yPos = 20; }
+
+    doc.setFillColor(30, 41, 59);
+    doc.rect(14, yPos, pageWidth - 28, 7, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(9);
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(11);
-    doc.text('LINHA DO TEMPO - DIA A DIA', 14, yPos);
+    doc.text(`LINHA DO TEMPO - DIA A DIA (${activeDays.length} dias)`, 16, yPos + 5);
+    yPos += 9;
+
+    const timelineHeaders = ['Data', 'Diesel (L)', 'ARLA (L)', 'Óleo (L)', 'Horímetro', 'KM', 'Intervalo', 'OS', 'Status OS', 'Operador'];
     
-    // Build table data with only visible columns
-    const headers = visibleColumns.map(c => c.label);
-    
-    const tableData = activeDays.map(day => {
-      const row: string[] = [];
-      visibleColumns.forEach(col => {
-        switch (col.key) {
-          case 'data':
-            row.push(format(day.date, 'dd/MM/yyyy'));
-            break;
-          case 'diesel':
-            row.push(day.totalDiesel > 0 ? `${day.totalDiesel.toFixed(1)}` : '-');
-            break;
-          case 'arla':
-            row.push(day.totalArla > 0 ? `${day.totalArla.toFixed(1)}` : '-');
-            break;
-          case 'oleo':
-            row.push(day.totalOil > 0 ? `${day.totalOil.toFixed(1)}` : '-');
-            break;
-          case 'horimetro':
-            row.push(day.horimeterValue ? `${day.horimeterValue.toFixed(0)}` : '-');
-            break;
-          case 'km':
-            row.push(day.kmValue ? `${day.kmValue.toFixed(0)}` : '-');
-            break;
-          case 'intervalo':
-            row.push(day.horimeterInterval > 0 ? `+${day.horimeterInterval.toFixed(0)}` : '-');
-            break;
-          case 'os':
-            row.push(day.osCount > 0 ? `${day.osCount}` : '-');
-            break;
-          case 'manutencao':
-            row.push(day.osStatus || '-');
-            break;
-          case 'operador':
-            const operators = [...new Set([
-              ...day.fuelRecords.map(r => r.operator_name).filter(Boolean),
-              ...day.horimeterReadings.map(r => r.operator).filter(Boolean),
-            ])];
-            row.push(operators[0] || '-');
-            break;
-          default:
-            row.push('-');
-        }
-      });
-      return row;
+    const timelineData = activeDays.map(day => {
+      const operators = [...new Set([
+        ...day.fuelRecords.map(r => r.operator_name).filter(Boolean),
+        ...day.horimeterReadings.map(r => r.operator).filter(Boolean),
+      ])];
+      return [
+        format(day.date, 'dd/MM/yyyy'),
+        day.totalDiesel > 0 ? day.totalDiesel.toFixed(1) : '-',
+        day.totalArla > 0 ? day.totalArla.toFixed(1) : '-',
+        day.totalOil > 0 ? day.totalOil.toFixed(1) : '-',
+        day.horimeterValue ? day.horimeterValue.toFixed(0) : '-',
+        day.kmValue ? day.kmValue.toFixed(0) : '-',
+        day.horimeterInterval > 0 ? `+${day.horimeterInterval.toFixed(0)}` : '-',
+        day.osCount > 0 ? day.osCount.toString() : '-',
+        day.osStatus || '-',
+        (operators[0] || '-').substring(0, 20),
+      ];
     });
 
     autoTable(doc, {
-      head: [headers],
-      body: tableData,
-      startY: yPos + 5,
-      styles: { fontSize: 7, cellPadding: 2 },
-      headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255] },
-      alternateRowStyles: { fillColor: [248, 249, 250] },
-      margin: { left: 14, right: 14 }
+      head: [timelineHeaders],
+      body: timelineData,
+      startY: yPos,
+      styles: { fontSize: 6.5, cellPadding: 1.5 },
+      headStyles: { fillColor: [30, 41, 59], textColor: 255, fontStyle: 'bold', fontSize: 7 },
+      alternateRowStyles: { fillColor: [248, 250, 252] },
+      margin: { left: 14, right: 14 },
+      columnStyles: {
+        0: { cellWidth: 22 },
+        6: { halign: 'center' },
+        7: { halign: 'center', cellWidth: 12 },
+      },
+      didParseCell: (data) => {
+        // Red for diesel values
+        if (data.column.index === 1 && data.section === 'body' && data.cell.text[0] !== '-') {
+          data.cell.styles.textColor = [220, 38, 38];
+          data.cell.styles.fontStyle = 'bold';
+        }
+        // Green for interval values
+        if (data.column.index === 6 && data.section === 'body' && data.cell.text[0] !== '-') {
+          data.cell.styles.textColor = [22, 163, 74];
+          data.cell.styles.fontStyle = 'bold';
+        }
+      },
     });
 
-    // Add totals row
-    const finalY = (doc as any).lastAutoTable.finalY || 50;
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'bold');
-    doc.text(`Total de dias com atividade: ${activeDays.length}`, 14, finalY + 8);
-    doc.text(`Total de registros: Abastecimentos(${summary.fuelRecordCount}) | Horímetros(${summary.horimeterReadingCount}) | OS(${summary.osCount})`, 14, finalY + 14);
+    // ─── Page: Abastecimentos Detail ───
+    if (fuelRecords.length > 0) {
+      doc.addPage();
+      let fuelY = 15;
+
+      doc.setFillColor(30, 41, 59);
+      doc.rect(0, 0, pageWidth, 18, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`ABASTECIMENTOS - ${vehicleCode} (${fuelRecords.length} registros)`, pageWidth / 2, 12, { align: 'center' });
+      fuelY = 22;
+
+      const fuelHeaders = ['Data', 'Hora', 'Tipo', 'Diesel (L)', 'ARLA (L)', 'Óleo (L)', 'Horímetro', 'KM', 'Operador', 'Local'];
+      const fuelData = fuelRecords.map(r => [
+        format(new Date(r.record_date), 'dd/MM/yyyy'),
+        r.record_time?.substring(0, 5) || '-',
+        r.record_type === 'saida' ? 'Saída' : 'Entrada',
+        r.fuel_quantity?.toFixed(1) || '-',
+        r.arla_quantity?.toFixed(1) || '-',
+        r.oil_quantity?.toFixed(1) || '-',
+        r.horimeter_current?.toFixed(0) || '-',
+        r.km_current?.toFixed(0) || '-',
+        (r.operator_name || '-').substring(0, 20),
+        (r.location || '-').substring(0, 20),
+      ]);
+
+      autoTable(doc, {
+        head: [fuelHeaders],
+        body: fuelData,
+        startY: fuelY,
+        styles: { fontSize: 6.5, cellPadding: 1.5 },
+        headStyles: { fillColor: [220, 38, 38], textColor: 255, fontStyle: 'bold', fontSize: 7 },
+        alternateRowStyles: { fillColor: [254, 242, 242] },
+        margin: { left: 14, right: 14 },
+        columnStyles: {
+          0: { cellWidth: 22 },
+          1: { cellWidth: 14 },
+          2: { cellWidth: 16, halign: 'center' },
+          3: { cellWidth: 20, halign: 'right', fontStyle: 'bold' },
+          4: { cellWidth: 18, halign: 'right' },
+          5: { cellWidth: 16, halign: 'right' },
+          6: { cellWidth: 22, halign: 'right' },
+          7: { cellWidth: 20, halign: 'right' },
+        },
+      });
+    }
+
+    // ─── Page: Horímetros Detail ───
+    if (horimeterReadings.length > 0) {
+      doc.addPage();
+      let horY = 15;
+
+      doc.setFillColor(30, 41, 59);
+      doc.rect(0, 0, pageWidth, 18, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`LEITURAS DE HORÍMETRO - ${vehicleCode} (${horimeterReadings.length} registros)`, pageWidth / 2, 12, { align: 'center' });
+      horY = 22;
+
+      const horHeaders = ['Data', 'Hor. Anterior', 'Hor. Atual', 'Intervalo (H.T)', 'KM Anterior', 'KM Atual', 'Operador', 'Observações'];
+      const horData = horimeterReadings.map(r => [
+        format(new Date(r.reading_date), 'dd/MM/yyyy'),
+        r.previous_value?.toFixed(0) || '-',
+        r.current_value?.toFixed(0) || '-',
+        `${((r.current_value || 0) - (r.previous_value || 0)).toFixed(0)}`,
+        r.previous_km?.toFixed(0) || '-',
+        r.current_km?.toFixed(0) || '-',
+        (r.operator || '-').substring(0, 20),
+        (r.observations || '-').substring(0, 35),
+      ]);
+
+      autoTable(doc, {
+        head: [horHeaders],
+        body: horData,
+        startY: horY,
+        styles: { fontSize: 6.5, cellPadding: 1.5 },
+        headStyles: { fillColor: [37, 99, 235], textColor: 255, fontStyle: 'bold', fontSize: 7 },
+        alternateRowStyles: { fillColor: [239, 246, 255] },
+        margin: { left: 14, right: 14 },
+        columnStyles: {
+          0: { cellWidth: 22 },
+          1: { cellWidth: 25, halign: 'right' },
+          2: { cellWidth: 25, halign: 'right', fontStyle: 'bold' },
+          3: { cellWidth: 25, halign: 'center' },
+          4: { cellWidth: 22, halign: 'right' },
+          5: { cellWidth: 22, halign: 'right' },
+        },
+        didParseCell: (data) => {
+          if (data.column.index === 3 && data.section === 'body') {
+            const val = parseInt(data.cell.text[0] || '0');
+            if (val > 0) {
+              data.cell.styles.textColor = [22, 163, 74];
+              data.cell.styles.fontStyle = 'bold';
+            }
+          }
+        },
+      });
+    }
+
+    // ─── Page: Manutenção Detail ───
+    if (serviceOrders.length > 0) {
+      doc.addPage();
+      let osY = 15;
+
+      doc.setFillColor(30, 41, 59);
+      doc.rect(0, 0, pageWidth, 18, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`ORDENS DE SERVIÇO - ${vehicleCode} (${serviceOrders.length} registros)`, pageWidth / 2, 12, { align: 'center' });
+      osY = 22;
+
+      const osHeaders = ['OS', 'Entrada', 'Saída', 'Tipo', 'Status', 'Problema', 'Solução', 'Mecânico', 'Hor./KM'];
+      const osData = serviceOrders.map(o => [
+        o.order_number,
+        o.entry_date ? format(new Date(o.entry_date), 'dd/MM/yyyy') : '-',
+        o.end_date ? format(new Date(o.end_date), 'dd/MM/yyyy') : '-',
+        o.order_type || '-',
+        o.status,
+        (o.problem_description || '-').substring(0, 35),
+        (o.solution_description || '-').substring(0, 35),
+        o.mechanic_name || '-',
+        o.horimeter_current?.toFixed(0) || o.km_current?.toFixed(0) || '-',
+      ]);
+
+      autoTable(doc, {
+        head: [osHeaders],
+        body: osData,
+        startY: osY,
+        styles: { fontSize: 6.5, cellPadding: 1.5 },
+        headStyles: { fillColor: [245, 158, 11], textColor: 255, fontStyle: 'bold', fontSize: 7 },
+        alternateRowStyles: { fillColor: [255, 251, 235] },
+        margin: { left: 14, right: 14 },
+        columnStyles: {
+          0: { cellWidth: 18 },
+          1: { cellWidth: 22 },
+          2: { cellWidth: 22 },
+          3: { cellWidth: 22 },
+          4: { cellWidth: 25 },
+          5: { cellWidth: 50 },
+          6: { cellWidth: 50 },
+        },
+        didParseCell: (data) => {
+          if (data.column.index === 4 && data.section === 'body') {
+            const status = data.cell.text[0];
+            if (status === 'Finalizada') {
+              data.cell.styles.textColor = [22, 163, 74];
+            } else if (['Aberta', 'Em Andamento', 'Aguardando Peças'].includes(status)) {
+              data.cell.styles.textColor = [220, 38, 38];
+              data.cell.styles.fontStyle = 'bold';
+            }
+          }
+        },
+      });
+    }
+
+    // Footer on all pages
+    const totalPages = doc.getNumberOfPages();
+    for (let i = 1; i <= totalPages; i++) {
+      doc.setPage(i);
+      doc.setTextColor(120, 120, 120);
+      doc.setFontSize(7);
+      doc.setFont('helvetica', 'normal');
+      doc.text('Sistema Abastech - Histórico do Equipamento', 14, pageHeight - 8);
+      doc.text(`Página ${i} de ${totalPages}`, pageWidth - 30, pageHeight - 8);
+    }
 
     doc.save(`historico_${vehicleCode}_${format(new Date(), 'yyyy-MM-dd')}.pdf`);
   };
@@ -583,7 +770,9 @@ export function VehicleHistoryModal({
                 <SelectItem value="yesterday">Ontem</SelectItem>
                 <SelectItem value="7days">Últimos 7 dias</SelectItem>
                 <SelectItem value="30days">Últimos 30 dias</SelectItem>
+                <SelectItem value="90days">Últimos 90 dias</SelectItem>
                 <SelectItem value="month">Mês atual</SelectItem>
+                <SelectItem value="all">Todo Período</SelectItem>
                 <SelectItem value="custom">Personalizado</SelectItem>
               </SelectContent>
             </Select>
