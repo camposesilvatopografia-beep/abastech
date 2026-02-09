@@ -446,6 +446,8 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
           workSite: record.work_site || '',
           horimeterPrevious: record.horimeter_previous || 0,
           horimeterCurrent: record.horimeter_current || 0,
+          kmPrevious: record.km_previous || 0,
+          kmCurrent: record.km_current || 0,
           fuelQuantity: record.fuel_quantity,
           fuelType: record.fuel_type || 'Diesel',
           arlaQuantity: record.arla_quantity || 0,
@@ -456,6 +458,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
           oilType: (record as any).oil_type || '',
           oilQuantity: (record as any).oil_quantity || 0,
           filterBlow: (record as any).filter_blow || false,
+          filterBlowQuantity: (record as any).filter_blow_quantity || 0,
           lubricant: (record as any).lubricant || '',
           supplier: (record as any).supplier || '',
           invoiceNumber: (record as any).invoice_number || '',
@@ -1152,6 +1155,8 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
     workSite: string;
     horimeterPrevious: number;
     horimeterCurrent: number;
+    kmPrevious?: number;
+    kmCurrent?: number;
     fuelQuantity: number;
     fuelType: string;
     arlaQuantity: number;
@@ -1172,11 +1177,11 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
     entryLocation?: string;
   }): Promise<boolean> => {
     try {
-      // Format data according to sheet columns
+      // Format data according to sheet columns (must match exact header names in spreadsheet)
       const sheetData: Record<string, any> = {
         'DATA': recordData.date,
         'HORA': recordData.time,
-        'TIPO': recordData.recordType === 'entrada' ? 'Entrada' : 'Saída',
+        'TIPO': recordData.recordType === 'entrada' ? 'Entrada' : 'Saida',
         'VEICULO': recordData.vehicleCode,
         'DESCRICAO': recordData.vehicleDescription,
         'CATEGORIA': recordData.category,
@@ -1185,20 +1190,23 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         'OBRA': recordData.workSite,
         'HORIMETRO ANTERIOR': recordData.horimeterPrevious || '',
         'HORIMETRO ATUAL': recordData.horimeterCurrent || '',
-        'KM ANTERIOR': '',
-        'KM ATUAL': '',
+        'KM ANTERIOR': recordData.kmPrevious || '',
+        'KM ATUAL': recordData.kmCurrent || '',
         'QUANTIDADE': recordData.fuelQuantity,
-        'QUANTIDADE DE ARLA': recordData.arlaQuantity || '',
         'TIPO DE COMBUSTIVEL': recordData.fuelType,
         'LOCAL': recordData.location,
+        'ARLA': recordData.arlaQuantity ? 'TRUE' : 'FALSE',
+        'QUANTIDADE DE ARLA': recordData.arlaQuantity || '',
         'OBSERVAÇÃO': recordData.observations || '',
         'FOTO BOMBA': recordData.photoPumpUrl || '',
         'FOTO HORIMETRO': recordData.photoHorimeterUrl || '',
-        // Equipment fields
-        'TIPO DE ÓLEO': recordData.oilType || '',
-        'QUANTIDADE DE ÓLEO': recordData.oilQuantity || '',
-        'SOPRA FILTRO': recordData.filterBlowQuantity || '',
+        // Equipment fields - column names must match spreadsheet exactly
+        'LUBRIFICAR': recordData.lubricant ? 'TRUE' : 'FALSE',
         'LUBRIFICANTE': recordData.lubricant || '',
+        'COMPLETAR ÓLEO': recordData.oilType ? 'TRUE' : 'FALSE',
+        'TIPO ÓLEO': recordData.oilType || '',
+        'QUANTIDADE ÓLEO': recordData.oilQuantity || '',
+        'SOPRA FILTRO': recordData.filterBlowQuantity || '',
         // Entry fields
         'FORNECEDOR': recordData.supplier || '',
         'NOTA FISCAL': recordData.invoiceNumber || '',
@@ -1522,6 +1530,8 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         workSite,
         horimeterPrevious: parseBrazilianNumber(horimeterPrevious),
         horimeterCurrent: horimeterCurrent ?? 0,
+        kmPrevious: kmPrevious ? parseBrazilianNumber(kmPrevious) : 0,
+        kmCurrent: kmCurrent ?? 0,
         fuelQuantity: fuelQuantity ?? 0,
         fuelType,
         arlaQuantity: arlaQuantity ?? 0,
