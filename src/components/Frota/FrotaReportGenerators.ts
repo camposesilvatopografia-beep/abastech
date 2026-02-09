@@ -14,6 +14,33 @@ interface VehicleData {
 interface ObraSettings {
   nome?: string;
   cidade?: string;
+  logo_url?: string | null;
+}
+
+/**
+ * Helper: fetch an image URL and return a base64 data URL.
+ * Returns null if loading fails.
+ */
+async function fetchImageAsBase64(url: string): Promise<string | null> {
+  return new Promise((resolve) => {
+    const img = new window.Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) { resolve(null); return; }
+        ctx.drawImage(img, 0, 0);
+        resolve(canvas.toDataURL('image/png'));
+      } catch {
+        resolve(null);
+      }
+    };
+    img.onerror = () => resolve(null);
+    img.src = url;
+  });
 }
 
 interface ServiceOrderData {
@@ -272,7 +299,7 @@ export function exportMobilizacaoPDF(
 // Professional navy-blue themed layout matching the system design
 // ═══════════════════════════════════════════════════════════════════════
 
-export function exportEfetivoPDF(
+export async function exportEfetivoPDF(
   vehicles: VehicleData[],
   selectedDate: Date,
   maintenanceOrders: ServiceOrderData[],
@@ -281,8 +308,14 @@ export function exportEfetivoPDF(
   const doc = new jsPDF('landscape');
   const pageWidth = doc.internal.pageSize.getWidth();
 
+  // ─── Load logo if available ───
+  let logoBase64: string | null = null;
+  if (obraSettings?.logo_url) {
+    logoBase64 = await fetchImageAsBase64(obraSettings.logo_url);
+  }
+
   // ─── Navy Blue Header ───
-  const headerH = 28;
+  const headerH = logoBase64 ? 30 : 28;
   doc.setFillColor(30, 41, 59);
   doc.rect(0, 0, pageWidth, headerH, 'F');
 
@@ -290,18 +323,31 @@ export function exportEfetivoPDF(
   doc.setFillColor(56, 189, 248);
   doc.rect(0, headerH, pageWidth, 1.5, 'F');
 
+  // Logo on the left
+  let textStartX = 14;
+  if (logoBase64) {
+    try {
+      const logoW = 22;
+      const logoH = 22;
+      doc.addImage(logoBase64, 'PNG', 10, 4, logoW, logoH);
+      textStartX = 36;
+    } catch {
+      // Fallback: no logo
+    }
+  }
+
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(13);
   doc.setFont('helvetica', 'bold');
-  doc.text(obraSettings?.nome?.toUpperCase() || 'CONSÓRCIO AERO MARAGOGI', 14, 11);
+  doc.text(obraSettings?.nome?.toUpperCase() || 'CONSÓRCIO AERO MARAGOGI', textStartX, 11);
 
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
-  doc.text('APONTAMENTO DIÁRIO DE EQUIPAMENTOS', 14, 19);
+  doc.text('APONTAMENTO DIÁRIO DE EQUIPAMENTOS', textStartX, 19);
 
   if (obraSettings?.cidade) {
     doc.setFontSize(7);
-    doc.text(obraSettings.cidade, 14, 25);
+    doc.text(obraSettings.cidade, textStartX, 25);
   }
 
   // Date on the right
