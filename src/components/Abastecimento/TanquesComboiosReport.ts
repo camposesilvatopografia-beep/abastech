@@ -43,7 +43,7 @@ function parseNumber(val: any): number {
 }
 
 function fmtNum(val: number, decimals = 1): string {
-  if (val === 0) return '0';
+  if (val === 0) return '-';
   return val.toLocaleString('pt-BR', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 }
 
@@ -75,28 +75,199 @@ function sortRecords(records: FuelRecord[], sortByDescription?: boolean): FuelRe
   );
 }
 
-const FUEL_TABLE_HEAD = [
-  '', 'Código', 'Descrição', 'Motorista/Operador',
-  'Hor/Km\nAnterior', 'Hor/Km\nAtual', 'Intervalo\n(h/km)',
-  'Consumo', 'Qtd Diesel'
-];
-
-const FUEL_COL_STYLES: Record<number, any> = {
-  0: { cellWidth: 10, halign: 'center' },
-  1: { cellWidth: 25 },
-  2: { cellWidth: 45 },
-  3: { cellWidth: 45 },
-  4: { cellWidth: 25, halign: 'right' },
-  5: { cellWidth: 28, halign: 'right' },
-  6: { cellWidth: 28, halign: 'right' },
-  7: { cellWidth: 22, halign: 'right' },
-  8: { cellWidth: 22, halign: 'right' },
-};
-
 function fmtPtBR(val: number, decimals = 2): string {
   if (val === 0) return '-';
   return val.toLocaleString('pt-BR', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 }
+
+// ─── Layout constants (landscape A4 = 297mm) ───────────────────────────
+
+const PAGE_MARGIN = 10;
+const LANDSCAPE_WIDTH = 297;
+const USABLE_WIDTH = LANDSCAPE_WIDTH - (PAGE_MARGIN * 2); // 277mm
+
+const FUEL_TABLE_HEAD = [
+  '#', 'Código', 'Descrição', 'Motorista/Operador',
+  'Hor/Km\nAnterior', 'Hor/Km\nAtual', 'Intervalo\n(h/km)',
+  'Consumo\n(L/h ou km/L)', 'Qtd Diesel\n(Litros)'
+];
+
+// Column widths that fill 277mm landscape usable space
+const FUEL_COL_STYLES: Record<number, any> = {
+  0: { cellWidth: 12, halign: 'center' },
+  1: { cellWidth: 28, halign: 'center' },
+  2: { cellWidth: 58, overflow: 'linebreak' },
+  3: { cellWidth: 52, overflow: 'linebreak' },
+  4: { cellWidth: 28, halign: 'right' },
+  5: { cellWidth: 28, halign: 'right' },
+  6: { cellWidth: 25, halign: 'right' },
+  7: { cellWidth: 25, halign: 'right' },
+  8: { cellWidth: 21, halign: 'right', fontStyle: 'bold' },
+};
+
+// ─── Header ────────────────────────────────────────────────────────────
+
+function renderHeader(doc: jsPDF, title: string, selectedDate: Date, obraSettings?: ObraSettings | null): number {
+  const pageWidth = doc.internal.pageSize.getWidth();
+
+  // Navy gradient header
+  doc.setFillColor(15, 23, 42);
+  doc.rect(0, 0, pageWidth, 28, 'F');
+
+  // Accent line
+  doc.setFillColor(59, 130, 246);
+  doc.rect(0, 28, pageWidth, 1.5, 'F');
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(13);
+  doc.setFont('helvetica', 'bold');
+  doc.text(obraSettings?.nome?.toUpperCase() || 'CONSÓRCIO AERO MARAGOGI', pageWidth / 2, 10, { align: 'center' });
+
+  doc.setFontSize(10);
+  doc.text(title, pageWidth / 2, 17, { align: 'center' });
+
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  const dateStr = format(selectedDate, "dd 'de' MMMM 'de' yyyy", { locale: ptBR });
+  const cityStr = obraSettings?.cidade ? `${obraSettings.cidade} — ${dateStr}` : dateStr;
+  doc.text(cityStr, pageWidth / 2, 24, { align: 'center' });
+
+  return 35; // Y position after header
+}
+
+// ─── Stock Summary Tables ──────────────────────────────────────────────
+
+function renderTanquesSummary(doc: jsPDF, stockData: TanquesComboiosStockData, startY: number): number {
+  const c01 = stockData.canteiro01;
+  const c02 = stockData.canteiro02;
+
+  // Section title
+  doc.setTextColor(15, 23, 42);
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  doc.text('📊  RESUMO DE ESTOQUE', PAGE_MARGIN, startY);
+
+  const summaryHead = [
+    'Local', 'Estoque\nAnterior (L)', 'Entrada\n(L)', 'Saída p/\nComboios (L)',
+    'Saída p/\nEquipamentos (L)', 'Total\nSaída (L)', 'Estoque\nAtual (L)'
+  ];
+
+  const summaryBody = [
+    ['Tanque Canteiro 01', fmtNum(c01.estoqueAnterior), fmtNum(c01.entrada), fmtNum(c01.saidaComboios), fmtNum(c01.saidaEquipamentos), fmtNum(c01.total), fmtNum(c01.estoqueAtual)],
+    ['Tanque Canteiro 02', fmtNum(c02.estoqueAnterior), fmtNum(c02.entrada), fmtNum(c02.saidaComboios), fmtNum(c02.saidaEquipamentos), fmtNum(c02.total), fmtNum(c02.estoqueAtual)],
+    [
+      'TOTAL GERAL',
+      fmtNum(c01.estoqueAnterior + c02.estoqueAnterior),
+      fmtNum(c01.entrada + c02.entrada),
+      fmtNum(c01.saidaComboios + c02.saidaComboios),
+      fmtNum(c01.saidaEquipamentos + c02.saidaEquipamentos),
+      fmtNum(c01.total + c02.total),
+      fmtNum(c01.estoqueAtual + c02.estoqueAtual),
+    ],
+  ];
+
+  autoTable(doc, {
+    startY: startY + 3,
+    head: [summaryHead],
+    body: summaryBody,
+    theme: 'grid',
+    tableWidth: USABLE_WIDTH,
+    styles: { fontSize: 8.5, cellPadding: 3.5, lineColor: [200, 200, 210], lineWidth: 0.3 },
+    headStyles: {
+      fillColor: [15, 23, 42],
+      textColor: [255, 255, 255],
+      fontStyle: 'bold',
+      fontSize: 8,
+      halign: 'center',
+      valign: 'middle',
+      minCellHeight: 12,
+    },
+    columnStyles: {
+      0: { cellWidth: 52, fontStyle: 'bold', halign: 'left' },
+      1: { halign: 'right', cellWidth: 38 },
+      2: { halign: 'right', cellWidth: 32 },
+      3: { halign: 'right', cellWidth: 38 },
+      4: { halign: 'right', cellWidth: 42 },
+      5: { halign: 'right', cellWidth: 35, fontStyle: 'bold' },
+      6: { halign: 'right', cellWidth: 40, fontStyle: 'bold' },
+    },
+    margin: { left: PAGE_MARGIN, right: PAGE_MARGIN },
+    alternateRowStyles: { fillColor: [245, 247, 250] },
+    didParseCell: (data) => {
+      if (data.row.index === summaryBody.length - 1) {
+        data.cell.styles.fillColor = [30, 58, 95];
+        data.cell.styles.textColor = [255, 255, 255];
+        data.cell.styles.fontStyle = 'bold';
+      }
+    },
+  });
+
+  return (doc as any).lastAutoTable.finalY + 8;
+}
+
+function renderComboiosSummary(doc: jsPDF, stockData: TanquesComboiosStockData, startY: number): number {
+  const cb1 = stockData.comboio01;
+  const cb2 = stockData.comboio02;
+  const cb3 = stockData.comboio03;
+
+  doc.setTextColor(15, 23, 42);
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  doc.text('📊  RESUMO DE ESTOQUE', PAGE_MARGIN, startY);
+
+  const summaryHead = ['Local', 'Estoque\nAnterior (L)', 'Entrada (L)', 'Saída (L)', 'Estoque\nAtual (L)'];
+
+  const summaryBody = [
+    ['Comboio 01', fmtNum(cb1.estoqueAnterior), fmtNum(cb1.entrada), fmtNum(cb1.total), fmtNum(cb1.estoqueAtual)],
+    ['Comboio 02', fmtNum(cb2.estoqueAnterior), fmtNum(cb2.entrada), fmtNum(cb2.total), fmtNum(cb2.estoqueAtual)],
+    ['Comboio 03', fmtNum(cb3.estoqueAnterior), fmtNum(cb3.entrada), fmtNum(cb3.total), fmtNum(cb3.estoqueAtual)],
+    [
+      'TOTAL GERAL',
+      fmtNum(cb1.estoqueAnterior + cb2.estoqueAnterior + cb3.estoqueAnterior),
+      fmtNum(cb1.entrada + cb2.entrada + cb3.entrada),
+      fmtNum(cb1.total + cb2.total + cb3.total),
+      fmtNum(cb1.estoqueAtual + cb2.estoqueAtual + cb3.estoqueAtual),
+    ],
+  ];
+
+  autoTable(doc, {
+    startY: startY + 3,
+    head: [summaryHead],
+    body: summaryBody,
+    theme: 'grid',
+    tableWidth: USABLE_WIDTH,
+    styles: { fontSize: 8.5, cellPadding: 3.5, lineColor: [200, 200, 210], lineWidth: 0.3 },
+    headStyles: {
+      fillColor: [15, 23, 42],
+      textColor: [255, 255, 255],
+      fontStyle: 'bold',
+      fontSize: 8,
+      halign: 'center',
+      valign: 'middle',
+      minCellHeight: 12,
+    },
+    columnStyles: {
+      0: { cellWidth: 60, fontStyle: 'bold', halign: 'left' },
+      1: { halign: 'right' },
+      2: { halign: 'right' },
+      3: { halign: 'right', fontStyle: 'bold' },
+      4: { halign: 'right', fontStyle: 'bold' },
+    },
+    margin: { left: PAGE_MARGIN, right: PAGE_MARGIN },
+    alternateRowStyles: { fillColor: [245, 247, 250] },
+    didParseCell: (data) => {
+      if (data.row.index === summaryBody.length - 1) {
+        data.cell.styles.fillColor = [30, 58, 95];
+        data.cell.styles.textColor = [255, 255, 255];
+        data.cell.styles.fontStyle = 'bold';
+      }
+    },
+  });
+
+  return (doc as any).lastAutoTable.finalY + 8;
+}
+
+// ─── Fuel Data Tables ──────────────────────────────────────────────────
 
 function buildFuelTableData(records: FuelRecord[]) {
   let totalDiesel = 0;
@@ -125,14 +296,14 @@ function buildFuelTableData(records: FuelRecord[]) {
     totalDiesel += qty;
 
     return [
-      (index + 1).toString() + '.',
+      String(index + 1),
       String(row['VEICULO'] || ''),
       String(row['DESCRICAO'] || row['DESCRIÇÃO'] || ''),
       String(row['MOTORISTA'] || ''),
       anterior > 0 ? fmtPtBR(anterior) : '-',
       atual > 0 ? fmtPtBR(atual) : '-',
       intervalo > 0 ? fmtPtBR(intervalo) : '-',
-      consumo > 0 ? fmtPtBR(consumo) : '0,00',
+      consumo > 0 ? fmtPtBR(consumo) : '-',
       qty > 0 ? qty.toLocaleString('pt-BR', { minimumFractionDigits: 0 }) : '-',
     ];
   });
@@ -142,11 +313,69 @@ function buildFuelTableData(records: FuelRecord[]) {
     '', '', '', 'TOTAL',
     '', '', '',
     mediaConsumo > 0 ? `Média: ${fmtPtBR(mediaConsumo)}` : '-',
-    totalDiesel.toLocaleString('pt-BR', { minimumFractionDigits: 0 }),
+    totalDiesel > 0 ? totalDiesel.toLocaleString('pt-BR', { minimumFractionDigits: 0 }) + ' L' : '-',
   ]);
 
   return { body, totalDiesel };
 }
+
+function renderSaidasTable(doc: jsPDF, records: FuelRecord[], currentY: number, pageHeight: number): number {
+  if (records.length === 0) return currentY;
+
+  if (currentY > pageHeight - 50) {
+    doc.addPage();
+    currentY = 15;
+  }
+
+  // Section title with red accent
+  doc.setFillColor(180, 50, 50);
+  doc.roundedRect(PAGE_MARGIN, currentY - 1, 4, 7, 1, 1, 'F');
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(180, 50, 50);
+  doc.text(`SAÍDAS (Abastecimentos) — ${records.length} registros`, PAGE_MARGIN + 7, currentY + 4);
+  currentY += 10;
+
+  const { body } = buildFuelTableData(records);
+
+  autoTable(doc, {
+    startY: currentY,
+    head: [FUEL_TABLE_HEAD],
+    body,
+    theme: 'grid',
+    tableWidth: USABLE_WIDTH,
+    styles: {
+      fontSize: 7.5,
+      cellPadding: 2.5,
+      lineColor: [200, 200, 210],
+      lineWidth: 0.25,
+      overflow: 'linebreak',
+    },
+    headStyles: {
+      fillColor: [153, 27, 27],
+      textColor: [255, 255, 255],
+      fontStyle: 'bold',
+      fontSize: 7.5,
+      halign: 'center',
+      valign: 'middle',
+      minCellHeight: 10,
+    },
+    columnStyles: FUEL_COL_STYLES,
+    margin: { left: PAGE_MARGIN, right: PAGE_MARGIN },
+    alternateRowStyles: { fillColor: [254, 242, 242] },
+    didParseCell: (data) => {
+      if (data.row.index === body.length - 1) {
+        data.cell.styles.fontStyle = 'bold';
+        data.cell.styles.fillColor = [220, 200, 200];
+        data.cell.styles.fontSize = 8;
+      }
+    },
+  });
+
+  return (doc as any).lastAutoTable.finalY + 8;
+}
+
+// ─── Entradas Table ────────────────────────────────────────────────────
 
 function buildEntradasTableData(records: FuelRecord[], locationType: 'tanque' | 'comboio') {
   let totalDiesel = 0;
@@ -159,7 +388,7 @@ function buildEntradasTableData(records: FuelRecord[], locationType: 'tanque' | 
     if (locationType === 'tanque') {
       const fornecedor = String(row['FORNECEDOR'] || row['fornecedor'] || 'N/I');
       return [
-        (index + 1).toString() + '.',
+        String(index + 1),
         data,
         fornecedor,
         qty > 0 ? qty.toLocaleString('pt-BR', { minimumFractionDigits: 0 }) + ' L' : '-',
@@ -167,7 +396,7 @@ function buildEntradasTableData(records: FuelRecord[], locationType: 'tanque' | 
     } else {
       const localEntrada = String(row['LOCAL DE ENTRADA'] || row['LOCAL_ENTRADA'] || 'N/I');
       return [
-        (index + 1).toString() + '.',
+        String(index + 1),
         data,
         localEntrada,
         qty > 0 ? qty.toLocaleString('pt-BR', { minimumFractionDigits: 0 }) + ' L' : '-',
@@ -177,7 +406,7 @@ function buildEntradasTableData(records: FuelRecord[], locationType: 'tanque' | 
 
   body.push([
     '', '', 'TOTAL ENTRADAS',
-    totalDiesel.toLocaleString('pt-BR', { minimumFractionDigits: 0 }) + ' L',
+    totalDiesel > 0 ? totalDiesel.toLocaleString('pt-BR', { minimumFractionDigits: 0 }) + ' L' : '-',
   ]);
 
   return { body, totalDiesel };
@@ -192,51 +421,66 @@ function renderEntradasTable(
 ): number {
   if (records.length === 0) return currentY;
 
-  // Check if need new page
-  if (currentY > pageHeight - 60) {
+  if (currentY > pageHeight - 50) {
     doc.addPage();
-    currentY = 20;
+    currentY = 15;
   }
 
-  doc.setFontSize(11);
+  // Section title with green accent
+  doc.setFillColor(34, 139, 34);
+  doc.roundedRect(PAGE_MARGIN, currentY - 1, 4, 7, 1, 1, 'F');
+  doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(34, 139, 34);
-  doc.text('ENTRADAS (Recebimentos)', 14, currentY + 4);
-  currentY += 8;
+  doc.text(`ENTRADAS (Recebimentos) — ${records.length} registros`, PAGE_MARGIN + 7, currentY + 4);
+  currentY += 10;
 
   const thirdCol = locationType === 'tanque' ? 'Fornecedor' : 'Local de Entrada';
   const { body } = buildEntradasTableData(records, locationType);
 
+  // Entradas table fills full width
   autoTable(doc, {
     startY: currentY,
-    head: [['', 'Data', thirdCol, 'Quantidade']],
+    head: [['#', 'Data', thirdCol, 'Quantidade (L)']],
     body,
-    styles: { fontSize: 9, cellPadding: 3 },
+    theme: 'grid',
+    tableWidth: USABLE_WIDTH,
+    styles: {
+      fontSize: 8,
+      cellPadding: 3,
+      lineColor: [200, 210, 200],
+      lineWidth: 0.25,
+    },
     headStyles: {
-      fillColor: [34, 139, 34],
+      fillColor: [22, 101, 52],
       textColor: [255, 255, 255],
       fontStyle: 'bold',
+      fontSize: 8,
       halign: 'center',
+      valign: 'middle',
+      minCellHeight: 10,
     },
     columnStyles: {
-      0: { cellWidth: 15, halign: 'center' },
-      1: { cellWidth: 30 },
-      2: { cellWidth: 80 },
-      3: { cellWidth: 40, halign: 'right' },
+      0: { cellWidth: 18, halign: 'center' },
+      1: { cellWidth: 40, halign: 'center' },
+      2: { halign: 'left' }, // auto-fill remaining
+      3: { cellWidth: 50, halign: 'right', fontStyle: 'bold' },
     },
-    alternateRowStyles: { fillColor: [245, 255, 245] },
+    margin: { left: PAGE_MARGIN, right: PAGE_MARGIN },
+    alternateRowStyles: { fillColor: [240, 253, 244] },
     didParseCell: (data) => {
       if (data.row.index === body.length - 1) {
         data.cell.styles.fontStyle = 'bold';
-        data.cell.styles.fillColor = [220, 240, 220];
+        data.cell.styles.fillColor = [200, 235, 210];
+        data.cell.styles.fontSize = 8.5;
       }
     },
-    theme: 'grid',
-    margin: { left: 14, right: 14 },
   });
 
-  return (doc as any).lastAutoTable.finalY + 10;
+  return (doc as any).lastAutoTable.finalY + 8;
 }
+
+// ─── Page Footer ───────────────────────────────────────────────────────
 
 function addPageFooters(doc: jsPDF) {
   const pageHeight = doc.internal.pageSize.getHeight();
@@ -244,12 +488,20 @@ function addPageFooters(doc: jsPDF) {
   const totalPages = doc.getNumberOfPages();
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i);
-    doc.setTextColor(120, 120, 120);
+    // Divider line
+    doc.setDrawColor(200, 200, 210);
+    doc.setLineWidth(0.3);
+    doc.line(PAGE_MARGIN, pageHeight - 12, pageWidth - PAGE_MARGIN, pageHeight - 12);
+    // Footer text
+    doc.setTextColor(140, 140, 150);
     doc.setFontSize(7);
-    doc.text('Sistema Abastech - Gestão de Frota', 14, pageHeight - 8);
-    doc.text(`Página ${i} de ${totalPages}`, pageWidth - 30, pageHeight - 8);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Sistema Abastech — Gestão de Frota e Abastecimento', PAGE_MARGIN, pageHeight - 7);
+    doc.text(`Página ${i} de ${totalPages}`, pageWidth - PAGE_MARGIN, pageHeight - 7, { align: 'right' });
   }
 }
+
+// ─── XLSX helpers ──────────────────────────────────────────────────────
 
 function mapRecordForXLSX(row: FuelRecord) {
   const horAnterior = parseNumber(row['HORIMETRO ANTERIOR'] || row['HOR_ANTERIOR'] || 0);
@@ -284,7 +536,7 @@ const XLSX_COL_WIDTHS = [
 ];
 
 // ═══════════════════════════════════════════════════════════════════════
-// PAGE 1 — RELATÓRIO GERAL DOS TANQUES
+// PAGE — RELATÓRIO GERAL DOS TANQUES
 // ═══════════════════════════════════════════════════════════════════════
 
 function renderTanquesPage(
@@ -294,132 +546,33 @@ function renderTanquesPage(
   selectedDate: Date,
   obraSettings?: ObraSettings | null,
   sortByDescription?: boolean,
-  color: number[] = [30, 64, 175]
 ) {
-  const pageWidth = doc.internal.pageSize.getWidth();
-
-  // ── Header ──
-  doc.setFillColor(30, 41, 59);
-  doc.rect(0, 0, pageWidth, 25, 'F');
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(14);
-  doc.setFont('helvetica', 'bold');
-  doc.text(obraSettings?.nome?.toUpperCase() || 'CONSÓRCIO AERO MARAGOGI', pageWidth / 2, 10, { align: 'center' });
-  doc.setFontSize(11);
-  doc.text('RELATÓRIO GERAL DOS TANQUES', pageWidth / 2, 18, { align: 'center' });
-  doc.setFontSize(8);
-  doc.setFont('helvetica', 'normal');
-  doc.text(format(selectedDate, "d 'de' MMM. 'de' yyyy", { locale: ptBR }), pageWidth / 2, 23, { align: 'center' });
-
-  // ── Resumo Geral (stock summary) ──
-  doc.setTextColor(30, 41, 59);
-  doc.setFontSize(11);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Resumo Geral', 14, 34);
-
-  const c01 = stockData.canteiro01;
-  const c02 = stockData.canteiro02;
-
-  const summaryHead = ['Descrição', 'Estoque Anterior', 'Entrada', 'Saída p/ Comboios', 'Saída p/ Equipamentos', 'Total', 'Estoque Atual'];
-  const summaryBody = [
-    ['Tanque Canteiro 01', fmtNum(c01.estoqueAnterior, 1), fmtNum(c01.entrada, 2), fmtNum(c01.saidaComboios), fmtNum(c01.saidaEquipamentos), fmtNum(c01.total, 2), fmtNum(c01.estoqueAtual, 2)],
-    ['Tanque Canteiro 02', fmtNum(c02.estoqueAnterior, 1), fmtNum(c02.entrada, 2), fmtNum(c02.saidaComboios), fmtNum(c02.saidaEquipamentos), fmtNum(c02.total, 2), fmtNum(c02.estoqueAtual, 2)],
-    [
-      'Total geral',
-      fmtNum(c01.estoqueAnterior + c02.estoqueAnterior, 1),
-      fmtNum(c01.entrada + c02.entrada, 2),
-      fmtNum(c01.saidaComboios + c02.saidaComboios),
-      fmtNum(c01.saidaEquipamentos + c02.saidaEquipamentos),
-      fmtNum(c01.total + c02.total, 2),
-      fmtNum(c01.estoqueAtual + c02.estoqueAtual, 2),
-    ],
-  ];
-
-  autoTable(doc, {
-    startY: 38,
-    head: [summaryHead],
-    body: summaryBody,
-    theme: 'grid',
-    styles: { fontSize: 8, cellPadding: 3 },
-    headStyles: { fillColor: [30, 41, 59], textColor: 255, fontStyle: 'bold', fontSize: 8, halign: 'center' },
-    columnStyles: {
-      0: { cellWidth: 45, fontStyle: 'bold' },
-      1: { halign: 'right' },
-      2: { halign: 'right' },
-      3: { halign: 'right' },
-      4: { halign: 'right' },
-      5: { halign: 'right', fontStyle: 'bold' },
-      6: { halign: 'right', fontStyle: 'bold' },
-    },
-    margin: { left: 14, right: 14 },
-    alternateRowStyles: { fillColor: [248, 250, 252] },
-    didParseCell: (data) => {
-      if (data.row.index === summaryBody.length - 1) {
-        data.cell.styles.fillColor = [30, 41, 59];
-        data.cell.styles.textColor = 255;
-        data.cell.styles.fontStyle = 'bold';
-      }
-    },
-  });
-
-  let currentY = (doc as any).lastAutoTable.finalY + 10;
+  let currentY = renderHeader(doc, 'RELATÓRIO GERAL DOS TANQUES', selectedDate, obraSettings);
   const pageHeight = doc.internal.pageSize.getHeight();
 
-  // ── Separate Saídas and Entradas ──
+  // Stock summary
+  currentY = renderTanquesSummary(doc, stockData, currentY);
+
+  // Separate Saídas and Entradas
   const saidas = sortRecords(fuelRecords.filter(r => !isEntradaRecord(r)), sortByDescription);
   const entradas = sortRecords(fuelRecords.filter(r => isEntradaRecord(r)), sortByDescription);
 
-  // ── SAÍDAS (Abastecimentos) ──
-  if (saidas.length > 0) {
-    doc.setFontSize(11);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(180, 50, 50);
-    doc.text(`SAÍDAS (Abastecimentos) — ${saidas.length} registros`, 14, currentY + 4);
-    currentY += 8;
+  // SAÍDAS
+  currentY = renderSaidasTable(doc, saidas, currentY, pageHeight);
 
-    const { body } = buildFuelTableData(saidas);
-
-    autoTable(doc, {
-      startY: currentY,
-      head: [FUEL_TABLE_HEAD],
-      body,
-      theme: 'grid',
-      styles: { fontSize: 8, cellPadding: 2 },
-      headStyles: {
-        fillColor: [180, 50, 50],
-        textColor: [255, 255, 255],
-        fontStyle: 'bold',
-        fontSize: 8,
-        halign: 'center',
-        valign: 'middle',
-      },
-      columnStyles: FUEL_COL_STYLES,
-      margin: { left: 14, right: 14 },
-      alternateRowStyles: { fillColor: [255, 245, 245] },
-      didParseCell: (data) => {
-        if (data.row.index === body.length - 1) {
-          data.cell.styles.fontStyle = 'bold';
-          data.cell.styles.fillColor = [230, 220, 220];
-        }
-      },
-    });
-
-    currentY = (doc as any).lastAutoTable.finalY + 10;
-  }
-
-  // ── ENTRADAS (Recebimentos) ──
+  // ENTRADAS
   currentY = renderEntradasTable(doc, entradas, currentY, 'tanque', pageHeight);
 
   if (saidas.length === 0 && entradas.length === 0) {
-    doc.setTextColor(100, 100, 100);
+    doc.setTextColor(120, 120, 130);
     doc.setFontSize(9);
     doc.setFont('helvetica', 'italic');
-    doc.text('Nenhum registro de abastecimento encontrado para Tanques.', 14, currentY + 4);
+    doc.text('Nenhum registro de abastecimento encontrado para Tanques nesta data.', PAGE_MARGIN, currentY + 4);
   }
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// PAGE 2 — RELATÓRIO GERAL DOS COMBOIOS
+// PAGE — RELATÓRIO GERAL DOS COMBOIOS
 // ═══════════════════════════════════════════════════════════════════════
 
 function renderComboiosPage(
@@ -429,125 +582,28 @@ function renderComboiosPage(
   selectedDate: Date,
   obraSettings?: ObraSettings | null,
   sortByDescription?: boolean,
-  color: number[] = [22, 101, 52]
 ) {
-  const pageWidth = doc.internal.pageSize.getWidth();
-
-  // ── Header ──
-  doc.setFillColor(30, 41, 59);
-  doc.rect(0, 0, pageWidth, 25, 'F');
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(14);
-  doc.setFont('helvetica', 'bold');
-  doc.text(obraSettings?.nome?.toUpperCase() || 'CONSÓRCIO AERO MARAGOGI', pageWidth / 2, 10, { align: 'center' });
-  doc.setFontSize(11);
-  doc.text('RELATÓRIO GERAL DOS COMBOIOS', pageWidth / 2, 18, { align: 'center' });
-  doc.setFontSize(8);
-  doc.setFont('helvetica', 'normal');
-  doc.text(format(selectedDate, "d 'de' MMM. 'de' yyyy", { locale: ptBR }), pageWidth / 2, 23, { align: 'center' });
-
-  // ── Resumo Geral (stock summary) ──
-  doc.setTextColor(30, 41, 59);
-  doc.setFontSize(11);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Resumo Geral', 14, 34);
-
-  const cb1 = stockData.comboio01;
-  const cb2 = stockData.comboio02;
-  const cb3 = stockData.comboio03;
-
-  const summaryHead = ['Descrição', 'Estoque Anterior', 'Entrada', 'Saída', 'Estoque Atual'];
-  const summaryBody = [
-    ['Comboio 01', fmtNum(cb1.estoqueAnterior), fmtNum(cb1.entrada, 2), fmtNum(cb1.total, 2), fmtNum(cb1.estoqueAtual)],
-    ['Comboio 02', fmtNum(cb2.estoqueAnterior), fmtNum(cb2.entrada, 2), fmtNum(cb2.total, 2), fmtNum(cb2.estoqueAtual)],
-    ['Comboio 03', fmtNum(cb3.estoqueAnterior), fmtNum(cb3.entrada, 2), fmtNum(cb3.total, 2), fmtNum(cb3.estoqueAtual)],
-    [
-      'Total geral',
-      fmtNum(cb1.estoqueAnterior + cb2.estoqueAnterior + cb3.estoqueAnterior),
-      fmtNum(cb1.entrada + cb2.entrada + cb3.entrada, 2),
-      fmtNum(cb1.total + cb2.total + cb3.total, 2),
-      fmtNum(cb1.estoqueAtual + cb2.estoqueAtual + cb3.estoqueAtual),
-    ],
-  ];
-
-  autoTable(doc, {
-    startY: 38,
-    head: [summaryHead],
-    body: summaryBody,
-    theme: 'grid',
-    styles: { fontSize: 8, cellPadding: 3 },
-    headStyles: { fillColor: [30, 41, 59], textColor: 255, fontStyle: 'bold', fontSize: 8, halign: 'center' },
-    columnStyles: {
-      0: { cellWidth: 45, fontStyle: 'bold' },
-      1: { halign: 'right' },
-      2: { halign: 'right' },
-      3: { halign: 'right', fontStyle: 'bold' },
-      4: { halign: 'right', fontStyle: 'bold' },
-    },
-    margin: { left: 14, right: 14 },
-    alternateRowStyles: { fillColor: [248, 250, 252] },
-    didParseCell: (data) => {
-      if (data.row.index === summaryBody.length - 1) {
-        data.cell.styles.fillColor = [30, 41, 59];
-        data.cell.styles.textColor = 255;
-        data.cell.styles.fontStyle = 'bold';
-      }
-    },
-  });
-
-  let currentY = (doc as any).lastAutoTable.finalY + 10;
+  let currentY = renderHeader(doc, 'RELATÓRIO GERAL DOS COMBOIOS', selectedDate, obraSettings);
   const pageHeight = doc.internal.pageSize.getHeight();
 
-  // ── Separate Saídas and Entradas ──
+  // Stock summary
+  currentY = renderComboiosSummary(doc, stockData, currentY);
+
+  // Separate Saídas and Entradas
   const saidas = sortRecords(fuelRecords.filter(r => !isEntradaRecord(r)), sortByDescription);
   const entradas = sortRecords(fuelRecords.filter(r => isEntradaRecord(r)), sortByDescription);
 
-  // ── SAÍDAS (Abastecimentos) ──
-  if (saidas.length > 0) {
-    doc.setFontSize(11);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(180, 50, 50);
-    doc.text(`SAÍDAS (Abastecimentos) — ${saidas.length} registros`, 14, currentY + 4);
-    currentY += 8;
+  // SAÍDAS
+  currentY = renderSaidasTable(doc, saidas, currentY, pageHeight);
 
-    const { body } = buildFuelTableData(saidas);
-
-    autoTable(doc, {
-      startY: currentY,
-      head: [FUEL_TABLE_HEAD],
-      body,
-      theme: 'grid',
-      styles: { fontSize: 8, cellPadding: 2 },
-      headStyles: {
-        fillColor: [180, 50, 50],
-        textColor: [255, 255, 255],
-        fontStyle: 'bold',
-        fontSize: 8,
-        halign: 'center',
-        valign: 'middle',
-      },
-      columnStyles: FUEL_COL_STYLES,
-      margin: { left: 14, right: 14 },
-      alternateRowStyles: { fillColor: [255, 245, 245] },
-      didParseCell: (data) => {
-        if (data.row.index === body.length - 1) {
-          data.cell.styles.fontStyle = 'bold';
-          data.cell.styles.fillColor = [230, 220, 220];
-        }
-      },
-    });
-
-    currentY = (doc as any).lastAutoTable.finalY + 10;
-  }
-
-  // ── ENTRADAS (Recebimentos) ──
+  // ENTRADAS
   currentY = renderEntradasTable(doc, entradas, currentY, 'comboio', pageHeight);
 
   if (saidas.length === 0 && entradas.length === 0) {
-    doc.setTextColor(100, 100, 100);
+    doc.setTextColor(120, 120, 130);
     doc.setFontSize(9);
     doc.setFont('helvetica', 'italic');
-    doc.text('Nenhum registro de abastecimento encontrado para Comboios.', 14, currentY + 4);
+    doc.text('Nenhum registro de abastecimento encontrado para Comboios nesta data.', PAGE_MARGIN, currentY + 4);
   }
 }
 
@@ -555,7 +611,7 @@ function renderComboiosPage(
 // PUBLIC API
 // ═══════════════════════════════════════════════════════════════════════
 
-/** PDF: Relatório dos Tanques (page 1) — with stock summary */
+/** PDF: Relatório dos Tanques — with stock summary */
 export function exportTanquesPDF(
   rows: FuelRecord[],
   selectedDate: Date,
@@ -570,7 +626,7 @@ export function exportTanquesPDF(
   doc.save(`Relatorio_Tanques_${format(selectedDate, 'dd-MM-yyyy')}.pdf`);
 }
 
-/** PDF: Relatório dos Comboios (page 2) — with stock summary */
+/** PDF: Relatório dos Comboios — with stock summary */
 export function exportComboiosPDF(
   rows: FuelRecord[],
   selectedDate: Date,
@@ -585,7 +641,7 @@ export function exportComboiosPDF(
   doc.save(`Relatorio_Comboios_${format(selectedDate, 'dd-MM-yyyy')}.pdf`);
 }
 
-/** PDF: Tanques (Page 1) + Comboios (Page 2) — Combined report */
+/** PDF: Tanques + Comboios — Combined report */
 export function exportTanquesComboiosPDF(
   rows: FuelRecord[],
   selectedDate: Date,
@@ -598,10 +654,8 @@ export function exportTanquesComboiosPDF(
   const tanqueRecords = filterByType(rows, 'tanque');
   const comboioRecords = filterByType(rows, 'comboio');
 
-  // Page 1 — Tanques
   renderTanquesPage(doc, tanqueRecords, stockData, selectedDate, obraSettings, sortByDescription);
 
-  // Page 2 — Comboios
   doc.addPage();
   renderComboiosPage(doc, comboioRecords, stockData, selectedDate, obraSettings, sortByDescription);
 
