@@ -1063,12 +1063,14 @@ export function ManutencaoPage() {
         savedOrderDate = formData.entry_date || editingOrder.order_date;
         toast.success('Ordem de serviço atualizada!');
         
-        // Sync to Google Sheets - get company from vehicle data
+        // Sync to Google Sheets - get company and motorista from vehicle data
         const vehicleInfo = vehiclesData.rows.find(v => String(v['Codigo'] || '') === formData.vehicle_code);
+        const motorista = String(vehicleInfo?.['Motorista'] || vehicleInfo?.['MOTORISTA'] || '').trim();
         syncOrderToSheet({
           ...orderData,
           order_number: savedOrderNumber,
           order_date: savedOrderDate,
+          created_by: motorista || null,
         }, String(vehicleInfo?.['Empresa'] || ''));
       } else {
         const newOrderNumber = await generateOrderNumber();
@@ -1087,12 +1089,14 @@ export function ManutencaoPage() {
         savedOrderDate = newOrderDate;
         toast.success('Ordem de serviço criada!');
         
-        // Sync new order to Google Sheets - get company from vehicle data
+        // Sync new order to Google Sheets - get company and motorista from vehicle data
         const vehicleInfo = vehiclesData.rows.find(v => String(v['Codigo'] || '') === formData.vehicle_code);
+        const motorista = String(vehicleInfo?.['Motorista'] || vehicleInfo?.['MOTORISTA'] || '').trim();
         syncOrderToSheet({
           ...orderData,
           order_number: savedOrderNumber,
           order_date: savedOrderDate,
+          created_by: motorista || null,
         }, String(vehicleInfo?.['Empresa'] || ''));
       }
 

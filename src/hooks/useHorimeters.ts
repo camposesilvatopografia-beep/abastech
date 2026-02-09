@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { parsePtBRNumber } from '@/lib/ptBRNumber';
+import { parsePtBRNumber, formatPtBRNumber } from '@/lib/ptBRNumber';
 
 export interface Vehicle {
   id: string;
@@ -200,6 +200,9 @@ export function useHorimeterReadings(vehicleId?: string) {
           const horimeterVal = _horimeterValue || reading.current_value || 0;
           const kmVal = _kmValue || reading.current_km || 0;
           
+          // Format numbers in pt-BR (e.g., 1.150,27) for the spreadsheet
+          const fmtNum = (v: number) => v > 0 ? formatPtBRNumber(v, { decimals: 2 }) : '';
+          
           const rowData = {
             'Data': formattedDate,
             'Veiculo': vehicle.code,
@@ -207,10 +210,10 @@ export function useHorimeterReadings(vehicleId?: string) {
             'Descricao': vehicle.name || '',
             'Empresa': vehicle.company || '',
             'Operador': reading.operator || '',
-            'Hor_Anterior': reading.previous_value ? reading.previous_value.toString().replace('.', ',') : '',
-            'Hor_Atual': horimeterVal > 0 ? horimeterVal.toString().replace('.', ',') : '',
-            'Km_Anterior': reading.previous_km ? reading.previous_km.toString().replace('.', ',') : '',
-            'Km_Atual': kmVal > 0 ? kmVal.toString().replace('.', ',') : '',
+            'Hor_Anterior': reading.previous_value ? fmtNum(reading.previous_value) : '',
+            'Hor_Atual': fmtNum(horimeterVal),
+            'Km_Anterior': reading.previous_km ? fmtNum(reading.previous_km) : '',
+            'Km_Atual': fmtNum(kmVal),
             'Observacao': reading.observations || '',
           };
           
@@ -313,6 +316,9 @@ export function useHorimeterReadings(vehicleId?: string) {
             const horimeterVal = _horimeterValue || currentValue || 0;
             const kmVal = _kmValue || currentKm || 0;
             
+            // Format numbers in pt-BR for the spreadsheet
+            const fmtNum = (v: number) => v > 0 ? formatPtBRNumber(v, { decimals: 2 }) : '';
+            
             const rowData = {
               'Data': formattedDate,
               'Veiculo': vehicle.code,
@@ -320,10 +326,10 @@ export function useHorimeterReadings(vehicleId?: string) {
               'Descricao': vehicle.name || '',
               'Empresa': vehicle.company || '',
               'Operador': operator || '',
-              'Hor_Anterior': previousValue ? previousValue.toString().replace('.', ',') : '',
-              'Hor_Atual': horimeterVal > 0 ? horimeterVal.toString().replace('.', ',') : '',
-              'Km_Anterior': previousKm ? previousKm.toString().replace('.', ',') : '',
-              'Km_Atual': kmVal > 0 ? kmVal.toString().replace('.', ',') : '',
+              'Hor_Anterior': previousValue ? fmtNum(previousValue) : '',
+              'Hor_Atual': fmtNum(horimeterVal),
+              'Km_Anterior': previousKm ? fmtNum(previousKm) : '',
+              'Km_Atual': fmtNum(kmVal),
               'Observacao': updates.observations ?? data.observations ?? '',
             };
             

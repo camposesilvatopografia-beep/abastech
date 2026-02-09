@@ -47,7 +47,7 @@ import {
 import { CurrencyInput } from '@/components/ui/currency-input';
 import { OSPhotoUpload } from '@/components/Maintenance/OSPhotoUpload';
 import { supabase } from '@/integrations/supabase/client';
-import { createRow } from '@/lib/googleSheets';
+import { createRow, getSheetData } from '@/lib/googleSheets';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -197,7 +197,7 @@ export function FieldServiceOrderForm({ user, onBack }: FieldServiceOrderFormPro
 
   const selectedVehicle = useMemo(() => vehicles.find(v => v.code === form.vehicle_code), [vehicles, form.vehicle_code]);
 
-  // Fetch latest horimeter/KM when vehicle changes
+  // Fetch latest horimeter/KM and Motorista when vehicle changes
   useEffect(() => {
     if (!form.vehicle_code) {
       setLastHorimeter(null);
@@ -206,6 +206,23 @@ export function FieldServiceOrderForm({ user, onBack }: FieldServiceOrderFormPro
     }
 
     const fetchLatest = async () => {
+      // Fetch Motorista from Veiculo sheet
+      try {
+        const veiculoSheet = await getSheetData('Veiculo', { noCache: false });
+        const normalizeCode = (v: any) => String(v ?? '').trim().toUpperCase().replace(/\s+/g, '');
+        const targetCode = normalizeCode(form.vehicle_code);
+        const veiculoRow = (veiculoSheet.rows || []).find(row => {
+          const code = normalizeCode(row['Codigo'] || row['CODIGO'] || row['Código'] || '');
+          return code === targetCode;
+        });
+        if (veiculoRow) {
+          const motorista = String(veiculoRow['Motorista'] || veiculoRow['MOTORISTA'] || '').trim();
+          if (motorista) {
+            setForm(prev => ({ ...prev, created_by: motorista }));
+          }
+        }
+      } catch (e) { console.error('Error fetching Veiculo sheet for Motorista:', e); }
+
       const [osRes, fuelRes, horRes] = await Promise.all([
         supabase.from('service_orders')
           .select('horimeter_current, km_current, entry_date')
