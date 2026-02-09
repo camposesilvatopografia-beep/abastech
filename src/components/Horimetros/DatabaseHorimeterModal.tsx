@@ -310,31 +310,31 @@ export function DatabaseHorimeterModal({
         console.error('Error fetching AbastecimentoCanteiro01 for previous:', e);
       }
 
-      // 4) From Google Sheets "Horimetros"
+      // 4) From Google Sheets "Horimetros" - use same normalizeVehicleCode for consistent matching
       try {
         const sheetData = await getSheetData('Horimetros', { noCache: true });
-        const normalizeCode = (c: string) => (c || '').trim().replace(/\s+/g, ' ').toUpperCase();
 
         const vehicleRows = sheetData.rows
-          .filter(row => normalizeCode(String(row['Veiculo'] || '')) === normalizeCode(vehicleCode))
-          .map(row => {
-            const parseDate = (d: string) => {
-              const parts = String(d || '').split('/');
-              if (parts.length === 3) return new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]), 12, 0, 0);
-              return null;
-            };
-            const dateVal = parseDate(String(row[' Data'] || row['Data'] || ''));
-            const horAtual = parsePtBRNumber(String(row['Horimetro Atual'] || ''));
-            const kmAtual = parsePtBRNumber(String(row['Km Atual'] || ''));
-            return { dateVal, horAtual, kmAtual };
+          .filter(row => {
+            const rowCode = normalizeVehicleCode(
+              getByNormalizedKey(row as any, ['VEICULO', 'VEÍCULO', 'CODIGO', 'CÓDIGO']) ?? ''
+            );
+            return rowCode === targetCode;
           })
-          .filter(r => !!r.dateVal && (r.horAtual > 0 || r.kmAtual > 0))
-          .sort((a, b) => (b.dateVal?.getTime() ?? 0) - (a.dateVal?.getTime() ?? 0));
+          .map(row => {
+            const dateRaw = getByNormalizedKey(row as any, ['DATA', 'DATE']);
+            const dateTime = parseSheetDateTime(dateRaw);
+            const horAtual = parsePtBRNumber(String(getByNormalizedKey(row as any, ['HORIMETRO ATUAL']) || '0'));
+            const kmAtual = parsePtBRNumber(String(getByNormalizedKey(row as any, ['KM ATUAL']) || '0'));
+            return { dateTime, horAtual, kmAtual };
+          })
+          .filter(r => !!r.dateTime && (r.horAtual > 0 || r.kmAtual > 0))
+          .sort((a, b) => (b.dateTime?.getTime() ?? 0) - (a.dateTime?.getTime() ?? 0));
 
         if (vehicleRows.length > 0) {
           const latest = vehicleRows[0];
           candidates.push({
-            date: latest.dateVal!,
+            date: latest.dateTime!,
             hor: latest.horAtual,
             km: latest.kmAtual,
             source: 'sheet_horimetros',
