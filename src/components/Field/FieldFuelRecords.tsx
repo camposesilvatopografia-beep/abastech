@@ -1,0 +1,270 @@
+import { useState, useEffect, useCallback } from 'react';
+import {
+  ArrowLeft,
+  Calendar,
+  Clock,
+  Fuel,
+  Loader2,
+  MapPin,
+  TrendingUp,
+  TrendingDown,
+  FileText,
+  Truck,
+  Package,
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { supabase } from '@/integrations/supabase/client';
+import { cn } from '@/lib/utils';
+import { useTheme } from '@/hooks/useTheme';
+import { format, subDays } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+
+interface FieldUser {
+  id: string;
+  name: string;
+  username: string;
+  role: string;
+  assigned_locations?: string[];
+}
+
+interface FuelRecord {
+  id: string;
+  record_date: string;
+  record_time: string;
+  vehicle_code: string;
+  vehicle_description: string | null;
+  fuel_quantity: number;
+  location: string | null;
+  record_type: string | null;
+  operator_name: string | null;
+  horimeter_current: number | null;
+  km_current: number | null;
+  arla_quantity: number | null;
+  observations: string | null;
+  category: string | null;
+}
+
+interface FieldFuelRecordsProps {
+  user: FieldUser;
+  onBack: () => void;
+}
+
+export function FieldFuelRecords({ user, onBack }: FieldFuelRecordsProps) {
+  const { theme } = useTheme();
+  const [records, setRecords] = useState<FuelRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [startDate, setStartDate] = useState(format(subDays(new Date(), 7), 'yyyy-MM-dd'));
+  const [endDate, setEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+
+  const fetchRecords = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('field_fuel_records')
+        .select('id, record_date, record_time, vehicle_code, vehicle_description, fuel_quantity, location, record_type, operator_name, horimeter_current, km_current, arla_quantity, observations, category')
+        .eq('user_id', user.id)
+        .gte('record_date', startDate)
+        .lte('record_date', endDate)
+        .order('record_date', { ascending: false })
+        .order('record_time', { ascending: false });
+
+      if (error) throw error;
+      setRecords(data || []);
+    } catch (err) {
+      console.error('Error fetching records:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [user.id, startDate, endDate]);
+
+  useEffect(() => {
+    fetchRecords();
+  }, [fetchRecords]);
+
+  // Group records by date
+  const groupedRecords = records.reduce<Record<string, FuelRecord[]>>((acc, record) => {
+    const date = record.record_date;
+    if (!acc[date]) acc[date] = [];
+    acc[date].push(record);
+    return acc;
+  }, {});
+
+  const formatDateLabel = (dateStr: string) => {
+    const date = new Date(`${dateStr}T00:00:00`);
+    const today = format(new Date(), 'yyyy-MM-dd');
+    if (dateStr === today) return 'Hoje';
+    return format(date, "dd 'de' MMMM", { locale: ptBR });
+  };
+
+  return (
+    <div className="space-y-4 p-4">
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        <Button variant="ghost" size="icon" onClick={onBack} className="shrink-0">
+          <ArrowLeft className="w-5 h-5" />
+        </Button>
+        <div>
+          <h2 className={cn("text-lg font-bold", theme === 'dark' ? "text-white" : "text-slate-800")}>
+            Registros
+          </h2>
+          <p className="text-xs text-muted-foreground">Histórico de abastecimentos</p>
+        </div>
+      </div>
+
+      {/* Date Filters */}
+      <div className={cn(
+        "rounded-xl p-4 border",
+        theme === 'dark' ? "bg-slate-800/80 border-slate-700" : "bg-white border-slate-200 shadow-sm"
+      )}>
+        <div className="flex items-center gap-2 mb-2">
+          <Calendar className="w-4 h-4 text-blue-500" />
+          <span className="text-sm font-medium">Filtrar por período</span>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="text-xs text-muted-foreground">De</label>
+            <Input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="h-10"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground">Até</label>
+            <Input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="h-10"
+            />
+          </div>
+        </div>
+        <p className="text-xs text-muted-foreground mt-2 text-center">
+          {records.length} registro(s) encontrado(s)
+        </p>
+      </div>
+
+      {/* Records List */}
+      {isLoading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+        </div>
+      ) : records.length === 0 ? (
+        <div className="text-center py-12">
+          <FileText className="w-12 h-12 mx-auto mb-3 text-muted-foreground opacity-50" />
+          <p className={cn("font-medium", theme === 'dark' ? "text-slate-300" : "text-slate-600")}>
+            Nenhum registro encontrado
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">Ajuste o período de busca</p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {Object.entries(groupedRecords).map(([date, dateRecords]) => (
+            <div key={date}>
+              <div className="flex items-center gap-2 mb-2">
+                <Calendar className="w-3.5 h-3.5 text-blue-500" />
+                <span className={cn(
+                  "text-sm font-semibold",
+                  theme === 'dark' ? "text-slate-200" : "text-slate-700"
+                )}>
+                  {formatDateLabel(date)}
+                </span>
+                <Badge variant="outline" className="text-[10px]">
+                  {dateRecords.length}
+                </Badge>
+              </div>
+
+              <div className="space-y-2">
+                {dateRecords.map((record) => (
+                  <div
+                    key={record.id}
+                    className={cn(
+                      "p-3 rounded-lg border transition-all",
+                      record.record_type === 'entrada'
+                        ? theme === 'dark'
+                          ? "bg-green-900/30 border-green-700/50"
+                          : "bg-green-50 border-green-200"
+                        : theme === 'dark'
+                          ? "bg-red-900/20 border-red-800/40"
+                          : "bg-red-50 border-red-200"
+                    )}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 flex-1">
+                        {record.record_type === 'entrada' ? (
+                          <TrendingUp className="w-4 h-4 text-green-500 shrink-0" />
+                        ) : (
+                          <TrendingDown className="w-4 h-4 text-red-500 shrink-0" />
+                        )}
+                        <span className={cn(
+                          "text-sm font-bold",
+                          theme === 'dark' ? "text-slate-200" : "text-slate-700"
+                        )}>
+                          {record.vehicle_code}
+                        </span>
+                        {record.category?.toLowerCase().includes('comboio') && (
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 bg-orange-500/20 text-orange-500 border-orange-500/50">
+                            <Truck className="w-2.5 h-2.5 mr-0.5" />
+                            Comboio
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="text-right">
+                        <p className={cn(
+                          "text-sm font-bold",
+                          record.record_type === 'entrada' ? "text-green-500" : "text-red-500"
+                        )}>
+                          {record.record_type === 'entrada' ? '+' : '-'}{record.fuel_quantity}L
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className={cn(
+                      "mt-2 pt-2 border-t grid grid-cols-2 gap-x-4 gap-y-1 text-xs",
+                      theme === 'dark' ? "border-slate-600/50" : "border-slate-300/50"
+                    )}>
+                      <div className="flex items-center gap-1">
+                        <Clock className="w-3 h-3 text-muted-foreground shrink-0" />
+                        <span className="text-muted-foreground">{record.record_time?.substring(0, 5)}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <MapPin className="w-3 h-3 text-muted-foreground shrink-0" />
+                        <span className="text-muted-foreground truncate">{record.location || '-'}</span>
+                      </div>
+                      {record.horimeter_current && (
+                        <div className="flex items-center gap-1">
+                          <span className="text-amber-600 dark:text-amber-400 font-medium">Hor:</span>
+                          <span className={theme === 'dark' ? "text-slate-300" : "text-slate-600"}>
+                            {record.horimeter_current.toLocaleString('pt-BR')}h
+                          </span>
+                        </div>
+                      )}
+                      {record.km_current && (
+                        <div className="flex items-center gap-1">
+                          <span className="text-blue-600 dark:text-blue-400 font-medium">Km:</span>
+                          <span className={theme === 'dark' ? "text-slate-300" : "text-slate-600"}>
+                            {record.km_current.toLocaleString('pt-BR')}
+                          </span>
+                        </div>
+                      )}
+                      {record.arla_quantity && record.arla_quantity > 0 && (
+                        <div className="flex items-center gap-1">
+                          <Package className="w-3 h-3 text-cyan-500 shrink-0" />
+                          <span className="text-cyan-600 dark:text-cyan-400 font-medium">ARLA: {record.arla_quantity}L</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

@@ -4,6 +4,9 @@ import { FieldFuelForm } from '@/components/Field/FieldFuelForm';
 import { FieldDashboard } from '@/components/Field/FieldDashboard';
 import { FieldHorimeterForm } from '@/components/Field/FieldHorimeterForm';
 import { FieldServiceOrderForm } from '@/components/Field/FieldServiceOrderForm';
+import { FieldFuelMenu } from '@/components/Field/FieldFuelMenu';
+import { FieldComboioForm } from '@/components/Field/FieldComboioForm';
+import { FieldFuelRecords } from '@/components/Field/FieldFuelRecords';
 import { 
   LayoutDashboard, 
   Fuel, 
@@ -53,7 +56,7 @@ interface FieldUser {
 
 const STORAGE_KEY = 'abastech_field_user';
 
-type FieldView = 'dashboard' | 'form' | 'horimeter' | 'os';
+type FieldView = 'dashboard' | 'form' | 'fuel-menu' | 'fuel-abastecer' | 'fuel-comboio' | 'fuel-registros' | 'horimeter' | 'os';
 
 export function FieldPage() {
   const [user, setUser] = useState<FieldUser | null>(null);
@@ -475,45 +478,48 @@ export function FieldPage() {
         </div>
       </header>
 
-      {/* Navigation Tabs - Right below header */}
+      {/* Navigation Tabs - Icons only */}
       <nav className={cn(
-        "backdrop-blur-sm border-b px-2 py-2 flex gap-1.5",
+        "backdrop-blur-sm border-b px-3 py-2 flex gap-2 justify-around",
         theme === 'dark' 
           ? "bg-slate-800/90 border-slate-700" 
           : "bg-white/90 border-slate-200"
       )}>
         <Button
-          variant={currentView === 'dashboard' ? 'default' : 'ghost'}
+          variant="ghost"
+          size="icon"
           className={cn(
-            "flex-1 h-11 gap-1.5 px-2",
+            "h-11 w-11 rounded-xl",
             currentView === 'dashboard' 
-              ? "bg-amber-500 hover:bg-amber-600 text-white" 
+              ? "bg-amber-500 hover:bg-amber-600 text-white shadow-lg shadow-amber-500/30" 
               : theme === 'dark'
                 ? "text-slate-400 hover:text-white hover:bg-slate-700"
                 : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
           )}
           onClick={() => setCurrentView('dashboard')}
         >
-          <LayoutDashboard className="w-4 h-4" />
-          <span className="text-xs font-medium">Dashboard</span>
+          <LayoutDashboard className="w-5 h-5" />
         </Button>
         <Button
-          variant={currentView === 'form' ? 'default' : 'ghost'}
+          variant="ghost"
+          size="icon"
           className={cn(
-            "flex-1 h-11 gap-1.5 px-2 font-semibold transition-all",
-            currentView === 'form' 
+            "h-11 w-11 rounded-xl",
+            (currentView === 'fuel-menu' || currentView === 'fuel-abastecer' || currentView === 'fuel-comboio' || currentView === 'fuel-registros' || currentView === 'form')
               ? "bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/30" 
-              : "bg-emerald-500 hover:bg-emerald-600 text-white shadow-md shadow-emerald-500/20 animate-pulse-glow"
+              : theme === 'dark'
+                ? "text-slate-400 hover:text-white hover:bg-slate-700"
+                : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
           )}
-          onClick={() => setCurrentView('form')}
+          onClick={() => setCurrentView('fuel-menu')}
         >
-          <Plus className="w-4 h-4" />
-          <span className="text-xs font-bold">Abastecimento</span>
+          <Fuel className="w-5 h-5" />
         </Button>
         <Button
-          variant={currentView === 'horimeter' ? 'default' : 'ghost'}
+          variant="ghost"
+          size="icon"
           className={cn(
-            "flex-1 h-11 gap-1.5 px-2",
+            "h-11 w-11 rounded-xl",
             currentView === 'horimeter' 
               ? "bg-amber-600 hover:bg-amber-700 text-white shadow-lg shadow-amber-600/30" 
               : theme === 'dark'
@@ -522,13 +528,13 @@ export function FieldPage() {
           )}
           onClick={() => setCurrentView('horimeter')}
         >
-          <Clock className="w-4 h-4" />
-          <span className="text-xs font-medium">Horímetro</span>
+          <Clock className="w-5 h-5" />
         </Button>
         <Button
-          variant={currentView === 'os' ? 'default' : 'ghost'}
+          variant="ghost"
+          size="icon"
           className={cn(
-            "flex-1 h-11 gap-1.5 px-2",
+            "h-11 w-11 rounded-xl",
             currentView === 'os' 
               ? "bg-purple-600 hover:bg-purple-700 text-white shadow-lg shadow-purple-600/30" 
               : theme === 'dark'
@@ -537,8 +543,7 @@ export function FieldPage() {
           )}
           onClick={() => setCurrentView('os')}
         >
-          <Wrench className="w-4 h-4" />
-          <span className="text-xs font-medium">OS</span>
+          <Wrench className="w-5 h-5" />
         </Button>
       </nav>
 
@@ -582,9 +587,29 @@ export function FieldPage() {
         {currentView === 'dashboard' ? (
           <FieldDashboard 
             user={user} 
-            onNavigateToForm={() => setCurrentView('form')}
+            onNavigateToForm={() => setCurrentView('fuel-menu')}
             onNavigateToHorimeter={() => setCurrentView('horimeter')}
             onNavigateToOS={() => setCurrentView('os')}
+          />
+        ) : currentView === 'fuel-menu' ? (
+          <FieldFuelMenu
+            onNavigate={(view) => setCurrentView(view)}
+          />
+        ) : currentView === 'fuel-abastecer' || currentView === 'form' ? (
+          <FieldFuelForm 
+            user={user} 
+            onLogout={handleLogout}
+            onBack={() => setCurrentView('fuel-menu')}
+          />
+        ) : currentView === 'fuel-comboio' ? (
+          <FieldComboioForm
+            user={user}
+            onBack={() => setCurrentView('fuel-menu')}
+          />
+        ) : currentView === 'fuel-registros' ? (
+          <FieldFuelRecords
+            user={user}
+            onBack={() => setCurrentView('fuel-menu')}
           />
         ) : currentView === 'horimeter' ? (
           <FieldHorimeterForm
@@ -596,13 +621,7 @@ export function FieldPage() {
             user={user}
             onBack={() => setCurrentView('dashboard')}
           />
-        ) : (
-          <FieldFuelForm 
-            user={user} 
-            onLogout={handleLogout}
-            onBack={() => setCurrentView('dashboard')}
-          />
-        )}
+        ) : null}
       </main>
     </div>
   );

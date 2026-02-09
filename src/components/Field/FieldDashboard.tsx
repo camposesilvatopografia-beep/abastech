@@ -66,6 +66,7 @@ interface FieldUser {
 interface FieldDashboardProps {
   user: FieldUser;
   onNavigateToForm: () => void;
+  onNavigateToFuelMenu?: () => void;
   onNavigateToHorimeter?: () => void;
   onNavigateToOS?: () => void;
 }
@@ -92,7 +93,7 @@ interface DeleteConfirmation {
   reason: string;
 }
 
-export function FieldDashboard({ user, onNavigateToForm, onNavigateToHorimeter, onNavigateToOS }: FieldDashboardProps) {
+export function FieldDashboard({ user, onNavigateToForm, onNavigateToFuelMenu, onNavigateToHorimeter, onNavigateToOS }: FieldDashboardProps) {
   const { theme } = useTheme();
   const navigate = useNavigate();
   const [todayRecords, setTodayRecords] = useState<RecentRecord[]>([]);
