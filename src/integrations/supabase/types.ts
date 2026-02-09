@@ -673,6 +673,8 @@ export type Database = {
           order_type: string
           parts_cost: number | null
           parts_used: string | null
+          photo_4_url: string | null
+          photo_5_url: string | null
           photo_after_url: string | null
           photo_before_url: string | null
           photo_parts_url: string | null
@@ -707,6 +709,8 @@ export type Database = {
           order_type?: string
           parts_cost?: number | null
           parts_used?: string | null
+          photo_4_url?: string | null
+          photo_5_url?: string | null
           photo_after_url?: string | null
           photo_before_url?: string | null
           photo_parts_url?: string | null
@@ -741,6 +745,8 @@ export type Database = {
           order_type?: string
           parts_cost?: number | null
           parts_used?: string | null
+          photo_4_url?: string | null
+          photo_5_url?: string | null
           photo_after_url?: string | null
           photo_before_url?: string | null
           photo_parts_url?: string | null

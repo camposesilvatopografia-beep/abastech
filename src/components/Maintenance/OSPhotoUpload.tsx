@@ -6,32 +6,31 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
+export type PhotoKey = 'before' | 'after' | 'parts' | 'photo4' | 'photo5';
+
 interface PhotoSlot {
   label: string;
-  key: 'before' | 'after' | 'parts';
+  key: PhotoKey;
   icon: string;
-  color: string;
 }
 
 const PHOTO_SLOTS: PhotoSlot[] = [
-  { label: 'Antes', key: 'before', icon: '📷', color: 'text-amber-500' },
-  { label: 'Depois', key: 'after', icon: '✅', color: 'text-green-500' },
-  { label: 'Peças', key: 'parts', icon: '🔧', color: 'text-blue-500' },
+  { label: 'Antes', key: 'before', icon: '📷' },
+  { label: 'Depois', key: 'after', icon: '✅' },
+  { label: 'Peças', key: 'parts', icon: '🔧' },
+  { label: 'Foto 4', key: 'photo4', icon: '📸' },
+  { label: 'Foto 5', key: 'photo5', icon: '🖼️' },
 ];
 
 interface OSPhotoUploadProps {
-  photoBeforeUrl: string | null;
-  photoAfterUrl: string | null;
-  photoPartsUrl: string | null;
-  onPhotoChange: (key: 'before' | 'after' | 'parts', url: string | null) => void;
+  photos: Record<PhotoKey, string | null>;
+  onPhotoChange: (key: PhotoKey, url: string | null) => void;
   orderNumber?: string;
   vehicleCode?: string;
 }
 
 export function OSPhotoUpload({
-  photoBeforeUrl,
-  photoAfterUrl,
-  photoPartsUrl,
+  photos,
   onPhotoChange,
   orderNumber,
   vehicleCode,
@@ -39,24 +38,14 @@ export function OSPhotoUpload({
   const [uploading, setUploading] = useState<string | null>(null);
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
-  const getUrl = (key: 'before' | 'after' | 'parts') => {
-    switch (key) {
-      case 'before': return photoBeforeUrl;
-      case 'after': return photoAfterUrl;
-      case 'parts': return photoPartsUrl;
-    }
-  };
-
-  const handleUpload = async (key: 'before' | 'after' | 'parts', file: File) => {
+  const handleUpload = async (key: PhotoKey, file: File) => {
     if (!file) return;
 
-    // Validate file type
     if (!file.type.startsWith('image/')) {
       toast.error('Apenas imagens são permitidas');
       return;
     }
 
-    // Validate file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
       toast.error('Imagem deve ter no máximo 5MB');
       return;
@@ -90,24 +79,30 @@ export function OSPhotoUpload({
     }
   };
 
-  const handleRemove = (key: 'before' | 'after' | 'parts') => {
+  const handleRemove = (key: PhotoKey) => {
     onPhotoChange(key, null);
   };
+
+  // Count photos that have URLs
+  const photoCount = Object.values(photos).filter(Boolean).length;
 
   return (
     <div className="space-y-3">
       <Label className="flex items-center gap-2">
         <Camera className="w-4 h-4 text-primary" />
         Fotos da OS
+        <span className="text-xs text-muted-foreground font-normal">
+          ({photoCount}/5)
+        </span>
       </Label>
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-5 gap-2">
         {PHOTO_SLOTS.map((slot) => {
-          const url = getUrl(slot.key);
+          const url = photos[slot.key];
           const isUploading = uploading === slot.key;
 
           return (
-            <div key={slot.key} className="space-y-1.5">
-              <p className="text-xs font-medium text-muted-foreground text-center">
+            <div key={slot.key} className="space-y-1">
+              <p className="text-[10px] font-medium text-muted-foreground text-center truncate">
                 {slot.icon} {slot.label}
               </p>
               {url ? (
@@ -115,14 +110,14 @@ export function OSPhotoUpload({
                   <img
                     src={url}
                     alt={`Foto ${slot.label}`}
-                    className="w-full h-24 object-cover rounded-lg border-2 border-border cursor-pointer hover:opacity-90 transition-opacity"
+                    className="w-full h-20 object-cover rounded-lg border-2 border-border cursor-pointer hover:opacity-90 transition-opacity"
                     onClick={() => window.open(url, '_blank')}
                   />
                   <Button
                     type="button"
                     variant="destructive"
                     size="icon"
-                    className="absolute -top-2 -right-2 h-6 w-6 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
                     onClick={() => handleRemove(slot.key)}
                   >
                     <X className="w-3 h-3" />
@@ -134,18 +129,18 @@ export function OSPhotoUpload({
                   disabled={isUploading}
                   onClick={() => fileInputRefs.current[slot.key]?.click()}
                   className={cn(
-                    "w-full h-24 rounded-lg border-2 border-dashed border-muted-foreground/30",
-                    "flex flex-col items-center justify-center gap-1",
+                    "w-full h-20 rounded-lg border-2 border-dashed border-muted-foreground/30",
+                    "flex flex-col items-center justify-center gap-0.5",
                     "hover:border-primary/50 hover:bg-primary/5 transition-colors cursor-pointer",
                     "disabled:opacity-50 disabled:cursor-not-allowed"
                   )}
                 >
                   {isUploading ? (
-                    <Loader2 className="w-5 h-5 text-primary animate-spin" />
+                    <Loader2 className="w-4 h-4 text-primary animate-spin" />
                   ) : (
                     <>
-                      <ImageIcon className="w-5 h-5 text-muted-foreground/50" />
-                      <span className="text-[10px] text-muted-foreground/60">Adicionar</span>
+                      <ImageIcon className="w-4 h-4 text-muted-foreground/50" />
+                      <span className="text-[9px] text-muted-foreground/60">Adicionar</span>
                     </>
                   )}
                 </button>
