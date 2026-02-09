@@ -130,6 +130,7 @@ interface DailyRecord {
   horimeterValue: number | null;
   kmValue: number | null;
   horimeterInterval: number;
+  dailyConsumption: number | null;
   osCount: number;
   osStatus: string | null;
   hasActivity: boolean;
@@ -326,6 +327,11 @@ export function VehicleHistoryModal({
         dayFuelRecords.find(r => r.horimeter_previous)?.horimeter_previous || 0;
       const horimeterInterval = horimeterValue ? horimeterValue - prevHorimeter : 0;
       
+      // Daily consumption (L/h)
+      const dailyConsumption = (horimeterInterval > 0 && totalDiesel > 0) 
+        ? totalDiesel / horimeterInterval 
+        : null;
+      
       // OS info
       const osCount = dayServiceOrders.length;
       const osStatus = dayServiceOrders[0]?.status || null;
@@ -344,6 +350,7 @@ export function VehicleHistoryModal({
         horimeterValue,
         kmValue,
         horimeterInterval,
+        dailyConsumption,
         osCount,
         osStatus,
         hasActivity,
@@ -1105,6 +1112,11 @@ export function VehicleHistoryModal({
                                 {day.horimeterInterval > 0 && (
                                   <span className="flex items-center gap-1 text-emerald-600">
                                     <Gauge className="w-3 h-3" /> +{day.horimeterInterval.toFixed(0)} h
+                                  </span>
+                                )}
+                                {day.dailyConsumption != null && (
+                                  <span className="flex items-center gap-1 text-green-700 dark:text-green-400 font-semibold bg-green-100 dark:bg-green-950/40 px-1.5 py-0.5 rounded">
+                                    <TrendingUp className="w-3 h-3" /> {day.dailyConsumption.toFixed(2)} L/h
                                   </span>
                                 )}
                                 {day.osCount > 0 && (
