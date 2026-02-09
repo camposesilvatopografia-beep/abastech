@@ -14,6 +14,11 @@ import {
   FileText,
   AlertTriangle,
   CheckCircle,
+  ArrowLeft,
+  Plus,
+  List,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -95,6 +100,9 @@ export function FieldServiceOrderForm({ user, onBack }: FieldServiceOrderFormPro
   const { settings } = useFieldSettings();
   const isDark = theme === 'dark';
 
+  // Sub-view navigation
+  const [subView, setSubView] = useState<'menu' | 'form' | 'records'>('menu');
+
   // Data
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [mechanics, setMechanics] = useState<Mechanic[]>([]);
@@ -104,6 +112,11 @@ export function FieldServiceOrderForm({ user, onBack }: FieldServiceOrderFormPro
   // Vehicle selection
   const [vehicleOpen, setVehicleOpen] = useState(false);
   const [vehicleSearch, setVehicleSearch] = useState('');
+
+  // Records state
+  const [records, setRecords] = useState<any[]>([]);
+  const [recordsLoading, setRecordsLoading] = useState(false);
+  const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set());
 
   // Form state
   const [form, setForm] = useState({
@@ -157,6 +170,31 @@ export function FieldServiceOrderForm({ user, onBack }: FieldServiceOrderFormPro
     fetchData();
   }, []);
 
+  // Fetch records for history view
+  const fetchRecords = useCallback(async () => {
+    setRecordsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('service_orders')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(100);
+      if (error) throw error;
+      setRecords(data || []);
+    } catch (err) {
+      console.error('Erro ao buscar OS:', err);
+      toast.error('Erro ao carregar registros');
+    } finally {
+      setRecordsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (subView === 'records') {
+      fetchRecords();
+    }
+  }, [subView, fetchRecords]);
+
   const selectedVehicle = useMemo(() => vehicles.find(v => v.code === form.vehicle_code), [vehicles, form.vehicle_code]);
 
   // Fetch latest horimeter/KM when vehicle changes
@@ -168,7 +206,6 @@ export function FieldServiceOrderForm({ user, onBack }: FieldServiceOrderFormPro
     }
 
     const fetchLatest = async () => {
-      // Check service_orders, field_fuel_records, and horimeter_readings
       const [osRes, fuelRes, horRes] = await Promise.all([
         supabase.from('service_orders')
           .select('horimeter_current, km_current, entry_date')
@@ -190,13 +227,11 @@ export function FieldServiceOrderForm({ user, onBack }: FieldServiceOrderFormPro
       let latestHor: number | null = null;
       let latestKm: number | null = null;
 
-      // From OS
       if (osRes.data?.[0]) {
         latestHor = osRes.data[0].horimeter_current;
         latestKm = osRes.data[0].km_current;
       }
 
-      // From fuel records
       if (fuelRes.data?.[0]) {
         if (fuelRes.data[0].horimeter_current && (!latestHor || fuelRes.data[0].horimeter_current > latestHor)) {
           latestHor = fuelRes.data[0].horimeter_current;
@@ -206,7 +241,6 @@ export function FieldServiceOrderForm({ user, onBack }: FieldServiceOrderFormPro
         }
       }
 
-      // From horimeter_readings
       if (horRes.data?.id) {
         const { data: readings } = await supabase
           .from('horimeter_readings')
@@ -261,26 +295,27 @@ export function FieldServiceOrderForm({ user, onBack }: FieldServiceOrderFormPro
     return `OS-${year}-${String(next).padStart(5, '0')}`;
   }, []);
 
-  // Sync to Google Sheets - Mapped to correct columns:
-  // B - DATA, C - VEICULO, D - EMPRESA, E - MOTORISTA, F - POTENCIA, G - PROBLEMA,
-  // H - SERVICO, I - MECANICO, J - DATA_ENTRADA, K - DATA_SAIDA, L - HORA_ENTRADA, M - HORA_SAIDA
+  // Sync to Google Sheets
   const syncToSheet = async (orderData: any) => {
     try {
       const formatDateForSheet = (dateStr: string | null | undefined): string => {
         if (!dateStr) return '';
         try {
-          const date = new Date(dateStr);
+          // Handle both ISO and YYYY-MM-DD formats
+          const date = new Date(dateStr.includes('T') ? dateStr : `${dateStr}T12:00:00`);
+          if (isNaN(date.getTime())) return dateStr;
           return format(date, 'dd/MM/yyyy');
         } catch {
-          return '';
+          return dateStr || '';
         }
       };
 
       const formatTimeForSheet = (timeStr: string | null | undefined, dateStr: string | null | undefined): string => {
-        if (timeStr) return timeStr.length === 5 ? timeStr : timeStr.substring(0, 5);
+        if (timeStr) return timeStr.length >= 5 ? timeStr.substring(0, 5) : timeStr;
         if (dateStr) {
           try {
             const date = new Date(dateStr);
+            if (isNaN(date.getTime())) return '';
             return format(date, 'HH:mm');
           } catch {
             return '';
@@ -289,25 +324,30 @@ export function FieldServiceOrderForm({ user, onBack }: FieldServiceOrderFormPro
         return '';
       };
 
+      const isFinalized = orderData.status === 'Finalizada';
+
       const rowData: Record<string, string> = {
-        'DATA': formatDateForSheet(orderData.order_date),
+        'DATA': formatDateForSheet(orderData.entry_date || orderData.order_date),
         'VEICULO': orderData.vehicle_code || '',
-        'EMPRESA': form.vehicle_company || '',
+        'EMPRESA': orderData.vehicle_description || form.vehicle_company || '',
         'MOTORISTA': orderData.created_by || '',
         'POTENCIA': orderData.vehicle_description || '',
         'PROBLEMA': orderData.problem_description || '',
         'SERVICO': orderData.solution_description || '',
         'MECANICO': orderData.mechanic_name || '',
         'DATA_ENTRADA': formatDateForSheet(orderData.entry_date),
-        'DATA_SAIDA': orderData.status?.includes('Finalizada') ? formatDateForSheet(orderData.end_date || new Date().toISOString()) : '',
+        'DATA_SAIDA': isFinalized ? formatDateForSheet(orderData.end_date || new Date().toISOString()) : '',
         'HORA_ENTRADA': formatTimeForSheet(orderData.entry_time, null),
-        'HORA_SAIDA': orderData.status?.includes('Finalizada') ? formatTimeForSheet(null, orderData.end_date) : '',
+        'HORA_SAIDA': isFinalized ? formatTimeForSheet(null, orderData.end_date) : '',
       };
 
+      console.log('Syncing OS to sheet with data:', JSON.stringify(rowData));
       await createRow(ORDEM_SERVICO_SHEET, rowData);
-      console.log('OS synced to sheet:', orderData.order_number);
+      console.log('OS synced to sheet successfully:', orderData.order_number);
     } catch (err) {
       console.error('Erro ao sincronizar OS com planilha:', err);
+      toast.error('OS salva no banco, mas falhou ao sincronizar com a planilha. Verifique se a aba "Ordem_Servico" existe.');
+      throw err; // Re-throw so we know it failed
     }
   };
 
@@ -382,8 +422,12 @@ export function FieldServiceOrderForm({ user, onBack }: FieldServiceOrderFormPro
       const { error } = await supabase.from('service_orders').insert(orderData);
       if (error) throw error;
 
-      // Sync to sheet
-      await syncToSheet(orderData);
+      // Sync to sheet - don't let sheet failure block success
+      try {
+        await syncToSheet({ ...orderData, vehicle_company: form.vehicle_company });
+      } catch {
+        // Error already toasted in syncToSheet
+      }
 
       if (settings.soundEnabled) playSuccessSound();
       if (settings.vibrationEnabled) vibrateDevice();
@@ -438,9 +482,201 @@ export function FieldServiceOrderForm({ user, onBack }: FieldServiceOrderFormPro
 
   const inputClass = cn("h-12 text-base", isDark ? "bg-slate-700 border-slate-600 text-white" : "");
 
+  // Group records by date
+  const groupedRecords = useMemo(() => {
+    const groups: Record<string, any[]> = {};
+    records.forEach(r => {
+      const date = r.entry_date || r.order_date || 'Sem data';
+      if (!groups[date]) groups[date] = [];
+      groups[date].push(r);
+    });
+    return Object.entries(groups).sort(([a], [b]) => b.localeCompare(a));
+  }, [records]);
+
+  const toggleDate = (date: string) => {
+    setExpandedDates(prev => {
+      const next = new Set(prev);
+      if (next.has(date)) next.delete(date);
+      else next.add(date);
+      return next;
+    });
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'Finalizada': return 'text-emerald-400';
+      case 'Em Andamento': return 'text-amber-400';
+      case 'Aguardando Peças': return 'text-orange-400';
+      default: return 'text-blue-400';
+    }
+  };
+
+  // ============ MENU VIEW ============
+  if (subView === 'menu') {
+    return (
+      <div className={cn("p-4 space-y-4", isDark ? "text-white" : "text-slate-900")}>
+        <div className="flex items-center gap-3 mb-6">
+          <Button variant="ghost" size="icon" onClick={onBack} className="shrink-0">
+            <ArrowLeft className="w-5 h-5" />
+          </Button>
+          <div>
+            <h2 className="text-xl font-bold">Ordem de Serviço</h2>
+            <p className="text-sm text-muted-foreground">Selecione uma opção</p>
+          </div>
+        </div>
+
+        <button
+          onClick={() => setSubView('form')}
+          className={cn(
+            "w-full rounded-xl p-6 flex items-center gap-4 shadow-lg transition-transform active:scale-[0.98]",
+            isDark
+              ? "bg-gradient-to-br from-emerald-600 to-emerald-800 text-white"
+              : "bg-gradient-to-br from-emerald-500 to-emerald-700 text-white"
+          )}
+        >
+          <div className="w-14 h-14 rounded-full bg-white/20 flex items-center justify-center">
+            <Plus className="w-7 h-7" />
+          </div>
+          <div className="text-left">
+            <p className="text-lg font-bold">Nova OS</p>
+            <p className="text-sm opacity-80">Criar nova Ordem de Serviço</p>
+          </div>
+        </button>
+
+        <button
+          onClick={() => setSubView('records')}
+          className={cn(
+            "w-full rounded-xl p-6 flex items-center gap-4 shadow-lg transition-transform active:scale-[0.98]",
+            isDark
+              ? "bg-gradient-to-br from-blue-600 to-blue-800 text-white"
+              : "bg-gradient-to-br from-blue-500 to-blue-700 text-white"
+          )}
+        >
+          <div className="w-14 h-14 rounded-full bg-white/20 flex items-center justify-center">
+            <List className="w-7 h-7" />
+          </div>
+          <div className="text-left">
+            <p className="text-lg font-bold">Consultar OS</p>
+            <p className="text-sm opacity-80">Histórico de Ordens de Serviço</p>
+          </div>
+        </button>
+      </div>
+    );
+  }
+
+  // ============ RECORDS VIEW ============
+  if (subView === 'records') {
+    return (
+      <div className={cn("p-4 space-y-4 pb-24", isDark ? "text-white" : "text-slate-900")}>
+        <div className="flex items-center gap-3 mb-4">
+          <Button variant="ghost" size="icon" onClick={() => setSubView('menu')} className="shrink-0">
+            <ArrowLeft className="w-5 h-5" />
+          </Button>
+          <div>
+            <h2 className="text-xl font-bold">Registros de OS</h2>
+            <p className="text-sm text-muted-foreground">{records.length} registros encontrados</p>
+          </div>
+        </div>
+
+        {recordsLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+          </div>
+        ) : records.length === 0 ? (
+          <div className="text-center py-12">
+            <Wrench className="w-12 h-12 mx-auto mb-3 text-muted-foreground opacity-40" />
+            <p className="text-muted-foreground">Nenhuma OS encontrada</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {groupedRecords.map(([date, items]) => {
+              const isExpanded = expandedDates.has(date);
+              let displayDate = date;
+              try {
+                const d = new Date(`${date}T12:00:00`);
+                if (!isNaN(d.getTime())) displayDate = format(d, 'dd/MM/yyyy (EEEE)', { locale: ptBR });
+              } catch {}
+
+              return (
+                <div key={date}>
+                  <button
+                    onClick={() => toggleDate(date)}
+                    className={cn(
+                      "w-full flex items-center justify-between p-3 rounded-lg font-medium",
+                      isDark ? "bg-slate-800 hover:bg-slate-700" : "bg-slate-100 hover:bg-slate-200"
+                    )}
+                  >
+                    <span className="flex items-center gap-2">
+                      <CalendarIcon className="w-4 h-4 text-blue-500" />
+                      {displayDate}
+                    </span>
+                    <span className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground">{items.length} OS</span>
+                      {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                    </span>
+                  </button>
+
+                  {isExpanded && (
+                    <div className="space-y-2 mt-2 ml-2">
+                      {items.map(item => (
+                        <div
+                          key={item.id}
+                          className={cn(
+                            "rounded-lg p-3 border",
+                            isDark ? "bg-slate-800/60 border-slate-700" : "bg-white border-slate-200"
+                          )}
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="font-bold text-sm">{item.order_number}</span>
+                            <span className={cn("text-xs font-medium", getStatusColor(item.status))}>
+                              {item.status}
+                            </span>
+                          </div>
+                          <div className="text-sm font-medium text-blue-500">{item.vehicle_code}</div>
+                          {item.vehicle_description && (
+                            <div className="text-xs text-muted-foreground">{item.vehicle_description}</div>
+                          )}
+                          {item.problem_description && (
+                            <div className="text-xs mt-1 text-muted-foreground line-clamp-2">
+                              {item.problem_description}
+                            </div>
+                          )}
+                          <div className="flex gap-3 mt-1 text-xs text-muted-foreground">
+                            <span>{item.order_type}</span>
+                            <span>•</span>
+                            <span>{item.priority}</span>
+                            {item.mechanic_name && (
+                              <>
+                                <span>•</span>
+                                <span>{item.mechanic_name}</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ============ FORM VIEW ============
   return (
     <div className={cn("p-4 pb-24 space-y-4", isDark ? "text-white" : "text-slate-900")}>
       
+      {/* Back button */}
+      <div className="flex items-center gap-3 mb-2">
+        <Button variant="ghost" size="icon" onClick={() => setSubView('menu')} className="shrink-0">
+          <ArrowLeft className="w-5 h-5" />
+        </Button>
+        <h2 className="text-xl font-bold">Nova Ordem de Serviço</h2>
+      </div>
+
       {/* Vehicle Selection */}
       <div className={sectionClass}>
         <div className="flex items-center gap-2 mb-2">
