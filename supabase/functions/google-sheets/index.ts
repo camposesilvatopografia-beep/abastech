@@ -527,20 +527,22 @@ serve(async (req) => {
           throw new Error("sheetName and data are required for create action");
         }
 
-        // Read headers from row 1, starting from column B (DATA is in column B)
-        const headerRow = await getHeaders(accessToken, sheetId, sheetName, "B1:ZZ1");
+        // Read headers from row 1 starting from column A to include all columns
+        // Google Sheets append detects the full table range (including col A if it has data),
+        // so we must include column A in our values to prevent column displacement.
+        const headerRow = await getHeaders(accessToken, sheetId, sheetName, "A1:ZZ1");
         if (headerRow.length === 0) {
           throw new Error("No headers found in sheet");
         }
 
         console.log("Headers found:", headerRow);
 
-        // Map data to headers - values start from column B (no empty column needed)
+        // Map data to ALL headers (including column A)
         const newRowValues = headerRow.map((header: string) => data[String(header).trim()] ?? "");
         console.log("Values to append:", newRowValues);
 
-        // Append starting from column B
-        await appendRow(accessToken, sheetId, formatRange(sheetName, "B:ZZ"), newRowValues);
+        // Append starting from column A to match the full table range
+        await appendRow(accessToken, sheetId, formatRange(sheetName, "A:ZZ"), newRowValues);
 
         invalidateSheetCaches(sheetId, sheetName);
         result = { success: true, message: "Row created successfully" };
