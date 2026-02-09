@@ -628,14 +628,22 @@ export async function exportEfetivoPDF(
       ];
     });
 
+    // Adaptive sizing to fit on one page
+    const rowCount = maintenanceTableData.length;
+    const needsCompact = rowCount > 20;
+    const mFontSize = needsCompact ? 6.5 : 8;
+    const mCellPad = needsCompact ? 1.5 : 3;
+    const mHeadFontSize = needsCompact ? 7 : 8.5;
+    const mHeadPad = needsCompact ? 2 : 3.5;
+
     autoTable(doc, {
       startY: maintHeaderH + 6,
       head: [['#', 'Código', 'Empresa', 'Equipamento', 'Problema', 'Entrada']],
       body: maintenanceTableData,
       theme: 'grid',
       styles: {
-        fontSize: 8,
-        cellPadding: 3,
+        fontSize: mFontSize,
+        cellPadding: mCellPad,
         lineColor: [180, 180, 180],
         lineWidth: 0.25,
         textColor: [0, 0, 0],
@@ -647,10 +655,10 @@ export async function exportEfetivoPDF(
         fillColor: [185, 28, 28],
         textColor: [255, 255, 255],
         fontStyle: 'bold',
-        fontSize: 8.5,
+        fontSize: mHeadFontSize,
         lineColor: [153, 27, 27],
         halign: 'center',
-        cellPadding: 3.5,
+        cellPadding: mHeadPad,
       },
       columnStyles: {
         0: { cellWidth: 12, halign: 'center' },
