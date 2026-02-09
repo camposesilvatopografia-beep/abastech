@@ -105,22 +105,36 @@ export function DatabaseHorimeterModal({
       });
   }, [selectedVehicleId, readings]);
 
-  // Get the last reading for this vehicle (excluding current record in edit mode)
+  // Get the last reading for this vehicle BEFORE the selected date
+  // In create mode: most recent reading with reading_date <= selectedDate (excluding same-date if not yet saved)
+  // In edit mode: most recent reading before the record being edited
   const lastReading = useMemo(() => {
     if (!selectedVehicleId) return null;
+    
+    const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
     
     const relevantReadings = readings
       .filter(r => {
         if (r.vehicle_id !== selectedVehicleId) return false;
         if (isEditMode && editRecord && r.id === editRecord.id) return false;
+        // Only consider readings on or before the selected date
+        if (r.reading_date > selectedDateStr) return false;
         return true;
       })
-      .sort((a, b) => b.reading_date.localeCompare(a.reading_date));
+      .sort((a, b) => {
+        // Sort by reading_date descending, then by created_at descending for same date
+        const dateCmp = b.reading_date.localeCompare(a.reading_date);
+        if (dateCmp !== 0) return dateCmp;
+        // Use created_at for same-date disambiguation
+        const aCreated = (a as any).created_at || '';
+        const bCreated = (b as any).created_at || '';
+        return bCreated.localeCompare(aCreated);
+      });
     
     if (relevantReadings.length === 0) return null;
     
     return relevantReadings[0];
-  }, [selectedVehicleId, readings, isEditMode, editRecord]);
+  }, [selectedVehicleId, readings, isEditMode, editRecord, selectedDate]);
 
   // Previous Horimeter value - comes from last reading or edited value
   // In edit mode, use the editable state; in create mode, derive from last reading
