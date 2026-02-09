@@ -165,7 +165,7 @@ export function VehicleHistoryModal({
   const [fuelRecords, setFuelRecords] = useState<FuelRecord[]>([]);
   const [horimeterReadings, setHorimeterReadings] = useState<HorimeterReading[]>([]);
   const [serviceOrders, setServiceOrders] = useState<ServiceOrder[]>([]);
-  const [activeTab, setActiveTab] = useState('horimetro');
+  const [activeTab, setActiveTab] = useState('abastecimento');
   const [showColumnConfig, setShowColumnConfig] = useState(false);
   const { settings: obraSettings } = useObraSettings();
   
@@ -1175,22 +1175,14 @@ export function VehicleHistoryModal({
 
           {/* Content */}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden">
-            <TabsList className="shrink-0 grid w-full grid-cols-4">
-              <TabsTrigger value="horimetro" className="gap-2">
-                <Gauge className="w-4 h-4" />
-                <span className="hidden sm:inline">Horímetros/KM</span>
-              </TabsTrigger>
+            <TabsList className="shrink-0 grid w-full grid-cols-2">
               <TabsTrigger value="abastecimento" className="gap-2">
                 <Fuel className="w-4 h-4" />
                 <span className="hidden sm:inline">Abastecimentos</span>
               </TabsTrigger>
-              <TabsTrigger value="manutencao" className="gap-2">
-                <Wrench className="w-4 h-4" />
-                <span className="hidden sm:inline">Manutenção</span>
-              </TabsTrigger>
-              <TabsTrigger value="resumo" className="gap-2">
-                <TrendingUp className="w-4 h-4" />
-                <span className="hidden sm:inline">Resumo</span>
+              <TabsTrigger value="horimetro" className="gap-2">
+                <Gauge className="w-4 h-4" />
+                <span className="hidden sm:inline">Horímetros/KM</span>
               </TabsTrigger>
             </TabsList>
 
@@ -1261,88 +1253,8 @@ export function VehicleHistoryModal({
                     )}
                   </TabsContent>
 
-                  {/* Resumo Tab */}
-                  <TabsContent value="resumo" className="m-0">
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                      {/* Diesel */}
-                      <div className="bg-gradient-to-br from-red-500 to-red-600 rounded-xl p-4 text-white">
-                        <div className="flex items-center gap-2 text-red-100 text-xs font-medium uppercase">
-                          <Fuel className="w-4 h-4" />
-                          Total Diesel
-                        </div>
-                        <p className="text-2xl font-bold mt-2">{summary.totalDiesel.toFixed(1)} L</p>
-                        <p className="text-xs text-red-200 mt-1">{summary.fuelRecordCount} abastecimentos</p>
-                      </div>
 
-                      {/* ARLA */}
-                      <div className="bg-gradient-to-br from-yellow-500 to-yellow-600 rounded-xl p-4 text-white">
-                        <div className="flex items-center gap-2 text-yellow-100 text-xs font-medium uppercase">
-                          <Droplets className="w-4 h-4" />
-                          Total ARLA
-                        </div>
-                        <p className="text-2xl font-bold mt-2">{summary.totalArla.toFixed(1)} L</p>
-                      </div>
 
-                      {/* Óleo */}
-                      <div className="bg-gradient-to-br from-amber-600 to-amber-700 rounded-xl p-4 text-white">
-                        <div className="flex items-center gap-2 text-amber-100 text-xs font-medium uppercase">
-                          <Droplets className="w-4 h-4" />
-                          Total Óleo
-                        </div>
-                        <p className="text-2xl font-bold mt-2">{summary.totalOil.toFixed(1)} L</p>
-                        <p className="text-xs text-amber-200 mt-1">+ {summary.lubricantCount} lubrificações</p>
-                      </div>
-
-                      {/* Horímetro */}
-                      <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-4 text-white">
-                        <div className="flex items-center gap-2 text-blue-100 text-xs font-medium uppercase">
-                          <Gauge className="w-4 h-4" />
-                          Horímetro Atual
-                        </div>
-                        <p className="text-2xl font-bold mt-2">{summary.latestHorimeter.toFixed(0)} h</p>
-                        <p className="text-xs text-blue-200 mt-1">+{summary.horimeterInterval.toFixed(0)} h no período</p>
-                      </div>
-
-                      {/* Consumo */}
-                      <div className="bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-xl p-4 text-white">
-                        <div className="flex items-center gap-2 text-emerald-100 text-xs font-medium uppercase">
-                          <Activity className="w-4 h-4" />
-                          Consumo Médio
-                        </div>
-                        <p className="text-2xl font-bold mt-2">{summary.consumption.toFixed(2)} L/h</p>
-                      </div>
-
-                      {/* OS Total */}
-                      <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl p-4 text-white">
-                        <div className="flex items-center gap-2 text-purple-100 text-xs font-medium uppercase">
-                          <Wrench className="w-4 h-4" />
-                          Ordens Serviço
-                        </div>
-                        <p className="text-2xl font-bold mt-2">{summary.osCount}</p>
-                        <p className="text-xs text-purple-200 mt-1">{summary.osCompleted} finalizadas</p>
-                      </div>
-
-                      {/* Dias Ativos */}
-                      <div className="bg-gradient-to-br from-teal-500 to-teal-600 rounded-xl p-4 text-white">
-                        <div className="flex items-center gap-2 text-teal-100 text-xs font-medium uppercase">
-                          <Calendar className="w-4 h-4" />
-                          Dias Ativos
-                        </div>
-                        <p className="text-2xl font-bold mt-2">{summary.daysWithActivity}</p>
-                        <p className="text-xs text-teal-200 mt-1">com atividade</p>
-                      </div>
-
-                      {/* Leituras */}
-                      <div className="bg-gradient-to-br from-gray-500 to-gray-600 rounded-xl p-4 text-white">
-                        <div className="flex items-center gap-2 text-gray-100 text-xs font-medium uppercase">
-                          <Clock className="w-4 h-4" />
-                          Leituras Hor.
-                        </div>
-                        <p className="text-2xl font-bold mt-2">{summary.horimeterReadingCount}</p>
-                        <p className="text-xs text-gray-200 mt-1">registros</p>
-                      </div>
-                    </div>
-                  </TabsContent>
 
                   {/* Abastecimento Tab */}
                   <TabsContent value="abastecimento" className="m-0">
@@ -1402,46 +1314,8 @@ export function VehicleHistoryModal({
                     )}
                   </TabsContent>
 
-                  <TabsContent value="manutencao" className="m-0">
-                    {serviceOrders.length === 0 ? (
-                      <div className="text-center py-12 text-muted-foreground">
-                        Nenhuma ordem de serviço no período
-                      </div>
-                    ) : (
-                      <div className="border rounded-lg overflow-hidden">
-                        <Table>
-                          <TableHeader>
-                            <TableRow className="bg-muted/50">
-                              <TableHead>OS</TableHead>
-                              <TableHead>Data</TableHead>
-                              <TableHead>Tipo</TableHead>
-                              <TableHead>Status</TableHead>
-                              <TableHead>Problema</TableHead>
-                              <TableHead>Mecânico</TableHead>
-                              <TableHead className="text-right">Hor./KM</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {serviceOrders.map((order) => (
-                              <TableRow key={order.id}>
-                                <TableCell className="font-medium">{order.order_number}</TableCell>
-                                <TableCell>{format(new Date(order.order_date), 'dd/MM/yyyy')}</TableCell>
-                                <TableCell>{order.order_type}</TableCell>
-                                <TableCell>{getStatusBadge(order.status)}</TableCell>
-                                <TableCell className="max-w-[200px] truncate">
-                                  {order.problem_description || '-'}
-                                </TableCell>
-                                <TableCell>{order.mechanic_name || '-'}</TableCell>
-                                <TableCell className="text-right">
-                                  {order.horimeter_current?.toFixed(0) || order.km_current?.toFixed(0) || '-'}
-                                </TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </div>
-                    )}
-                  </TabsContent>
+
+
                 </>
               )}
             </ScrollArea>
