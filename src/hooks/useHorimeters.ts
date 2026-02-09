@@ -801,9 +801,7 @@ export function useSheetSync() {
         const [year, month, day] = reading.reading_date.split('-');
         const formattedDate = `${day}/${month}/${year}`;
 
-        const usesKm = vehicle.category?.toLowerCase().includes('veículo') ||
-                       vehicle.category?.toLowerCase().includes('veiculo');
-
+        // Use correct column mapping: current_value=Hor, current_km=KM
         const rowData = {
           DATA: formattedDate,
           HORA: new Date(reading.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
@@ -812,10 +810,10 @@ export function useSheetSync() {
           DESCRICAO: vehicle.name || '',
           EMPRESA: vehicle.company || '',
           OPERADOR: reading.operator || '',
-          Hor_Anterior: usesKm ? '' : (reading.previous_value?.toString().replace('.', ',') || ''),
-          Hor_Atual: usesKm ? '' : reading.current_value.toString().replace('.', ','),
-          Km_Anterior: usesKm ? (reading.previous_value?.toString().replace('.', ',') || '') : '',
-          Km_Atual: usesKm ? reading.current_value.toString().replace('.', ',') : '',
+          Hor_Anterior: reading.previous_value ? reading.previous_value.toString().replace('.', ',') : '',
+          Hor_Atual: reading.current_value > 0 ? reading.current_value.toString().replace('.', ',') : '',
+          Km_Anterior: reading.previous_km ? reading.previous_km.toString().replace('.', ',') : '',
+          Km_Atual: reading.current_km && reading.current_km > 0 ? reading.current_km.toString().replace('.', ',') : '',
           OBSERVACAO: reading.observations || '',
         };
 
