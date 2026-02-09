@@ -710,7 +710,7 @@ export function FrotaPage() {
             <Button 
               variant="outline" 
               size="sm"
-              onClick={() => {
+              onClick={async () => {
                 const allVehicles = filteredRows.map(row => ({
                   codigo: getRowValue(row as any, ['CODIGO', 'Codigo', 'codigo', 'VEICULO', 'Veiculo', 'veiculo']),
                   descricao: getRowValue(row as any, ['DESCRICAO', 'DESCRIÇÃO', 'Descricao', 'descrição', 'descricao']),
@@ -718,7 +718,7 @@ export function FrotaPage() {
                   categoria: getRowValue(row as any, ['CATEGORIA', 'Categoria', 'categoria', 'TIPO', 'Tipo', 'tipo']),
                   status: getRowValue(row as any, ['STATUS', 'Status', 'status']) || 'ativo',
                 }));
-                exportEfetivoPDF(allVehicles, selectedDate, maintenanceOrders, obraSettings);
+                await exportEfetivoPDF(allVehicles, selectedDate, maintenanceOrders, obraSettings);
               }}
               className="bg-teal-50 hover:bg-teal-100 text-teal-700 border-teal-200"
             >
