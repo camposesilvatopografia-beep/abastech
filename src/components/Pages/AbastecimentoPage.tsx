@@ -81,7 +81,7 @@ import { Package2, Wrench, BarChart } from 'lucide-react';
 import { useObraSettings } from '@/hooks/useObraSettings';
 import { HorimeterCorrectionsTab } from '@/components/Abastecimento/HorimeterCorrectionsTab';
 import { VehicleConsumptionDetailTab } from '@/components/Abastecimento/VehicleConsumptionDetailTab';
-import { exportTanquesComboiosPDF, exportTanquesComboiosXLSX } from '@/components/Abastecimento/TanquesComboiosReport';
+import { exportTanquesComboiosPDF, exportTanquesComboiosXLSX, exportTanquesPDF, exportTanquesXLSX, exportComboiosPDF, exportComboiosXLSX } from '@/components/Abastecimento/TanquesComboiosReport';
 
 const TABS = [
   { id: 'painel', label: 'Painel de Estoque', icon: Package2 },
@@ -3031,20 +3031,85 @@ export function AbastecimentoPage() {
                 </Button>
               </div>
 
-              {/* Tanques / Comboios Report */}
+              {/* Tanques Report */}
+              <div className="bg-card rounded-lg border border-border p-6 space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                    <Fuel className="w-5 h-5 text-blue-500" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold">Tanques (01 e 02)</h3>
+                    <p className="text-sm text-muted-foreground">Abastecimentos nos tanques fixos</p>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button 
+                    className="flex-1 bg-blue-600 hover:bg-blue-700" 
+                    onClick={() => exportTanquesPDF(filteredRows, startDate || new Date(), obraSettings, sortByDescription)} 
+                    disabled={isExporting}
+                  >
+                    <FileText className="w-4 h-4 mr-1" />
+                    PDF
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    className="flex-1" 
+                    onClick={() => exportTanquesXLSX(filteredRows, startDate || new Date(), sortByDescription)} 
+                    disabled={isExporting}
+                  >
+                    <FileSpreadsheet className="w-4 h-4 mr-1" />
+                    Excel
+                  </Button>
+                </div>
+              </div>
+
+              {/* Comboios Report */}
               <div className="bg-card rounded-lg border border-border p-6 space-y-4">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center">
-                    <Fuel className="w-5 h-5 text-emerald-500" />
+                    <Truck className="w-5 h-5 text-emerald-500" />
                   </div>
                   <div>
-                    <h3 className="font-semibold">Tanques / Comboios</h3>
-                    <p className="text-sm text-muted-foreground">Separado por local</p>
+                    <h3 className="font-semibold">Comboios (01, 02 e 03)</h3>
+                    <p className="text-sm text-muted-foreground">Abastecimentos nos comboios móveis</p>
                   </div>
                 </div>
                 <div className="flex gap-2">
                   <Button 
                     className="flex-1 bg-emerald-600 hover:bg-emerald-700" 
+                    onClick={() => exportComboiosPDF(filteredRows, startDate || new Date(), obraSettings, sortByDescription)} 
+                    disabled={isExporting}
+                  >
+                    <FileText className="w-4 h-4 mr-1" />
+                    PDF
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    className="flex-1" 
+                    onClick={() => exportComboiosXLSX(filteredRows, startDate || new Date(), sortByDescription)} 
+                    disabled={isExporting}
+                  >
+                    <FileSpreadsheet className="w-4 h-4 mr-1" />
+                    Excel
+                  </Button>
+                </div>
+              </div>
+
+              {/* Tanques + Comboios Combined */}
+              <div className="bg-card rounded-lg border border-border p-6 space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-slate-500/10 flex items-center justify-center">
+                    <Fuel className="w-5 h-5 text-slate-500" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold">Tanques + Comboios</h3>
+                    <p className="text-sm text-muted-foreground">Relatório combinado completo</p>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button 
+                    className="flex-1" 
+                    variant="outline"
                     onClick={() => exportTanquesComboiosPDF(filteredRows, startDate || new Date(), obraSettings, sortByDescription)} 
                     disabled={isExporting}
                   >
