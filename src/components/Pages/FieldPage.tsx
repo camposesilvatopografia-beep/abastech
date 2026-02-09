@@ -3,6 +3,7 @@ import { FieldLoginPage } from '@/components/Field/FieldLoginPage';
 import { FieldFuelForm } from '@/components/Field/FieldFuelForm';
 import { FieldDashboard } from '@/components/Field/FieldDashboard';
 import { FieldHorimeterForm } from '@/components/Field/FieldHorimeterForm';
+import { FieldServiceOrderForm } from '@/components/Field/FieldServiceOrderForm';
 import { 
   LayoutDashboard, 
   Fuel, 
@@ -22,6 +23,7 @@ import {
   BellOff,
   Database,
   Clock,
+  Wrench,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
@@ -51,7 +53,7 @@ interface FieldUser {
 
 const STORAGE_KEY = 'abastech_field_user';
 
-type FieldView = 'dashboard' | 'form' | 'horimeter';
+type FieldView = 'dashboard' | 'form' | 'horimeter' | 'os';
 
 export function FieldPage() {
   const [user, setUser] = useState<FieldUser | null>(null);
@@ -523,6 +525,21 @@ export function FieldPage() {
           <Clock className="w-4 h-4" />
           <span className="text-xs font-medium">Horímetro</span>
         </Button>
+        <Button
+          variant={currentView === 'os' ? 'default' : 'ghost'}
+          className={cn(
+            "flex-1 h-11 gap-1.5 px-2",
+            currentView === 'os' 
+              ? "bg-purple-600 hover:bg-purple-700 text-white shadow-lg shadow-purple-600/30" 
+              : theme === 'dark'
+                ? "text-slate-400 hover:text-white hover:bg-slate-700"
+                : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+          )}
+          onClick={() => setCurrentView('os')}
+        >
+          <Wrench className="w-4 h-4" />
+          <span className="text-xs font-medium">OS</span>
+        </Button>
       </nav>
 
       {/* Connection Banner - Offline or Pending Sync */}
@@ -569,6 +586,11 @@ export function FieldPage() {
           />
         ) : currentView === 'horimeter' ? (
           <FieldHorimeterForm
+            user={user}
+            onBack={() => setCurrentView('dashboard')}
+          />
+        ) : currentView === 'os' ? (
+          <FieldServiceOrderForm
             user={user}
             onBack={() => setCurrentView('dashboard')}
           />
