@@ -286,7 +286,7 @@ export function HorimetrosPageDB() {
       if (dateCompare !== 0) return dateCompare;
       return (a.vehicle?.code || '').localeCompare(b.vehicle?.code || '');
     });
-  }, [readings, search, selectedDate, dateRange, categoryFilter, companyFilter, vehicleFilter]);
+  }, [readings, search, selectedDate, dateRange, categoryFilter, companyFilter, vehicleFilter, statusFilter]);
 
   // Calculate interval for each reading using values from the SAME row
   // The previous_value and current_value are ALREADY from the same spreadsheet row
