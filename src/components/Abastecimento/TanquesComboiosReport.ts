@@ -92,17 +92,17 @@ const FUEL_TABLE_HEAD = [
   'Consumo\n(L/h ou km/L)', 'Qtd Diesel\n(Litros)'
 ];
 
-// Column widths that fill 277mm landscape usable space
+// Column widths that fill 277mm landscape usable space — centered
 const FUEL_COL_STYLES: Record<number, any> = {
   0: { cellWidth: 12, halign: 'center' },
   1: { cellWidth: 28, halign: 'center' },
-  2: { cellWidth: 58, overflow: 'linebreak' },
-  3: { cellWidth: 52, overflow: 'linebreak' },
-  4: { cellWidth: 28, halign: 'right' },
-  5: { cellWidth: 28, halign: 'right' },
-  6: { cellWidth: 25, halign: 'right' },
-  7: { cellWidth: 25, halign: 'right' },
-  8: { cellWidth: 21, halign: 'right', fontStyle: 'bold' },
+  2: { cellWidth: 58, halign: 'center', overflow: 'linebreak' },
+  3: { cellWidth: 52, halign: 'center', overflow: 'linebreak' },
+  4: { cellWidth: 28, halign: 'center' },
+  5: { cellWidth: 28, halign: 'center' },
+  6: { cellWidth: 25, halign: 'center' },
+  7: { cellWidth: 25, halign: 'center' },
+  8: { cellWidth: 21, halign: 'center', fontStyle: 'bold' },
 };
 
 // ─── Header ────────────────────────────────────────────────────────────
@@ -345,20 +345,22 @@ function renderSaidasTable(doc: jsPDF, records: FuelRecord[], currentY: number, 
     theme: 'grid',
     tableWidth: USABLE_WIDTH,
     styles: {
-      fontSize: 7.5,
-      cellPadding: 2.5,
+      fontSize: 9,
+      cellPadding: 3,
       lineColor: [200, 200, 210],
       lineWidth: 0.25,
       overflow: 'linebreak',
+      halign: 'center',
+      valign: 'middle',
     },
     headStyles: {
       fillColor: [153, 27, 27],
       textColor: [255, 255, 255],
       fontStyle: 'bold',
-      fontSize: 7.5,
+      fontSize: 9,
       halign: 'center',
       valign: 'middle',
-      minCellHeight: 10,
+      minCellHeight: 11,
     },
     columnStyles: FUEL_COL_STYLES,
     margin: { left: PAGE_MARGIN, right: PAGE_MARGIN },
@@ -446,25 +448,27 @@ function renderEntradasTable(
     theme: 'grid',
     tableWidth: USABLE_WIDTH,
     styles: {
-      fontSize: 8,
-      cellPadding: 3,
+      fontSize: 9,
+      cellPadding: 3.5,
       lineColor: [200, 210, 200],
       lineWidth: 0.25,
+      halign: 'center',
+      valign: 'middle',
     },
     headStyles: {
       fillColor: [22, 101, 52],
       textColor: [255, 255, 255],
       fontStyle: 'bold',
-      fontSize: 8,
+      fontSize: 9,
       halign: 'center',
       valign: 'middle',
-      minCellHeight: 10,
+      minCellHeight: 11,
     },
     columnStyles: {
       0: { cellWidth: 18, halign: 'center' },
       1: { cellWidth: 40, halign: 'center' },
-      2: { halign: 'left' }, // auto-fill remaining
-      3: { cellWidth: 50, halign: 'right', fontStyle: 'bold' },
+      2: { halign: 'center' },
+      3: { cellWidth: 50, halign: 'center', fontStyle: 'bold' },
     },
     margin: { left: PAGE_MARGIN, right: PAGE_MARGIN },
     alternateRowStyles: { fillColor: [240, 253, 244] },
@@ -550,9 +554,6 @@ function renderTanquesPage(
   let currentY = renderHeader(doc, 'RELATÓRIO GERAL DOS TANQUES', selectedDate, obraSettings);
   const pageHeight = doc.internal.pageSize.getHeight();
 
-  // Stock summary
-  currentY = renderTanquesSummary(doc, stockData, currentY);
-
   // Separate Saídas and Entradas
   const saidas = sortRecords(fuelRecords.filter(r => !isEntradaRecord(r)), sortByDescription);
   const entradas = sortRecords(fuelRecords.filter(r => isEntradaRecord(r)), sortByDescription);
@@ -585,9 +586,6 @@ function renderComboiosPage(
 ) {
   let currentY = renderHeader(doc, 'RELATÓRIO GERAL DOS COMBOIOS', selectedDate, obraSettings);
   const pageHeight = doc.internal.pageSize.getHeight();
-
-  // Stock summary
-  currentY = renderComboiosSummary(doc, stockData, currentY);
 
   // Separate Saídas and Entradas
   const saidas = sortRecords(fuelRecords.filter(r => !isEntradaRecord(r)), sortByDescription);
