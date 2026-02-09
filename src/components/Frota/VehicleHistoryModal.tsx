@@ -1075,67 +1075,190 @@ export function VehicleHistoryModal({
                 </div>
               ) : (
                 <>
-                  {/* Timeline Tab - NEW CONSOLIDATED VIEW */}
+                  {/* Timeline Tab - DETAILED DAY-BY-DAY VIEW */}
                   <TabsContent value="timeline" className="m-0">
                     {activeDays.length === 0 ? (
                       <div className="text-center py-12 text-muted-foreground">
                         Nenhuma atividade registrada no período
                       </div>
                     ) : (
-                      <div className="border rounded-lg overflow-hidden">
-                        <Table>
-                          <TableHeader>
-                            <TableRow className="bg-red-50 dark:bg-red-950/30">
-                              {visibleColumns.map(col => (
-                                <TableHead key={col.key} className={cn(
-                                  col.key !== 'data' && col.key !== 'manutencao' && col.key !== 'operador' && "text-right"
-                                )}>
-                                  {col.label}
-                                </TableHead>
+                      <div className="space-y-3">
+                        {activeDays.map((day) => (
+                          <div key={day.dateStr} className="border rounded-lg overflow-hidden">
+                            {/* Day Header */}
+                            <div className={cn(
+                              "flex items-center justify-between px-4 py-2 font-medium text-sm",
+                              day.osCount > 0 
+                                ? "bg-amber-100 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200" 
+                                : "bg-muted/60"
+                            )}>
+                              <div className="flex items-center gap-3">
+                                <Calendar className="w-4 h-4" />
+                                <span className="font-bold">{format(day.date, "EEEE, dd/MM/yyyy", { locale: ptBR })}</span>
+                              </div>
+                              <div className="flex items-center gap-3 text-xs">
+                                {day.totalDiesel > 0 && (
+                                  <span className="flex items-center gap-1 text-red-600">
+                                    <Fuel className="w-3 h-3" /> {day.totalDiesel.toFixed(1)} L
+                                  </span>
+                                )}
+                                {day.horimeterInterval > 0 && (
+                                  <span className="flex items-center gap-1 text-emerald-600">
+                                    <Gauge className="w-3 h-3" /> +{day.horimeterInterval.toFixed(0)} h
+                                  </span>
+                                )}
+                                {day.osCount > 0 && (
+                                  <span className="flex items-center gap-1 text-amber-600">
+                                    <Wrench className="w-3 h-3" /> {day.osCount} OS
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Day Content - Individual Records */}
+                            <div className="divide-y">
+                              {/* Fuel Records */}
+                              {day.fuelRecords.map((record) => (
+                                <div key={record.id} className="px-4 py-2 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm hover:bg-muted/30">
+                                  <div className="flex items-center gap-2 min-w-[90px]">
+                                    <Fuel className="w-3.5 h-3.5 text-red-500" />
+                                    <span className="text-xs text-muted-foreground">{record.record_time?.substring(0, 5) || '--:--'}</span>
+                                    <Badge variant={record.record_type === 'saida' ? 'destructive' : 'default'} className="text-[10px] h-5">
+                                      {record.record_type === 'saida' ? 'Saída' : 'Entrada'}
+                                    </Badge>
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <span className="text-xs text-muted-foreground">Diesel:</span>
+                                    <span className="font-semibold text-red-600">{record.fuel_quantity?.toFixed(1) || '-'} L</span>
+                                  </div>
+                                  {(record.arla_quantity ?? 0) > 0 && (
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-xs text-muted-foreground">ARLA:</span>
+                                      <span className="font-medium">{record.arla_quantity?.toFixed(1)} L</span>
+                                    </div>
+                                  )}
+                                  {(record.oil_quantity ?? 0) > 0 && (
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-xs text-muted-foreground">Óleo:</span>
+                                      <span className="font-medium">{record.oil_quantity?.toFixed(1)} L</span>
+                                    </div>
+                                  )}
+                                  {record.horimeter_previous != null && (
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-xs text-muted-foreground">Hor:</span>
+                                      <span className="text-muted-foreground">{record.horimeter_previous?.toFixed(0)}</span>
+                                      <span className="text-xs">→</span>
+                                      <span className="font-medium">{record.horimeter_current?.toFixed(0)}</span>
+                                      {record.horimeter_current && record.horimeter_previous && (
+                                        <span className="text-emerald-600 text-xs font-medium">
+                                          (+{(record.horimeter_current - record.horimeter_previous).toFixed(0)})
+                                        </span>
+                                      )}
+                                    </div>
+                                  )}
+                                  {record.km_previous != null && (
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-xs text-muted-foreground">KM:</span>
+                                      <span className="text-muted-foreground">{record.km_previous?.toFixed(0)}</span>
+                                      <span className="text-xs">→</span>
+                                      <span className="font-medium">{record.km_current?.toFixed(0)}</span>
+                                      {record.km_current && record.km_previous && (
+                                        <span className="text-blue-600 text-xs font-medium">
+                                          (+{(record.km_current - record.km_previous).toFixed(0)})
+                                        </span>
+                                      )}
+                                    </div>
+                                  )}
+                                  {record.operator_name && (
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-xs text-muted-foreground">Op:</span>
+                                      <span className="text-xs truncate max-w-[100px]">{record.operator_name}</span>
+                                    </div>
+                                  )}
+                                  {record.location && (
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-xs text-muted-foreground">Local:</span>
+                                      <span className="text-xs truncate max-w-[80px]">{record.location}</span>
+                                    </div>
+                                  )}
+                                </div>
                               ))}
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {activeDays.map((day) => (
-                              <TableRow key={day.dateStr} className={cn(
-                                day.osCount > 0 && "bg-amber-50/50 dark:bg-amber-950/20"
-                              )}>
-                                {visibleColumns.map(col => (
-                                  <TableCell key={col.key} className={cn(
-                                    col.key !== 'data' && col.key !== 'manutencao' && col.key !== 'operador' && "text-right",
-                                    col.key === 'data' && "font-medium"
-                                  )}>
-                                    {col.key === 'data' && format(day.date, 'dd/MM/yyyy')}
-                                    {col.key === 'diesel' && (day.totalDiesel > 0 ? (
-                                      <span className="text-red-600 font-medium">{day.totalDiesel.toFixed(1)}</span>
-                                    ) : '-')}
-                                    {col.key === 'arla' && (day.totalArla > 0 ? day.totalArla.toFixed(1) : '-')}
-                                    {col.key === 'oleo' && (day.totalOil > 0 ? day.totalOil.toFixed(1) : '-')}
-                                    {col.key === 'horimetro' && (day.horimeterValue ? (
-                                      <span className="font-medium">{day.horimeterValue.toFixed(0)}</span>
-                                    ) : '-')}
-                                    {col.key === 'km' && (day.kmValue ? day.kmValue.toFixed(0) : '-')}
-                                    {col.key === 'intervalo' && (day.horimeterInterval > 0 ? (
-                                      <span className="text-emerald-600 font-medium">+{day.horimeterInterval.toFixed(0)}</span>
-                                    ) : '-')}
-                                    {col.key === 'os' && (day.osCount > 0 ? (
-                                      <Badge variant="outline" className="text-xs">{day.osCount}</Badge>
-                                    ) : '-')}
-                                    {col.key === 'manutencao' && (day.osStatus ? getStatusBadge(day.osStatus) : '-')}
-                                    {col.key === 'operador' && (
-                                      <span className="text-xs max-w-[100px] truncate block">
-                                        {[...new Set([
-                                          ...day.fuelRecords.map(r => r.operator_name).filter(Boolean),
-                                          ...day.horimeterReadings.map(r => r.operator).filter(Boolean),
-                                        ])][0] || '-'}
+
+                              {/* Horimeter Readings (not from fuel) */}
+                              {day.horimeterReadings.map((reading) => (
+                                <div key={reading.id} className="px-4 py-2 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm hover:bg-muted/30 bg-blue-50/30 dark:bg-blue-950/10">
+                                  <div className="flex items-center gap-2 min-w-[90px]">
+                                    <Gauge className="w-3.5 h-3.5 text-blue-500" />
+                                    <span className="text-xs font-medium text-blue-700 dark:text-blue-400">Leitura</span>
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <span className="text-xs text-muted-foreground">Hor:</span>
+                                    <span className="text-muted-foreground">{reading.previous_value?.toFixed(0) || '-'}</span>
+                                    <span className="text-xs">→</span>
+                                    <span className="font-semibold">{reading.current_value?.toFixed(0)}</span>
+                                    {reading.previous_value != null && (
+                                      <span className="text-emerald-600 text-xs font-medium">
+                                        (+{(reading.current_value - (reading.previous_value || 0)).toFixed(0)})
                                       </span>
                                     )}
-                                  </TableCell>
-                                ))}
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
+                                  </div>
+                                  {reading.current_km != null && (
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-xs text-muted-foreground">KM:</span>
+                                      <span className="text-muted-foreground">{reading.previous_km?.toFixed(0) || '-'}</span>
+                                      <span className="text-xs">→</span>
+                                      <span className="font-medium">{reading.current_km?.toFixed(0)}</span>
+                                      {reading.previous_km != null && (
+                                        <span className="text-blue-600 text-xs font-medium">
+                                          (+{(reading.current_km - (reading.previous_km || 0)).toFixed(0)})
+                                        </span>
+                                      )}
+                                    </div>
+                                  )}
+                                  {reading.operator && (
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-xs text-muted-foreground">Op:</span>
+                                      <span className="text-xs">{reading.operator}</span>
+                                    </div>
+                                  )}
+                                  {reading.observations && (
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-xs text-muted-foreground">Obs:</span>
+                                      <span className="text-xs truncate max-w-[150px]">{reading.observations}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+
+                              {/* Service Orders */}
+                              {day.serviceOrders.map((order) => (
+                                <div key={order.id} className="px-4 py-2 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm hover:bg-muted/30 bg-amber-50/30 dark:bg-amber-950/10">
+                                  <div className="flex items-center gap-2 min-w-[90px]">
+                                    <Wrench className="w-3.5 h-3.5 text-amber-500" />
+                                    <span className="font-bold text-xs">{order.order_number}</span>
+                                  </div>
+                                  {getStatusBadge(order.status)}
+                                  <div className="flex items-center gap-1">
+                                    <span className="text-xs text-muted-foreground">Tipo:</span>
+                                    <span className="text-xs">{order.order_type}</span>
+                                  </div>
+                                  {order.problem_description && (
+                                    <div className="flex items-center gap-1 flex-1 min-w-[150px]">
+                                      <span className="text-xs text-muted-foreground">Problema:</span>
+                                      <span className="text-xs truncate">{order.problem_description}</span>
+                                    </div>
+                                  )}
+                                  {order.mechanic_name && (
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-xs text-muted-foreground">Mecânico:</span>
+                                      <span className="text-xs">{order.mechanic_name}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     )}
                   </TabsContent>

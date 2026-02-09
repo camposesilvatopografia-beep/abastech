@@ -137,7 +137,7 @@ export function FrotaPage() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [groupBy, setGroupBy] = useState<'categoria' | 'empresa' | 'descricao'>('categoria');
   const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
-  const [viewMode, setViewMode] = useState<'list' | 'mobilized'>('list');
+  const [viewMode, setViewMode] = useState<'list' | 'mobilized' | 'historico'>('list');
   const { settings: obraSettings } = useObraSettings();
   
   // Layout preferences
@@ -651,6 +651,15 @@ export function FrotaPage() {
               >
                 <LayoutGrid className="w-4 h-4 sm:mr-1" />
                 <span className="hidden sm:inline">Mobilizados</span>
+              </Button>
+              <Button 
+                variant={viewMode === 'historico' ? 'default' : 'ghost'} 
+                size="sm"
+                className="rounded-none"
+                onClick={() => setViewMode('historico')}
+              >
+                <History className="w-4 h-4 sm:mr-1" />
+                <span className="hidden sm:inline">Histórico</span>
               </Button>
             </div>
             
@@ -1183,6 +1192,81 @@ export function FrotaPage() {
             )}
           </div>
         ))}
+
+        {/* Histórico View Mode */}
+        {viewMode === 'historico' && (
+          <div className="bg-card rounded-lg border border-border p-4 md:p-6 space-y-4">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center">
+                <History className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold">Histórico de Veículos / Equipamentos</h2>
+                <p className="text-sm text-muted-foreground">Selecione um veículo para visualizar seu histórico completo dia a dia</p>
+              </div>
+            </div>
+
+            {/* Search */}
+            <div className="relative max-w-md">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar por código, descrição ou empresa..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+
+            {/* Vehicle Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+              {allVehicleItems
+                .filter(v => {
+                  if (!search) return true;
+                  const q = search.toLowerCase();
+                  return v.codigo.toLowerCase().includes(q) || 
+                    v.descricao.toLowerCase().includes(q) || 
+                    v.empresa.toLowerCase().includes(q) ||
+                    v.categoria.toLowerCase().includes(q);
+                })
+                .sort((a, b) => a.codigo.localeCompare(b.codigo))
+                .map(vehicle => {
+                  const allStatuses = getAllStatusLabels();
+                  const statusInfo = allStatuses[vehicle.status?.toLowerCase() || 'ativo'] || allStatuses.ativo;
+                  return (
+                    <button
+                      key={vehicle.codigo}
+                      onClick={() => openVehicleHistory(vehicle)}
+                      className="bg-background border border-border rounded-lg p-4 text-left hover:border-primary hover:shadow-md transition-all group"
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-bold text-primary text-lg">{vehicle.codigo}</p>
+                          <p className="text-sm text-foreground truncate mt-0.5">{vehicle.descricao}</p>
+                          <p className="text-xs text-muted-foreground mt-1">{vehicle.empresa} • {vehicle.categoria}</p>
+                        </div>
+                        <History className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors shrink-0 ml-2" />
+                      </div>
+                      <div className="mt-2">
+                        <span className={cn("px-2 py-0.5 rounded-full text-xs font-medium border", statusInfo.color)}>
+                          {statusInfo.label}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
+            </div>
+
+            {allVehicleItems.filter(v => {
+              if (!search) return true;
+              const q = search.toLowerCase();
+              return v.codigo.toLowerCase().includes(q) || v.descricao.toLowerCase().includes(q) || v.empresa.toLowerCase().includes(q);
+            }).length === 0 && (
+              <div className="text-center py-12 text-muted-foreground">
+                Nenhum veículo encontrado
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Vehicle History Modal */}
