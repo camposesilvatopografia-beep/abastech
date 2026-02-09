@@ -96,6 +96,7 @@ interface DeleteConfirmation {
 export function FieldDashboard({ user, onNavigateToForm, onNavigateToFuelMenu, onNavigateToHorimeter, onNavigateToOS }: FieldDashboardProps) {
   const { theme } = useTheme();
   const navigate = useNavigate();
+  const [dashboardTab, setDashboardTab] = useState<'inicio' | 'resumo'>('inicio');
   const [todayRecords, setTodayRecords] = useState<RecentRecord[]>([]);
   const [todayStats, setTodayStats] = useState({
     totalRecords: 0,
@@ -755,50 +756,386 @@ export function FieldDashboard({ user, onNavigateToForm, onNavigateToFuelMenu, o
         </div>
       </div>
 
-      {/* Menu Cards */}
-      <div className="grid grid-cols-1 gap-3">
+      {/* Dashboard Tabs: Início / Resumo */}
+      <div className={cn(
+        "flex rounded-xl overflow-hidden border",
+        theme === 'dark' ? "border-slate-700" : "border-slate-200"
+      )}>
         <button
-          onClick={onNavigateToForm}
-          className="flex items-center gap-4 p-4 rounded-2xl bg-gradient-to-r from-emerald-500 to-emerald-700 text-white shadow-lg shadow-emerald-500/30 active:scale-[0.98] transition-transform text-left"
+          onClick={() => setDashboardTab('inicio')}
+          className={cn(
+            "flex-1 py-2.5 text-sm font-semibold transition-colors",
+            dashboardTab === 'inicio'
+              ? "bg-blue-800 text-white"
+              : theme === 'dark'
+                ? "bg-slate-800 text-slate-400 hover:bg-slate-700"
+                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+          )}
         >
-          <div className="w-14 h-14 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center shrink-0">
-            <Fuel className="w-7 h-7" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <span className="text-base font-bold block">Abastecimento</span>
-            <span className="text-xs opacity-80">Registrar abastecimento de combustível</span>
-          </div>
-          <ArrowRight className="w-5 h-5 opacity-60 shrink-0" />
+          Início
         </button>
-
         <button
-          onClick={onNavigateToHorimeter}
-          className="flex items-center gap-4 p-4 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-700 text-white shadow-lg shadow-amber-500/30 active:scale-[0.98] transition-transform text-left"
+          onClick={() => setDashboardTab('resumo')}
+          className={cn(
+            "flex-1 py-2.5 text-sm font-semibold transition-colors",
+            dashboardTab === 'resumo'
+              ? "bg-blue-800 text-white"
+              : theme === 'dark'
+                ? "bg-slate-800 text-slate-400 hover:bg-slate-700"
+                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+          )}
         >
-          <div className="w-14 h-14 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center shrink-0">
-            <Clock className="w-7 h-7" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <span className="text-base font-bold block">Horímetro</span>
-            <span className="text-xs opacity-80">Lançar leituras de horímetro e KM</span>
-          </div>
-          <ArrowRight className="w-5 h-5 opacity-60 shrink-0" />
-        </button>
-
-        <button
-          onClick={onNavigateToOS}
-          className="flex items-center gap-4 p-4 rounded-2xl bg-gradient-to-r from-purple-500 to-purple-700 text-white shadow-lg shadow-purple-500/30 active:scale-[0.98] transition-transform text-left"
-        >
-          <div className="w-14 h-14 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center shrink-0">
-            <Wrench className="w-7 h-7" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <span className="text-base font-bold block">Ordem de Serviço</span>
-            <span className="text-xs opacity-80">Abrir ou gerenciar manutenções</span>
-          </div>
-          <ArrowRight className="w-5 h-5 opacity-60 shrink-0" />
+          Resumo
         </button>
       </div>
+
+      {dashboardTab === 'inicio' ? (
+        <>
+          {/* Menu Cards */}
+          <div className="grid grid-cols-1 gap-3">
+            <button
+              onClick={onNavigateToForm}
+              className="flex items-center gap-4 p-4 rounded-2xl bg-gradient-to-r from-emerald-500 to-emerald-700 text-white shadow-lg shadow-emerald-500/30 active:scale-[0.98] transition-transform text-left"
+            >
+              <div className="w-14 h-14 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center shrink-0">
+                <Fuel className="w-7 h-7" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <span className="text-base font-bold block">Abastecimento</span>
+                <span className="text-xs opacity-80">Registrar abastecimento de combustível</span>
+              </div>
+              <ArrowRight className="w-5 h-5 opacity-60 shrink-0" />
+            </button>
+
+            <button
+              onClick={onNavigateToHorimeter}
+              className="flex items-center gap-4 p-4 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-700 text-white shadow-lg shadow-amber-500/30 active:scale-[0.98] transition-transform text-left"
+            >
+              <div className="w-14 h-14 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center shrink-0">
+                <Clock className="w-7 h-7" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <span className="text-base font-bold block">Horímetro</span>
+                <span className="text-xs opacity-80">Lançar leituras de horímetro e KM</span>
+              </div>
+              <ArrowRight className="w-5 h-5 opacity-60 shrink-0" />
+            </button>
+
+            <button
+              onClick={onNavigateToOS}
+              className="flex items-center gap-4 p-4 rounded-2xl bg-gradient-to-r from-purple-500 to-purple-700 text-white shadow-lg shadow-purple-500/30 active:scale-[0.98] transition-transform text-left"
+            >
+              <div className="w-14 h-14 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center shrink-0">
+                <Wrench className="w-7 h-7" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <span className="text-base font-bold block">Ordem de Serviço</span>
+                <span className="text-xs opacity-80">Abrir ou gerenciar manutenções</span>
+              </div>
+              <ArrowRight className="w-5 h-5 opacity-60 shrink-0" />
+            </button>
+          </div>
+
+          {/* PWA Install Banner for Mobile */}
+          {showInstallButton && !isStandalone && (
+            <div 
+              className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl p-3 text-white cursor-pointer hover:opacity-90 transition-opacity"
+              onClick={() => navigate('/apontamento/instalar')}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-white/20 rounded-lg">
+                    <Download className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-sm">Instalar App</p>
+                    <p className="text-xs opacity-80">Acesso rápido e offline</p>
+                  </div>
+                </div>
+                <ArrowRight className="w-5 h-5" />
+              </div>
+            </div>
+          )}
+        </>
+      ) : (
+        <>
+          {/* Today's Stats Summary */}
+          <div className={cn(
+            "rounded-xl p-4 border",
+            theme === 'dark' 
+              ? "bg-slate-800/80 border-slate-700" 
+              : "bg-white border-slate-200 shadow-sm"
+          )}>
+            <div className="grid grid-cols-3 gap-3 text-center">
+              <div>
+                <p className={cn("text-2xl font-bold", theme === 'dark' ? "text-white" : "text-slate-800")}>{todayStats.totalRecords}</p>
+                <p className="text-xs text-muted-foreground">Registros</p>
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-red-500">{todayStats.totalLiters.toLocaleString('pt-BR')}L</p>
+                <p className="text-xs text-muted-foreground">Combustível</p>
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-cyan-500">{todayStats.totalArla.toLocaleString('pt-BR')}L</p>
+                <p className="text-xs text-muted-foreground">ARLA</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Location Selector for Multiple Locations */}
+          {hasMultipleLocations && (
+            <div className={cn(
+              "rounded-xl p-4 border",
+              theme === 'dark' 
+                ? "bg-slate-800/80 border-slate-700" 
+                : "bg-white border-slate-200 shadow-sm"
+            )}>
+              <div className="flex items-center gap-2 mb-3">
+                <MapPin className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                <span className={cn(
+                  "text-sm font-medium",
+                  theme === 'dark' ? "text-slate-200" : "text-slate-700"
+                )}>Visualizar Estoque por Local</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {user.assigned_locations?.map((loc) => (
+                  <Button
+                    key={loc}
+                    variant={selectedLocation === loc ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setSelectedLocation(loc)}
+                    className={cn(
+                      "text-xs",
+                      selectedLocation === loc 
+                        ? "bg-blue-800 hover:bg-blue-900 text-white border-blue-800"
+                        : theme === 'dark'
+                          ? "border-slate-600 text-slate-300 hover:bg-slate-700"
+                          : "border-slate-300 text-slate-600 hover:bg-slate-100"
+                    )}
+                  >
+                    {loc}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Stock KPIs - Show only selected location or all */}
+          {user.assigned_locations && user.assigned_locations.length > 0 && (
+            <div className="space-y-3">
+              {hasMultipleLocations ? (
+                <LocationStockCard 
+                  key={selectedLocation} 
+                  location={selectedLocation}
+                  localRecordKPIs={getLocalKPIsForLocation(selectedLocation)}
+                  ref={(el) => {
+                    if (el) stockCardRefs.current.set(selectedLocation, el);
+                  }}
+                />
+              ) : (
+                user.assigned_locations.map((location) => (
+                  <LocationStockCard 
+                    key={location} 
+                    location={location}
+                    localRecordKPIs={getLocalKPIsForLocation(location)}
+                    ref={(el) => {
+                      if (el) stockCardRefs.current.set(location, el);
+                    }}
+                  />
+                ))
+              )}
+            </div>
+          )}
+
+          {/* Today's Records List */}
+          <Card className={cn(
+            theme === 'dark' 
+              ? "bg-slate-800/50 border-slate-700" 
+              : "bg-white border-slate-200 shadow-sm"
+          )}>
+            <CardHeader className="pb-2">
+              <CardTitle className={cn(
+                "text-sm flex items-center gap-2",
+                theme === 'dark' ? "text-slate-200" : "text-slate-700"
+              )}>
+                <Clock className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                Registros do Dia
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
+              {isLoading ? (
+                <div className={cn(
+                  "flex items-center justify-center py-6",
+                  theme === 'dark' ? "text-slate-400" : "text-slate-500"
+                )}>
+                  <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                  Carregando...
+                </div>
+              ) : todayRecords.length === 0 ? (
+                <div className={cn(
+                  "text-center py-6",
+                  theme === 'dark' ? "text-slate-400" : "text-slate-500"
+                )}>
+                  <FileText className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                  <p>Nenhum registro hoje</p>
+                  <p className="text-xs mt-1">Clique em "Abastecimento" para começar</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {todayRecords.map((record) => (
+                    <div 
+                      key={record.id} 
+                      className={cn(
+                        "p-3 rounded-lg border transition-all",
+                        record.record_type === 'entrada' 
+                          ? theme === 'dark' 
+                            ? "bg-green-900/30 border-green-700/50"
+                            : "bg-green-50 border-green-200"
+                          : theme === 'dark'
+                            ? "bg-red-900/20 border-red-800/40"
+                            : "bg-red-50 border-red-200"
+                      )}
+                    >
+                      {/* Header Row: Vehicle, Quantity, Actions */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 flex-1">
+                          {record.record_type === 'entrada' ? (
+                            <TrendingUp className="w-4 h-4 text-green-500 flex-shrink-0" />
+                          ) : (
+                            <TrendingDown className="w-4 h-4 text-red-500 flex-shrink-0" />
+                          )}
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <p className={cn(
+                              "text-sm font-bold",
+                              theme === 'dark' ? "text-slate-200" : "text-slate-700"
+                            )}>{record.vehicle_code}</p>
+                            {record.vehicle_code.toUpperCase().startsWith('CC') && record.record_type !== 'entrada' && (
+                              record.observations?.includes('[ABAST. TANQUE COMBOIO]') ? (
+                                <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 bg-orange-500/20 text-orange-500 border-orange-500/50">
+                                  <Fuel className="w-2.5 h-2.5 mr-0.5" />
+                                  Tanque
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 bg-blue-500/20 text-blue-500 border-blue-500/50">
+                                  <Truck className="w-2.5 h-2.5 mr-0.5" />
+                                  Próprio
+                                </Badge>
+                              )
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="text-right">
+                            <p className={cn(
+                              "text-sm font-bold",
+                              record.record_type === 'entrada' ? "text-green-500" : "text-red-500"
+                            )}>
+                              {record.record_type === 'entrada' ? '+' : '-'}{record.fuel_quantity}L
+                            </p>
+                          </div>
+                          <div className="flex gap-1">
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className={cn(
+                                "h-7 w-7",
+                                theme === 'dark' 
+                                  ? "text-slate-400 hover:text-blue-400 hover:bg-blue-900/30"
+                                  : "text-slate-500 hover:text-blue-500 hover:bg-blue-50"
+                              )}
+                              onClick={() => setEditRecord(record)}
+                              title="Solicitar edição"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className={cn(
+                                "h-7 w-7",
+                                theme === 'dark' 
+                                  ? "text-slate-400 hover:text-red-400 hover:bg-red-900/30"
+                                  : "text-slate-500 hover:text-red-500 hover:bg-red-50"
+                              )}
+                              onClick={() => setDeleteConfirmation({
+                                recordId: record.id,
+                                vehicleCode: record.vehicle_code,
+                                quantity: record.fuel_quantity,
+                                reason: '',
+                              })}
+                              title="Excluir registro"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Detail Rows */}
+                      <div className={cn(
+                        "mt-2 pt-2 border-t grid grid-cols-2 gap-x-4 gap-y-1 text-xs",
+                        theme === 'dark' ? "border-slate-600/50" : "border-slate-300/50"
+                      )}>
+                        <div className="flex items-center gap-1">
+                          <Clock className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+                          <span className="text-muted-foreground">{formatTime(record.record_time)}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <MapPin className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+                          <span className="text-muted-foreground truncate">{record.location || '-'}</span>
+                        </div>
+                        {(record.horimeter_current || record.km_current) && (
+                          <>
+                            {record.horimeter_current ? (
+                              <div className="flex items-center gap-1">
+                                <span className="text-amber-600 dark:text-amber-400 font-medium">Hor:</span>
+                                <span className={theme === 'dark' ? "text-slate-300" : "text-slate-600"}>
+                                  {record.horimeter_current.toLocaleString('pt-BR')}h
+                                </span>
+                              </div>
+                            ) : <div />}
+                            {record.km_current ? (
+                              <div className="flex items-center gap-1">
+                                <span className="text-blue-600 dark:text-blue-400 font-medium">Km:</span>
+                                <span className={theme === 'dark' ? "text-slate-300" : "text-slate-600"}>
+                                  {record.km_current.toLocaleString('pt-BR')}
+                                </span>
+                              </div>
+                            ) : <div />}
+                          </>
+                        )}
+                        {record.operator_name && (
+                          <div className="flex items-center gap-1 col-span-2">
+                            <span className="text-muted-foreground">Operador:</span>
+                            <span className={cn(
+                              "font-medium truncate",
+                              theme === 'dark' ? "text-slate-300" : "text-slate-600"
+                            )}>{record.operator_name}</span>
+                          </div>
+                        )}
+                        {record.arla_quantity && record.arla_quantity > 0 && (
+                          <div className="flex items-center gap-1">
+                            <Package className="w-3 h-3 text-cyan-500 flex-shrink-0" />
+                            <span className="text-cyan-600 dark:text-cyan-400 font-medium">ARLA: {record.arla_quantity}L</span>
+                          </div>
+                        )}
+                        {record.observations && !record.observations.startsWith('[ABAST.') && !record.observations.startsWith('[CARREGAR') && (
+                          <div className="col-span-2 mt-1">
+                            <span className="text-muted-foreground italic truncate block">
+                              "{record.observations}"
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </>
+      )}
+
       {/* Visual Update Indicator - Blinking Banner */}
       {showUpdatePulse && (
         <div className="fixed top-0 left-0 right-0 z-50 animate-pulse">
@@ -811,7 +1148,8 @@ export function FieldDashboard({ user, onNavigateToForm, onNavigateToFuelMenu, o
           </div>
         </div>
       )}
-      {/* Direct Delete Confirmation Dialog with Step-by-Step Feedback */}
+
+      {/* Direct Delete Confirmation Dialog */}
       <AlertDialog open={!!deleteConfirmation} onOpenChange={() => !isDeleting && setDeleteConfirmation(null)}>
         <AlertDialogContent className="bg-card border-red-600/30">
           <AlertDialogHeader>
@@ -828,7 +1166,6 @@ export function FieldDashboard({ user, onNavigateToForm, onNavigateToFuelMenu, o
                 </>
               ) : (
                 <div className="space-y-3 mt-2">
-                  {/* Step 1: Database */}
                   <div className={`flex items-center gap-3 p-3 rounded-lg border transition-all ${
                     deletionStep === 'db' 
                       ? 'bg-blue-500/10 border-blue-500/50' 
@@ -853,8 +1190,6 @@ export function FieldDashboard({ user, onNavigateToForm, onNavigateToFuelMenu, o
                        'Excluir do banco de dados'}
                     </span>
                   </div>
-
-                  {/* Step 2: Google Sheets */}
                   <div className={`flex items-center gap-3 p-3 rounded-lg border transition-all ${
                     deletionStep === 'sheet'
                       ? 'bg-blue-500/10 border-blue-500/50'
@@ -911,312 +1246,6 @@ export function FieldDashboard({ user, onNavigateToForm, onNavigateToFuelMenu, o
         onClose={() => setEditRecord(null)}
         onSuccess={refreshRecords}
       />
-
-      {/* PWA Install Banner for Mobile */}
-      {showInstallButton && !isStandalone && (
-        <div 
-          className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl p-3 text-white cursor-pointer hover:opacity-90 transition-opacity"
-          onClick={() => navigate('/apontamento/instalar')}
-        >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-white/20 rounded-lg">
-                <Download className="w-5 h-5" />
-              </div>
-              <div>
-                <p className="font-semibold text-sm">Instalar App</p>
-                <p className="text-xs opacity-80">Acesso rápido e offline</p>
-              </div>
-            </div>
-            <ArrowRight className="w-5 h-5" />
-          </div>
-        </div>
-      )}
-
-      {/* Today's Stats Summary */}
-      <div className={cn(
-        "rounded-xl p-4 border",
-        theme === 'dark' 
-          ? "bg-slate-800/80 border-slate-700" 
-          : "bg-white border-slate-200 shadow-sm"
-      )}>
-        <div className="grid grid-cols-3 gap-3 text-center">
-          <div>
-            <p className={cn("text-2xl font-bold", theme === 'dark' ? "text-white" : "text-slate-800")}>{todayStats.totalRecords}</p>
-            <p className="text-xs text-muted-foreground">Registros</p>
-          </div>
-          <div>
-            <p className="text-2xl font-bold text-red-500">{todayStats.totalLiters.toLocaleString('pt-BR')}L</p>
-            <p className="text-xs text-muted-foreground">Combustível</p>
-          </div>
-          <div>
-            <p className="text-2xl font-bold text-cyan-500">{todayStats.totalArla.toLocaleString('pt-BR')}L</p>
-            <p className="text-xs text-muted-foreground">ARLA</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Location Selector for Multiple Locations */}
-      {hasMultipleLocations && (
-        <div className={cn(
-          "rounded-xl p-4 border",
-          theme === 'dark' 
-            ? "bg-slate-800/80 border-slate-700" 
-            : "bg-white border-slate-200 shadow-sm"
-        )}>
-          <div className="flex items-center gap-2 mb-3">
-            <MapPin className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-            <span className={cn(
-              "text-sm font-medium",
-              theme === 'dark' ? "text-slate-200" : "text-slate-700"
-            )}>Visualizar Estoque por Local</span>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {user.assigned_locations?.map((loc) => (
-              <Button
-                key={loc}
-                variant={selectedLocation === loc ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setSelectedLocation(loc)}
-                className={cn(
-                  "text-xs",
-                  selectedLocation === loc 
-                    ? "bg-blue-800 hover:bg-blue-900 text-white border-blue-800"
-                    : theme === 'dark'
-                      ? "border-slate-600 text-slate-300 hover:bg-slate-700"
-                      : "border-slate-300 text-slate-600 hover:bg-slate-100"
-                )}
-              >
-                {loc}
-              </Button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Stock KPIs - Show only selected location or all */}
-      {user.assigned_locations && user.assigned_locations.length > 0 && (
-        <div className="space-y-3">
-          {hasMultipleLocations ? (
-            <LocationStockCard 
-              key={selectedLocation} 
-              location={selectedLocation}
-              localRecordKPIs={getLocalKPIsForLocation(selectedLocation)}
-              ref={(el) => {
-                if (el) stockCardRefs.current.set(selectedLocation, el);
-              }}
-            />
-          ) : (
-            user.assigned_locations.map((location) => (
-              <LocationStockCard 
-                key={location} 
-                location={location}
-                localRecordKPIs={getLocalKPIsForLocation(location)}
-                ref={(el) => {
-                  if (el) stockCardRefs.current.set(location, el);
-                }}
-              />
-            ))
-          )}
-        </div>
-      )}
-
-      {/* Today's Records List */}
-      <Card className={cn(
-        theme === 'dark' 
-          ? "bg-slate-800/50 border-slate-700" 
-          : "bg-white border-slate-200 shadow-sm"
-      )}>
-        <CardHeader className="pb-2">
-          <CardTitle className={cn(
-            "text-sm flex items-center gap-2",
-            theme === 'dark' ? "text-slate-200" : "text-slate-700"
-          )}>
-            <Clock className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-            Registros do Dia
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="pt-0">
-          {isLoading ? (
-            <div className={cn(
-              "flex items-center justify-center py-6",
-              theme === 'dark' ? "text-slate-400" : "text-slate-500"
-            )}>
-              <Loader2 className="w-5 h-5 animate-spin mr-2" />
-              Carregando...
-            </div>
-          ) : todayRecords.length === 0 ? (
-            <div className={cn(
-              "text-center py-6",
-              theme === 'dark' ? "text-slate-400" : "text-slate-500"
-            )}>
-              <FileText className="w-8 h-8 mx-auto mb-2 opacity-50" />
-              <p>Nenhum registro hoje</p>
-              <p className="text-xs mt-1">Clique em "Novo Apontamento" para começar</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {todayRecords.map((record) => (
-                <div 
-                  key={record.id} 
-                  className={cn(
-                    "p-3 rounded-lg border transition-all",
-                    record.record_type === 'entrada' 
-                      ? theme === 'dark' 
-                        ? "bg-green-900/30 border-green-700/50"
-                        : "bg-green-50 border-green-200"
-                      : theme === 'dark'
-                        ? "bg-red-900/20 border-red-800/40"
-                        : "bg-red-50 border-red-200"
-                  )}
-                >
-                  {/* Header Row: Vehicle, Quantity, Actions */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 flex-1">
-                      {record.record_type === 'entrada' ? (
-                        <TrendingUp className="w-4 h-4 text-green-500 flex-shrink-0" />
-                      ) : (
-                        <TrendingDown className="w-4 h-4 text-red-500 flex-shrink-0" />
-                      )}
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <p className={cn(
-                          "text-sm font-bold",
-                          theme === 'dark' ? "text-slate-200" : "text-slate-700"
-                        )}>{record.vehicle_code}</p>
-                        {/* Badge for Comboio vehicles */}
-                        {record.vehicle_code.toUpperCase().startsWith('CC') && record.record_type !== 'entrada' && (
-                          record.observations?.includes('[ABAST. TANQUE COMBOIO]') ? (
-                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 bg-orange-500/20 text-orange-500 border-orange-500/50">
-                              <Fuel className="w-2.5 h-2.5 mr-0.5" />
-                              Tanque
-                            </Badge>
-                          ) : (
-                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 bg-blue-500/20 text-blue-500 border-blue-500/50">
-                              <Truck className="w-2.5 h-2.5 mr-0.5" />
-                              Próprio
-                            </Badge>
-                          )
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="text-right">
-                        <p className={cn(
-                          "text-sm font-bold",
-                          record.record_type === 'entrada' ? "text-green-500" : "text-red-500"
-                        )}>
-                          {record.record_type === 'entrada' ? '+' : '-'}{record.fuel_quantity}L
-                        </p>
-                      </div>
-                      <div className="flex gap-1">
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className={cn(
-                            "h-7 w-7",
-                            theme === 'dark' 
-                              ? "text-slate-400 hover:text-blue-400 hover:bg-blue-900/30"
-                              : "text-slate-500 hover:text-blue-500 hover:bg-blue-50"
-                          )}
-                          onClick={() => setEditRecord(record)}
-                          title="Solicitar edição"
-                        >
-                          <Edit2 className="w-3.5 h-3.5" />
-                        </Button>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className={cn(
-                            "h-7 w-7",
-                            theme === 'dark' 
-                              ? "text-slate-400 hover:text-red-400 hover:bg-red-900/30"
-                              : "text-slate-500 hover:text-red-500 hover:bg-red-50"
-                          )}
-                          onClick={() => setDeleteConfirmation({
-                            recordId: record.id,
-                            vehicleCode: record.vehicle_code,
-                            quantity: record.fuel_quantity,
-                            reason: '',
-                          })}
-                          title="Excluir registro"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Detail Rows */}
-                  <div className={cn(
-                    "mt-2 pt-2 border-t grid grid-cols-2 gap-x-4 gap-y-1 text-xs",
-                    theme === 'dark' ? "border-slate-600/50" : "border-slate-300/50"
-                  )}>
-                    {/* Time & Location */}
-                    <div className="flex items-center gap-1">
-                      <Clock className="w-3 h-3 text-muted-foreground flex-shrink-0" />
-                      <span className="text-muted-foreground">{formatTime(record.record_time)}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <MapPin className="w-3 h-3 text-muted-foreground flex-shrink-0" />
-                      <span className="text-muted-foreground truncate">{record.location || '-'}</span>
-                    </div>
-
-                    {/* Horimeter / KM */}
-                    {(record.horimeter_current || record.km_current) && (
-                      <>
-                        {record.horimeter_current ? (
-                          <div className="flex items-center gap-1">
-                            <span className="text-amber-600 dark:text-amber-400 font-medium">Hor:</span>
-                            <span className={theme === 'dark' ? "text-slate-300" : "text-slate-600"}>
-                              {record.horimeter_current.toLocaleString('pt-BR')}h
-                            </span>
-                          </div>
-                        ) : <div />}
-                        {record.km_current ? (
-                          <div className="flex items-center gap-1">
-                            <span className="text-blue-600 dark:text-blue-400 font-medium">Km:</span>
-                            <span className={theme === 'dark' ? "text-slate-300" : "text-slate-600"}>
-                              {record.km_current.toLocaleString('pt-BR')}
-                            </span>
-                          </div>
-                        ) : <div />}
-                      </>
-                    )}
-
-                    {/* Operator */}
-                    {record.operator_name && (
-                      <div className="flex items-center gap-1 col-span-2">
-                        <span className="text-muted-foreground">Operador:</span>
-                        <span className={cn(
-                          "font-medium truncate",
-                          theme === 'dark' ? "text-slate-300" : "text-slate-600"
-                        )}>{record.operator_name}</span>
-                      </div>
-                    )}
-
-                    {/* ARLA */}
-                    {record.arla_quantity && record.arla_quantity > 0 && (
-                      <div className="flex items-center gap-1">
-                        <Package className="w-3 h-3 text-cyan-500 flex-shrink-0" />
-                        <span className="text-cyan-600 dark:text-cyan-400 font-medium">ARLA: {record.arla_quantity}L</span>
-                      </div>
-                    )}
-
-                    {/* Observations (excluding internal tags) */}
-                    {record.observations && !record.observations.startsWith('[ABAST.') && (
-                      <div className="col-span-2 mt-1">
-                        <span className="text-muted-foreground italic truncate block">
-                          "{record.observations}"
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
     </div>
   );
 }
