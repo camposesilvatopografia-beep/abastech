@@ -28,6 +28,9 @@ import {
   Trash2,
   Zap,
   Smartphone,
+  Monitor,
+  Share2,
+  ExternalLink,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -64,6 +67,11 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 
 interface RequiredFields {
   horimeter_current: boolean;
@@ -737,16 +745,101 @@ export function FieldUsersPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Link to="/apontamento/instalar" target="_blank">
-              <Button 
-                variant="ghost"
-                size="sm"
-                className="gap-2 text-primary-foreground hover:bg-primary-foreground/20"
-              >
-                <Smartphone className="w-4 h-4" />
-                <span className="hidden sm:inline">Instalar App</span>
-              </Button>
-            </Link>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button 
+                  variant="ghost"
+                  size="sm"
+                  className="gap-2 text-primary-foreground hover:bg-primary-foreground/20"
+                >
+                  <Share2 className="w-4 h-4" />
+                  <span className="hidden sm:inline">Links de Instalação</span>
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-80" align="end">
+                <div className="space-y-4">
+                  <h4 className="font-semibold text-sm">Links de Instalação do App</h4>
+                  
+                  {/* Mobile PWA */}
+                  <div className="space-y-2">
+                    <Label className="text-xs font-medium flex items-center gap-1.5">
+                      <Smartphone className="w-3.5 h-3.5" />
+                      App Mobile (Campo)
+                    </Label>
+                    <div className="flex items-center gap-1.5">
+                      <Input 
+                        readOnly 
+                        value="https://abastech.lovable.app/apontamento/instalar" 
+                        className="text-xs h-8 bg-muted"
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 px-2 shrink-0"
+                        onClick={() => {
+                          navigator.clipboard.writeText('https://abastech.lovable.app/apontamento/instalar');
+                          toast.success('Link mobile copiado!');
+                        }}
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                      </Button>
+                      <Link to="/apontamento/instalar" target="_blank">
+                        <Button variant="outline" size="sm" className="h-8 px-2 shrink-0">
+                          <ExternalLink className="w-3.5 h-3.5" />
+                        </Button>
+                      </Link>
+                    </div>
+                  </div>
+                  
+                  {/* Desktop PWA */}
+                  <div className="space-y-2">
+                    <Label className="text-xs font-medium flex items-center gap-1.5">
+                      <Monitor className="w-3.5 h-3.5" />
+                      App Desktop (Admin)
+                    </Label>
+                    <div className="flex items-center gap-1.5">
+                      <Input 
+                        readOnly 
+                        value="https://abastech.lovable.app/instalar" 
+                        className="text-xs h-8 bg-muted"
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 px-2 shrink-0"
+                        onClick={() => {
+                          navigator.clipboard.writeText('https://abastech.lovable.app/instalar');
+                          toast.success('Link desktop copiado!');
+                        }}
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                      </Button>
+                      <Link to="/instalar" target="_blank">
+                        <Button variant="outline" size="sm" className="h-8 px-2 shrink-0">
+                          <ExternalLink className="w-3.5 h-3.5" />
+                        </Button>
+                      </Link>
+                    </div>
+                  </div>
+
+                  {/* WhatsApp share */}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full gap-2 text-xs"
+                    onClick={() => {
+                      const msg = encodeURIComponent(
+                        '📱 Instale o app Abastech no celular:\nhttps://abastech.lovable.app/apontamento/instalar\n\n🖥️ Instale no computador:\nhttps://abastech.lovable.app/instalar'
+                      );
+                      window.open(`https://wa.me/?text=${msg}`, '_blank');
+                    }}
+                  >
+                    <MessageCircle className="w-3.5 h-3.5" />
+                    Compartilhar via WhatsApp
+                  </Button>
+                </div>
+              </PopoverContent>
+            </Popover>
             <Button 
               onClick={openBulkApplyModal} 
               variant="ghost"
