@@ -144,6 +144,7 @@ export function DatabaseHorimeterModal({
   const [fetchingPrevious, setFetchingPrevious] = useState(false);
 
   // Fetch previous values from all sources when vehicle changes
+  // Same logic as Abastecimento: fetch from AbastecimentoCanteiro01, Horimetros sheet, DB tables
   useEffect(() => {
     if (!selectedVehicleId || isEditMode) return;
     
@@ -153,10 +154,79 @@ export function DatabaseHorimeterModal({
     let cancelled = false;
     setFetchingPrevious(true);
 
+    const normalizeVehicleCode = (v: any) =>
+      String(v ?? '')
+        .replace(/\u00A0/g, ' ')
+        .trim()
+        .toUpperCase()
+        .replace(/[–—]/g, '-')
+        .replace(/\s+/g, '');
+
+    const normalizeKey = (k: string) =>
+      k.trim().toUpperCase().normalize('NFD').replace(/\p{Diacritic}/gu, '').replace(/\s+/g, ' ');
+
+    const getByNormalizedKey = (row: Record<string, any>, wanted: string[]) => {
+      const wantedSet = new Set(wanted.map(normalizeKey));
+      for (const [k, v] of Object.entries(row)) {
+        if (wantedSet.has(normalizeKey(k))) return v;
+      }
+      return undefined;
+    };
+
+    const parseSheetDateTime = (rawDate: any, rawTime?: any): Date | null => {
+      const toDateFromSerial = (serial: number): Date => {
+        const utcMs = (serial - 25569) * 86400 * 1000;
+        return new Date(utcMs);
+      };
+
+      let base: Date | null = null;
+
+      if (typeof rawDate === 'number' && Number.isFinite(rawDate)) {
+        base = toDateFromSerial(rawDate);
+      } else {
+        const dateStr = String(rawDate ?? '').trim();
+        if (!dateStr) return null;
+
+        if (/^\d+(\.\d+)?$/.test(dateStr)) {
+          const serial = Number(dateStr);
+          if (Number.isFinite(serial)) base = toDateFromSerial(serial);
+        } else if (dateStr.includes('/')) {
+          const [day, month, year] = dateStr.split('/').map((n) => Number(n));
+          if (!day || !month || !year) return null;
+          base = new Date(year, month - 1, day, 12, 0, 0);
+        } else {
+          const parsed = new Date(dateStr);
+          if (Number.isNaN(parsed.getTime())) return null;
+          base = new Date(parsed);
+        }
+      }
+
+      if (!base || Number.isNaN(base.getTime())) return null;
+      base.setHours(12, 0, 0, 0);
+
+      if (typeof rawTime === 'number' && Number.isFinite(rawTime) && rawTime >= 0 && rawTime < 1) {
+        const totalMinutes = Math.round(rawTime * 24 * 60);
+        const h = Math.floor(totalMinutes / 60);
+        const m = totalMinutes % 60;
+        base.setHours(h, m, 0, 0);
+      } else {
+        const timeStr = String(rawTime ?? '').trim();
+        if (timeStr) {
+          const parts = timeStr.split(':');
+          const h = Number(parts[0]);
+          const m = Number(parts[1] ?? 0);
+          if (!Number.isNaN(h)) base.setHours(h || 0, m || 0, 0, 0);
+        }
+      }
+
+      return Number.isNaN(base.getTime()) ? null : base;
+    };
+
     const fetchAllSources = async () => {
       let bestHor = 0;
       let bestKm = 0;
-      let bestDate = '';
+      const vehicleCode = vehicle.code;
+      const targetCode = normalizeVehicleCode(vehicleCode);
 
       // 1) From horimeter_readings (DB)
       const dbReading = readings
@@ -168,51 +238,72 @@ export function DatabaseHorimeterModal({
         })[0];
 
       if (dbReading) {
-        if (dbReading.current_value > 0) { bestHor = dbReading.current_value; bestDate = dbReading.reading_date; }
-        if ((dbReading as any).current_km > 0) { bestKm = (dbReading as any).current_km; }
+        if (dbReading.current_value > 0) bestHor = dbReading.current_value;
+        if ((dbReading as any).current_km > 0) bestKm = (dbReading as any).current_km;
       }
 
       // 2) From field_fuel_records (DB)
       try {
-        const vehicleCode = vehicle.code;
         const { data: fuelRecords } = await supabase
           .from('field_fuel_records')
-          .select('record_date, horimeter_current, km_current')
+          .select('record_date, record_time, horimeter_current, km_current')
           .eq('vehicle_code', vehicleCode)
           .order('record_date', { ascending: false })
+          .order('record_time', { ascending: false })
           .limit(1);
 
         if (fuelRecords?.[0]) {
           const fr = fuelRecords[0];
-          if (fr.record_date >= bestDate || bestDate === '') {
-            if (fr.horimeter_current && fr.horimeter_current > bestHor) {
-              bestHor = fr.horimeter_current;
-              bestDate = fr.record_date;
-            }
-            if (fr.km_current && fr.km_current > bestKm) {
-              bestKm = fr.km_current;
-            }
-          }
+          if (fr.horimeter_current && fr.horimeter_current > bestHor) bestHor = fr.horimeter_current;
+          if (fr.km_current && fr.km_current > bestKm) bestKm = fr.km_current;
         }
       } catch (e) {
         console.error('Error fetching fuel records for previous:', e);
       }
 
-      // 3) From Google Sheets "Horimetros"
+      // 3) From Google Sheets "AbastecimentoCanteiro01" (same source as Abastecimento module)
+      try {
+        const sheetData = await getSheetData('AbastecimentoCanteiro01', { noCache: true });
+        const rows = sheetData.rows || [];
+
+        const vehicleRecords = rows
+          .filter((row) => {
+            const rowVehicleRaw = getByNormalizedKey(row as any, ['VEICULO', 'VEÍCULO', 'CODIGO', 'CÓDIGO', 'COD']);
+            return normalizeVehicleCode(rowVehicleRaw) === targetCode;
+          })
+          .map((row) => {
+            const dateRaw = getByNormalizedKey(row as any, ['DATA', 'DATE']);
+            const timeRaw = getByNormalizedKey(row as any, ['HORA', 'TIME']);
+            const dateTime = parseSheetDateTime(dateRaw, timeRaw);
+            const horAtual = parsePtBRNumber(String(getByNormalizedKey(row as any, ['HORIMETRO ATUAL', 'HORIMETRO ATUA', 'HOR_ATUAL', 'HORIMETRO']) || '0'));
+            const kmAtual = parsePtBRNumber(String(getByNormalizedKey(row as any, ['KM ATUAL', 'KM_ATUAL', 'KM']) || '0'));
+            return { dateTime, horValue: horAtual, kmValue: kmAtual, rowIndex: (row as any)._rowIndex ?? 0 };
+          })
+          .filter((r) => !!r.dateTime && (r.horValue > 0 || r.kmValue > 0))
+          .sort((a, b) => {
+            const aTime = a.dateTime?.getTime() ?? 0;
+            const bTime = b.dateTime?.getTime() ?? 0;
+            if (aTime !== bTime) return bTime - aTime;
+            return (b.rowIndex || 0) - (a.rowIndex || 0);
+          });
+
+        if (vehicleRecords.length > 0) {
+          const mostRecent = vehicleRecords[0];
+          if (mostRecent.horValue > bestHor) bestHor = mostRecent.horValue;
+          if (mostRecent.kmValue > bestKm) bestKm = mostRecent.kmValue;
+        }
+      } catch (e) {
+        console.error('Error fetching AbastecimentoCanteiro01 for previous:', e);
+      }
+
+      // 4) From Google Sheets "Horimetros"
       try {
         const sheetData = await getSheetData('Horimetros', { noCache: false });
-        const vehicleCode = vehicle.code;
         const normalizeCode = (c: string) => (c || '').trim().replace(/\s+/g, ' ').toUpperCase();
-        const targetCode = normalizeCode(vehicleCode);
 
-        // Find all rows for this vehicle, get the most recent
         const vehicleRows = sheetData.rows
-          .filter(row => {
-            const rowCode = normalizeCode(String(row['Veiculo'] || ''));
-            return rowCode === targetCode;
-          })
+          .filter(row => normalizeCode(String(row['Veiculo'] || '')) === normalizeCode(vehicleCode))
           .sort((a, b) => {
-            // Parse dd/MM/yyyy dates for comparison
             const parseDate = (d: string) => {
               const parts = String(d || '').split('/');
               if (parts.length === 3) return `${parts[2]}-${parts[1]}-${parts[0]}`;
@@ -227,12 +318,11 @@ export function DatabaseHorimeterModal({
           const latest = vehicleRows[0];
           const horAtual = parsePtBRNumber(String(latest['Horimetro Atual'] || ''));
           const kmAtual = parsePtBRNumber(String(latest['Km Atual'] || ''));
-
           if (horAtual > bestHor) bestHor = horAtual;
           if (kmAtual > bestKm) bestKm = kmAtual;
         }
       } catch (e) {
-        console.error('Error fetching sheet data for previous:', e);
+        console.error('Error fetching Horimetros sheet for previous:', e);
       }
 
       if (!cancelled) {
