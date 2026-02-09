@@ -391,10 +391,10 @@ export async function exportEfetivoPDF(
   }
 
   // Build column headers
-  const headers: string[] = ['Item', 'Descrição', 'Total\nMobilizado'];
+  const headers: string[] = ['Item', 'Descrição', 'Total Mob.'];
   orderedCompanies.forEach(c => headers.push(c));
   if (hasTerceiros) headers.push('Terceiros');
-  headers.push('Manutenção', 'Disponível\nno dia');
+  headers.push('Manut.', 'Disponível');
 
   // Maintenance vehicle codes
   const maintenanceVehicleCodes = new Set(
@@ -510,6 +510,13 @@ export async function exportEfetivoPDF(
   const availableColIdx = colIdx;
   columnStyles[colIdx] = { cellWidth: dynamicW, halign: 'center', fontStyle: 'bold' };
 
+  // Determine if we need smaller font to fit on one page
+  const totalRows = tableData.length;
+  const needsCompact = totalRows > 25 || dynamicCols > 6;
+  const baseFontSize = needsCompact ? 6.5 : (dynamicCols > 8 ? 7 : 8);
+  const headerFontSize = needsCompact ? 6 : (dynamicCols > 8 ? 6.5 : 7.5);
+  const cellPad = needsCompact ? 1.5 : (dynamicCols > 8 ? 2 : 3);
+
   autoTable(doc, {
     startY: headerH + 5,
     head: [headers],
@@ -517,8 +524,8 @@ export async function exportEfetivoPDF(
     theme: 'grid',
     tableWidth: availWidth,
     styles: {
-      fontSize: dynamicCols > 8 ? 7 : 8,
-      cellPadding: dynamicCols > 8 ? 2 : 3,
+      fontSize: baseFontSize,
+      cellPadding: cellPad,
       lineColor: [160, 170, 180],
       lineWidth: 0.3,
       textColor: [0, 0, 0],
@@ -531,11 +538,11 @@ export async function exportEfetivoPDF(
       fillColor: [30, 41, 59],
       textColor: [255, 255, 255],
       fontStyle: 'bold',
-      fontSize: dynamicCols > 8 ? 6.5 : 7.5,
+      fontSize: headerFontSize,
       halign: 'center',
       lineColor: [51, 65, 85],
       lineWidth: 0.3,
-      cellPadding: dynamicCols > 8 ? 2 : 3,
+      cellPadding: cellPad,
     },
     columnStyles: {
       ...columnStyles,
@@ -549,7 +556,7 @@ export async function exportEfetivoPDF(
         data.cell.styles.fillColor = [30, 41, 59];
         data.cell.styles.textColor = [255, 255, 255];
         data.cell.styles.fontStyle = 'bold';
-        data.cell.styles.fontSize = 9;
+        data.cell.styles.fontSize = baseFontSize + 1;
       }
       // Manutenção column - red accent for values > 0
       if (data.column.index === maintenanceColIdx && data.section === 'body') {

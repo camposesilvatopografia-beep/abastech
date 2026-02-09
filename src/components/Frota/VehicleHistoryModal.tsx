@@ -265,9 +265,8 @@ export function VehicleHistoryModal({
           .order('record_time', { ascending: false }),
         supabase
           .from('vehicles')
-          .select('id')
-          .eq('code', vehicleCode)
-          .maybeSingle(),
+          .select('id, code')
+          .order('code'),
         supabase
           .from('service_orders')
           .select('*')
@@ -286,11 +285,15 @@ export function VehicleHistoryModal({
       ]);
 
       let horimeterDbData: HorimeterReading[] = [];
-      if (vehicleDbResult.data?.id) {
+      // Find vehicle by normalized code match
+      const vehicleMatch = (vehicleDbResult.data || []).find(v => 
+        v.code.replace(/\s+/g, '').trim().toUpperCase() === normalizedVehicleCode
+      );
+      if (vehicleMatch?.id) {
         const { data } = await supabase
           .from('horimeter_readings')
           .select('*')
-          .eq('vehicle_id', vehicleDbResult.data.id)
+          .eq('vehicle_id', vehicleMatch.id)
           .gte('reading_date', startDate)
           .lte('reading_date', endDate)
           .order('reading_date', { ascending: false });
