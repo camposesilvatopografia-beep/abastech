@@ -77,19 +77,30 @@ export function DatabaseHorimeterModal({
     return vehicles.find(v => v.id === selectedVehicleId);
   }, [vehicles, selectedVehicleId]);
 
-  // Vehicle history (last 5 readings)
+  // Vehicle history (last 5 readings) - show both Hor and KM
   const vehicleHistory = useMemo(() => {
     if (!selectedVehicleId) return [];
     
     return readings
       .filter(r => r.vehicle_id === selectedVehicleId)
+      .sort((a, b) => b.reading_date.localeCompare(a.reading_date))
       .slice(0, 5)
-      .map((r, index, arr) => {
-        const prevValue = index < arr.length - 1 ? arr[index + 1].current_value : 0;
-        const intervalo = prevValue > 0 ? r.current_value - prevValue : 0;
+      .map((r) => {
+        // H.T. = current_value - previous_value from same row
+        const prevHor = r.previous_value ?? 0;
+        const currHor = r.current_value ?? 0;
+        const intervaloHor = currHor - prevHor;
+        
+        // Total KM = current_km - previous_km from same row
+        const prevKm = (r as any).previous_km ?? 0;
+        const currKm = (r as any).current_km ?? 0;
+        const intervaloKm = (currKm > 0 && prevKm >= 0) ? currKm - prevKm : 0;
+        
         return {
           ...r,
-          intervalo,
+          intervaloHor,
+          intervaloKm,
+          currentKm: currKm,
         };
       });
   }, [selectedVehicleId, readings]);
@@ -402,15 +413,16 @@ export function DatabaseHorimeterModal({
         });
       }
 
-      // Refetch to ensure data is in sync
+      // Refetch to ensure data is in sync - refetch internal AND notify parent
       await refetch();
+      // Call onSuccess BEFORE resetting form so parent table updates immediately
+      onSuccess?.();
 
       if (isEditMode) {
         // Close modal after editing
         onOpenChange(false);
-        onSuccess?.();
       } else {
-        // Keep form open for new entries - reset fields and set date to today (the new last reading date)
+        // Keep form open for new entries - reset fields
         toast({
           title: 'Registro salvo!',
           description: 'Formulário pronto para novo apontamento.',
@@ -418,9 +430,8 @@ export function DatabaseHorimeterModal({
         setHorimeterValue(null);
         setKmValue(null);
         setObservacao('');
-        // Set date to the date we just saved (which is now the last reading)
+        // Keep the same date for batch entry convenience
         setSelectedDate(selectedDate);
-        onSuccess?.();
       }
     } catch (error) {
       // Error handled in hook
@@ -713,18 +724,32 @@ export function DatabaseHorimeterModal({
                 <div className="space-y-2">
                   <Label className="text-sm flex items-center gap-1">
                     <History className="w-4 h-4" />
-                    Últimos Registros
+                    Últimos {vehicleHistory.length} Registros
                   </Label>
-                  <div className="max-h-32 overflow-y-auto space-y-1">
-                    {vehicleHistory.map((h, i) => (
-                      <div key={h.id} className="flex justify-between text-xs p-2 bg-muted/30 rounded">
-                        <span>{format(new Date(h.reading_date + 'T00:00:00'), 'dd/MM/yyyy')}</span>
-                        <span className="font-medium">
-                          {h.current_value.toLocaleString('pt-BR')} {selectedVehicle?.unit}
+                  <div className="max-h-40 overflow-y-auto space-y-1">
+                    {vehicleHistory.map((h) => (
+                      <div key={h.id} className="flex items-center justify-between text-xs p-2 bg-muted/30 rounded gap-2">
+                        <span className="shrink-0 font-medium">
+                          {format(new Date(h.reading_date + 'T00:00:00'), 'dd/MM/yyyy')}
                         </span>
-                        {h.intervalo > 0 && (
-                          <span className="text-green-600">+{h.intervalo.toLocaleString('pt-BR')}</span>
-                        )}
+                        <div className="flex items-center gap-3 flex-wrap justify-end">
+                          {h.current_value > 0 && (
+                            <span className="text-amber-600 font-medium">
+                              {h.current_value.toLocaleString('pt-BR')}h
+                              {h.intervaloHor > 0 && (
+                                <span className="text-green-600 ml-1">(+{h.intervaloHor.toLocaleString('pt-BR')})</span>
+                              )}
+                            </span>
+                          )}
+                          {h.currentKm > 0 && (
+                            <span className="text-blue-600 font-medium">
+                              {h.currentKm.toLocaleString('pt-BR')} km
+                              {h.intervaloKm > 0 && (
+                                <span className="text-green-600 ml-1">(+{h.intervaloKm.toLocaleString('pt-BR')})</span>
+                              )}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
