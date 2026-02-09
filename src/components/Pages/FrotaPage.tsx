@@ -160,22 +160,31 @@ export function FrotaPage() {
   const [showAddStatus, setShowAddStatus] = useState(false);
   const [newStatusName, setNewStatusName] = useState('');
 
-  // Fetch maintenance orders for KPI
+  // Fetch maintenance orders for KPI - linked to service_orders real-time
+  const fetchMaintenance = useCallback(async () => {
+    const { data: orders } = await supabase
+      .from('service_orders')
+      .select('vehicle_code, vehicle_description, problem_description, status, entry_date, mechanic_name')
+      .in('status', ['Em Manutenção', 'Em Andamento', 'Aberta', 'Aguardando Peças']);
+    
+    if (orders) {
+      setMaintenanceOrders(orders);
+      // Count unique vehicles in maintenance (OS + sheet status)
+      const osVehicleCodes = new Set(orders.map(o => o.vehicle_code));
+      // Also count vehicles with status "manutenção" from sheet data
+      const sheetMaintenanceCount = data.rows.filter(row => {
+        const status = (getRowValue(row as any, ['STATUS', 'Status', 'status']) || '').toLowerCase();
+        const code = getRowValue(row as any, ['CODIGO', 'Codigo', 'codigo', 'VEICULO', 'Veiculo', 'veiculo']);
+        return (status === 'manutencao' || status === 'manutenção') && !osVehicleCodes.has(code);
+      }).length;
+      setMaintenanceCount(osVehicleCodes.size + sheetMaintenanceCount);
+    }
+  }, [data.rows]);
+
   useEffect(() => {
-    const fetchMaintenance = async () => {
-      const { data: orders } = await supabase
-        .from('service_orders')
-        .select('vehicle_code, vehicle_description, problem_description, status, entry_date, mechanic_name')
-        .in('status', ['Em Manutenção', 'Em Andamento', 'Aberta', 'Aguardando Peças']);
-      
-      if (orders) {
-        setMaintenanceCount(orders.length);
-        setMaintenanceOrders(orders);
-      }
-    };
     fetchMaintenance();
 
-    // Subscribe to real-time changes
+    // Subscribe to real-time changes on service_orders
     const channel = supabase
       .channel('frota-maintenance')
       .on('postgres_changes', {
@@ -188,7 +197,7 @@ export function FrotaPage() {
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, []);
+  }, [fetchMaintenance]);
 
   const addCustomStatus = useCallback(() => {
     if (!newStatusName.trim()) return;
