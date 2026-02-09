@@ -411,86 +411,187 @@ export function VehicleHistoryModal({
 
   const visibleColumns = timelineColumns.filter(c => c.visible).sort((a, b) => a.order - b.order);
 
-  const exportToPDF = () => {
+  const loadImageAsBase64 = async (url: string): Promise<string | null> => {
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = () => resolve(null);
+        reader.readAsDataURL(blob);
+      });
+    } catch {
+      return null;
+    }
+  };
+
+  const exportToPDF = async () => {
     const doc = new jsPDF('landscape');
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
-    
-    // ─── Page 1: Header + Summary + Timeline ───
-    doc.setFillColor(30, 41, 59);
-    doc.rect(0, 0, pageWidth, 28, 'F');
-    
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(12);
+    const margin = 12;
+    const contentWidth = pageWidth - margin * 2;
+
+    // Load logos
+    let obraLogoBase64: string | null = null;
+    let abastechLogoBase64: string | null = null;
+    try {
+      const [obraRes, abastechRes] = await Promise.all([
+        obraSettings?.logo_url ? loadImageAsBase64(obraSettings.logo_url) : Promise.resolve(null),
+        loadImageAsBase64('/logo-consorcio-header.png'),
+      ]);
+      obraLogoBase64 = obraRes;
+      abastechLogoBase64 = abastechRes;
+    } catch { /* ignore */ }
+
+    // ═══════════════════════════════════════════════════
+    // HELPER: Draw page header
+    // ═══════════════════════════════════════════════════
+    const drawPageHeader = (title: string, subtitle?: string) => {
+      // Navy gradient header
+      doc.setFillColor(15, 23, 42);
+      doc.rect(0, 0, pageWidth, 32, 'F');
+      // Accent line
+      doc.setFillColor(220, 38, 38);
+      doc.rect(0, 32, pageWidth, 1.5, 'F');
+
+      // Logos
+      let logoX = margin;
+      if (obraLogoBase64) {
+        try { doc.addImage(obraLogoBase64, 'PNG', logoX, 4, 24, 24); logoX += 28; } catch { /* skip */ }
+      }
+
+      // Title
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.text(title, logoX, 14);
+      
+      if (subtitle) {
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(203, 213, 225);
+        doc.text(subtitle, logoX, 22);
+      }
+
+      // Right side info
+      doc.setFontSize(8);
+      doc.setTextColor(148, 163, 184);
+      doc.setFont('helvetica', 'normal');
+      const rightX = pageWidth - margin;
+      doc.text(`Período: ${format(dateRange.start, 'dd/MM/yyyy')} a ${format(dateRange.end, 'dd/MM/yyyy')}`, rightX, 12, { align: 'right' });
+      doc.text(`Gerado: ${format(new Date(), 'dd/MM/yyyy HH:mm')}`, rightX, 18, { align: 'right' });
+
+      // Abastech logo bottom-right
+      if (abastechLogoBase64) {
+        try { doc.addImage(abastechLogoBase64, 'PNG', pageWidth - margin - 20, 22, 20, 8); } catch { /* skip */ }
+      }
+
+      return 38; // Y position after header
+    };
+
+    // ═══════════════════════════════════════════════════
+    // HELPER: Draw section title bar
+    // ═══════════════════════════════════════════════════
+    const drawSectionTitle = (yPos: number, title: string, color: [number, number, number], count?: number) => {
+      doc.setFillColor(color[0], color[1], color[2]);
+      doc.roundedRect(margin, yPos, contentWidth, 8, 1, 1, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'bold');
+      doc.text(title, margin + 4, yPos + 5.5);
+      if (count !== undefined) {
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.text(`(${count} registros)`, margin + doc.getTextWidth(title) + 8, yPos + 5.5);
+      }
+      return yPos + 10;
+    };
+
+    // ═══════════════════════════════════════════════════
+    // PAGE 1: Cover + Summary + Timeline
+    // ═══════════════════════════════════════════════════
+    let yPos = drawPageHeader(
+      obraSettings?.nome ? `${obraSettings.nome.toUpperCase()}` : 'HISTÓRICO DO EQUIPAMENTO',
+      `${vehicleCode} — ${vehicleDescription}`
+    );
+
+    // Vehicle info card
+    doc.setFillColor(248, 250, 252);
+    doc.roundedRect(margin, yPos, contentWidth, 14, 2, 2, 'F');
+    doc.setDrawColor(226, 232, 240);
+    doc.roundedRect(margin, yPos, contentWidth, 14, 2, 2, 'S');
+
+    doc.setFontSize(8);
     doc.setFont('helvetica', 'bold');
-    const headerTitle = obraSettings?.nome 
-      ? `${obraSettings.nome} - HISTÓRICO DO EQUIPAMENTO`
-      : 'HISTÓRICO DETALHADO DO EQUIPAMENTO';
-    doc.text(headerTitle.toUpperCase(), 14, 12);
-    doc.setFontSize(11);
-    doc.text(`${vehicleCode} - ${vehicleDescription}`, 14, 22);
-    
-    doc.setFontSize(10);
-    doc.text(`Empresa: ${vehicleEmpresa}`, pageWidth - 80, 12);
-    doc.text(`Categoria: ${vehicleCategory}`, pageWidth - 80, 22);
-    
     doc.setTextColor(30, 41, 59);
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'normal');
-    
-    let yPos = 36;
-    
-    // Period info
-    doc.text(`Período: ${format(dateRange.start, 'dd/MM/yyyy')} a ${format(dateRange.end, 'dd/MM/yyyy')}`, 14, yPos);
-    doc.text(`Gerado em: ${format(new Date(), 'dd/MM/yyyy HH:mm')}`, pageWidth - 60, yPos);
-    
-    yPos += 8;
 
-    // ─── Summary KPIs as table ───
-    doc.setFillColor(71, 85, 105);
-    doc.rect(14, yPos, pageWidth - 28, 7, 'F');
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'bold');
-    doc.text('RESUMO DO PERÍODO', 16, yPos + 5);
-    yPos += 9;
-
-    const kpiData = [
-      ['Total Diesel', `${summary.totalDiesel.toFixed(1)} L`, 'Total ARLA', `${summary.totalArla.toFixed(1)} L`],
-      ['Total Óleo', `${summary.totalOil.toFixed(1)} L`, 'Consumo Médio', `${summary.consumption.toFixed(2)} L/h`],
-      ['Horímetro Atual', `${summary.latestHorimeter.toFixed(0)} h`, 'Intervalo Período', `${summary.horimeterInterval.toFixed(0)} h`],
-      ['Abastecimentos', `${summary.fuelRecordCount}`, 'Leituras Hor.', `${summary.horimeterReadingCount}`],
-      ['Ordens Serviço', `${summary.osCount} (${summary.osCompleted} finalizadas)`, 'Dias Ativos', `${summary.daysWithActivity}`],
+    const infoItems = [
+      { label: 'Código', value: vehicleCode },
+      { label: 'Descrição', value: vehicleDescription },
+      { label: 'Categoria', value: vehicleCategory },
+      { label: 'Empresa', value: vehicleEmpresa },
     ];
-
-    autoTable(doc, {
-      startY: yPos,
-      body: kpiData,
-      theme: 'grid',
-      styles: { fontSize: 7.5, cellPadding: 2 },
-      columnStyles: {
-        0: { fontStyle: 'bold', cellWidth: 35, fillColor: [241, 245, 249] },
-        1: { cellWidth: (pageWidth - 28) / 2 - 35 },
-        2: { fontStyle: 'bold', cellWidth: 35, fillColor: [241, 245, 249] },
-        3: { cellWidth: (pageWidth - 28) / 2 - 35 },
-      },
-      margin: { left: 14, right: 14 },
+    const infoColW = contentWidth / infoItems.length;
+    infoItems.forEach((item, i) => {
+      const x = margin + infoColW * i + 4;
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(100, 116, 139);
+      doc.setFontSize(7);
+      doc.text(item.label.toUpperCase(), x, yPos + 5);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(15, 23, 42);
+      doc.setFontSize(9);
+      doc.text(item.value || '-', x, yPos + 11);
     });
 
-    yPos = (doc as any).lastAutoTable.finalY + 8;
+    yPos += 18;
+
+    // ─── KPI Summary Cards ───
+    yPos = drawSectionTitle(yPos, 'RESUMO DO PERÍODO', [30, 41, 59]);
+
+    const kpiCards = [
+      { label: 'Diesel', value: `${summary.totalDiesel.toFixed(1)} L`, sub: `${summary.fuelRecordCount} abast.`, color: [220, 38, 38] as [number, number, number] },
+      { label: 'ARLA', value: `${summary.totalArla.toFixed(1)} L`, sub: '', color: [234, 179, 8] as [number, number, number] },
+      { label: 'Óleo', value: `${summary.totalOil.toFixed(1)} L`, sub: `${summary.lubricantCount} lubrif.`, color: [217, 119, 6] as [number, number, number] },
+      { label: 'Horímetro', value: `${summary.latestHorimeter.toFixed(0)} h`, sub: `+${summary.horimeterInterval.toFixed(0)} h período`, color: [37, 99, 235] as [number, number, number] },
+      { label: 'Consumo', value: `${summary.consumption.toFixed(2)} L/h`, sub: '', color: [22, 163, 74] as [number, number, number] },
+      { label: 'OS', value: `${summary.osCount}`, sub: `${summary.osCompleted} finalizadas`, color: [147, 51, 234] as [number, number, number] },
+      { label: 'Dias Ativos', value: `${summary.daysWithActivity}`, sub: 'com atividade', color: [20, 184, 166] as [number, number, number] },
+      { label: 'Leituras', value: `${summary.horimeterReadingCount}`, sub: 'horímetros', color: [100, 116, 139] as [number, number, number] },
+    ];
+
+    const cardW = (contentWidth - 7 * 3) / 8; // 8 cards, 3px gap
+    const cardH = 18;
+    kpiCards.forEach((card, i) => {
+      const x = margin + i * (cardW + 3);
+      // Card background
+      doc.setFillColor(card.color[0], card.color[1], card.color[2]);
+      doc.roundedRect(x, yPos, cardW, cardH, 1.5, 1.5, 'F');
+      // Label
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(6);
+      doc.setFont('helvetica', 'normal');
+      doc.text(card.label.toUpperCase(), x + 2.5, yPos + 4.5);
+      // Value
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.text(card.value, x + 2.5, yPos + 11);
+      // Sub
+      if (card.sub) {
+        doc.setFontSize(5.5);
+        doc.setFont('helvetica', 'normal');
+        doc.text(card.sub, x + 2.5, yPos + 15.5);
+      }
+    });
+
+    yPos += cardH + 6;
 
     // ─── Timeline Table ───
-    if (yPos > pageHeight - 50) { doc.addPage(); yPos = 20; }
+    yPos = drawSectionTitle(yPos, `LINHA DO TEMPO — DIA A DIA`, [15, 23, 42], activeDays.length);
 
-    doc.setFillColor(30, 41, 59);
-    doc.rect(14, yPos, pageWidth - 28, 7, 'F');
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'bold');
-    doc.text(`LINHA DO TEMPO - DIA A DIA (${activeDays.length} dias)`, 16, yPos + 5);
-    yPos += 9;
-
-    const timelineHeaders = ['Data', 'Diesel (L)', 'ARLA (L)', 'Óleo (L)', 'Horímetro', 'KM', 'Intervalo', 'OS', 'Status OS', 'Operador'];
+    const timelineHeaders = ['Data', 'Diesel (L)', 'ARLA (L)', 'Óleo (L)', 'Horímetro', 'KM', 'H.T.', 'OS', 'Status OS', 'Operador'];
     
     const timelineData = activeDays.map(day => {
       const operators = [...new Set([
@@ -504,10 +605,10 @@ export function VehicleHistoryModal({
         day.totalOil > 0 ? day.totalOil.toFixed(1) : '-',
         day.horimeterValue ? day.horimeterValue.toFixed(0) : '-',
         day.kmValue ? day.kmValue.toFixed(0) : '-',
-        day.horimeterInterval > 0 ? `+${day.horimeterInterval.toFixed(0)}` : '-',
+        day.horimeterInterval > 0 ? `${day.horimeterInterval.toFixed(0)}` : '-',
         day.osCount > 0 ? day.osCount.toString() : '-',
         day.osStatus || '-',
-        (operators[0] || '-').substring(0, 20),
+        (operators[0] || '-').substring(0, 18),
       ];
     });
 
@@ -515,41 +616,80 @@ export function VehicleHistoryModal({
       head: [timelineHeaders],
       body: timelineData,
       startY: yPos,
-      styles: { fontSize: 6.5, cellPadding: 1.5 },
-      headStyles: { fillColor: [30, 41, 59], textColor: 255, fontStyle: 'bold', fontSize: 7 },
+      styles: { fontSize: 6.5, cellPadding: 1.8, lineColor: [226, 232, 240], lineWidth: 0.2 },
+      headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: 'bold', fontSize: 7 },
       alternateRowStyles: { fillColor: [248, 250, 252] },
-      margin: { left: 14, right: 14 },
+      margin: { left: margin, right: margin },
       columnStyles: {
         0: { cellWidth: 22 },
-        6: { halign: 'center' },
+        1: { halign: 'right', cellWidth: 20 },
+        2: { halign: 'right', cellWidth: 18 },
+        3: { halign: 'right', cellWidth: 16 },
+        4: { halign: 'right', cellWidth: 22 },
+        5: { halign: 'right', cellWidth: 20 },
+        6: { halign: 'center', cellWidth: 16 },
         7: { halign: 'center', cellWidth: 12 },
+        8: { cellWidth: 28 },
       },
       didParseCell: (data) => {
-        // Red for diesel values
-        if (data.column.index === 1 && data.section === 'body' && data.cell.text[0] !== '-') {
+        if (data.section !== 'body') return;
+        // Diesel in red
+        if (data.column.index === 1 && data.cell.text[0] !== '-') {
           data.cell.styles.textColor = [220, 38, 38];
           data.cell.styles.fontStyle = 'bold';
         }
-        // Green for interval values
-        if (data.column.index === 6 && data.section === 'body' && data.cell.text[0] !== '-') {
+        // H.T. in green
+        if (data.column.index === 6 && data.cell.text[0] !== '-') {
           data.cell.styles.textColor = [22, 163, 74];
           data.cell.styles.fontStyle = 'bold';
+        }
+        // OS count in purple
+        if (data.column.index === 7 && data.cell.text[0] !== '-') {
+          data.cell.styles.textColor = [147, 51, 234];
+          data.cell.styles.fontStyle = 'bold';
+        }
+        // Status colors
+        if (data.column.index === 8) {
+          const status = data.cell.text[0];
+          if (status === 'Finalizada') data.cell.styles.textColor = [22, 163, 74];
+          else if (['Aberta', 'Em Andamento', 'Aguardando Peças'].includes(status)) {
+            data.cell.styles.textColor = [220, 38, 38];
+            data.cell.styles.fontStyle = 'bold';
+          }
         }
       },
     });
 
-    // ─── Page: Abastecimentos Detail ───
+    // ═══════════════════════════════════════════════════
+    // PAGE 2: Abastecimentos Detail
+    // ═══════════════════════════════════════════════════
     if (fuelRecords.length > 0) {
       doc.addPage();
-      let fuelY = 15;
+      let fuelY = drawPageHeader(
+        'RELATÓRIO DE ABASTECIMENTOS',
+        `${vehicleCode} — ${vehicleDescription}`
+      );
 
-      doc.setFillColor(30, 41, 59);
-      doc.rect(0, 0, pageWidth, 18, 'F');
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(11);
-      doc.setFont('helvetica', 'bold');
-      doc.text(`ABASTECIMENTOS - ${vehicleCode} (${fuelRecords.length} registros)`, pageWidth / 2, 12, { align: 'center' });
-      fuelY = 22;
+      // Quick stats bar
+      doc.setFillColor(254, 242, 242);
+      doc.roundedRect(margin, fuelY, contentWidth, 10, 1.5, 1.5, 'F');
+      doc.setFontSize(7);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(127, 29, 29);
+      const fuelStats = [
+        `Total Diesel: ${summary.totalDiesel.toFixed(1)} L`,
+        `Total ARLA: ${summary.totalArla.toFixed(1)} L`,
+        `Total Óleo: ${summary.totalOil.toFixed(1)} L`,
+        `Abastecimentos: ${summary.fuelRecordCount}`,
+        `Consumo: ${summary.consumption.toFixed(2)} L/h`,
+      ];
+      const statW = contentWidth / fuelStats.length;
+      fuelStats.forEach((stat, i) => {
+        doc.text(stat, margin + statW * i + 3, fuelY + 6.5);
+      });
+      fuelY += 14;
+
+      fuelY = drawSectionTitle(fuelY, 'DETALHAMENTO DE ABASTECIMENTOS', [220, 38, 38], fuelRecords.length);
 
       const fuelHeaders = ['Data', 'Hora', 'Tipo', 'Diesel (L)', 'ARLA (L)', 'Óleo (L)', 'Horímetro', 'KM', 'Operador', 'Local'];
       const fuelData = fuelRecords.map(r => [
@@ -561,18 +701,24 @@ export function VehicleHistoryModal({
         r.oil_quantity?.toFixed(1) || '-',
         r.horimeter_current?.toFixed(0) || '-',
         r.km_current?.toFixed(0) || '-',
-        (r.operator_name || '-').substring(0, 20),
-        (r.location || '-').substring(0, 20),
+        (r.operator_name || '-').substring(0, 18),
+        (r.location || '-').substring(0, 18),
       ]);
+
+      // Totals row
+      const totalFuelQty = fuelRecords.filter(r => r.record_type === 'saida').reduce((s, r) => s + (r.fuel_quantity || 0), 0);
+      const totalArlaQty = fuelRecords.filter(r => r.record_type === 'saida').reduce((s, r) => s + (r.arla_quantity || 0), 0);
+      const totalOilQty = fuelRecords.filter(r => r.record_type === 'saida').reduce((s, r) => s + (r.oil_quantity || 0), 0);
+      fuelData.push(['TOTAL', '', '', totalFuelQty.toFixed(1), totalArlaQty.toFixed(1), totalOilQty.toFixed(1), '', '', '', '']);
 
       autoTable(doc, {
         head: [fuelHeaders],
         body: fuelData,
         startY: fuelY,
-        styles: { fontSize: 6.5, cellPadding: 1.5 },
+        styles: { fontSize: 6.5, cellPadding: 1.8, lineColor: [226, 232, 240], lineWidth: 0.2 },
         headStyles: { fillColor: [220, 38, 38], textColor: 255, fontStyle: 'bold', fontSize: 7 },
         alternateRowStyles: { fillColor: [254, 242, 242] },
-        margin: { left: 14, right: 14 },
+        margin: { left: margin, right: margin },
         columnStyles: {
           0: { cellWidth: 22 },
           1: { cellWidth: 14 },
@@ -583,128 +729,205 @@ export function VehicleHistoryModal({
           6: { cellWidth: 22, halign: 'right' },
           7: { cellWidth: 20, halign: 'right' },
         },
+        didParseCell: (data) => {
+          // Bold totals row
+          if (data.section === 'body' && data.row.index === fuelData.length - 1) {
+            data.cell.styles.fontStyle = 'bold';
+            data.cell.styles.fillColor = [254, 226, 226];
+            data.cell.styles.textColor = [127, 29, 29];
+          }
+          // Tipo color
+          if (data.column.index === 2 && data.section === 'body') {
+            if (data.cell.text[0] === 'Entrada') data.cell.styles.textColor = [22, 163, 74];
+            else if (data.cell.text[0] === 'Saída') data.cell.styles.textColor = [220, 38, 38];
+          }
+        },
       });
     }
 
-    // ─── Page: Horímetros Detail ───
+    // ═══════════════════════════════════════════════════
+    // PAGE 3: Horímetros Detail
+    // ═══════════════════════════════════════════════════
     if (horimeterReadings.length > 0) {
       doc.addPage();
-      let horY = 15;
+      let horY = drawPageHeader(
+        'RELATÓRIO DE HORÍMETROS',
+        `${vehicleCode} — ${vehicleDescription}`
+      );
 
-      doc.setFillColor(30, 41, 59);
-      doc.rect(0, 0, pageWidth, 18, 'F');
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(11);
-      doc.setFont('helvetica', 'bold');
-      doc.text(`LEITURAS DE HORÍMETRO - ${vehicleCode} (${horimeterReadings.length} registros)`, pageWidth / 2, 12, { align: 'center' });
-      horY = 22;
+      // Stats bar
+      doc.setFillColor(239, 246, 255);
+      doc.roundedRect(margin, horY, contentWidth, 10, 1.5, 1.5, 'F');
+      doc.setFontSize(7);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(30, 64, 175);
+      const horStats = [
+        `Horímetro Atual: ${summary.latestHorimeter.toFixed(0)} h`,
+        `Intervalo Período: +${summary.horimeterInterval.toFixed(0)} h`,
+        `Total Leituras: ${summary.horimeterReadingCount}`,
+      ];
+      horStats.forEach((stat, i) => {
+        doc.text(stat, margin + (contentWidth / horStats.length) * i + 3, horY + 6.5);
+      });
+      horY += 14;
 
-      const horHeaders = ['Data', 'Hor. Anterior', 'Hor. Atual', 'Intervalo (H.T)', 'KM Anterior', 'KM Atual', 'Operador', 'Observações'];
-      const horData = horimeterReadings.map(r => [
-        format(new Date(r.reading_date), 'dd/MM/yyyy'),
-        r.previous_value?.toFixed(0) || '-',
-        r.current_value?.toFixed(0) || '-',
-        `${((r.current_value || 0) - (r.previous_value || 0)).toFixed(0)}`,
-        r.previous_km?.toFixed(0) || '-',
-        r.current_km?.toFixed(0) || '-',
-        (r.operator || '-').substring(0, 20),
-        (r.observations || '-').substring(0, 35),
-      ]);
+      horY = drawSectionTitle(horY, 'DETALHAMENTO DE LEITURAS', [37, 99, 235], horimeterReadings.length);
+
+      const horHeaders = ['Data', 'Hor. Anterior', 'Hor. Atual', 'H.T.', 'KM Anterior', 'KM Atual', 'Total KM', 'Operador', 'Observações'];
+      const horData = horimeterReadings.map(r => {
+        const ht = (r.current_value || 0) - (r.previous_value || 0);
+        const totalKm = (r.current_km || 0) - (r.previous_km || 0);
+        return [
+          format(new Date(r.reading_date), 'dd/MM/yyyy'),
+          r.previous_value?.toFixed(0) || '-',
+          r.current_value?.toFixed(0) || '-',
+          ht > 0 ? ht.toFixed(0) : '-',
+          r.previous_km?.toFixed(0) || '-',
+          r.current_km?.toFixed(0) || '-',
+          totalKm > 0 ? totalKm.toFixed(0) : '-',
+          (r.operator || '-').substring(0, 18),
+          (r.observations || '-').substring(0, 30),
+        ];
+      });
 
       autoTable(doc, {
         head: [horHeaders],
         body: horData,
         startY: horY,
-        styles: { fontSize: 6.5, cellPadding: 1.5 },
+        styles: { fontSize: 6.5, cellPadding: 1.8, lineColor: [226, 232, 240], lineWidth: 0.2 },
         headStyles: { fillColor: [37, 99, 235], textColor: 255, fontStyle: 'bold', fontSize: 7 },
         alternateRowStyles: { fillColor: [239, 246, 255] },
-        margin: { left: 14, right: 14 },
+        margin: { left: margin, right: margin },
         columnStyles: {
           0: { cellWidth: 22 },
-          1: { cellWidth: 25, halign: 'right' },
-          2: { cellWidth: 25, halign: 'right', fontStyle: 'bold' },
-          3: { cellWidth: 25, halign: 'center' },
+          1: { cellWidth: 24, halign: 'right' },
+          2: { cellWidth: 24, halign: 'right', fontStyle: 'bold' },
+          3: { cellWidth: 18, halign: 'center' },
           4: { cellWidth: 22, halign: 'right' },
           5: { cellWidth: 22, halign: 'right' },
+          6: { cellWidth: 18, halign: 'center' },
         },
         didParseCell: (data) => {
-          if (data.column.index === 3 && data.section === 'body') {
-            const val = parseInt(data.cell.text[0] || '0');
-            if (val > 0) {
-              data.cell.styles.textColor = [22, 163, 74];
-              data.cell.styles.fontStyle = 'bold';
-            }
+          if (data.section !== 'body') return;
+          // H.T. green
+          if (data.column.index === 3 && data.cell.text[0] !== '-') {
+            data.cell.styles.textColor = [22, 163, 74];
+            data.cell.styles.fontStyle = 'bold';
+          }
+          // Total KM blue
+          if (data.column.index === 6 && data.cell.text[0] !== '-') {
+            data.cell.styles.textColor = [37, 99, 235];
+            data.cell.styles.fontStyle = 'bold';
           }
         },
       });
     }
 
-    // ─── Page: Manutenção Detail ───
+    // ═══════════════════════════════════════════════════
+    // PAGE 4: Manutenção Detail
+    // ═══════════════════════════════════════════════════
     if (serviceOrders.length > 0) {
       doc.addPage();
-      let osY = 15;
+      let osY = drawPageHeader(
+        'RELATÓRIO DE MANUTENÇÃO',
+        `${vehicleCode} — ${vehicleDescription}`
+      );
 
-      doc.setFillColor(30, 41, 59);
-      doc.rect(0, 0, pageWidth, 18, 'F');
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(11);
-      doc.setFont('helvetica', 'bold');
-      doc.text(`ORDENS DE SERVIÇO - ${vehicleCode} (${serviceOrders.length} registros)`, pageWidth / 2, 12, { align: 'center' });
-      osY = 22;
+      // Stats bar
+      doc.setFillColor(255, 251, 235);
+      doc.roundedRect(margin, osY, contentWidth, 10, 1.5, 1.5, 'F');
+      doc.setFontSize(7);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(146, 64, 14);
+      const osStats = [
+        `Total OS: ${summary.osCount}`,
+        `Finalizadas: ${summary.osCompleted}`,
+        `Em Andamento: ${summary.osInProgress}`,
+      ];
+      osStats.forEach((stat, i) => {
+        doc.text(stat, margin + (contentWidth / osStats.length) * i + 3, osY + 6.5);
+      });
+      osY += 14;
 
-      const osHeaders = ['OS', 'Entrada', 'Saída', 'Tipo', 'Status', 'Problema', 'Solução', 'Mecânico', 'Hor./KM'];
-      const osData = serviceOrders.map(o => [
-        o.order_number,
-        o.entry_date ? format(new Date(o.entry_date), 'dd/MM/yyyy') : '-',
-        o.end_date ? format(new Date(o.end_date), 'dd/MM/yyyy') : '-',
-        o.order_type || '-',
-        o.status,
-        (o.problem_description || '-').substring(0, 35),
-        (o.solution_description || '-').substring(0, 35),
-        o.mechanic_name || '-',
-        o.horimeter_current?.toFixed(0) || o.km_current?.toFixed(0) || '-',
-      ]);
+      osY = drawSectionTitle(osY, 'ORDENS DE SERVIÇO', [245, 158, 11], serviceOrders.length);
+
+      const osHeaders = ['OS', 'Entrada', 'Saída', 'Tipo', 'Prioridade', 'Status', 'Problema', 'Solução', 'Mecânico', 'Hor./KM'];
+      const osData = serviceOrders.map(o => {
+        const entryDate = o.entry_date ? format(new Date(o.entry_date), 'dd/MM/yyyy') : '-';
+        const endDate = o.end_date ? format(new Date(o.end_date), 'dd/MM/yyyy') : '-';
+        return [
+          o.order_number,
+          entryDate,
+          endDate,
+          o.order_type || '-',
+          o.priority || '-',
+          o.status,
+          (o.problem_description || '-').substring(0, 30),
+          (o.solution_description || '-').substring(0, 30),
+          o.mechanic_name || '-',
+          o.horimeter_current?.toFixed(0) || o.km_current?.toFixed(0) || '-',
+        ];
+      });
 
       autoTable(doc, {
         head: [osHeaders],
         body: osData,
         startY: osY,
-        styles: { fontSize: 6.5, cellPadding: 1.5 },
-        headStyles: { fillColor: [245, 158, 11], textColor: 255, fontStyle: 'bold', fontSize: 7 },
+        styles: { fontSize: 6.5, cellPadding: 1.8, lineColor: [226, 232, 240], lineWidth: 0.2 },
+        headStyles: { fillColor: [245, 158, 11], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7 },
         alternateRowStyles: { fillColor: [255, 251, 235] },
-        margin: { left: 14, right: 14 },
+        margin: { left: margin, right: margin },
         columnStyles: {
-          0: { cellWidth: 18 },
+          0: { cellWidth: 18, fontStyle: 'bold' },
           1: { cellWidth: 22 },
           2: { cellWidth: 22 },
           3: { cellWidth: 22 },
-          4: { cellWidth: 25 },
-          5: { cellWidth: 50 },
-          6: { cellWidth: 50 },
+          4: { cellWidth: 18, halign: 'center' },
+          5: { cellWidth: 22 },
+          6: { cellWidth: 45 },
+          7: { cellWidth: 45 },
         },
         didParseCell: (data) => {
-          if (data.column.index === 4 && data.section === 'body') {
+          if (data.section !== 'body') return;
+          // Status colors
+          if (data.column.index === 5) {
             const status = data.cell.text[0];
             if (status === 'Finalizada') {
               data.cell.styles.textColor = [22, 163, 74];
+              data.cell.styles.fontStyle = 'bold';
             } else if (['Aberta', 'Em Andamento', 'Aguardando Peças'].includes(status)) {
               data.cell.styles.textColor = [220, 38, 38];
               data.cell.styles.fontStyle = 'bold';
             }
           }
+          // Priority colors
+          if (data.column.index === 4) {
+            const priority = data.cell.text[0];
+            if (priority === 'Urgente') { data.cell.styles.textColor = [220, 38, 38]; data.cell.styles.fontStyle = 'bold'; }
+            else if (priority === 'Alta') { data.cell.styles.textColor = [234, 88, 12]; }
+          }
         },
       });
     }
 
+    // ═══════════════════════════════════════════════════
     // Footer on all pages
+    // ═══════════════════════════════════════════════════
     const totalPages = doc.getNumberOfPages();
     for (let i = 1; i <= totalPages; i++) {
       doc.setPage(i);
-      doc.setTextColor(120, 120, 120);
-      doc.setFontSize(7);
+      // Footer line
+      doc.setDrawColor(226, 232, 240);
+      doc.line(margin, pageHeight - 12, pageWidth - margin, pageHeight - 12);
+      // Left text
+      doc.setTextColor(148, 163, 184);
+      doc.setFontSize(6.5);
       doc.setFont('helvetica', 'normal');
-      doc.text('Sistema Abastech - Histórico do Equipamento', 14, pageHeight - 8);
-      doc.text(`Página ${i} de ${totalPages}`, pageWidth - 30, pageHeight - 8);
+      doc.text('Sistema Abastech — Gestão de Equipamentos', margin, pageHeight - 7);
+      // Center
+      doc.text('Desenvolvido por Jean Campos', pageWidth / 2, pageHeight - 7, { align: 'center' });
+      // Right
+      doc.text(`Página ${i} de ${totalPages}`, pageWidth - margin, pageHeight - 7, { align: 'right' });
     }
 
     doc.save(`historico_${vehicleCode}_${format(new Date(), 'yyyy-MM-dd')}.pdf`);
