@@ -582,7 +582,9 @@ export function FieldPage() {
         {currentView === 'dashboard' ? (
           <FieldDashboard 
             user={user} 
-            onNavigateToForm={() => setCurrentView('form')} 
+            onNavigateToForm={() => setCurrentView('form')}
+            onNavigateToHorimeter={() => setCurrentView('horimeter')}
+            onNavigateToOS={() => setCurrentView('os')}
           />
         ) : currentView === 'horimeter' ? (
           <FieldHorimeterForm
