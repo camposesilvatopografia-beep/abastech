@@ -459,23 +459,48 @@ export function DatabaseHorimeterModal({
       setKmValue(null);
       setObservacao('');
       
-      // Auto-fill operator and recommend date from last reading
+      // Auto-fill operator from Veiculo sheet's Motorista column
+      const vehicle = vehicles.find(v => v.id === selectedVehicleId);
+      if (vehicle) {
+        (async () => {
+          try {
+            const veiculoSheet = await getSheetData('Veiculo', { noCache: false });
+            const normalizeCode = (v: any) => String(v ?? '').trim().toUpperCase().replace(/\s+/g, '');
+            const targetCode = normalizeCode(vehicle.code);
+            const veiculoRow = (veiculoSheet.rows || []).find(row => {
+              const code = normalizeCode(row['Codigo'] || row['CODIGO'] || row['Código'] || '');
+              return code === targetCode;
+            });
+            if (veiculoRow) {
+              const motorista = String(veiculoRow['Motorista'] || veiculoRow['MOTORISTA'] || '').trim();
+              if (motorista) {
+                setOperador(motorista);
+                return;
+              }
+            }
+          } catch (e) { console.error('Error fetching Veiculo sheet for Motorista:', e); }
+          
+          // Fallback: operator from last reading
+          const lastReading = readings
+            .filter(r => r.vehicle_id === selectedVehicleId)
+            .sort((a, b) => b.reading_date.localeCompare(a.reading_date))[0];
+          if (lastReading?.operator) {
+            setOperador(lastReading.operator);
+          } else {
+            setOperador('');
+          }
+        })();
+      }
+      
+      // Recommend date from last reading
       const lastReading = readings
         .filter(r => r.vehicle_id === selectedVehicleId)
         .sort((a, b) => b.reading_date.localeCompare(a.reading_date))[0];
       
       if (lastReading) {
-        // Recommend the date of the last reading
         setSelectedDate(new Date(lastReading.reading_date + 'T00:00:00'));
-        
-        if (lastReading.operator) {
-          setOperador(lastReading.operator);
-        } else {
-          setOperador('');
-        }
       } else {
         setSelectedDate(new Date());
-        setOperador('');
       }
     } else if (!isEditMode && !selectedVehicleId) {
       setHorimeterValue(null);
@@ -484,7 +509,7 @@ export function DatabaseHorimeterModal({
       setObservacao('');
       setSelectedDate(new Date());
     }
-  }, [selectedVehicleId, isEditMode, readings]);
+  }, [selectedVehicleId, isEditMode, readings, vehicles]);
 
   // Populate form when editing
   useEffect(() => {
