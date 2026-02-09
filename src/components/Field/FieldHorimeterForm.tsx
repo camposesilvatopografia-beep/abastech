@@ -388,22 +388,22 @@ export function FieldHorimeterForm({ user, onBack }: FieldHorimeterFormProps) {
           const formattedDate = `${day}/${month}/${year}`;
           
           // Map to exact sheet headers (B1:ZZ1 in the Horimetros sheet)
-          // Headers must match exactly what's in the sheet
+          // Headers: ID, ' Data', Veiculo, Categoria, Descricao, Empresa, Operador,
+          //          Horimetro Anterior, Horimetro Atual, Intervalo H, Km Anterior, Km Atual, Total Km
           const sheetData: Record<string, string> = {
-            'Data': formattedDate,
-            'Codigo': vehicle.code || '',
+            'ID': data.id ? data.id.substring(0, 8) : '',
+            ' Data': formattedDate,
             'Veiculo': vehicle.code || '',
             'Categoria': vehicle.category || '',
             'Descricao': vehicle.name || '',
             'Empresa': vehicle.company || '',
             'Operador': operador || '',
-            'Hor_Anterior': previousHorimeter ? previousHorimeter.toString().replace('.', ',') : '',
-            'Hor_Atual': horNum > 0 ? horNum.toString().replace('.', ',') : '',
-            'H.T': intervalHor > 0 ? intervalHor.toString().replace('.', ',') : '',
-            'Km_Anterior': previousKm ? previousKm.toString().replace('.', ',') : '',
-            'Km_Atual': kmNum > 0 ? kmNum.toString().replace('.', ',') : '',
-            'Total KM': intervalKm > 0 ? intervalKm.toString().replace('.', ',') : '',
-            'Observacao': observacao || '',
+            'Horimetro Anterior': previousHorimeter ? previousHorimeter.toString().replace('.', ',') : '',
+            'Horimetro Atual': horNum > 0 ? horNum.toString().replace('.', ',') : '',
+            'Intervalo H': intervalHor > 0 ? intervalHor.toString().replace('.', ',') : '',
+            'Km Anterior': previousKm ? previousKm.toString().replace('.', ',') : '',
+            'Km Atual': kmNum > 0 ? kmNum.toString().replace('.', ',') : '',
+            'Total Km': intervalKm > 0 ? intervalKm.toString().replace('.', ',') : '',
           };
 
           console.log('Syncing horimeter to sheet with data:', JSON.stringify(sheetData));
