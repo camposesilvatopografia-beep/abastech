@@ -68,49 +68,77 @@ function sortRecords(records: FuelRecord[], sortByDescription?: boolean): FuelRe
   );
 }
 
-const FUEL_TABLE_HEAD = ['Data', 'Hora', 'Veículo', 'Descrição', 'Motorista', 'Diesel (L)', 'Arla (L)', 'Local'];
+const FUEL_TABLE_HEAD = [
+  '', 'Código', 'Descrição', 'Motorista/Operador',
+  'Hor/Km\nAnterior', 'Hor/Km\nAtual', 'Intervalo\n(h/km)',
+  'Consumo', 'Qtd Diesel'
+];
 
 const FUEL_COL_STYLES: Record<number, any> = {
-  0: { cellWidth: 22 },
-  1: { cellWidth: 15 },
-  2: { cellWidth: 22 },
-  3: { cellWidth: 50 },
-  4: { cellWidth: 40 },
-  5: { cellWidth: 22, halign: 'right' },
-  6: { cellWidth: 18, halign: 'right' },
-  7: { cellWidth: 35 },
+  0: { cellWidth: 10, halign: 'center' },
+  1: { cellWidth: 25 },
+  2: { cellWidth: 45 },
+  3: { cellWidth: 45 },
+  4: { cellWidth: 25, halign: 'right' },
+  5: { cellWidth: 28, halign: 'right' },
+  6: { cellWidth: 28, halign: 'right' },
+  7: { cellWidth: 22, halign: 'right' },
+  8: { cellWidth: 22, halign: 'right' },
 };
+
+function fmtPtBR(val: number, decimals = 2): string {
+  if (val === 0) return '-';
+  return val.toLocaleString('pt-BR', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+}
 
 function buildFuelTableData(records: FuelRecord[]) {
   let totalDiesel = 0;
-  let totalArla = 0;
+  let totalConsumo = 0;
+  let countConsumo = 0;
 
-  const body = records.map(row => {
+  const body = records.map((row, index) => {
     const qty = parseNumber(row['QUANTIDADE']);
-    const arla = parseNumber(row['QUANTIDADE DE ARLA']);
+    const horAnterior = parseNumber(row['HORIMETRO ANTERIOR'] || row['HOR_ANTERIOR'] || 0);
+    const horAtual = parseNumber(row['HORIMETRO ATUAL'] || row['HOR_ATUAL'] || 0);
+    const kmAnterior = parseNumber(row['KM ANTERIOR'] || row['KM_ANTERIOR'] || 0);
+    const kmAtual = parseNumber(row['KM ATUAL'] || row['KM_ATUAL'] || 0);
+
+    const usaKm = kmAtual > 0 || kmAnterior > 0;
+    const anterior = usaKm ? kmAnterior : horAnterior;
+    const atual = usaKm ? kmAtual : horAtual;
+    const intervalo = atual - anterior;
+
+    let consumo = 0;
+    if (qty > 0 && intervalo > 0) {
+      consumo = usaKm ? intervalo / qty : qty / intervalo;
+      totalConsumo += consumo;
+      countConsumo++;
+    }
+
     totalDiesel += qty;
-    totalArla += arla;
 
     return [
-      String(row['DATA'] || ''),
-      String(row['HORA'] || ''),
+      (index + 1).toString() + '.',
       String(row['VEICULO'] || ''),
       String(row['DESCRICAO'] || row['DESCRIÇÃO'] || ''),
       String(row['MOTORISTA'] || ''),
-      qty > 0 ? fmtNum(qty) : '-',
-      arla > 0 ? fmtNum(arla) : '-',
-      String(row['LOCAL'] || ''),
+      anterior > 0 ? fmtPtBR(anterior) : '-',
+      atual > 0 ? fmtPtBR(atual) : '-',
+      intervalo > 0 ? fmtPtBR(intervalo) : '-',
+      consumo > 0 ? fmtPtBR(consumo) : '0,00',
+      qty > 0 ? qty.toLocaleString('pt-BR', { minimumFractionDigits: 0 }) : '-',
     ];
   });
 
+  const mediaConsumo = countConsumo > 0 ? totalConsumo / countConsumo : 0;
   body.push([
-    'TOTAL', '', '', '', '',
-    fmtNum(totalDiesel),
-    totalArla > 0 ? fmtNum(totalArla) : '-',
-    '',
+    '', '', '', 'TOTAL',
+    '', '', '',
+    mediaConsumo > 0 ? `Média: ${fmtPtBR(mediaConsumo)}` : '-',
+    totalDiesel.toLocaleString('pt-BR', { minimumFractionDigits: 0 }),
   ]);
 
-  return { body, totalDiesel, totalArla };
+  return { body, totalDiesel };
 }
 
 function addPageFooters(doc: jsPDF) {
@@ -127,20 +155,35 @@ function addPageFooters(doc: jsPDF) {
 }
 
 function mapRecordForXLSX(row: FuelRecord) {
+  const horAnterior = parseNumber(row['HORIMETRO ANTERIOR'] || row['HOR_ANTERIOR'] || 0);
+  const horAtual = parseNumber(row['HORIMETRO ATUAL'] || row['HOR_ATUAL'] || 0);
+  const kmAnterior = parseNumber(row['KM ANTERIOR'] || row['KM_ANTERIOR'] || 0);
+  const kmAtual = parseNumber(row['KM ATUAL'] || row['KM_ATUAL'] || 0);
+  const qty = parseNumber(row['QUANTIDADE']);
+
+  const usaKm = kmAtual > 0 || kmAnterior > 0;
+  const anterior = usaKm ? kmAnterior : horAnterior;
+  const atual = usaKm ? kmAtual : horAtual;
+  const intervalo = atual - anterior;
+  let consumo = 0;
+  if (qty > 0 && intervalo > 0) {
+    consumo = usaKm ? intervalo / qty : qty / intervalo;
+  }
+
   return {
-    'Data': String(row['DATA'] || ''),
-    'Hora': String(row['HORA'] || ''),
-    'Veículo': String(row['VEICULO'] || ''),
+    'Código': String(row['VEICULO'] || ''),
     'Descrição': String(row['DESCRICAO'] || row['DESCRIÇÃO'] || ''),
-    'Motorista': String(row['MOTORISTA'] || ''),
-    'Diesel (L)': parseNumber(row['QUANTIDADE']),
-    'Arla (L)': parseNumber(row['QUANTIDADE DE ARLA']),
-    'Local': String(row['LOCAL'] || ''),
+    'Motorista/Operador': String(row['MOTORISTA'] || ''),
+    'Hor/Km Anterior': anterior > 0 ? anterior : '',
+    'Hor/Km Atual': atual > 0 ? atual : '',
+    'Intervalo': intervalo > 0 ? intervalo : '',
+    'Consumo': consumo > 0 ? consumo : '',
+    'Diesel (L)': qty,
   };
 }
 
 const XLSX_COL_WIDTHS = [
-  { wch: 12 }, { wch: 8 }, { wch: 15 }, { wch: 30 }, { wch: 30 }, { wch: 12 }, { wch: 12 }, { wch: 25 },
+  { wch: 15 }, { wch: 30 }, { wch: 30 }, { wch: 14 }, { wch: 14 }, { wch: 12 }, { wch: 12 }, { wch: 12 },
 ];
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -243,16 +286,22 @@ function renderTanquesPage(
       head: [FUEL_TABLE_HEAD],
       body,
       theme: 'grid',
-      styles: { fontSize: 7, cellPadding: 1.5 },
-      headStyles: { fillColor: [color[0], color[1], color[2]], textColor: 255, fontStyle: 'bold', fontSize: 7 },
+      styles: { fontSize: 8, cellPadding: 2 },
+      headStyles: {
+        fillColor: [color[0], color[1], color[2]],
+        textColor: 255,
+        fontStyle: 'bold',
+        fontSize: 8,
+        halign: 'center',
+        valign: 'middle',
+      },
       columnStyles: FUEL_COL_STYLES,
       margin: { left: 14, right: 14 },
       alternateRowStyles: { fillColor: [248, 250, 252] },
       didParseCell: (data) => {
         if (data.row.index === body.length - 1) {
-          data.cell.styles.fillColor = [color[0], color[1], color[2]];
-          data.cell.styles.textColor = 255;
           data.cell.styles.fontStyle = 'bold';
+          data.cell.styles.fillColor = [230, 230, 240];
         }
       },
     });
@@ -362,16 +411,22 @@ function renderComboiosPage(
       head: [FUEL_TABLE_HEAD],
       body,
       theme: 'grid',
-      styles: { fontSize: 7, cellPadding: 1.5 },
-      headStyles: { fillColor: [color[0], color[1], color[2]], textColor: 255, fontStyle: 'bold', fontSize: 7 },
+      styles: { fontSize: 8, cellPadding: 2 },
+      headStyles: {
+        fillColor: [color[0], color[1], color[2]],
+        textColor: 255,
+        fontStyle: 'bold',
+        fontSize: 8,
+        halign: 'center',
+        valign: 'middle',
+      },
       columnStyles: FUEL_COL_STYLES,
       margin: { left: 14, right: 14 },
       alternateRowStyles: { fillColor: [248, 250, 252] },
       didParseCell: (data) => {
         if (data.row.index === body.length - 1) {
-          data.cell.styles.fillColor = [color[0], color[1], color[2]];
-          data.cell.styles.textColor = 255;
           data.cell.styles.fontStyle = 'bold';
+          data.cell.styles.fillColor = [230, 230, 240];
         }
       },
     });
