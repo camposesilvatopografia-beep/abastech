@@ -27,6 +27,7 @@ import {
   Copy,
   Trash2,
   Zap,
+  Smartphone,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -736,6 +737,16 @@ export function FieldUsersPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <Link to="/apontamento/instalar" target="_blank">
+              <Button 
+                variant="ghost"
+                size="sm"
+                className="gap-2 text-primary-foreground hover:bg-primary-foreground/20"
+              >
+                <Smartphone className="w-4 h-4" />
+                <span className="hidden sm:inline">Instalar App</span>
+              </Button>
+            </Link>
             <Button 
               onClick={openBulkApplyModal} 
               variant="ghost"
