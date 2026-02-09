@@ -34,6 +34,8 @@ import { format, startOfMonth, endOfMonth, isWithinInterval, startOfDay, isSameD
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { parsePtBRNumber, formatPtBRNumber } from '@/lib/ptBRNumber';
+import { supabase } from '@/integrations/supabase/client';
+import { getSheetData } from '@/lib/googleSheets';
 
 interface DatabaseHorimeterModalProps {
   open: boolean;
@@ -136,19 +138,126 @@ export function DatabaseHorimeterModal({
     return relevantReadings[0];
   }, [selectedVehicleId, readings, isEditMode, editRecord, selectedDate]);
 
-  // Previous Horimeter value - comes from last reading or edited value
-  // In edit mode, use the editable state; in create mode, derive from last reading
-  const previousHorimeterDerived = useMemo(() => {
-    if (!selectedVehicleId || !lastReading) return 0;
-    return lastReading.current_value || 0;
-  }, [selectedVehicleId, lastReading]);
+  // Multi-source previous values: DB readings + fuel records + Google Sheets
+  const [multiSourcePrevHor, setMultiSourcePrevHor] = useState<number>(0);
+  const [multiSourcePrevKm, setMultiSourcePrevKm] = useState<number>(0);
+  const [fetchingPrevious, setFetchingPrevious] = useState(false);
 
-  // Previous KM value - comes from last reading or edited value
+  // Fetch previous values from all sources when vehicle changes
+  useEffect(() => {
+    if (!selectedVehicleId || isEditMode) return;
+    
+    const vehicle = vehicles.find(v => v.id === selectedVehicleId);
+    if (!vehicle) return;
+
+    let cancelled = false;
+    setFetchingPrevious(true);
+
+    const fetchAllSources = async () => {
+      let bestHor = 0;
+      let bestKm = 0;
+      let bestDate = '';
+
+      // 1) From horimeter_readings (DB)
+      const dbReading = readings
+        .filter(r => r.vehicle_id === selectedVehicleId)
+        .sort((a, b) => {
+          const d = b.reading_date.localeCompare(a.reading_date);
+          if (d !== 0) return d;
+          return ((b as any).created_at || '').localeCompare((a as any).created_at || '');
+        })[0];
+
+      if (dbReading) {
+        if (dbReading.current_value > 0) { bestHor = dbReading.current_value; bestDate = dbReading.reading_date; }
+        if ((dbReading as any).current_km > 0) { bestKm = (dbReading as any).current_km; }
+      }
+
+      // 2) From field_fuel_records (DB)
+      try {
+        const vehicleCode = vehicle.code;
+        const { data: fuelRecords } = await supabase
+          .from('field_fuel_records')
+          .select('record_date, horimeter_current, km_current')
+          .eq('vehicle_code', vehicleCode)
+          .order('record_date', { ascending: false })
+          .limit(1);
+
+        if (fuelRecords?.[0]) {
+          const fr = fuelRecords[0];
+          if (fr.record_date >= bestDate || bestDate === '') {
+            if (fr.horimeter_current && fr.horimeter_current > bestHor) {
+              bestHor = fr.horimeter_current;
+              bestDate = fr.record_date;
+            }
+            if (fr.km_current && fr.km_current > bestKm) {
+              bestKm = fr.km_current;
+            }
+          }
+        }
+      } catch (e) {
+        console.error('Error fetching fuel records for previous:', e);
+      }
+
+      // 3) From Google Sheets "Horimetros"
+      try {
+        const sheetData = await getSheetData('Horimetros', { noCache: false });
+        const vehicleCode = vehicle.code;
+        const normalizeCode = (c: string) => (c || '').trim().replace(/\s+/g, ' ').toUpperCase();
+        const targetCode = normalizeCode(vehicleCode);
+
+        // Find all rows for this vehicle, get the most recent
+        const vehicleRows = sheetData.rows
+          .filter(row => {
+            const rowCode = normalizeCode(String(row['Veiculo'] || ''));
+            return rowCode === targetCode;
+          })
+          .sort((a, b) => {
+            // Parse dd/MM/yyyy dates for comparison
+            const parseDate = (d: string) => {
+              const parts = String(d || '').split('/');
+              if (parts.length === 3) return `${parts[2]}-${parts[1]}-${parts[0]}`;
+              return '';
+            };
+            const dateA = parseDate(String(a[' Data'] || a['Data'] || ''));
+            const dateB = parseDate(String(b[' Data'] || b['Data'] || ''));
+            return dateB.localeCompare(dateA);
+          });
+
+        if (vehicleRows.length > 0) {
+          const latest = vehicleRows[0];
+          const horAtual = parsePtBRNumber(String(latest['Horimetro Atual'] || ''));
+          const kmAtual = parsePtBRNumber(String(latest['Km Atual'] || ''));
+
+          if (horAtual > bestHor) bestHor = horAtual;
+          if (kmAtual > bestKm) bestKm = kmAtual;
+        }
+      } catch (e) {
+        console.error('Error fetching sheet data for previous:', e);
+      }
+
+      if (!cancelled) {
+        setMultiSourcePrevHor(bestHor);
+        setMultiSourcePrevKm(bestKm);
+        setFetchingPrevious(false);
+      }
+    };
+
+    fetchAllSources();
+    return () => { cancelled = true; };
+  }, [selectedVehicleId, isEditMode, vehicles, readings]);
+
+  // Previous Horimeter value - from DB reading or multi-source
+  const previousHorimeterDerived = useMemo(() => {
+    // Use the higher value between DB lastReading and multi-source
+    const fromLastReading = lastReading ? (lastReading.current_value || 0) : 0;
+    return Math.max(fromLastReading, multiSourcePrevHor);
+  }, [lastReading, multiSourcePrevHor]);
+
+  // Previous KM value
   const previousKmDerived = useMemo(() => {
-    if (!selectedVehicleId || !lastReading) return 0;
-    const reading = lastReading as any;
-    return reading.current_km || 0;
-  }, [selectedVehicleId, lastReading]);
+    const fromLastReading = lastReading ? ((lastReading as any).current_km || 0) : 0;
+    return Math.max(fromLastReading, multiSourcePrevKm);
+  }, [lastReading, multiSourcePrevKm]);
 
   // Effective previous values (editable in edit mode, derived in create mode)
   const previousHorimeter = isEditMode 
