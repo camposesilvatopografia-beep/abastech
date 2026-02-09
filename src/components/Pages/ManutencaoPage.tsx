@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
+
 import { 
   Wrench,
   RefreshCw,
@@ -77,6 +78,7 @@ import { useSheetData, useSheetData as useGoogleSheetData } from '@/hooks/useGoo
 import { createRow } from '@/lib/googleSheets';
 import { RecurringProblemsTab } from '@/components/Maintenance/RecurringProblemsTab';
 import { MaintenanceRankingTab } from '@/components/Maintenance/MaintenanceRankingTab';
+import { OSPhotoUpload } from '@/components/Maintenance/OSPhotoUpload';
 import { useObraSettings } from '@/hooks/useObraSettings';
 
 const ORDEM_SERVICO_SHEET = 'Ordem_Servico';
@@ -235,6 +237,9 @@ export function ManutencaoPage() {
     exit_date: '',
     exit_time: '',
     interval_days: '90', // Default 90 days for preventive maintenance
+    photo_before_url: '' as string | null,
+    photo_after_url: '' as string | null,
+    photo_parts_url: '' as string | null,
   });
 
   // Fetch service orders
@@ -903,6 +908,9 @@ export function ManutencaoPage() {
       exit_date: '',
       exit_time: '',
       interval_days: '90',
+      photo_before_url: null,
+      photo_after_url: null,
+      photo_parts_url: null,
     });
     setIsModalOpen(true);
   };
@@ -953,6 +961,9 @@ export function ManutencaoPage() {
       exit_date: exitDateVal,
       exit_time: exitTimeVal,
       interval_days: (order as any).interval_days?.toString() || '90',
+      photo_before_url: (order as any).photo_before_url || null,
+      photo_after_url: (order as any).photo_after_url || null,
+      photo_parts_url: (order as any).photo_parts_url || null,
     });
     fetchVehicleHistory(order.vehicle_code);
     setIsModalOpen(true);
@@ -1019,6 +1030,9 @@ export function ManutencaoPage() {
         entry_date: formData.entry_date || null,
         entry_time: formData.entry_time || null,
         interval_days: formData.order_type === 'Preventiva' ? (parseInt(formData.interval_days) || 90) : null,
+        photo_before_url: formData.photo_before_url || null,
+        photo_after_url: formData.photo_after_url || null,
+        photo_parts_url: formData.photo_parts_url || null,
       };
 
       let savedOrderNumber = '';
@@ -2729,6 +2743,23 @@ export function ManutencaoPage() {
                 rows={2}
               />
             </div>
+
+            {/* Photos */}
+            <OSPhotoUpload
+              photoBeforeUrl={formData.photo_before_url}
+              photoAfterUrl={formData.photo_after_url}
+              photoPartsUrl={formData.photo_parts_url}
+              onPhotoChange={(key, url) => {
+                const fieldMap = {
+                  before: 'photo_before_url',
+                  after: 'photo_after_url',
+                  parts: 'photo_parts_url',
+                } as const;
+                setFormData({ ...formData, [fieldMap[key]]: url });
+              }}
+              orderNumber={editingOrder?.order_number}
+              vehicleCode={formData.vehicle_code}
+            />
           </div>
 
           <div className="flex justify-end gap-2">
