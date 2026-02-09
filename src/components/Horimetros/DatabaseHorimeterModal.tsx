@@ -223,8 +223,9 @@ export function DatabaseHorimeterModal({
     };
 
     const fetchAllSources = async () => {
-      let bestHor = 0;
-      let bestKm = 0;
+      // Track candidates with their dates so the MOST RECENT record wins (not highest value)
+      interface Candidate { date: Date; hor: number; km: number; source: string; }
+      const candidates: Candidate[] = [];
       const vehicleCode = vehicle.code;
       const targetCode = normalizeVehicleCode(vehicleCode);
 
@@ -238,8 +239,12 @@ export function DatabaseHorimeterModal({
         })[0];
 
       if (dbReading) {
-        if (dbReading.current_value > 0) bestHor = dbReading.current_value;
-        if ((dbReading as any).current_km > 0) bestKm = (dbReading as any).current_km;
+        candidates.push({
+          date: new Date(dbReading.reading_date + 'T12:00:00'),
+          hor: dbReading.current_value > 0 ? dbReading.current_value : 0,
+          km: (dbReading as any).current_km > 0 ? (dbReading as any).current_km : 0,
+          source: 'db_horimeter',
+        });
       }
 
       // 2) From field_fuel_records (DB)
@@ -254,14 +259,19 @@ export function DatabaseHorimeterModal({
 
         if (fuelRecords?.[0]) {
           const fr = fuelRecords[0];
-          if (fr.horimeter_current && fr.horimeter_current > bestHor) bestHor = fr.horimeter_current;
-          if (fr.km_current && fr.km_current > bestKm) bestKm = fr.km_current;
+          const frDate = new Date(fr.record_date + 'T' + (fr.record_time || '12:00') + ':00');
+          candidates.push({
+            date: frDate,
+            hor: fr.horimeter_current ?? 0,
+            km: fr.km_current ?? 0,
+            source: 'db_fuel',
+          });
         }
       } catch (e) {
         console.error('Error fetching fuel records for previous:', e);
       }
 
-      // 3) From Google Sheets "AbastecimentoCanteiro01" (same source as Abastecimento module)
+      // 3) From Google Sheets "AbastecimentoCanteiro01" (primary source)
       try {
         const sheetData = await getSheetData('AbastecimentoCanteiro01', { noCache: true });
         const rows = sheetData.rows || [];
@@ -289,8 +299,12 @@ export function DatabaseHorimeterModal({
 
         if (vehicleRecords.length > 0) {
           const mostRecent = vehicleRecords[0];
-          if (mostRecent.horValue > bestHor) bestHor = mostRecent.horValue;
-          if (mostRecent.kmValue > bestKm) bestKm = mostRecent.kmValue;
+          candidates.push({
+            date: mostRecent.dateTime!,
+            hor: mostRecent.horValue,
+            km: mostRecent.kmValue,
+            source: 'sheet_abastecimento',
+          });
         }
       } catch (e) {
         console.error('Error fetching AbastecimentoCanteiro01 for previous:', e);
@@ -303,31 +317,71 @@ export function DatabaseHorimeterModal({
 
         const vehicleRows = sheetData.rows
           .filter(row => normalizeCode(String(row['Veiculo'] || '')) === normalizeCode(vehicleCode))
-          .sort((a, b) => {
+          .map(row => {
             const parseDate = (d: string) => {
               const parts = String(d || '').split('/');
-              if (parts.length === 3) return `${parts[2]}-${parts[1]}-${parts[0]}`;
-              return '';
+              if (parts.length === 3) return new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]), 12, 0, 0);
+              return null;
             };
-            const dateA = parseDate(String(a[' Data'] || a['Data'] || ''));
-            const dateB = parseDate(String(b[' Data'] || b['Data'] || ''));
-            return dateB.localeCompare(dateA);
-          });
+            const dateVal = parseDate(String(row[' Data'] || row['Data'] || ''));
+            const horAtual = parsePtBRNumber(String(row['Horimetro Atual'] || ''));
+            const kmAtual = parsePtBRNumber(String(row['Km Atual'] || ''));
+            return { dateVal, horAtual, kmAtual };
+          })
+          .filter(r => !!r.dateVal && (r.horAtual > 0 || r.kmAtual > 0))
+          .sort((a, b) => (b.dateVal?.getTime() ?? 0) - (a.dateVal?.getTime() ?? 0));
 
         if (vehicleRows.length > 0) {
           const latest = vehicleRows[0];
-          const horAtual = parsePtBRNumber(String(latest['Horimetro Atual'] || ''));
-          const kmAtual = parsePtBRNumber(String(latest['Km Atual'] || ''));
-          if (horAtual > bestHor) bestHor = horAtual;
-          if (kmAtual > bestKm) bestKm = kmAtual;
+          candidates.push({
+            date: latest.dateVal!,
+            hor: latest.horAtual,
+            km: latest.kmAtual,
+            source: 'sheet_horimetros',
+          });
         }
       } catch (e) {
         console.error('Error fetching Horimetros sheet for previous:', e);
       }
 
-      if (!cancelled) {
-        setMultiSourcePrevHor(bestHor);
-        setMultiSourcePrevKm(bestKm);
+      // Pick the MOST RECENT candidate by date (sheets win on tie)
+      if (!cancelled && candidates.length > 0) {
+        const sheetPriority: Record<string, number> = {
+          'sheet_abastecimento': 2,
+          'sheet_horimetros': 2,
+          'db_fuel': 1,
+          'db_horimeter': 0,
+        };
+        
+        candidates.sort((a, b) => {
+          const timeDiff = b.date.getTime() - a.date.getTime();
+          if (timeDiff !== 0) return timeDiff;
+          // On same date, prefer sheet sources
+          return (sheetPriority[b.source] ?? 0) - (sheetPriority[a.source] ?? 0);
+        });
+
+        const winner = candidates[0];
+        // Use the winner's values, but also check if any other source has a higher value
+        // for the secondary metric (e.g., winner has hor but another has km)
+        let finalHor = winner.hor;
+        let finalKm = winner.km;
+        
+        // For the metric the winner doesn't have, check other candidates
+        if (finalHor <= 0) {
+          const bestHorCandidate = candidates.find(c => c.hor > 0);
+          if (bestHorCandidate) finalHor = bestHorCandidate.hor;
+        }
+        if (finalKm <= 0) {
+          const bestKmCandidate = candidates.find(c => c.km > 0);
+          if (bestKmCandidate) finalKm = bestKmCandidate.km;
+        }
+
+        setMultiSourcePrevHor(finalHor);
+        setMultiSourcePrevKm(finalKm);
+        setFetchingPrevious(false);
+      } else if (!cancelled) {
+        setMultiSourcePrevHor(0);
+        setMultiSourcePrevKm(0);
         setFetchingPrevious(false);
       }
     };
