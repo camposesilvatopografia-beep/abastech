@@ -298,7 +298,7 @@ export function DatabaseHorimeterModal({
 
       // 4) From Google Sheets "Horimetros"
       try {
-        const sheetData = await getSheetData('Horimetros', { noCache: false });
+        const sheetData = await getSheetData('Horimetros', { noCache: true });
         const normalizeCode = (c: string) => (c || '').trim().replace(/\s+/g, ' ').toUpperCase();
 
         const vehicleRows = sheetData.rows
