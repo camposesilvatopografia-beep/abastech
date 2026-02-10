@@ -343,7 +343,30 @@ export function FieldServiceOrderForm({ user, onBack }: FieldServiceOrderFormPro
 
       const isFinalized = orderData.status === 'Finalizada';
 
+      // Calculate downtime (Horas_Parado)
+      let horasParado = '';
+      if (orderData.entry_date && orderData.entry_time) {
+        const endRef = isFinalized && orderData.end_date ? new Date(orderData.end_date) : new Date();
+        try {
+          const entryDateStr = orderData.entry_date.includes('T') ? orderData.entry_date.split('T')[0] : orderData.entry_date;
+          const entryDateTime = new Date(`${entryDateStr}T${orderData.entry_time}`);
+          if (!isNaN(entryDateTime.getTime()) && !isNaN(endRef.getTime())) {
+            const diffMs = endRef.getTime() - entryDateTime.getTime();
+            if (diffMs > 0) {
+              const totalHours = Math.floor(diffMs / (1000 * 60 * 60));
+              const days = Math.floor(totalHours / 24);
+              const hours = totalHours % 24;
+              horasParado = days > 0 ? `${days}d ${hours}h` : `${hours}h`;
+            }
+          }
+        } catch { /* ignore */ }
+      }
+
+      // Remove OS- prefix from order number for the sheet
+      const idOrdem = (orderData.order_number || '').replace(/^OS-/i, '');
+
       const rowData: Record<string, string> = {
+        'IdOrdem': idOrdem,
         'Data': formatDateForSheet(orderData.entry_date || orderData.order_date),
         'Veiculo': orderData.vehicle_code || '',
         'Empresa': orderData.vehicle_company || form.vehicle_company || '',
@@ -356,6 +379,7 @@ export function FieldServiceOrderForm({ user, onBack }: FieldServiceOrderFormPro
         'Data_Saida': isFinalized ? formatDateForSheet(orderData.end_date || new Date().toISOString()) : '',
         'Hora_Entrada': formatTimeForSheet(orderData.entry_time, null),
         'Hora_Saida': isFinalized ? formatTimeForSheet(null, orderData.end_date) : '',
+        'Horas_Parado': isFinalized ? horasParado : '',
         'Observacao': orderData.notes || '',
         'Status': orderData.status || '',
       };
