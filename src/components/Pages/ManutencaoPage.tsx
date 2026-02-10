@@ -479,7 +479,25 @@ export function ManutencaoPage() {
     created_by?: string | null;
   }, company?: string): Record<string, string> => {
     const isFinalized = order.status.includes('Finalizada');
-    
+
+    // Calculate downtime (Horas_Parado)
+    let horasParado = '';
+    if (order.entry_date && order.entry_time) {
+      const endRef = isFinalized && order.end_date ? new Date(order.end_date) : new Date();
+      try {
+        const entryDateStr = order.entry_date.includes('T') ? order.entry_date.split('T')[0] : order.entry_date;
+        const entryDateTime = new Date(`${entryDateStr}T${order.entry_time}`);
+        if (!isNaN(entryDateTime.getTime()) && !isNaN(endRef.getTime())) {
+          const diffMs = endRef.getTime() - entryDateTime.getTime();
+          if (diffMs > 0) {
+            const totalHours = Math.floor(diffMs / (1000 * 60 * 60));
+            const days = Math.floor(totalHours / 24);
+            const hours = totalHours % 24;
+            horasParado = days > 0 ? `${days}d ${hours}h` : `${hours}h`;
+          }
+        }
+      } catch { /* ignore */ }
+    }
 
     return {
       'Data': formatDateForSheet(order.entry_date || order.order_date),
@@ -494,6 +512,7 @@ export function ManutencaoPage() {
       'Data_Saida': isFinalized ? formatDateForSheet(order.end_date || new Date().toISOString()) : '',
       'Hora_Entrada': formatTimeForSheet(order.entry_time, null),
       'Hora_Saida': isFinalized ? formatTimeForSheet(null, order.end_date) : '',
+      'Horas_Parado': isFinalized ? horasParado : '',
       'Observacao': order.notes || '',
       'Status': order.status || '',
     };
