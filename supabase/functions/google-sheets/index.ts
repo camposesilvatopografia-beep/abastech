@@ -538,7 +538,23 @@ serve(async (req) => {
         console.log("Headers found:", headerRow);
 
         // Map data to ALL headers (including column A)
-        const newRowValues = headerRow.map((header: string) => data[String(header).trim()] ?? "");
+        // Try exact match first, then trimmed, then normalized (no accents/spaces) for resilience
+        const normalize = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[\s_.]/g, '');
+        const dataByNormalized = new Map<string, string>();
+        for (const [k, v] of Object.entries(data)) {
+          dataByNormalized.set(normalize(k), String(v ?? ''));
+        }
+        const newRowValues = headerRow.map((header: string) => {
+          // 1. Exact match
+          if (data[header] !== undefined) return data[header];
+          // 2. Trimmed match
+          const trimmed = String(header).trim();
+          if (data[trimmed] !== undefined) return data[trimmed];
+          // 3. Normalized match (accent/space insensitive)
+          const norm = normalize(header);
+          if (dataByNormalized.has(norm)) return dataByNormalized.get(norm);
+          return "";
+        });
         console.log("Values to append:", newRowValues);
 
         // Append starting from column A to match the full table range
@@ -559,7 +575,19 @@ serve(async (req) => {
           throw new Error("No headers found in sheet");
         }
 
-        const updateValues = updateHeaderRow.map((header: string) => data[header] ?? "");
+        const normalizeU = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[\s_.]/g, '');
+        const dataByNormalizedU = new Map<string, string>();
+        for (const [k, v] of Object.entries(data)) {
+          dataByNormalizedU.set(normalizeU(k), String(v ?? ''));
+        }
+        const updateValues = updateHeaderRow.map((header: string) => {
+          if (data[header] !== undefined) return data[header];
+          const trimmed = String(header).trim();
+          if (data[trimmed] !== undefined) return data[trimmed];
+          const norm = normalizeU(header);
+          if (dataByNormalizedU.has(norm)) return dataByNormalizedU.get(norm);
+          return "";
+        });
         await updateRow(accessToken, sheetId, formatRange(sheetName, `A${rowIndex}`), updateValues);
 
         invalidateSheetCaches(sheetId, sheetName);
