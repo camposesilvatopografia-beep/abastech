@@ -289,6 +289,25 @@ serve(async (req) => {
 
       const isFinalized = String(order.status || "").includes("Finalizada");
 
+      // Calculate downtime (Horas_Parado)
+      let horasParado = '';
+      if (order.entry_date && order.entry_time) {
+        try {
+          const entryDateStr = String(order.entry_date).includes('T') ? String(order.entry_date).split('T')[0] : String(order.entry_date);
+          const entryDateTime = new Date(`${entryDateStr}T${order.entry_time}`);
+          const endRef = isFinalized && order.end_date ? new Date(order.end_date) : new Date();
+          if (!isNaN(entryDateTime.getTime()) && !isNaN(endRef.getTime())) {
+            const diffMs = endRef.getTime() - entryDateTime.getTime();
+            if (diffMs > 0) {
+              const totalHours = Math.floor(diffMs / (1000 * 60 * 60));
+              const days = Math.floor(totalHours / 24);
+              const hours = totalHours % 24;
+              horasParado = days > 0 ? `${days}d ${hours}h` : `${hours}h`;
+            }
+          }
+        } catch { /* ignore */ }
+      }
+
       const rowMap: Record<string, string> = {
         "Data": formatDate(order.entry_date || order.order_date),
         "Veiculo": order.vehicle_code || "",
@@ -302,6 +321,7 @@ serve(async (req) => {
         "Data_Saida": isFinalized ? formatDate(order.end_date || "") : "",
         "Hora_Entrada": formatTime(order.entry_time, null),
         "Hora_Saida": isFinalized ? formatTime(null, order.end_date) : "",
+        "Horas_Parado": isFinalized ? horasParado : "",
         "Observacao": order.notes || "",
         "Status": order.status || "",
       };
