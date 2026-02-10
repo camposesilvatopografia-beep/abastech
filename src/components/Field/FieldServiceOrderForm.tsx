@@ -375,6 +375,7 @@ export function FieldServiceOrderForm({ user, onBack }: FieldServiceOrderFormPro
         'Data_Saida': isFinalized ? formatDateForSheet(orderData.end_date || new Date().toISOString()) : '',
         'Hora_Entrada': formatTimeForSheet(orderData.entry_time, null),
         'Hora_Saida': isFinalized ? formatTimeForSheet(null, orderData.end_date) : '',
+        'Horas_Parado': isFinalized ? horasParado : '',
         'Observacao': orderData.notes || '',
         'Status': orderData.status || '',
       };
