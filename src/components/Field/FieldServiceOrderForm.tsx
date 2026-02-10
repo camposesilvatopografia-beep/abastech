@@ -362,11 +362,7 @@ export function FieldServiceOrderForm({ user, onBack }: FieldServiceOrderFormPro
         } catch { /* ignore */ }
       }
 
-      // Remove OS- prefix from order number for the sheet
-      const idOrdem = (orderData.order_number || '').replace(/^OS-/i, '');
-
       const rowData: Record<string, string> = {
-        'IdOrdem': idOrdem,
         'Data': formatDateForSheet(orderData.entry_date || orderData.order_date),
         'Veiculo': orderData.vehicle_code || '',
         'Empresa': orderData.vehicle_company || form.vehicle_company || '',
@@ -379,7 +375,6 @@ export function FieldServiceOrderForm({ user, onBack }: FieldServiceOrderFormPro
         'Data_Saida': isFinalized ? formatDateForSheet(orderData.end_date || new Date().toISOString()) : '',
         'Hora_Entrada': formatTimeForSheet(orderData.entry_time, null),
         'Hora_Saida': isFinalized ? formatTimeForSheet(null, orderData.end_date) : '',
-        'Horas_Parado': isFinalized ? horasParado : '',
         'Observacao': orderData.notes || '',
         'Status': orderData.status || '',
       };
