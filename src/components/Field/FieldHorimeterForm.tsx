@@ -523,20 +523,39 @@ export function FieldHorimeterForm({ user, onBack }: FieldHorimeterFormProps) {
           // Format numbers in pt-BR (e.g., 1.150,27) for the spreadsheet
           const fmtNum = (v: number) => v > 0 ? formatPtBRNumber(v, { decimals: 2 }) : '';
           
-          const sheetData: Record<string, string> = {
+          const semanticData: Record<string, string> = {
             'Data': formattedDate,
             'Veiculo': vehicle.code || '',
             'Categoria': vehicle.category || '',
             'Descricao': vehicle.name || '',
             'Empresa': vehicle.company || '',
             'Operador': operador || '',
-            'Horímetro Anterior': previousHorimeter ? fmtNum(previousHorimeter) : '',
-            'Horímetro Atual': fmtNum(horNum),
+            'Horimetro Anterior': previousHorimeter ? fmtNum(previousHorimeter) : '',
+            'Horimetro Atual': fmtNum(horNum),
             'Intervalo H': fmtNum(intervalHor),
             'Km Anterior': previousKm ? fmtNum(previousKm) : '',
             'Km Atual': fmtNum(kmNum),
             'Total Km': fmtNum(intervalKm),
           };
+
+          // Fetch actual sheet headers and map to exact names
+          let sheetData = semanticData;
+          try {
+            const sheetInfo = await getSheetData('Horimetros', { noCache: false });
+            const headers = sheetInfo.headers || [];
+            if (headers.length > 0) {
+              const normalizeH = (h: string) => h.normalize('NFD').replace(/\p{Diacritic}/gu, '').toUpperCase().replace(/[\s_.]/g, '');
+              const normalizedMap = new Map(headers.map(h => [normalizeH(h), h]));
+              const mapped: Record<string, string> = {};
+              for (const [key, value] of Object.entries(semanticData)) {
+                const actual = normalizedMap.get(normalizeH(key));
+                mapped[actual || key] = value;
+              }
+              sheetData = mapped;
+            }
+          } catch (e) {
+            console.warn('Could not fetch sheet headers for mapping:', e);
+          }
 
           console.log('Syncing horimeter to sheet with data:', JSON.stringify(sheetData));
           
