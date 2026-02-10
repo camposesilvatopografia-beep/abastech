@@ -16,33 +16,46 @@ function normalizeHeader(h: string): string {
     .replace(/[\s_.]/g, '');
 }
 
-/**
- * Given a set of actual sheet headers and a map of semantic keys to candidate names,
- * build a rowData object using the EXACT header strings from the sheet.
- */
-async function buildSheetRowDataWithHeaders(
-  sheetName: string,
-  semanticData: Record<string, string>
-): Promise<Record<string, string>> {
-  // Fetch actual headers from the sheet
-  let actualHeaders: string[] = [];
-  try {
-    const sheetData = await getSheetData(sheetName, { noCache: false });
-    actualHeaders = sheetData.headers || [];
-  } catch (e) {
-    console.warn('Could not fetch sheet headers, using semantic keys as-is:', e);
-    return semanticData;
-  }
+// Cached sheet headers to avoid repeated API calls
+let _cachedHorimeterHeaders: string[] | null = null;
+let _headersCacheTime = 0;
+const HEADERS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
+/**
+ * Get the actual sheet headers for Horimetros, with caching.
+ */
+async function getHorimetrosHeaders(): Promise<string[]> {
+  const now = Date.now();
+  if (_cachedHorimeterHeaders && (now - _headersCacheTime) < HEADERS_CACHE_TTL) {
+    return _cachedHorimeterHeaders;
+  }
+  try {
+    const sheetData = await getSheetData('Horimetros', { noCache: false });
+    _cachedHorimeterHeaders = sheetData.headers || [];
+    _headersCacheTime = now;
+    return _cachedHorimeterHeaders;
+  } catch (e) {
+    console.warn('Could not fetch Horimetros headers:', e);
+    return [];
+  }
+}
+
+/**
+ * Build rowData using exact header names from the sheet via normalized matching.
+ * This ensures keys like "Horimetro Anterior" match " Horimetro Anterior" or "Horímetro Anterior".
+ */
+function mapToExactHeaders(
+  actualHeaders: string[],
+  semanticData: Record<string, string>
+): Record<string, string> {
   if (actualHeaders.length === 0) return semanticData;
 
-  // Build a normalized map: normalizedKey -> actualHeaderString
+  // Build normalized -> actual header map
   const normalizedMap = new Map<string, string>();
   for (const h of actualHeaders) {
     normalizedMap.set(normalizeHeader(h), h);
   }
 
-  // Map our semantic data to actual headers
   const result: Record<string, string> = {};
   for (const [key, value] of Object.entries(semanticData)) {
     const normalizedKey = normalizeHeader(key);
@@ -50,12 +63,20 @@ async function buildSheetRowDataWithHeaders(
     if (actualHeader) {
       result[actualHeader] = value;
     } else {
-      // Fallback: use key as-is (might match via trim in edge function)
+      // Fallback: use key as-is
       result[key] = value;
     }
   }
 
   return result;
+}
+
+/**
+ * Build sheet row data with actual header names for the Horimetros sheet.
+ */
+async function buildHorimetrosRowData(semanticData: Record<string, string>): Promise<Record<string, string>> {
+  const headers = await getHorimetrosHeaders();
+  return mapToExactHeaders(headers, semanticData);
 }
 
 export interface Vehicle {
@@ -281,7 +302,7 @@ export function useHorimeterReadings(vehicleId?: string) {
           };
           
           // Build rowData with actual sheet header names (fuzzy matched)
-          const rowData = await buildSheetRowDataWithHeaders('Horimetros', semanticData);
+          const rowData = await buildHorimetrosRowData(semanticData);
           
           console.log('Sincronizando com planilha Horimetros:', rowData);
           
@@ -408,7 +429,7 @@ export function useHorimeterReadings(vehicleId?: string) {
             };
             
             // Build rowData with actual sheet header names (fuzzy matched)
-            const rowData = await buildSheetRowDataWithHeaders('Horimetros', semanticData);
+            const rowData = await buildHorimetrosRowData(semanticData);
             
             await supabase.functions.invoke('google-sheets', {
               body: {
@@ -910,7 +931,7 @@ export function useSheetSync() {
         };
 
         // Build rowData with actual sheet header names (fuzzy matched)
-        const rowData = await buildSheetRowDataWithHeaders('Horimetros', semanticData);
+        const rowData = await buildHorimetrosRowData(semanticData);
 
         try {
           await supabase.functions.invoke('google-sheets', {
