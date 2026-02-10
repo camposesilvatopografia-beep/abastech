@@ -559,6 +559,37 @@ serve(async (req) => {
         // when column A is empty), find the next empty row and use PUT for exact positioning.
         const allData = await fetchSheetValues(accessToken, sheetId, formatRange(sheetName, "A:ZZ"));
         const nextRow = allData.length + 1; // allData includes header row
+
+        // Auto-expand sheet if needed (grid limit reached)
+        const metadata = await getSpreadsheetMetadata(accessToken, sheetId);
+        const targetSheet = metadata.sheets?.find((s: any) => s.properties?.title === sheetName);
+        if (targetSheet) {
+          const currentRows = targetSheet.properties.gridProperties.rowCount;
+          if (nextRow > currentRows) {
+            const rowsToAdd = nextRow - currentRows + 100;
+            console.log(`Expanding sheet from ${currentRows} to ${currentRows + rowsToAdd} rows`);
+            const batchUrl = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}:batchUpdate`;
+            const expandRes = await fetch(batchUrl, {
+              method: "POST",
+              headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+              body: JSON.stringify({
+                requests: [{
+                  appendDimension: {
+                    sheetId: targetSheet.properties.sheetId,
+                    dimension: "ROWS",
+                    length: rowsToAdd,
+                  },
+                }],
+              }),
+            });
+            if (!expandRes.ok) {
+              console.error("Failed to expand sheet:", await expandRes.text());
+            }
+            // Invalidate metadata cache after expansion
+            metadataCache.delete(sheetId);
+          }
+        }
+
         const writeRange = formatRange(sheetName, `A${nextRow}:ZZ${nextRow}`);
         console.log(`Writing to row ${nextRow} using PUT`);
         await updateRow(accessToken, sheetId, writeRange, newRowValues);
