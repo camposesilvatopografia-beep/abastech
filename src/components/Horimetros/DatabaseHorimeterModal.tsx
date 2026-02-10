@@ -492,16 +492,8 @@ export function DatabaseHorimeterModal({
         })();
       }
       
-      // Recommend date from last reading
-      const lastReading = readings
-        .filter(r => r.vehicle_id === selectedVehicleId)
-        .sort((a, b) => b.reading_date.localeCompare(a.reading_date))[0];
-      
-      if (lastReading) {
-        setSelectedDate(new Date(lastReading.reading_date + 'T00:00:00'));
-      } else {
-        setSelectedDate(new Date());
-      }
+      // Always default to today's date (editable by user)
+      setSelectedDate(new Date());
     } else if (!isEditMode && !selectedVehicleId) {
       setHorimeterValue(null);
       setKmValue(null);

@@ -2,6 +2,61 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { parsePtBRNumber, formatPtBRNumber } from '@/lib/ptBRNumber';
+import { getSheetData } from '@/lib/googleSheets';
+
+/**
+ * Normalize a header string for fuzzy matching:
+ * Remove accents, uppercase, strip spaces/underscores/dots
+ */
+function normalizeHeader(h: string): string {
+  return h
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toUpperCase()
+    .replace(/[\s_.]/g, '');
+}
+
+/**
+ * Given a set of actual sheet headers and a map of semantic keys to candidate names,
+ * build a rowData object using the EXACT header strings from the sheet.
+ */
+async function buildSheetRowDataWithHeaders(
+  sheetName: string,
+  semanticData: Record<string, string>
+): Promise<Record<string, string>> {
+  // Fetch actual headers from the sheet
+  let actualHeaders: string[] = [];
+  try {
+    const sheetData = await getSheetData(sheetName, { noCache: false });
+    actualHeaders = sheetData.headers || [];
+  } catch (e) {
+    console.warn('Could not fetch sheet headers, using semantic keys as-is:', e);
+    return semanticData;
+  }
+
+  if (actualHeaders.length === 0) return semanticData;
+
+  // Build a normalized map: normalizedKey -> actualHeaderString
+  const normalizedMap = new Map<string, string>();
+  for (const h of actualHeaders) {
+    normalizedMap.set(normalizeHeader(h), h);
+  }
+
+  // Map our semantic data to actual headers
+  const result: Record<string, string> = {};
+  for (const [key, value] of Object.entries(semanticData)) {
+    const normalizedKey = normalizeHeader(key);
+    const actualHeader = normalizedMap.get(normalizedKey);
+    if (actualHeader) {
+      result[actualHeader] = value;
+    } else {
+      // Fallback: use key as-is (might match via trim in edge function)
+      result[key] = value;
+    }
+  }
+
+  return result;
+}
 
 export interface Vehicle {
   id: string;
@@ -209,20 +264,24 @@ export function useHorimeterReadings(vehicleId?: string) {
           // Format numbers in pt-BR (e.g., 1.150,27) for the spreadsheet
           const fmtNum = (v: number) => v > 0 ? formatPtBRNumber(v, { decimals: 2 }) : '';
           
-          const rowData = {
+          // Use semantic keys that will be matched to actual sheet headers via normalized comparison
+          const semanticData: Record<string, string> = {
             'Data': formattedDate,
             'Veiculo': vehicle.code,
             'Categoria': vehicle.category || '',
             'Descricao': vehicle.name || '',
             'Empresa': vehicle.company || '',
             'Operador': reading.operator || '',
-            'Horímetro Anterior': prevHor > 0 ? fmtNum(prevHor) : '',
-            'Horímetro Atual': fmtNum(horimeterVal),
+            'Horimetro Anterior': prevHor > 0 ? fmtNum(prevHor) : '',
+            'Horimetro Atual': fmtNum(horimeterVal),
             'Intervalo H': intervaloH > 0 ? fmtNum(intervaloH) : '',
             'Km Anterior': prevKm > 0 ? fmtNum(prevKm) : '',
             'Km Atual': kmVal > 0 ? fmtNum(kmVal) : '',
             'Total Km': totalKm > 0 ? fmtNum(totalKm) : '',
           };
+          
+          // Build rowData with actual sheet header names (fuzzy matched)
+          const rowData = await buildSheetRowDataWithHeaders('Horimetros', semanticData);
           
           console.log('Sincronizando com planilha Horimetros:', rowData);
           
@@ -332,20 +391,24 @@ export function useHorimeterReadings(vehicleId?: string) {
             // Format numbers in pt-BR for the spreadsheet
             const fmtNum = (v: number) => v > 0 ? formatPtBRNumber(v, { decimals: 2 }) : '';
             
-            const rowData = {
+            // Use semantic keys that will be matched to actual sheet headers
+            const semanticData: Record<string, string> = {
               'Data': formattedDate,
               'Veiculo': vehicle.code,
               'Categoria': vehicle.category || '',
               'Descricao': vehicle.name || '',
               'Empresa': vehicle.company || '',
               'Operador': operator || '',
-              'Horímetro Anterior': prevHor > 0 ? fmtNum(prevHor) : '',
-              'Horímetro Atual': fmtNum(horimeterVal),
+              'Horimetro Anterior': prevHor > 0 ? fmtNum(prevHor) : '',
+              'Horimetro Atual': fmtNum(horimeterVal),
               'Intervalo H': intervaloH > 0 ? fmtNum(intervaloH) : '',
               'Km Anterior': prevKmVal > 0 ? fmtNum(prevKmVal) : '',
               'Km Atual': kmVal > 0 ? fmtNum(kmVal) : '',
               'Total Km': totalKm > 0 ? fmtNum(totalKm) : '',
             };
+            
+            // Build rowData with actual sheet header names (fuzzy matched)
+            const rowData = await buildSheetRowDataWithHeaders('Horimetros', semanticData);
             
             await supabase.functions.invoke('google-sheets', {
               body: {
@@ -830,21 +893,24 @@ export function useSheetSync() {
         const totalKm = (currKm > 0 && prevKm > 0) ? currKm - prevKm : 0;
         const fmtNum = (v: number) => v > 0 ? formatPtBRNumber(v, { decimals: 2 }) : '';
         
-        const rowData = {
-          DATA: formattedDate,
-          HORA: new Date(reading.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-          VEICULO: vehicle.code,
-          CATEGORIA: vehicle.category || '',
-          DESCRICAO: vehicle.name || '',
-          EMPRESA: vehicle.company || '',
-          OPERADOR: reading.operator || '',
-          'Horímetro Anterior': prevHor > 0 ? fmtNum(prevHor) : '',
-          'Horímetro Atual': currHor > 0 ? fmtNum(currHor) : '',
+        const semanticData: Record<string, string> = {
+          'Data': formattedDate,
+          'Hora': new Date(reading.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+          'Veiculo': vehicle.code,
+          'Categoria': vehicle.category || '',
+          'Descricao': vehicle.name || '',
+          'Empresa': vehicle.company || '',
+          'Operador': reading.operator || '',
+          'Horimetro Anterior': prevHor > 0 ? fmtNum(prevHor) : '',
+          'Horimetro Atual': currHor > 0 ? fmtNum(currHor) : '',
           'Intervalo H': intervaloH > 0 ? fmtNum(intervaloH) : '',
           'Km Anterior': prevKm > 0 ? fmtNum(prevKm) : '',
           'Km Atual': currKm > 0 ? fmtNum(currKm) : '',
           'Total Km': totalKm > 0 ? fmtNum(totalKm) : '',
         };
+
+        // Build rowData with actual sheet header names (fuzzy matched)
+        const rowData = await buildSheetRowDataWithHeaders('Horimetros', semanticData);
 
         try {
           await supabase.functions.invoke('google-sheets', {
