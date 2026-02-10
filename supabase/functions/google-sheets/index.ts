@@ -528,8 +528,6 @@ serve(async (req) => {
         }
 
         // Read headers from row 1 starting from column A to include all columns
-        // Google Sheets append detects the full table range (including col A if it has data),
-        // so we must include column A in our values to prevent column displacement.
         const headerRow = await getHeaders(accessToken, sheetId, sheetName, "A1:ZZ1");
         if (headerRow.length === 0) {
           throw new Error("No headers found in sheet");
@@ -555,10 +553,15 @@ serve(async (req) => {
           if (dataByNormalized.has(norm)) return dataByNormalized.get(norm);
           return "";
         });
-        console.log("Values to append:", newRowValues);
+        console.log("Values to write:", newRowValues);
 
-        // Append starting from column A to match the full table range
-        await appendRow(accessToken, sheetId, formatRange(sheetName, "A:ZZ"), newRowValues);
+        // Instead of using append (which auto-detects table range and can shift columns
+        // when column A is empty), find the next empty row and use PUT for exact positioning.
+        const allData = await fetchSheetValues(accessToken, sheetId, formatRange(sheetName, "A:ZZ"));
+        const nextRow = allData.length + 1; // allData includes header row
+        const writeRange = formatRange(sheetName, `A${nextRow}:ZZ${nextRow}`);
+        console.log(`Writing to row ${nextRow} using PUT`);
+        await updateRow(accessToken, sheetId, writeRange, newRowValues);
 
         invalidateSheetCaches(sheetId, sheetName);
         result = { success: true, message: "Row created successfully" };
