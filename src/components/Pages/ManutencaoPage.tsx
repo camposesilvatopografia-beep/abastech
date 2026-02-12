@@ -33,6 +33,7 @@ import {
   Pause,
   Check,
   ArrowRight,
+  Copy,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -78,6 +79,7 @@ import { useSheetData, useSheetData as useGoogleSheetData } from '@/hooks/useGoo
 import { createRow, updateRow, deleteRow, getSheetData } from '@/lib/googleSheets';
 import { RecurringProblemsTab } from '@/components/Maintenance/RecurringProblemsTab';
 import { MaintenanceRankingTab } from '@/components/Maintenance/MaintenanceRankingTab';
+import { MaintenanceDuplicatesTab } from '@/components/Maintenance/MaintenanceDuplicatesTab';
 import { OSPhotoUpload } from '@/components/Maintenance/OSPhotoUpload';
 import { useObraSettings } from '@/hooks/useObraSettings';
 
@@ -85,6 +87,7 @@ const ORDEM_SERVICO_SHEET = 'Ordem_Servico';
 
 const TABS = [
   { id: 'ordens', label: 'Ordens de Serviço', icon: ClipboardList },
+  { id: 'duplicados', label: 'Duplicados', icon: Copy },
   { id: 'ranking', label: 'Ranking', icon: BarChart3 },
   { id: 'problemas', label: 'Problemas Recorrentes', icon: TrendingUp },
 ];
@@ -1171,6 +1174,24 @@ export function ManutencaoPage() {
       } else {
         const newOrderNumber = await generateOrderNumber();
         const newOrderDate = formData.entry_date || new Date().toISOString().split('T')[0];
+        
+        // Duplicate prevention: check if same vehicle + same entry_date already exists
+        const { data: existingDuplicates } = await supabase
+          .from('service_orders')
+          .select('id, order_number')
+          .eq('vehicle_code', formData.vehicle_code)
+          .eq('entry_date', formData.entry_date || newOrderDate)
+          .limit(1);
+        
+        if (existingDuplicates && existingDuplicates.length > 0) {
+          const confirmDuplicate = confirm(
+            `⚠️ Já existe uma OS (${existingDuplicates[0].order_number}) para o veículo ${formData.vehicle_code} na data ${formData.entry_date || newOrderDate}.\n\nDeseja criar mesmo assim?`
+          );
+          if (!confirmDuplicate) {
+            setIsSaving(false);
+            return;
+          }
+        }
         
         const { error } = await supabase
           .from('service_orders')
@@ -2419,6 +2440,11 @@ export function ManutencaoPage() {
         {/* Problemas Recorrentes Tab */}
         {activeTab === 'problemas' && (
           <RecurringProblemsTab orders={orders} />
+        )}
+
+        {/* Duplicados Tab */}
+        {activeTab === 'duplicados' && (
+          <MaintenanceDuplicatesTab orders={orders} onRefresh={fetchOrders} />
         )}
 
         {/* Ranking Tab */}
