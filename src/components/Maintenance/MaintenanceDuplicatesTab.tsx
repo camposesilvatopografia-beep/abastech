@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { AlertTriangle, Trash2, Check, Copy, Loader2, Eye } from 'lucide-react';
+import { AlertTriangle, Trash2, Check, Copy, Loader2, Eye, Search, Wrench } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -64,6 +64,7 @@ export function MaintenanceDuplicatesTab({ orders, onRefresh }: MaintenanceDupli
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [activeGroup, setActiveGroup] = useState<string | null>(null);
+  const [vehicleFilter, setVehicleFilter] = useState('');
 
   // Detect duplicates: same vehicle_code + same entry_date
   const duplicateGroups = useMemo(() => {
@@ -101,6 +102,16 @@ export function MaintenanceDuplicatesTab({ orders, onRefresh }: MaintenanceDupli
     return result.sort((a, b) => b.orders.length - a.orders.length);
   }, [orders]);
 
+  // Filter by vehicle
+  const filteredGroups = useMemo(() => {
+    if (!vehicleFilter.trim()) return duplicateGroups;
+    const q = vehicleFilter.toLowerCase();
+    return duplicateGroups.filter(g =>
+      g.vehicleCode.toLowerCase().includes(q) ||
+      (g.orders[0]?.vehicle_description || '').toLowerCase().includes(q)
+    );
+  }, [duplicateGroups, vehicleFilter]);
+
   const totalDuplicates = duplicateGroups.reduce((sum, g) => sum + g.orders.length - 1, 0);
 
   const toggleSelect = (id: string) => {
@@ -125,11 +136,28 @@ export function MaintenanceDuplicatesTab({ orders, onRefresh }: MaintenanceDupli
   const autoSelectAll = () => {
     setSelectedToDelete(prev => {
       const next = new Set(prev);
-      duplicateGroups.forEach(group => {
+      filteredGroups.forEach(group => {
         group.orders.slice(1).forEach(o => next.add(o.id));
       });
       return next;
     });
+  };
+
+  // Fix a single group: delete all extras, keep the best one
+  const handleFixGroup = async (group: DuplicateGroup) => {
+    const idsToDelete = group.orders.slice(1).map(o => o.id);
+    setSelectedToDelete(new Set(idsToDelete));
+    setConfirmOpen(true);
+  };
+
+  // Fix ALL groups at once
+  const handleFixAll = () => {
+    const allExtras = new Set<string>();
+    filteredGroups.forEach(group => {
+      group.orders.slice(1).forEach(o => allExtras.add(o.id));
+    });
+    setSelectedToDelete(allExtras);
+    setConfirmOpen(true);
   };
 
   const clearSelection = () => setSelectedToDelete(new Set());
@@ -242,6 +270,20 @@ export function MaintenanceDuplicatesTab({ orders, onRefresh }: MaintenanceDupli
         </div>
       </div>
 
+      {/* Vehicle filter */}
+      {viewMode === 'duplicados' && duplicateGroups.length > 0 && (
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <input
+            type="text"
+            placeholder="Filtrar por veículo (código ou descrição)..."
+            value={vehicleFilter}
+            onChange={(e) => setVehicleFilter(e.target.value)}
+            className="w-full pl-9 pr-3 py-2 text-sm bg-card border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30"
+          />
+        </div>
+      )}
+
       {/* Actions bar */}
       <div className="flex flex-wrap items-center gap-2 bg-card border border-border rounded-lg p-3">
         <div className="flex gap-1">
@@ -265,8 +307,17 @@ export function MaintenanceDuplicatesTab({ orders, onRefresh }: MaintenanceDupli
           </Button>
         </div>
 
-        {viewMode === 'duplicados' && duplicateGroups.length > 0 && (
+        {viewMode === 'duplicados' && filteredGroups.length > 0 && (
           <div className="ml-auto flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs gap-1 text-green-700 border-green-300 hover:bg-green-50"
+              onClick={handleFixAll}
+            >
+              <Wrench className="w-3 h-3" />
+              Corrigir Todos ({filteredGroups.reduce((s, g) => s + g.orders.length - 1, 0)})
+            </Button>
             <Button
               variant="outline"
               size="sm"
@@ -274,7 +325,7 @@ export function MaintenanceDuplicatesTab({ orders, onRefresh }: MaintenanceDupli
               onClick={autoSelectAll}
             >
               <Check className="w-3 h-3" />
-              Selecionar Todos Extras
+              Selecionar Extras
             </Button>
             {selectedToDelete.size > 0 && (
               <>
@@ -293,7 +344,7 @@ export function MaintenanceDuplicatesTab({ orders, onRefresh }: MaintenanceDupli
                   onClick={() => setConfirmOpen(true)}
                 >
                   <Trash2 className="w-3 h-3" />
-                  Excluir {selectedToDelete.size} duplicado(s)
+                  Excluir {selectedToDelete.size}
                 </Button>
               </>
             )}
@@ -304,14 +355,14 @@ export function MaintenanceDuplicatesTab({ orders, onRefresh }: MaintenanceDupli
       {/* Duplicate groups */}
       {viewMode === 'duplicados' && (
         <div className="space-y-3">
-          {duplicateGroups.length === 0 ? (
+          {filteredGroups.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground bg-card rounded-lg border border-border">
               <Check className="w-8 h-8 mx-auto mb-2 text-green-500" />
-              <p className="font-medium">🎉 Nenhum duplicado encontrado!</p>
-              <p className="text-sm">Todos os registros são únicos.</p>
+              <p className="font-medium">{vehicleFilter ? 'Nenhum duplicado para este filtro' : '🎉 Nenhum duplicado encontrado!'}</p>
+              <p className="text-sm">{vehicleFilter ? 'Tente outro veículo.' : 'Todos os registros são únicos.'}</p>
             </div>
           ) : (
-            duplicateGroups.map(group => (
+            filteredGroups.map(group => (
               <div key={group.key} className="bg-card rounded-lg border border-border overflow-hidden">
                 <div className="flex items-center justify-between bg-muted/50 p-3 border-b border-border">
                   <div className="flex items-center gap-2">
@@ -322,15 +373,26 @@ export function MaintenanceDuplicatesTab({ orders, onRefresh }: MaintenanceDupli
                     <span className="text-sm text-muted-foreground">—</span>
                     <span className="text-sm">{formatDate(group.entryDate)}</span>
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="text-xs gap-1"
-                    onClick={() => autoSelectGroup(group)}
-                  >
-                    <Trash2 className="w-3 h-3" />
-                    Selecionar extras
-                  </Button>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-xs gap-1 text-green-700 border-green-300 hover:bg-green-50"
+                      onClick={() => handleFixGroup(group)}
+                    >
+                      <Wrench className="w-3 h-3" />
+                      Corrigir
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-xs gap-1"
+                      onClick={() => autoSelectGroup(group)}
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      Selecionar
+                    </Button>
+                  </div>
                 </div>
                 <Table className="text-xs">
                   <TableHeader>
