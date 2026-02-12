@@ -37,6 +37,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { useFieldSettings } from '@/hooks/useFieldSettings';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { useOfflineStorage } from '@/hooks/useOfflineStorage';
+import { syncAllOfflineRecords, cacheReferenceData } from '@/lib/offlineSync';
 import {
   Popover,
   PopoverContent,
@@ -178,7 +179,13 @@ export function FieldPage() {
     };
   }, [user?.id]);
 
-  // Sync pending records - both from Supabase and IndexedDB
+  // Cache reference data when online and user is logged in
+  useEffect(() => {
+    if (!user || !isOnline) return;
+    cacheReferenceData();
+  }, [user, isOnline]);
+
+  // Sync pending records - both from Supabase and IndexedDB (all types)
   const syncPendingRecords = useCallback(async () => {
     if (!user || isSyncing) return;
     
@@ -186,31 +193,16 @@ export function FieldPage() {
     let totalSynced = 0;
     
     try {
-      // First, sync records from IndexedDB to Supabase
+      // Sync all offline records (fuel, horimeter, OS) using universal sync
       if (offlineStorage.isSupported) {
-        const offlineRecords = await offlineStorage.getPendingRecords();
-        
-        for (const record of offlineRecords) {
-          try {
-            const { error } = await supabase
-              .from('field_fuel_records')
-              .insert(record.data as any);
-            
-            if (error) {
-              console.error('Error syncing offline record:', error);
-              await offlineStorage.markSyncFailed(record.id);
-            } else {
-              await offlineStorage.markRecordSynced(record.id);
-              totalSynced++;
-            }
-          } catch (err) {
-            console.error('Error processing offline record:', err);
-            await offlineStorage.markSyncFailed(record.id);
-          }
+        const result = await syncAllOfflineRecords(user.id);
+        totalSynced += result.synced;
+        if (result.failed > 0) {
+          console.warn(`${result.failed} records failed to sync`);
         }
       }
       
-      // Then, sync records in Supabase that aren't synced to sheet
+      // Then, sync fuel records in Supabase that aren't synced to sheet
       const { data: pendingRecords, error } = await supabase
         .from('field_fuel_records')
         .select('*')

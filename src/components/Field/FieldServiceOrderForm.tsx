@@ -55,6 +55,7 @@ import { ptBR } from 'date-fns/locale';
 import { useTheme } from '@/hooks/useTheme';
 import { useFieldSettings, playSuccessSound, vibrateDevice } from '@/hooks/useFieldSettings';
 import { parsePtBRNumber, formatPtBRNumber } from '@/lib/ptBRNumber';
+import { useOfflineStorage } from '@/hooks/useOfflineStorage';
 
 interface FieldUser {
   id: string;
@@ -98,6 +99,7 @@ const PRIORITY_OPTIONS = ['Baixa', 'Média', 'Alta', 'Urgente'];
 export function FieldServiceOrderForm({ user, onBack }: FieldServiceOrderFormProps) {
   const { theme } = useTheme();
   const { settings } = useFieldSettings();
+  const offlineStorage = useOfflineStorage(user.id);
   const isDark = theme === 'dark';
 
   // Sub-view navigation
@@ -155,16 +157,35 @@ export function FieldServiceOrderForm({ user, onBack }: FieldServiceOrderFormPro
   const [lastHorimeter, setLastHorimeter] = useState<number | null>(null);
   const [lastKm, setLastKm] = useState<number | null>(null);
 
-  // Fetch vehicles and mechanics
+  // Fetch vehicles and mechanics (with offline cache fallback)
   useEffect(() => {
     const fetchData = async () => {
       setVehiclesLoading(true);
-      const [vehiclesRes, mechanicsRes] = await Promise.all([
-        supabase.from('vehicles').select('id, code, name, description, category, company').order('code'),
-        supabase.from('mechanics').select('id, name').eq('active', true).order('name'),
-      ]);
-      if (vehiclesRes.data) setVehicles(vehiclesRes.data);
-      if (mechanicsRes.data) setMechanics(mechanicsRes.data);
+      try {
+        const [vehiclesRes, mechanicsRes] = await Promise.all([
+          supabase.from('vehicles').select('id, code, name, description, category, company').order('code'),
+          supabase.from('mechanics').select('id, name').eq('active', true).order('name'),
+        ]);
+        if (vehiclesRes.data && vehiclesRes.data.length > 0) {
+          setVehicles(vehiclesRes.data);
+          offlineStorage.cacheData('vehicles', vehiclesRes.data);
+        }
+        if (mechanicsRes.data && mechanicsRes.data.length > 0) {
+          setMechanics(mechanicsRes.data);
+          offlineStorage.cacheData('mechanics', mechanicsRes.data);
+        }
+        if (!vehiclesRes.data?.length && !mechanicsRes.data?.length) throw new Error('No data');
+      } catch {
+        // Offline fallback
+        try {
+          const [cachedVehicles, cachedMechanics] = await Promise.all([
+            offlineStorage.getCachedData<Vehicle[]>('vehicles'),
+            offlineStorage.getCachedData<Mechanic[]>('mechanics'),
+          ]);
+          if (cachedVehicles) setVehicles(cachedVehicles);
+          if (cachedMechanics) setMechanics(cachedMechanics);
+        } catch {}
+      }
       setVehiclesLoading(false);
     };
     fetchData();
@@ -508,6 +529,49 @@ export function FieldServiceOrderForm({ user, onBack }: FieldServiceOrderFormPro
       setLastKm(null);
     } catch (err: any) {
       console.error('Erro ao criar OS:', err);
+      
+      // Offline fallback
+      if (offlineStorage.isSupported) {
+        try {
+          const orderNumber = `OS-OFF-${Date.now()}`;
+          const mechanic = mechanics.find(m => m.id === form.mechanic_id);
+          await offlineStorage.saveOfflineRecord({
+            order_number: orderNumber,
+            order_date: form.entry_date || new Date().toISOString().split('T')[0],
+            vehicle_code: form.vehicle_code,
+            vehicle_description: form.vehicle_description || null,
+            order_type: form.order_type,
+            priority: form.priority,
+            status: form.status,
+            problem_description: form.problem_description,
+            solution_description: form.solution_description || null,
+            mechanic_id: form.mechanic_id || null,
+            mechanic_name: mechanic?.name || form.mechanic_name || null,
+            estimated_hours: parseFloat(form.estimated_hours) || null,
+            parts_used: form.parts_used || null,
+            parts_cost: parseFloat(form.parts_cost) || null,
+            labor_cost: parseFloat(form.labor_cost) || null,
+            total_cost: (parseFloat(form.parts_cost) || 0) + (parseFloat(form.labor_cost) || 0) || null,
+            notes: form.notes || null,
+            created_by: form.created_by || null,
+            horimeter_current: form.horimeter_current || null,
+            km_current: form.km_current || null,
+            entry_date: form.entry_date || null,
+            entry_time: form.entry_time || null,
+          }, 'service_order');
+
+          if (settings.soundEnabled) playSuccessSound();
+          if (settings.vibrationEnabled) vibrateDevice();
+          toast.success('OS salva offline! Será sincronizada quando houver conexão.', {
+            icon: '📱',
+            duration: 4000,
+          });
+          return;
+        } catch (offlineErr) {
+          console.error('Offline save also failed:', offlineErr);
+        }
+      }
+      
       toast.error(err.message || 'Erro ao criar ordem de serviço');
     } finally {
       setIsSaving(false);
