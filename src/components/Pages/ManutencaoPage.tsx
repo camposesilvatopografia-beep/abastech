@@ -1941,7 +1941,7 @@ export function ManutencaoPage() {
       const entryDate = (row as any).entry_date || row.order_date;
       const entryTime = (row as any).entry_time;
       const entryFormatted = entryDate 
-        ? format(new Date(entryDate), 'dd/MM/yy') + (entryTime ? ` ${entryTime.slice(0, 5)}` : '')
+        ? format(new Date(entryDate + 'T12:00:00'), 'dd/MM/yy') + (entryTime ? ` ${entryTime.slice(0, 5)}` : '')
         : '-';
       const downtime = calculateDowntime(row) || '-';
       
@@ -1990,7 +1990,7 @@ export function ManutencaoPage() {
       const entryDate = (row as any).entry_date || row.order_date;
       const entryTime = (row as any).entry_time;
       const entryFormatted = entryDate 
-        ? format(new Date(entryDate), 'dd/MM/yyyy') + (entryTime ? ` ${entryTime.slice(0, 5)}` : '')
+        ? format(new Date(entryDate + 'T12:00:00'), 'dd/MM/yyyy') + (entryTime ? ` ${entryTime.slice(0, 5)}` : '')
         : '-';
       const downtime = calculateDowntime(row) || '-';
       
@@ -2370,7 +2370,7 @@ export function ManutencaoPage() {
                         <TableCell className="py-2 px-2 text-xs whitespace-nowrap">
                           {((row as any).entry_date || row.order_date) ? (
                             <span className="font-mono">
-                              {format(new Date((row as any).entry_date || row.order_date), 'dd/MM/yy')}
+                              {format(new Date(((row as any).entry_date || row.order_date) + 'T12:00:00'), 'dd/MM/yy')}
                               {(row as any).entry_time && (
                                 <span className="text-muted-foreground ml-1">{(row as any).entry_time.slice(0, 5)}</span>
                               )}
