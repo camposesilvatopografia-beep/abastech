@@ -2665,8 +2665,17 @@ export function ManutencaoPage() {
                 <Input
                   type="date"
                   value={formData.exit_date}
-                  onChange={(e) => setFormData({ ...formData, exit_date: e.target.value })}
-                  className="border-green-300 dark:border-green-700"
+                  min={formData.entry_date || undefined}
+                  onChange={(e) => {
+                    const newExitDate = e.target.value;
+                    // If same day and exit time is before entry time, clear exit time
+                    if (newExitDate && newExitDate === formData.entry_date && formData.exit_time && formData.entry_time && formData.exit_time <= formData.entry_time) {
+                      setFormData({ ...formData, exit_date: newExitDate, exit_time: '' });
+                    } else {
+                      setFormData({ ...formData, exit_date: newExitDate });
+                    }
+                  }}
+                  className={`border-green-300 dark:border-green-700 ${formData.exit_date && formData.entry_date && formData.exit_date < formData.entry_date ? 'border-destructive' : ''}`}
                 />
               </div>
               <div className="space-y-2">
@@ -2677,8 +2686,16 @@ export function ManutencaoPage() {
                 <Input
                   type="time"
                   value={formData.exit_time}
-                  onChange={(e) => setFormData({ ...formData, exit_time: e.target.value })}
-                  className="border-green-300 dark:border-green-700"
+                  onChange={(e) => {
+                    const newExitTime = e.target.value;
+                    // Block if same day and exit time <= entry time
+                    if (formData.exit_date && formData.exit_date === formData.entry_date && formData.entry_time && newExitTime && newExitTime <= formData.entry_time) {
+                      toast.error('Hora de saída deve ser posterior à hora de entrada');
+                      return;
+                    }
+                    setFormData({ ...formData, exit_time: newExitTime });
+                  }}
+                  className={`border-green-300 dark:border-green-700 ${formData.exit_date && formData.exit_date === formData.entry_date && formData.exit_time && formData.entry_time && formData.exit_time <= formData.entry_time ? 'border-destructive' : ''}`}
                 />
               </div>
             </div>
@@ -3091,7 +3108,16 @@ export function ManutencaoPage() {
                   <Input
                     type="date"
                     value={exitDate}
-                    onChange={(e) => setExitDate(e.target.value)}
+                    min={(statusChangeOrder as any)?.entry_date || undefined}
+                    onChange={(e) => {
+                      const newDate = e.target.value;
+                      const entryDate = (statusChangeOrder as any)?.entry_date;
+                      const entryTime = (statusChangeOrder as any)?.entry_time;
+                      if (newDate && newDate === entryDate && exitTime && entryTime && exitTime <= entryTime) {
+                        setExitTime('');
+                      }
+                      setExitDate(newDate);
+                    }}
                   />
                 </div>
                 <div className="space-y-2">
@@ -3102,7 +3128,16 @@ export function ManutencaoPage() {
                   <Input
                     type="time"
                     value={exitTime}
-                    onChange={(e) => setExitTime(e.target.value)}
+                    onChange={(e) => {
+                      const newTime = e.target.value;
+                      const entryDate = (statusChangeOrder as any)?.entry_date;
+                      const entryTime = (statusChangeOrder as any)?.entry_time;
+                      if (exitDate && exitDate === entryDate && entryTime && newTime && newTime <= entryTime) {
+                        toast.error('Hora de saída deve ser posterior à hora de entrada');
+                        return;
+                      }
+                      setExitTime(newTime);
+                    }}
                   />
                 </div>
               </div>
