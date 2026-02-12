@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { format, subDays, startOfDay, eachDayOfInterval } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { AlertTriangle, Check, Calendar, Filter } from 'lucide-react';
+import { AlertTriangle, Check, Calendar, Filter, ListChecks, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -30,7 +30,7 @@ export function MissingReadingsTab({ vehicles, readings, loading, refetch }: Mis
   const [statusFilter, setStatusFilter] = useState<string>('ativo');
   const [searchFilter, setSearchFilter] = useState('');
   const [vehicleFilter, setVehicleFilter] = useState<string>('all');
-  const [showOnlyMissing, setShowOnlyMissing] = useState(true);
+  const [viewMode, setViewMode] = useState<'pendentes' | 'lancados' | 'todos'>('pendentes');
 
   // Modal state
   const [modalOpen, setModalOpen] = useState(false);
@@ -132,12 +132,19 @@ export function MissingReadingsTab({ vehicles, readings, loading, refetch }: Mis
 
   // Vehicles to display
   const displayVehicles = useMemo(() => {
-    if (!showOnlyMissing) return filteredVehicles;
+    if (viewMode === 'todos') return filteredVehicles;
+    if (viewMode === 'lancados') {
+      return filteredVehicles.filter(v => {
+        const stats = vehicleStats.get(v.id);
+        return stats && stats.filled > 0;
+      });
+    }
+    // pendentes
     return filteredVehicles.filter(v => {
       const stats = vehicleStats.get(v.id);
       return stats && stats.missing > 0;
     });
-  }, [filteredVehicles, showOnlyMissing, vehicleStats]);
+  }, [filteredVehicles, viewMode, vehicleStats]);
 
   // Total missing count
   const totalMissing = useMemo(() => {
@@ -289,15 +296,24 @@ export function MissingReadingsTab({ vehicles, readings, loading, refetch }: Mis
 
         <div className="w-px h-6 bg-border" />
 
-        <Button
-          variant={showOnlyMissing ? 'default' : 'outline'}
-          size="sm"
-          className="h-7 text-xs gap-1"
-          onClick={() => setShowOnlyMissing(!showOnlyMissing)}
-        >
-          <AlertTriangle className="w-3 h-3" />
-          Só pendentes
-        </Button>
+        <div className="flex gap-0.5 rounded-lg border p-0.5">
+          {([
+            { key: 'pendentes' as const, label: 'Pendentes', icon: AlertTriangle, color: 'text-red-500' },
+            { key: 'lancados' as const, label: 'Lançados', icon: ListChecks, color: 'text-emerald-500' },
+            { key: 'todos' as const, label: 'Todos', icon: Eye, color: 'text-blue-500' },
+          ]).map(({ key, label, icon: Icon, color }) => (
+            <Button
+              key={key}
+              variant={viewMode === key ? 'default' : 'ghost'}
+              size="sm"
+              className={cn("h-7 text-xs gap-1", viewMode !== key && color)}
+              onClick={() => setViewMode(key)}
+            >
+              <Icon className="w-3 h-3" />
+              {label}
+            </Button>
+          ))}
+        </div>
       </div>
 
       {/* Matrix table */}
@@ -348,8 +364,10 @@ export function MissingReadingsTab({ vehicles, readings, loading, refetch }: Mis
                 {displayVehicles.length === 0 ? (
                   <tr>
                     <td colSpan={dateRange.length + 2} className="text-center py-12 text-muted-foreground">
-                      {showOnlyMissing 
+                      {viewMode === 'pendentes' 
                         ? '🎉 Nenhuma pendência encontrada! Todos os equipamentos têm lançamentos.'
+                        : viewMode === 'lancados'
+                        ? 'Nenhum lançamento encontrado para o período selecionado.'
                         : 'Nenhum equipamento encontrado com os filtros atuais.'}
                     </td>
                   </tr>
