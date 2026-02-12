@@ -86,9 +86,11 @@ import * as XLSX from 'xlsx';
 import { HorimeterCardView } from '@/components/Horimetros/HorimeterCardView';
 import { HorimeterDBCorrectionsTab } from '@/components/Horimetros/HorimeterDBCorrectionsTab';
 import { BatchEditModal } from '@/components/Horimetros/BatchEditModal';
+import { MissingReadingsTab } from '@/components/Horimetros/MissingReadingsTab';
 
 const TABS = [
   { id: 'registros', label: 'Registros', icon: List },
+  { id: 'pendencias', label: 'Pendências', icon: AlertTriangle },
   { id: 'correcoes', label: 'Correções', icon: Wrench },
 ];
 const DEFAULT_HORIMETER_COLUMNS: ColumnConfig[] = [
@@ -854,6 +856,13 @@ export function HorimetrosPageDB() {
             readings={readings} 
             refetch={refetchReadings} 
             loading={loading}
+          />
+        ) : activeTab === 'pendencias' ? (
+          <MissingReadingsTab
+            vehicles={vehicles}
+            readings={readings}
+            loading={loading}
+            refetch={refetchReadings}
           />
         ) : (
         <>
