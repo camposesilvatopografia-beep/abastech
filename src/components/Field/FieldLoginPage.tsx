@@ -1,11 +1,13 @@
 import { useState } from 'react';
-import { User, Lock, LogIn, Mic, Eye, EyeOff, Loader2, CheckCircle2, Sparkles, Monitor } from 'lucide-react';
+import { User, Lock, LogIn, Mic, Eye, EyeOff, Loader2, CheckCircle2, Sparkles, Monitor, CloudOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import logoAbastech from '@/assets/logo-abastech-full.png';
+
+const CACHED_CREDENTIALS_KEY = 'abastech_field_cached_credentials';
 
 interface FieldLoginPageProps {
   onLogin: (user: { id: string; name: string; username: string; role: string; assigned_locations?: string[] }) => void;
@@ -20,6 +22,55 @@ export function FieldLoginPage({ onLogin }: FieldLoginPageProps) {
   const [welcomeName, setWelcomeName] = useState('');
   const [pendingUser, setPendingUser] = useState<any>(null);
 
+  // Cache credentials after successful online login
+  const cacheCredentials = (userData: any, pwd: string) => {
+    try {
+      const cached = JSON.parse(localStorage.getItem(CACHED_CREDENTIALS_KEY) || '{}');
+      cached[userData.username] = {
+        id: userData.id,
+        name: userData.name,
+        username: userData.username,
+        role: userData.role || 'operador',
+        assigned_locations: userData.assigned_locations || [],
+        password_hash: pwd,
+        active: userData.active !== false,
+        cachedAt: Date.now(),
+      };
+      localStorage.setItem(CACHED_CREDENTIALS_KEY, JSON.stringify(cached));
+    } catch (e) {
+      console.warn('Failed to cache credentials:', e);
+    }
+  };
+
+  // Try offline login from cache
+  const tryOfflineLogin = (uname: string, pwd: string): any | null => {
+    try {
+      const cached = JSON.parse(localStorage.getItem(CACHED_CREDENTIALS_KEY) || '{}');
+      const user = cached[uname];
+      if (!user) return null;
+      if (!user.active) return 'inactive';
+      if (user.password_hash !== pwd) return 'wrong_password';
+      return user;
+    } catch {
+      return null;
+    }
+  };
+
+  const completeLogin = (userData: any) => {
+    setWelcomeName(userData.name.split(' ')[0]);
+    setPendingUser(userData);
+    setShowWelcome(true);
+    setTimeout(() => {
+      onLogin({
+        id: userData.id,
+        name: userData.name,
+        username: userData.username,
+        role: userData.role || 'operador',
+        assigned_locations: userData.assigned_locations || [],
+      });
+    }, 2500);
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -28,13 +79,37 @@ export function FieldLoginPage({ onLogin }: FieldLoginPageProps) {
       return;
     }
 
+    const trimmedUsername = username.toLowerCase().trim();
     setIsLoading(true);
+
+    // If offline, use cached credentials
+    if (!navigator.onLine) {
+      const offlineResult = tryOfflineLogin(trimmedUsername, password);
+      if (offlineResult === null) {
+        toast.error('Usuário não encontrado no cache offline. Conecte-se à internet para o primeiro login.');
+        setIsLoading(false);
+        return;
+      }
+      if (offlineResult === 'inactive') {
+        toast.error('Usuário desativado');
+        setIsLoading(false);
+        return;
+      }
+      if (offlineResult === 'wrong_password') {
+        toast.error('Senha incorreta');
+        setIsLoading(false);
+        return;
+      }
+      toast.info('📱 Login offline realizado!', { duration: 3000 });
+      completeLogin(offlineResult);
+      return;
+    }
 
     try {
       const { data, error } = await supabase
         .from('field_users')
         .select('id, name, username, password_hash, role, active, assigned_locations')
-        .eq('username', username.toLowerCase().trim())
+        .eq('username', trimmedUsername)
         .single();
 
       if (error || !data) {
@@ -49,37 +124,32 @@ export function FieldLoginPage({ onLogin }: FieldLoginPageProps) {
         return;
       }
 
-      // Simple password check (in production, use proper hashing)
       if (data.password_hash !== password) {
         toast.error('Senha incorreta');
         setIsLoading(false);
         return;
       }
 
-      // Show welcome animation
-      setWelcomeName(data.name.split(' ')[0]);
-      setPendingUser({
+      // Cache credentials for offline use
+      cacheCredentials(data, password);
+
+      completeLogin({
         id: data.id,
         name: data.name,
         username: data.username,
         role: data.role || 'operador',
-        assigned_locations: (data as any).assigned_locations || ['Tanque Canteiro 01']
+        assigned_locations: (data as any).assigned_locations || [],
       });
-      setShowWelcome(true);
-      
-      // Complete login after animation
-      setTimeout(() => {
-        onLogin({
-          id: data.id,
-          name: data.name,
-          username: data.username,
-          role: data.role || 'operador',
-          assigned_locations: (data as any).assigned_locations || ['Tanque Canteiro 01']
-        });
-      }, 2500);
     } catch (err) {
       console.error('Login error:', err);
-      toast.error('Erro ao fazer login');
+      // Network error - try offline fallback
+      const offlineResult = tryOfflineLogin(trimmedUsername, password);
+      if (offlineResult && offlineResult !== 'inactive' && offlineResult !== 'wrong_password') {
+        toast.info('📱 Login offline realizado (sem conexão)!', { duration: 3000 });
+        completeLogin(offlineResult);
+        return;
+      }
+      toast.error('Erro ao fazer login. Verifique sua conexão.');
       setIsLoading(false);
     }
   };
