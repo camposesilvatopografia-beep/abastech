@@ -184,6 +184,9 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
   const { settings } = useFieldSettings();
   const offlineStorage = useOfflineStorage(user.id);
   
+  // Fallback vehicles from Supabase DB + IndexedDB cache for offline mode
+  const [dbVehicles, setDbVehicles] = useState<{ code: string; description: string; category: string; company?: string }[]>([]);
+  
   // Real-time sync broadcast
   const { broadcast } = useRealtimeSync();
   const [isSaving, setIsSaving] = useState(false);
@@ -371,7 +374,64 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
     fetchSuppliers();
   }, []);
 
-  // Monitor online status
+  // Load vehicles from Supabase DB + IndexedDB cache for offline fallback
+  useEffect(() => {
+    const loadVehiclesFromDB = async () => {
+      try {
+        // Try Supabase DB first
+        const { data, error } = await supabase
+          .from('vehicles')
+          .select('code, name, description, category, company')
+          .order('code', { ascending: true });
+        
+        if (!error && data && data.length > 0) {
+          const mapped = data.map(v => ({
+            code: v.code,
+            description: v.description || v.name || '',
+            category: v.category || '',
+            company: v.company || '',
+          }));
+          setDbVehicles(mapped);
+          // Cache to IndexedDB for offline
+          await offlineStorage.cacheData('vehicles_list', mapped);
+          return;
+        }
+      } catch (err) {
+        console.log('DB vehicles fetch failed, trying cache...');
+      }
+      
+      // Fallback to IndexedDB cache
+      try {
+        const cached = await offlineStorage.getCachedData<typeof dbVehicles>('vehicles_list');
+        if (cached && cached.length > 0) {
+          setDbVehicles(cached);
+          console.log(`Loaded ${cached.length} vehicles from offline cache`);
+        }
+      } catch (err) {
+        console.error('Failed to load cached vehicles:', err);
+      }
+    };
+    
+    loadVehiclesFromDB();
+  }, []);
+
+  // Cache sheet vehicles to IndexedDB whenever they load successfully
+  useEffect(() => {
+    if (vehiclesData.rows.length > 0) {
+      const mapped = vehiclesData.rows.map(v => ({
+        code: String(v['Codigo'] || ''),
+        description: String(v['Descricao'] || ''),
+        category: String(v['Categoria'] || ''),
+        company: String(v['Empresa'] || ''),
+      })).filter(v => v.code);
+      
+      // Update DB vehicles state with sheet data (most up-to-date)
+      setDbVehicles(mapped);
+      // Cache to IndexedDB
+      offlineStorage.cacheData('vehicles_list', mapped).catch(() => {});
+    }
+  }, [vehiclesData.rows]);
+
   useEffect(() => {
     const handleOnline = () => {
       setIsOnline(true);
@@ -637,19 +697,20 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
   // Handle vehicle selection - fetch previous horimeter/km
   const handleVehicleSelect = async (code: string) => {
     setVehicleCode(code);
-    const vehicle = vehiclesData.rows.find(v => String(v['Codigo']) === code);
-    if (vehicle) {
-      const desc = String(vehicle['Descricao'] || '');
-      const cat = String(vehicle['Categoria'] || '');
+    // Try sheet data first, then fall back to DB/cached vehicles
+    const sheetVehicle = vehiclesData.rows.find(v => String(v['Codigo']) === code);
+    const cachedVehicle = dbVehicles.find(v => v.code === code);
+    
+    if (sheetVehicle) {
+      const desc = String(sheetVehicle['Descricao'] || '');
+      const cat = String(sheetVehicle['Categoria'] || '');
       setVehicleDescription(desc);
       setCategory(cat);
-      setCompany(String(vehicle['Empresa'] || ''));
-      setOperatorName(String(vehicle['Motorista'] || ''));
-      setWorkSite(String(vehicle['Obra'] || ''));
+      setCompany(String(sheetVehicle['Empresa'] || ''));
+      setOperatorName(String(sheetVehicle['Motorista'] || ''));
+      setWorkSite(String(sheetVehicle['Obra'] || ''));
       
-      // Check if Tanque user is refueling a Comboio vehicle
       if (userLocationInfo.isTanqueUser && isComboioVehicle(code, desc) && recordType === 'saida' && quickEntryMode === 'normal') {
-        // Show choice dialog for Comboio vehicles
         setShowComboioChoice(true);
         setComboioFuelType(null);
       } else {
@@ -657,9 +718,22 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         setComboioFuelType(null);
       }
       
-      // Sempre buscar o último abastecimento diretamente da planilha (sem cache)
-      // Pass category to determine whether to prioritize horimeter or km
       await fetchPreviousHorimeter(code, { forceSheetNoCache: true, vehicleCategory: cat });
+    } else if (cachedVehicle) {
+      // Offline fallback: use cached vehicle data
+      setVehicleDescription(cachedVehicle.description);
+      setCategory(cachedVehicle.category);
+      setCompany(cachedVehicle.company || '');
+      
+      if (userLocationInfo.isTanqueUser && isComboioVehicle(code, cachedVehicle.description) && recordType === 'saida' && quickEntryMode === 'normal') {
+        setShowComboioChoice(true);
+        setComboioFuelType(null);
+      } else {
+        setShowComboioChoice(false);
+        setComboioFuelType(null);
+      }
+      
+      await fetchPreviousHorimeter(code, { forceSheetNoCache: false, vehicleCategory: cachedVehicle.category });
     }
   };
   
@@ -1720,17 +1794,34 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
     }
   };
 
-  // Get unique vehicles from sheet with sorting
+  // Get unique vehicles from sheet with sorting, falling back to DB/cache when offline
   const vehicles = useMemo(() => {
-    return vehiclesData.rows
-      .map(v => ({
-        code: String(v['Codigo'] || ''),
-        description: String(v['Descricao'] || ''),
-        category: String(v['Categoria'] || ''),
-      }))
-      .filter(v => v.code)
-      .sort((a, b) => a.code.localeCompare(b.code));
-  }, [vehiclesData.rows]);
+    // Prefer sheet data when available
+    if (vehiclesData.rows.length > 0) {
+      return vehiclesData.rows
+        .map(v => ({
+          code: String(v['Codigo'] || ''),
+          description: String(v['Descricao'] || ''),
+          category: String(v['Categoria'] || ''),
+        }))
+        .filter(v => v.code)
+        .sort((a, b) => a.code.localeCompare(b.code));
+    }
+    
+    // Fallback to DB/cached vehicles when sheet is unavailable (offline)
+    if (dbVehicles.length > 0) {
+      return dbVehicles
+        .map(v => ({
+          code: v.code,
+          description: v.description,
+          category: v.category,
+        }))
+        .filter(v => v.code)
+        .sort((a, b) => a.code.localeCompare(b.code));
+    }
+    
+    return [];
+  }, [vehiclesData.rows, dbVehicles]);
 
   // Group vehicles by category for improved search UX
   const groupedVehicles = useMemo(() => {
@@ -2083,20 +2174,21 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                     aria-expanded={vehicleSearchOpen}
                     className={cn(
                       "w-full h-14 justify-between font-medium border-2 transition-all",
-                      !vehicleCode && "text-muted-foreground",
-                      vehicleCode && "border-primary/30 bg-primary/5"
+                      !vehicleCode && "text-muted-foreground border-blue-300 dark:border-blue-700",
+                      vehicleCode && "border-green-400 bg-green-50 dark:bg-green-950/30"
                     )}
                   >
                     <div className="flex items-center gap-2 truncate">
-                      <Truck className={cn(
-                        "h-5 w-5 shrink-0",
-                        vehicleCode ? "text-primary" : "text-muted-foreground"
-                      )} />
+                      {vehicleCode ? (
+                        <Truck className="h-5 w-5 shrink-0 text-green-600 dark:text-green-400" />
+                      ) : (
+                        <Search className="h-5 w-5 shrink-0 text-blue-500 animate-pulse" />
+                      )}
                       <span className={cn(
                         "truncate text-lg",
-                        vehicleCode && "font-bold text-primary"
+                        vehicleCode ? "font-bold text-green-700 dark:text-green-300" : "text-blue-600 dark:text-blue-400"
                       )}>
-                        {vehicleCode || "Pesquisar veículo..."}
+                        {vehicleCode || "🔍 Pesquisar veículo..."}
                       </span>
                     </div>
                     <ChevronsUpDown className="ml-2 h-5 w-5 shrink-0 text-muted-foreground" />
@@ -2382,18 +2474,38 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                     className={cn(
                       "w-full h-16 justify-between font-bold border-3 transition-all text-lg shadow-[0_4px_12px_rgba(0,0,0,0.5)] dark:shadow-[0_4px_12px_rgba(0,0,0,0.8)]",
                       "bg-slate-800 hover:bg-slate-900 border-slate-900 text-white",
-                      vehicleCode && "bg-slate-900 border-slate-950"
+                      vehicleCode && "bg-green-800 border-green-900 hover:bg-green-900"
                     )}
                   >
                     <div className="flex items-center gap-3 truncate">
-                      <Truck className="h-6 w-6 shrink-0 text-white" />
-                      <span className="truncate text-xl font-bold text-white">
-                        {vehicleCode || "Pesquisar veículo..."}
+                      {vehicleCode ? (
+                        <Truck className="h-6 w-6 shrink-0 text-green-300" />
+                      ) : (
+                        <Search className="h-6 w-6 shrink-0 text-blue-300 animate-pulse" />
+                      )}
+                      <span className={cn(
+                        "truncate text-xl font-bold",
+                        vehicleCode ? "text-white" : "text-blue-200"
+                      )}>
+                        {vehicleCode || "🔍 Pesquisar veículo..."}
                       </span>
                     </div>
                     <ChevronsUpDown className="ml-2 h-6 w-6 shrink-0 text-white/80" />
                   </Button>
                 </PopoverTrigger>
+                {/* Offline vehicle count indicator */}
+                {!isOnline && vehicles.length > 0 && (
+                  <div className="flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400 mt-1 px-1">
+                    <WifiOff className="w-3 h-3" />
+                    <span>{vehicles.length} veículos disponíveis offline</span>
+                  </div>
+                )}
+                {!isOnline && vehicles.length === 0 && (
+                  <div className="flex items-center gap-2 text-xs text-red-500 mt-1 px-1">
+                    <WifiOff className="w-3 h-3" />
+                    <span>Sem veículos em cache. Conecte-se para carregar.</span>
+                  </div>
+                )}
                 <PopoverContent 
                   className="w-[--radix-popover-trigger-width] min-w-[320px] p-0 bg-popover border-2 shadow-xl z-[100]" 
                   align="start"
