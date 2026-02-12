@@ -205,22 +205,38 @@ export function useHorimeterReadings(vehicleId?: string) {
     setError(null);
     
     try {
-      let query = supabase
-        .from('horimeter_readings')
-        .select(`
-          *,
-          vehicle:vehicles(*)
-        `)
-        .order('reading_date', { ascending: false });
+      // Paginate to fetch ALL readings (Supabase default limit is 1000)
+      let allData: any[] = [];
+      let offset = 0;
+      const PAGE_SIZE = 1000;
       
-      if (vehicleId) {
-        query = query.eq('vehicle_id', vehicleId);
+      while (true) {
+        let query = supabase
+          .from('horimeter_readings')
+          .select(`
+            *,
+            vehicle:vehicles(*)
+          `)
+          .order('reading_date', { ascending: false })
+          .range(offset, offset + PAGE_SIZE - 1);
+        
+        if (vehicleId) {
+          query = query.eq('vehicle_id', vehicleId);
+        }
+        
+        const { data, error: fetchError } = await query;
+        
+        if (fetchError) throw fetchError;
+        if (!data || data.length === 0) break;
+        
+        allData = allData.concat(data);
+        offset += data.length;
+        
+        if (data.length < PAGE_SIZE) break;
       }
       
-      const { data, error: fetchError } = await query;
-      
-      if (fetchError) throw fetchError;
-      setReadings((data || []) as HorimeterWithVehicle[]);
+      console.log(`📊 Fetched ${allData.length} horimeter readings from DB`);
+      setReadings(allData as HorimeterWithVehicle[]);
     } catch (err: any) {
       console.error('Error fetching readings:', err);
       setError(err.message);
@@ -543,22 +559,46 @@ export function useHorimeterReadings(vehicleId?: string) {
     synced_from_sheet?: boolean;
   }) => {
     try {
-      const { data, error: upsertError } = await supabase
+      // Check if a record already exists for this vehicle + date + source
+      const { data: existing } = await supabase
         .from('horimeter_readings')
-        .upsert({
-          ...reading,
-          source: reading.source || 'system',
-          synced_from_sheet: reading.synced_from_sheet || false,
-        }, { onConflict: 'vehicle_id,reading_date' })
-        .select(`*, vehicle:vehicles(*)`)
-        .single();
-      
-      if (upsertError) throw upsertError;
+        .select('id')
+        .eq('vehicle_id', reading.vehicle_id)
+        .eq('reading_date', reading.reading_date)
+        .eq('synced_from_sheet', reading.synced_from_sheet || false)
+        .limit(1)
+        .maybeSingle();
+
+      let data;
+      if (existing) {
+        const { data: updated, error: updateError } = await supabase
+          .from('horimeter_readings')
+          .update({
+            ...reading,
+            source: reading.source || 'system',
+            synced_from_sheet: reading.synced_from_sheet || false,
+          })
+          .eq('id', existing.id)
+          .select(`*, vehicle:vehicles(*)`)
+          .single();
+        if (updateError) throw updateError;
+        data = updated;
+      } else {
+        const { data: inserted, error: insertError } = await supabase
+          .from('horimeter_readings')
+          .insert({
+            ...reading,
+            source: reading.source || 'system',
+            synced_from_sheet: reading.synced_from_sheet || false,
+          })
+          .select(`*, vehicle:vehicles(*)`)
+          .single();
+        if (insertError) throw insertError;
+        data = inserted;
+      }
       
       setReadings(prev => {
-        const filtered = prev.filter(r => 
-          !(r.vehicle_id === data.vehicle_id && r.reading_date === data.reading_date)
-        );
+        const filtered = prev.filter(r => r.id !== data.id);
         return [data as HorimeterWithVehicle, ...filtered];
       });
       return data;
@@ -618,39 +658,45 @@ export function useSheetSync() {
 
       if (vehicleError) throw vehicleError;
 
-      // Import vehicles
+      // Import vehicles in batches
       const vehicleRows = vehicleSheetData?.rows || [];
       const vehicleMap = new Map<string, string>(); // code -> id
+      const vehicleBatch: any[] = [];
 
       for (const row of vehicleRows) {
-        const code = String(row.CODIGO || row.Codigo || row.Codigo?.trim() || '').trim();
+        const code = String(row.CODIGO || row.Codigo || row['Código'] || row['CÓDIGO'] || '').trim();
         if (!code) continue;
 
-        const name = String(row.DESCRICAO || row.Descricao || code).trim();
-        const description = String(row.DESCRICAO || row.Descricao || '').trim() || null;
+        const name = String(row.DESCRICAO || row.Descricao || row['Descrição'] || row['DESCRIÇÃO'] || code).trim();
+        const description = String(row.DESCRICAO || row.Descricao || row['Descrição'] || row['DESCRIÇÃO'] || '').trim() || null;
         const category = String(row.TIPO || row.Tipo || row.CATEGORIA || row.Categoria || '').trim() || null;
         const company = String(row.EMPRESA || row.Empresa || '').trim() || null;
         
-        // Determine unit based on category
         const categoryLower = (category || '').toLowerCase();
         const usesKm = categoryLower.includes('veículo') || categoryLower.includes('veiculo') ||
                        categoryLower.includes('caminhão') || categoryLower.includes('caminhao');
         const unit = usesKm ? 'km' : 'h';
 
+        vehicleBatch.push({ code, name, description, category, company, unit });
+      }
+
+      // Batch upsert vehicles in chunks of 50
+      const VEHICLE_CHUNK = 50;
+      for (let i = 0; i < vehicleBatch.length; i += VEHICLE_CHUNK) {
+        const chunk = vehicleBatch.slice(i, i + VEHICLE_CHUNK);
         try {
-          const { data: vehicle, error: upsertError } = await supabase
+          const { data: vehicles, error: upsertError } = await supabase
             .from('vehicles')
-            .upsert({ code, name, description, category, company, unit }, { onConflict: 'code' })
-            .select('id, code')
-            .single();
+            .upsert(chunk, { onConflict: 'code' })
+            .select('id, code');
           
-          if (!upsertError && vehicle) {
-            vehicleMap.set(vehicle.code, vehicle.id);
-            stats.vehiclesImported++;
+          if (!upsertError && vehicles) {
+            vehicles.forEach(v => vehicleMap.set(v.code, v.id));
+            stats.vehiclesImported += vehicles.length;
           }
         } catch (err) {
-          console.error('Error importing vehicle:', code, err);
-          stats.errors++;
+          console.error('Error batch importing vehicles:', err);
+          stats.errors += chunk.length;
         }
       }
 
@@ -660,14 +706,55 @@ export function useSheetSync() {
 
       // Fetch horimeter readings from sheet
       const { data: horimeterSheetData, error: horimeterError } = await supabase.functions.invoke('google-sheets', {
-        body: { action: 'getData', sheetName: 'Horimetros' },
+        body: { action: 'getData', sheetName: 'Horimetros', noCache: true },
       });
 
       if (horimeterError) throw horimeterError;
 
       const horimeterRows = horimeterSheetData?.rows || [];
       const total = horimeterRows.length;
+      console.log(`📊 Total rows from Horimetros sheet: ${total}`);
 
+      // Helper to get column value with flexible key matching
+      const getColValue = (row: any, keys: string[]): any => {
+        for (const key of keys) {
+          if (row[key] !== undefined && row[key] !== null && row[key] !== '') return row[key];
+          const trimmedKey = key.trim();
+          if (row[trimmedKey] !== undefined && row[trimmedKey] !== null && row[trimmedKey] !== '') return row[trimmedKey];
+          if (row[key + ' '] !== undefined && row[key + ' '] !== null && row[key + ' '] !== '') return row[key + ' '];
+          if (row[' ' + key] !== undefined && row[' ' + key] !== null && row[' ' + key] !== '') return row[' ' + key];
+        }
+        return null;
+      };
+
+      // First, delete ALL synced_from_sheet readings to do a clean re-import
+      // This avoids complex deduplication logic and ensures 1:1 match with sheet
+      console.log('🗑️ Cleaning existing synced readings for fresh import...');
+      
+      // Delete in batches to avoid timeouts
+      let deletedCount = 0;
+      while (true) {
+        const { data: toDelete } = await supabase
+          .from('horimeter_readings')
+          .select('id')
+          .eq('synced_from_sheet', true)
+          .limit(500);
+        
+        if (!toDelete || toDelete.length === 0) break;
+        
+        const ids = toDelete.map(r => r.id);
+        await supabase
+          .from('horimeter_readings')
+          .delete()
+          .in('id', ids);
+        
+        deletedCount += ids.length;
+      }
+      console.log(`🗑️ Deleted ${deletedCount} existing synced readings`);
+
+      // Parse all rows and prepare batches
+      const readingsBatch: any[] = [];
+      
       for (let i = 0; i < horimeterRows.length; i++) {
         const row = horimeterRows[i];
         
@@ -675,16 +762,15 @@ export function useSheetSync() {
         const vehicleId = vehicleMap.get(vehicleCode);
         
         if (!vehicleId) {
+          if (i < 10) console.warn(`⚠️ Vehicle not found: "${vehicleCode}"`);
           stats.errors++;
           continue;
         }
 
-        // Parse date - note: column may have leading space " Data"
-        const dateStr = String(row.DATA || row.Data || row[' Data'] || '').trim();
+        const dateStr = String(getColValue(row, ['Data', 'DATA', ' Data']) || '').trim();
         let readingDate: string | null = null;
         
         if (dateStr) {
-          // Try dd/MM/yyyy format
           const match = dateStr.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
           if (match) {
             readingDate = `${match[3]}-${match[2]}-${match[1]}`;
@@ -698,174 +784,77 @@ export function useSheetSync() {
           continue;
         }
 
-        // Parse values - single source of truth for numeric parsing (pt-BR / en-US)
-        const parseNum = parsePtBRNumber;
-
-        // Helper to get column value with flexible key matching
-        const getColValue = (keys: string[]): any => {
-          for (const key of keys) {
-            // Try exact match
-            if (row[key] !== undefined && row[key] !== null && row[key] !== '') return row[key];
-            // Try trimmed key
-            const trimmedKey = key.trim();
-            if (row[trimmedKey] !== undefined && row[trimmedKey] !== null && row[trimmedKey] !== '') return row[trimmedKey];
-            // Try with trailing space
-            if (row[key + ' '] !== undefined && row[key + ' '] !== null && row[key + ' '] !== '') return row[key + ' '];
-          }
-          return null;
-        };
-
-        // Map horimeter columns - support multiple header variants
-        const horAnteriorRaw = getColValue(['Horímetro Anterior', 'Horimetro Anterior', 'Hor_Anterior', 'HOR_ANTERIOR', 'Hor. Anterior', 'HOR. ANTERIOR']);
-        const horAtualRaw = getColValue(['Horímetro Atual', 'Horimetro Atual', 'Hor_Atual', 'HOR_ATUAL', 'Hor. Atual', 'HOR. ATUAL']);
+        const horAnteriorRaw = getColValue(row, ['Horímetro Anterior', 'Horimetro Anterior', 'Hor_Anterior', 'HOR_ANTERIOR']);
+        const horAtualRaw = getColValue(row, ['Horímetro Atual', 'Horimetro Atual', 'Hor_Atual', 'HOR_ATUAL']);
+        const kmAnteriorRaw = getColValue(row, ['Km Anterior', 'KM Anterior', 'Km_Anterior', 'KM_ANTERIOR']);
+        const kmAtualRaw = getColValue(row, ['Km Atual', 'KM Atual', 'Km_Atual', 'KM_ATUAL']);
         
-        // Map km columns
-        const kmAnteriorRaw = getColValue(['Km Anterior', 'KM Anterior', 'Km_Anterior', 'KM_ANTERIOR', 'Km. Anterior', 'KM. ANTERIOR']);
-        const kmAtualRaw = getColValue(['Km Atual', 'KM Atual', 'Km_Atual', 'KM_ATUAL', 'Km. Atual', 'KM. ATUAL']);
-        
-        const horAnterior = parseNum(horAnteriorRaw);
-        const horAtual = parseNum(horAtualRaw);
-        const kmAnterior = parseNum(kmAnteriorRaw);
-        const kmAtual = parseNum(kmAtualRaw);
-        
-        // Log for debugging
-        if (i < 5) {
-          console.log(`📊 Row ${i + 1}:`, {
-            veiculo: vehicleCode,
-            data: readingDate,
-            'Hor_Anterior (raw)': horAnteriorRaw,
-            'Hor_Atual (raw)': horAtualRaw,
-            'Km_Anterior (raw)': kmAnteriorRaw,
-            'Km_Atual (raw)': kmAtualRaw,
-            'Parsed values': { horAnterior, horAtual, kmAnterior, kmAtual }
-          });
-        }
-        
-        // Store values EXACTLY as they appear in the spreadsheet row
-        // Each row already contains both previous and current values
-        // - current_value/previous_value = Horímetro values from the SAME row
-        // - current_km/previous_km = KM values from the SAME row
-        const currentValue = horAtual;
-        const previousValue = horAnterior; // Store even if 0 (first record has 0 as previous)
+        const horAnterior = parsePtBRNumber(horAnteriorRaw);
+        const horAtual = parsePtBRNumber(horAtualRaw);
+        const kmAnterior = parsePtBRNumber(kmAnteriorRaw);
+        const kmAtual = parsePtBRNumber(kmAtualRaw);
 
         // Skip only if BOTH horimeter AND km current values are missing/zero
-        if (currentValue === 0 && kmAtual === 0) {
-          console.log(`⚠️ Skipping row ${i + 1} - no horimeter or km atual values`);
+        if (horAtual === 0 && kmAtual === 0) {
           stats.errors++;
           continue;
         }
 
-        const operator = String(getColValue(['Operador', 'OPERADOR', 'Motorista', 'MOTORISTA']) || '').trim() || null;
-        const observations = String(getColValue(['Observacao', 'OBSERVACAO', 'Observação', 'OBS']) || '').trim() || null;
+        const operator = String(getColValue(row, ['Operador', 'OPERADOR', 'Motorista', 'MOTORISTA']) || '').trim() || null;
+        const observations = String(getColValue(row, ['Observacao', 'OBSERVACAO', 'Observação', 'OBS']) || '').trim() || null;
 
+        readingsBatch.push({
+          vehicle_id: vehicleId,
+          reading_date: readingDate,
+          current_value: horAtual,
+          previous_value: horAnterior,
+          current_km: kmAtual > 0 ? kmAtual : null,
+          previous_km: kmAnterior > 0 ? kmAnterior : null,
+          operator,
+          observations,
+          source: 'sheet_sync',
+          synced_from_sheet: true,
+        });
+      }
+
+      console.log(`📊 Prepared ${readingsBatch.length} readings for batch insert`);
+
+      // Batch insert in chunks of 100
+      const READING_CHUNK = 100;
+      for (let i = 0; i < readingsBatch.length; i += READING_CHUNK) {
+        const chunk = readingsBatch.slice(i, i + READING_CHUNK);
         try {
-          // Check if record exists
-          const { data: existing } = await supabase
+          const { error: insertError } = await supabase
             .from('horimeter_readings')
-            .select('id')
-            .eq('vehicle_id', vehicleId)
-            .eq('reading_date', readingDate)
-            .maybeSingle();
-
-          if (existing) {
-            // Update existing - store all 4 values exactly as in the sheet
-            await supabase
-              .from('horimeter_readings')
-              .update({
-                current_value: currentValue,
-                previous_value: previousValue, // Store exactly as in sheet (can be 0)
-                current_km: kmAtual > 0 ? kmAtual : null,
-                previous_km: kmAnterior > 0 ? kmAnterior : null,
-                operator,
-                observations,
-                synced_from_sheet: true,
-              })
-              .eq('id', existing.id);
-            stats.readingsUpdated++;
+            .insert(chunk);
+          
+          if (insertError) {
+            console.error(`Batch insert error at chunk ${i}:`, insertError);
+            stats.errors += chunk.length;
           } else {
-            // Insert new - store all 4 values exactly as in the sheet
-            await supabase
-              .from('horimeter_readings')
-              .insert({
-                vehicle_id: vehicleId,
-                reading_date: readingDate,
-                current_value: currentValue,
-                previous_value: previousValue, // Store exactly as in sheet (can be 0)
-                current_km: kmAtual > 0 ? kmAtual : null,
-                previous_km: kmAnterior > 0 ? kmAnterior : null,
-                operator,
-                observations,
-                source: 'sheet_sync',
-                synced_from_sheet: true,
-              });
-            stats.readingsImported++;
+            stats.readingsImported += chunk.length;
           }
         } catch (err) {
-          console.error('Error importing reading:', err);
-          stats.errors++;
+          console.error('Error batch inserting readings:', err);
+          stats.errors += chunk.length;
         }
 
-        const currentProgress = Math.round(((i + 1) / total) * 100);
+        const currentProgress = Math.round(((i + chunk.length) / readingsBatch.length) * 100);
         setProgress(currentProgress);
-        onProgress?.(i + 1, total);
+        onProgress?.(i + chunk.length, readingsBatch.length);
       }
 
-      // Step 3: Detect and delete readings that exist in DB but not in sheet
-      // Build a set of all (vehicleCode, date) pairs from the sheet
-      const sheetRecordKeys = new Set<string>();
-      const reverseVehicleMap = new Map<string, string>(); // id -> code
-      allVehicles?.forEach(v => reverseVehicleMap.set(v.id, v.code));
-      
-      for (const row of horimeterRows) {
-        const vehicleCode = String(row.VEICULO || row.Veiculo || row.EQUIPAMENTO || '').trim();
-        const dateStr = String(row.DATA || row.Data || row[' Data'] || '').trim();
-        
-        let readingDate: string | null = null;
-        if (dateStr) {
-          const match = dateStr.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-          if (match) {
-            readingDate = `${match[3]}-${match[2]}-${match[1]}`;
-          } else if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-            readingDate = dateStr;
-          }
-        }
-        
-        if (vehicleCode && readingDate) {
-          sheetRecordKeys.add(`${vehicleCode}|${readingDate}`);
-        }
-      }
-
-      // Get all readings from database
-      const { data: allDbReadings } = await supabase
+      // Count manually-created readings that remain
+      const { count: manualCount } = await supabase
         .from('horimeter_readings')
-        .select('id, vehicle_id, reading_date');
+        .select('id', { count: 'exact', head: true })
+        .eq('synced_from_sheet', false);
 
-      // Find readings in DB that are not in sheet
-      for (const dbReading of allDbReadings || []) {
-        const vehicleCode = reverseVehicleMap.get(dbReading.vehicle_id);
-        if (!vehicleCode) continue;
-        
-        const key = `${vehicleCode}|${dbReading.reading_date}`;
-        
-        if (!sheetRecordKeys.has(key)) {
-          // This reading exists in DB but not in sheet - delete it
-          try {
-            await supabase
-              .from('horimeter_readings')
-              .delete()
-              .eq('id', dbReading.id);
-            stats.readingsDeleted++;
-            console.log(`Registro removido do BD (não existe na planilha): ${key}`);
-          } catch (err) {
-            console.error('Error deleting orphan reading:', err);
-            stats.errors++;
-          }
-        }
-      }
+      console.log(`📊 Manual readings preserved: ${manualCount || 0}`);
 
       toast({
         title: 'Sincronização concluída!',
-        description: `${stats.vehiclesImported} veículos, ${stats.readingsImported} novos, ${stats.readingsUpdated} atualizados, ${stats.readingsDeleted} removidos`,
+        description: `${stats.vehiclesImported} veículos, ${stats.readingsImported} lançamentos importados da planilha`,
       });
 
       return stats;
