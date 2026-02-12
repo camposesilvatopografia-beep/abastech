@@ -245,6 +245,30 @@ export function useHorimeterReadings(vehicleId?: string) {
     }
   }, [vehicleId]);
 
+  // Realtime subscription for live updates
+  useEffect(() => {
+    const channel = supabase
+      .channel('horimeter-readings-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'horimeter_readings',
+        },
+        (payload) => {
+          console.log('📡 Realtime horimeter update:', payload.eventType);
+          // Refetch on any change to ensure consistency with vehicle joins
+          fetchReadings();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [fetchReadings]);
+
   const createReading = useCallback(async (reading: {
     vehicle_id: string;
     reading_date: string;
@@ -660,17 +684,37 @@ export function useSheetSync() {
 
       // Import vehicles in batches
       const vehicleRows = vehicleSheetData?.rows || [];
+      const vehicleHeaders: string[] = vehicleSheetData?.headers || [];
       const vehicleMap = new Map<string, string>(); // code -> id
       const vehicleBatch: any[] = [];
 
+      // Build normalized header lookup for vehicle sheet
+      const vHeaderLookup = new Map<string, string>();
+      for (const h of vehicleHeaders) {
+        vHeaderLookup.set(normalizeHeader(h), h);
+      }
+      const getVCol = (row: any, ...semanticNames: string[]): any => {
+        for (const name of semanticNames) {
+          const normalized = normalizeHeader(name);
+          const actualKey = vHeaderLookup.get(normalized);
+          if (actualKey && row[actualKey] !== undefined && row[actualKey] !== null && row[actualKey] !== '') {
+            return row[actualKey];
+          }
+          if (row[name] !== undefined && row[name] !== null && row[name] !== '') {
+            return row[name];
+          }
+        }
+        return null;
+      };
+
       for (const row of vehicleRows) {
-        const code = String(row.CODIGO || row.Codigo || row['Código'] || row['CÓDIGO'] || '').trim();
+        const code = String(getVCol(row, 'Codigo', 'CODIGO', 'Código', 'CÓDIGO') || '').trim();
         if (!code) continue;
 
-        const name = String(row.DESCRICAO || row.Descricao || row['Descrição'] || row['DESCRIÇÃO'] || code).trim();
-        const description = String(row.DESCRICAO || row.Descricao || row['Descrição'] || row['DESCRIÇÃO'] || '').trim() || null;
-        const category = String(row.TIPO || row.Tipo || row.CATEGORIA || row.Categoria || '').trim() || null;
-        const company = String(row.EMPRESA || row.Empresa || '').trim() || null;
+        const name = String(getVCol(row, 'Descricao', 'DESCRICAO', 'Descrição', 'DESCRIÇÃO') || code).trim();
+        const description = String(getVCol(row, 'Descricao', 'DESCRICAO', 'Descrição', 'DESCRIÇÃO') || '').trim() || null;
+        const category = String(getVCol(row, 'Categoria', 'CATEGORIA', 'Tipo', 'TIPO') || '').trim() || null;
+        const company = String(getVCol(row, 'Empresa', 'EMPRESA') || '').trim() || null;
         
         const categoryLower = (category || '').toLowerCase();
         const usesKm = categoryLower.includes('veículo') || categoryLower.includes('veiculo') ||
@@ -712,17 +756,30 @@ export function useSheetSync() {
       if (horimeterError) throw horimeterError;
 
       const horimeterRows = horimeterSheetData?.rows || [];
+      const sheetHeaders: string[] = horimeterSheetData?.headers || [];
       const total = horimeterRows.length;
       console.log(`📊 Total rows from Horimetros sheet: ${total}`);
+      console.log(`📊 Sheet headers: ${JSON.stringify(sheetHeaders)}`);
 
-      // Helper to get column value with flexible key matching
-      const getColValue = (row: any, keys: string[]): any => {
-        for (const key of keys) {
-          if (row[key] !== undefined && row[key] !== null && row[key] !== '') return row[key];
-          const trimmedKey = key.trim();
-          if (row[trimmedKey] !== undefined && row[trimmedKey] !== null && row[trimmedKey] !== '') return row[trimmedKey];
-          if (row[key + ' '] !== undefined && row[key + ' '] !== null && row[key + ' '] !== '') return row[key + ' '];
-          if (row[' ' + key] !== undefined && row[' ' + key] !== null && row[' ' + key] !== '') return row[' ' + key];
+      // Build a normalized header lookup: normalizedKey -> actualKey
+      // This handles leading spaces, accents, case differences
+      const headerLookup = new Map<string, string>();
+      for (const h of sheetHeaders) {
+        headerLookup.set(normalizeHeader(h), h);
+      }
+
+      // Robust column value getter using normalized header matching
+      const getCol = (row: any, ...semanticNames: string[]): any => {
+        for (const name of semanticNames) {
+          const normalized = normalizeHeader(name);
+          const actualKey = headerLookup.get(normalized);
+          if (actualKey && row[actualKey] !== undefined && row[actualKey] !== null && row[actualKey] !== '') {
+            return row[actualKey];
+          }
+          // Direct fallback
+          if (row[name] !== undefined && row[name] !== null && row[name] !== '') {
+            return row[name];
+          }
         }
         return null;
       };
@@ -754,94 +811,69 @@ export function useSheetSync() {
 
       // Parse all rows and prepare batches
       const readingsBatch: any[] = [];
+      let parseErrors = 0;
       
       for (let i = 0; i < horimeterRows.length; i++) {
         const row = horimeterRows[i];
         
-        const vehicleCode = String(row.VEICULO || row.Veiculo || row.EQUIPAMENTO || '').trim();
+        const vehicleCode = String(getCol(row, 'Veiculo', 'VEICULO', 'Equipamento', 'EQUIPAMENTO') || '').trim();
         const vehicleId = vehicleMap.get(vehicleCode);
         
         if (!vehicleId) {
-          if (i < 10) console.warn(`⚠️ Vehicle not found: "${vehicleCode}"`);
+          if (parseErrors < 10) console.warn(`⚠️ Vehicle not found: "${vehicleCode}" at row ${i}`);
+          parseErrors++;
           stats.errors++;
           continue;
         }
 
-        const dateStr = String(getColValue(row, ['Data', 'DATA', ' Data']) || '').trim();
+        // Parse date - handle multiple formats
+        const rawDate = getCol(row, 'Data', 'DATA');
         let readingDate: string | null = null;
         
-        if (dateStr) {
-          // Handle dd/MM/yyyy
-          const match = dateStr.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-          if (match) {
-            readingDate = `${match[3]}-${match[2]}-${match[1]}`;
-          } else if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-            // Already yyyy-MM-dd
-            readingDate = dateStr;
-          } else if (/^\d+(\.\d+)?$/.test(dateStr)) {
-            // Google Sheets serial date number (e.g., 46037 = 2026-01-15)
-            const serial = Number(dateStr);
-            if (Number.isFinite(serial) && serial > 25000) {
+        if (rawDate !== null) {
+          const dateStr = String(rawDate).trim();
+          
+          // 1. Google Sheets serial number (numeric)
+          if (typeof rawDate === 'number' || /^\d+(\.\d+)?$/.test(dateStr)) {
+            const serial = Number(rawDate);
+            if (Number.isFinite(serial) && serial > 25000 && serial < 100000) {
               const utcMs = (serial - 25569) * 86400 * 1000;
               const d = new Date(utcMs);
               if (!isNaN(d.getTime())) {
-                const y = d.getUTCFullYear();
-                const m = String(d.getUTCMonth() + 1).padStart(2, '0');
-                const day = String(d.getUTCDate()).padStart(2, '0');
-                readingDate = `${y}-${m}-${day}`;
-              }
-            }
-          } else if (dateStr.includes('/')) {
-            // Try M/d/yyyy or other slash formats
-            const parts = dateStr.split('/');
-            if (parts.length === 3) {
-              const [p1, p2, p3] = parts.map(Number);
-              if (p3 > 1000) {
-                // p1/p2/p3 where p3 is year
-                if (p1 > 12) {
-                  // dd/MM/yyyy
-                  readingDate = `${p3}-${String(p2).padStart(2,'0')}-${String(p1).padStart(2,'0')}`;
-                } else if (p2 > 12) {
-                  // MM/dd/yyyy
-                  readingDate = `${p3}-${String(p1).padStart(2,'0')}-${String(p2).padStart(2,'0')}`;
-                } else {
-                  // Assume dd/MM/yyyy (Brazilian format)
-                  readingDate = `${p3}-${String(p2).padStart(2,'0')}-${String(p1).padStart(2,'0')}`;
-                }
+                readingDate = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
               }
             }
           }
-        }
-
-        // Also try raw numeric value directly from the row object (not stringified)
-        if (!readingDate) {
-          const rawDate = getColValue(row, ['Data', 'DATA', ' Data']);
-          if (typeof rawDate === 'number' && rawDate > 25000) {
-            const utcMs = (rawDate - 25569) * 86400 * 1000;
-            const d = new Date(utcMs);
-            if (!isNaN(d.getTime())) {
-              const y = d.getUTCFullYear();
-              const m = String(d.getUTCMonth() + 1).padStart(2, '0');
-              const day = String(d.getUTCDate()).padStart(2, '0');
-              readingDate = `${y}-${m}-${day}`;
+          
+          // 2. dd/MM/yyyy format (Brazilian)
+          if (!readingDate) {
+            const match = dateStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+            if (match) {
+              const [, p1, p2, p3] = match;
+              const day = Number(p1) > 12 ? p1 : p2;
+              const month = Number(p1) > 12 ? p2 : p1;
+              // Assume dd/MM/yyyy for Brazilian format
+              readingDate = `${p3}-${p2.padStart(2, '0')}-${p1.padStart(2, '0')}`;
             }
+          }
+          
+          // 3. yyyy-MM-dd format (ISO)
+          if (!readingDate && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+            readingDate = dateStr;
           }
         }
 
         if (!readingDate) {
+          if (parseErrors < 10) console.warn(`⚠️ Invalid date at row ${i}: "${rawDate}"`);
+          parseErrors++;
           stats.errors++;
           continue;
         }
 
-        const horAnteriorRaw = getColValue(row, ['Horímetro Anterior', 'Horimetro Anterior', 'Hor_Anterior', 'HOR_ANTERIOR']);
-        const horAtualRaw = getColValue(row, ['Horímetro Atual', 'Horimetro Atual', 'Hor_Atual', 'HOR_ATUAL']);
-        const kmAnteriorRaw = getColValue(row, ['Km Anterior', 'KM Anterior', 'Km_Anterior', 'KM_ANTERIOR']);
-        const kmAtualRaw = getColValue(row, ['Km Atual', 'KM Atual', 'Km_Atual', 'KM_ATUAL']);
-        
-        const horAnterior = parsePtBRNumber(horAnteriorRaw);
-        const horAtual = parsePtBRNumber(horAtualRaw);
-        const kmAnterior = parsePtBRNumber(kmAnteriorRaw);
-        const kmAtual = parsePtBRNumber(kmAtualRaw);
+        const horAnterior = parsePtBRNumber(getCol(row, 'Horimetro Anterior', 'Horímetro Anterior', 'Hor_Anterior'));
+        const horAtual = parsePtBRNumber(getCol(row, 'Horimetro Atual', 'Horímetro Atual', 'Hor_Atual'));
+        const kmAnterior = parsePtBRNumber(getCol(row, 'Km Anterior', 'KM Anterior', 'Km_Anterior'));
+        const kmAtual = parsePtBRNumber(getCol(row, 'Km Atual', 'KM Atual', 'Km_Atual'));
 
         // Skip only if BOTH horimeter AND km current values are missing/zero
         if (horAtual === 0 && kmAtual === 0) {
@@ -849,8 +881,8 @@ export function useSheetSync() {
           continue;
         }
 
-        const operator = String(getColValue(row, ['Operador', 'OPERADOR', 'Motorista', 'MOTORISTA']) || '').trim() || null;
-        const observations = String(getColValue(row, ['Observacao', 'OBSERVACAO', 'Observação', 'OBS']) || '').trim() || null;
+        const operator = String(getCol(row, 'Operador', 'OPERADOR', 'Motorista') || '').trim() || null;
+        const observations = String(getCol(row, 'Observacao', 'Observação', 'OBS') || '').trim() || null;
 
         readingsBatch.push({
           vehicle_id: vehicleId,
@@ -864,6 +896,10 @@ export function useSheetSync() {
           source: 'sheet_sync',
           synced_from_sheet: true,
         });
+      }
+      
+      if (parseErrors > 0) {
+        console.warn(`⚠️ Total parse errors: ${parseErrors}`);
       }
 
       console.log(`📊 Prepared ${readingsBatch.length} readings for batch insert`);
