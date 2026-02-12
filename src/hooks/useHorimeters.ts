@@ -675,72 +675,78 @@ export function useSheetSync() {
     };
 
     try {
-      // Fetch vehicles from sheet
-      const { data: vehicleSheetData, error: vehicleError } = await supabase.functions.invoke('google-sheets', {
-        body: { action: 'getData', sheetName: 'Veiculo' },
-      });
-
-      if (vehicleError) throw vehicleError;
-
-      // Import vehicles in batches
-      const vehicleRows = vehicleSheetData?.rows || [];
-      const vehicleHeaders: string[] = vehicleSheetData?.headers || [];
+      // Fetch vehicles from sheet - try multiple sheet names (non-fatal)
       const vehicleMap = new Map<string, string>(); // code -> id
-      const vehicleBatch: any[] = [];
 
-      // Build normalized header lookup for vehicle sheet
-      const vHeaderLookup = new Map<string, string>();
-      for (const h of vehicleHeaders) {
-        vHeaderLookup.set(normalizeHeader(h), h);
-      }
-      const getVCol = (row: any, ...semanticNames: string[]): any => {
-        for (const name of semanticNames) {
-          const normalized = normalizeHeader(name);
-          const actualKey = vHeaderLookup.get(normalized);
-          if (actualKey && row[actualKey] !== undefined && row[actualKey] !== null && row[actualKey] !== '') {
-            return row[actualKey];
-          }
-          if (row[name] !== undefined && row[name] !== null && row[name] !== '') {
-            return row[name];
-          }
-        }
-        return null;
-      };
-
-      for (const row of vehicleRows) {
-        const code = String(getVCol(row, 'Codigo', 'CODIGO', 'Código', 'CÓDIGO') || '').trim();
-        if (!code) continue;
-
-        const name = String(getVCol(row, 'Descricao', 'DESCRICAO', 'Descrição', 'DESCRIÇÃO') || code).trim();
-        const description = String(getVCol(row, 'Descricao', 'DESCRICAO', 'Descrição', 'DESCRIÇÃO') || '').trim() || null;
-        const category = String(getVCol(row, 'Categoria', 'CATEGORIA', 'Tipo', 'TIPO') || '').trim() || null;
-        const company = String(getVCol(row, 'Empresa', 'EMPRESA') || '').trim() || null;
-        
-        const categoryLower = (category || '').toLowerCase();
-        const usesKm = categoryLower.includes('veículo') || categoryLower.includes('veiculo') ||
-                       categoryLower.includes('caminhão') || categoryLower.includes('caminhao');
-        const unit = usesKm ? 'km' : 'h';
-
-        vehicleBatch.push({ code, name, description, category, company, unit });
-      }
-
-      // Batch upsert vehicles in chunks of 50
-      const VEHICLE_CHUNK = 50;
-      for (let i = 0; i < vehicleBatch.length; i += VEHICLE_CHUNK) {
-        const chunk = vehicleBatch.slice(i, i + VEHICLE_CHUNK);
+      for (const vehicleSheetName of ['Veiculo', 'Equipamentos_Obra']) {
         try {
-          const { data: vehicles, error: upsertError } = await supabase
-            .from('vehicles')
-            .upsert(chunk, { onConflict: 'code' })
-            .select('id, code');
-          
-          if (!upsertError && vehicles) {
-            vehicles.forEach(v => vehicleMap.set(v.code, v.id));
-            stats.vehiclesImported += vehicles.length;
+          const { data: vehicleSheetData, error: vehicleError } = await supabase.functions.invoke('google-sheets', {
+            body: { action: 'getData', sheetName: vehicleSheetName },
+          });
+
+          if (vehicleError || !vehicleSheetData?.rows?.length) continue;
+
+          const vehicleRows = vehicleSheetData.rows || [];
+          const vehicleHeaders: string[] = vehicleSheetData.headers || [];
+          const vehicleBatchArr: any[] = [];
+
+          const vHeaderLookup = new Map<string, string>();
+          for (const h of vehicleHeaders) {
+            vHeaderLookup.set(normalizeHeader(h), h);
           }
+          const getVCol = (row: any, ...semanticNames: string[]): any => {
+            for (const name of semanticNames) {
+              const normalized = normalizeHeader(name);
+              const actualKey = vHeaderLookup.get(normalized);
+              if (actualKey && row[actualKey] !== undefined && row[actualKey] !== null && row[actualKey] !== '') {
+                return row[actualKey];
+              }
+              if (row[name] !== undefined && row[name] !== null && row[name] !== '') {
+                return row[name];
+              }
+            }
+            return null;
+          };
+
+          for (const row of vehicleRows) {
+            const code = String(getVCol(row, 'Codigo', 'CODIGO', 'Código', 'CÓDIGO', 'Veiculo', 'VEICULO') || '').trim();
+            if (!code) continue;
+
+            const name = String(getVCol(row, 'Descricao', 'DESCRICAO', 'Descrição', 'DESCRIÇÃO') || code).trim();
+            const description = String(getVCol(row, 'Descricao', 'DESCRICAO', 'Descrição', 'DESCRIÇÃO') || '').trim() || null;
+            const category = String(getVCol(row, 'Categoria', 'CATEGORIA', 'Tipo', 'TIPO') || '').trim() || null;
+            const company = String(getVCol(row, 'Empresa', 'EMPRESA') || '').trim() || null;
+            
+            const categoryLower = (category || '').toLowerCase();
+            const usesKm = categoryLower.includes('veículo') || categoryLower.includes('veiculo') ||
+                           categoryLower.includes('caminhão') || categoryLower.includes('caminhao');
+            const unit = usesKm ? 'km' : 'h';
+
+            vehicleBatchArr.push({ code, name, description, category, company, unit });
+          }
+
+          const VEHICLE_CHUNK = 50;
+          for (let i = 0; i < vehicleBatchArr.length; i += VEHICLE_CHUNK) {
+            const chunk = vehicleBatchArr.slice(i, i + VEHICLE_CHUNK);
+            try {
+              const { data: vehicles, error: upsertError } = await supabase
+                .from('vehicles')
+                .upsert(chunk, { onConflict: 'code' })
+                .select('id, code');
+              
+              if (!upsertError && vehicles) {
+                vehicles.forEach(v => vehicleMap.set(v.code, v.id));
+                stats.vehiclesImported += vehicles.length;
+              }
+            } catch (err) {
+              console.error('Error batch importing vehicles:', err);
+            }
+          }
+          console.log(`📊 Imported ${vehicleBatchArr.length} vehicles from "${vehicleSheetName}"`);
+          break; // Success - no need to try other sheet names
         } catch (err) {
-          console.error('Error batch importing vehicles:', err);
-          stats.errors += chunk.length;
+          console.warn(`⚠️ Could not fetch vehicles from "${vehicleSheetName}":`, err);
+          // Continue to next sheet name
         }
       }
 
@@ -761,14 +767,12 @@ export function useSheetSync() {
       console.log(`📊 Total rows from Horimetros sheet: ${total}`);
       console.log(`📊 Sheet headers: ${JSON.stringify(sheetHeaders)}`);
 
-      // Build a normalized header lookup: normalizedKey -> actualKey
-      // This handles leading spaces, accents, case differences
+      // Build a normalized header lookup
       const headerLookup = new Map<string, string>();
       for (const h of sheetHeaders) {
         headerLookup.set(normalizeHeader(h), h);
       }
 
-      // Robust column value getter using normalized header matching
       const getCol = (row: any, ...semanticNames: string[]): any => {
         for (const name of semanticNames) {
           const normalized = normalizeHeader(name);
@@ -776,7 +780,6 @@ export function useSheetSync() {
           if (actualKey && row[actualKey] !== undefined && row[actualKey] !== null && row[actualKey] !== '') {
             return row[actualKey];
           }
-          // Direct fallback
           if (row[name] !== undefined && row[name] !== null && row[name] !== '') {
             return row[name];
           }
@@ -784,11 +787,63 @@ export function useSheetSync() {
         return null;
       };
 
-      // First, delete ALL synced_from_sheet readings to do a clean re-import
-      // This avoids complex deduplication logic and ensures 1:1 match with sheet
+      // PHASE 1: Auto-create missing vehicles from Horimetros data
+      const missingVehicleCodes = new Set<string>();
+      const vehicleInfoFromSheet = new Map<string, { name: string; category: string | null; company: string | null }>();
+
+      for (const row of horimeterRows) {
+        const vehicleCode = String(getCol(row, 'Veiculo', 'VEICULO', 'Equipamento', 'EQUIPAMENTO') || '').trim();
+        if (!vehicleCode || vehicleMap.has(vehicleCode)) continue;
+        
+        missingVehicleCodes.add(vehicleCode);
+        if (!vehicleInfoFromSheet.has(vehicleCode)) {
+          const desc = String(getCol(row, 'Descricao', 'DESCRICAO', 'Descrição') || vehicleCode).trim();
+          const cat = String(getCol(row, 'Categoria', 'CATEGORIA') || '').trim() || null;
+          const comp = String(getCol(row, 'Empresa', 'EMPRESA') || '').trim() || null;
+          vehicleInfoFromSheet.set(vehicleCode, { name: desc, category: cat, company: comp });
+        }
+      }
+
+      if (missingVehicleCodes.size > 0) {
+        console.log(`📊 Auto-creating ${missingVehicleCodes.size} missing vehicles from Horimetros sheet`);
+        const autoVehicles: any[] = [];
+        for (const code of missingVehicleCodes) {
+          const info = vehicleInfoFromSheet.get(code)!;
+          const categoryLower = (info.category || '').toLowerCase();
+          const usesKm = categoryLower.includes('veículo') || categoryLower.includes('veiculo') ||
+                         categoryLower.includes('caminhão') || categoryLower.includes('caminhao');
+          autoVehicles.push({
+            code,
+            name: info.name,
+            description: info.name,
+            category: info.category,
+            company: info.company,
+            unit: usesKm ? 'km' : 'h',
+          });
+        }
+
+        const VEHICLE_CHUNK = 50;
+        for (let i = 0; i < autoVehicles.length; i += VEHICLE_CHUNK) {
+          const chunk = autoVehicles.slice(i, i + VEHICLE_CHUNK);
+          try {
+            const { data: vehicles, error: upsertError } = await supabase
+              .from('vehicles')
+              .upsert(chunk, { onConflict: 'code' })
+              .select('id, code');
+            
+            if (!upsertError && vehicles) {
+              vehicles.forEach(v => vehicleMap.set(v.code, v.id));
+              stats.vehiclesImported += vehicles.length;
+            }
+          } catch (err) {
+            console.error('Error auto-creating vehicles:', err);
+          }
+        }
+      }
+
+      // PHASE 2: Delete existing synced readings for clean re-import
       console.log('🗑️ Cleaning existing synced readings for fresh import...');
       
-      // Delete in batches to avoid timeouts
       let deletedCount = 0;
       while (true) {
         const { data: toDelete } = await supabase
@@ -808,10 +863,14 @@ export function useSheetSync() {
         deletedCount += ids.length;
       }
       console.log(`🗑️ Deleted ${deletedCount} existing synced readings`);
+      stats.readingsDeleted = deletedCount;
 
-      // Parse all rows and prepare batches
+      // PHASE 3: Parse all rows and prepare batches
       const readingsBatch: any[] = [];
       let parseErrors = 0;
+      let skippedNoVehicle = 0;
+      let skippedNoDate = 0;
+      let skippedNoValue = 0;
       
       for (let i = 0; i < horimeterRows.length; i++) {
         const row = horimeterRows[i];
@@ -820,8 +879,7 @@ export function useSheetSync() {
         const vehicleId = vehicleMap.get(vehicleCode);
         
         if (!vehicleId) {
-          if (parseErrors < 10) console.warn(`⚠️ Vehicle not found: "${vehicleCode}" at row ${i}`);
-          parseErrors++;
+          skippedNoVehicle++;
           stats.errors++;
           continue;
         }
@@ -850,9 +908,7 @@ export function useSheetSync() {
             const match = dateStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
             if (match) {
               const [, p1, p2, p3] = match;
-              const day = Number(p1) > 12 ? p1 : p2;
-              const month = Number(p1) > 12 ? p2 : p1;
-              // Assume dd/MM/yyyy for Brazilian format
+              // Always assume dd/MM/yyyy for Brazilian format
               readingDate = `${p3}-${p2.padStart(2, '0')}-${p1.padStart(2, '0')}`;
             }
           }
@@ -864,8 +920,7 @@ export function useSheetSync() {
         }
 
         if (!readingDate) {
-          if (parseErrors < 10) console.warn(`⚠️ Invalid date at row ${i}: "${rawDate}"`);
-          parseErrors++;
+          skippedNoDate++;
           stats.errors++;
           continue;
         }
@@ -874,9 +929,12 @@ export function useSheetSync() {
         const horAtual = parsePtBRNumber(getCol(row, 'Horimetro Atual', 'Horímetro Atual', 'Hor_Atual'));
         const kmAnterior = parsePtBRNumber(getCol(row, 'Km Anterior', 'KM Anterior', 'Km_Anterior'));
         const kmAtual = parsePtBRNumber(getCol(row, 'Km Atual', 'KM Atual', 'Km_Atual'));
+        const intervaloH = parsePtBRNumber(getCol(row, 'Intervalo H', 'IntervaloH'));
+        const totalKm = parsePtBRNumber(getCol(row, 'Total Km', 'TotalKm'));
 
-        // Skip only if BOTH horimeter AND km current values are missing/zero
-        if (horAtual === 0 && kmAtual === 0) {
+        // Skip only if ALL values are zero/empty (truly empty row)
+        if (horAtual === 0 && kmAtual === 0 && horAnterior === 0 && kmAnterior === 0 && intervaloH === 0 && totalKm === 0) {
+          skippedNoValue++;
           stats.errors++;
           continue;
         }
@@ -888,7 +946,7 @@ export function useSheetSync() {
           vehicle_id: vehicleId,
           reading_date: readingDate,
           current_value: horAtual,
-          previous_value: horAnterior,
+          previous_value: horAnterior > 0 ? horAnterior : null,
           current_km: kmAtual > 0 ? kmAtual : null,
           previous_km: kmAnterior > 0 ? kmAnterior : null,
           operator,
@@ -897,6 +955,8 @@ export function useSheetSync() {
           synced_from_sheet: true,
         });
       }
+      
+      console.log(`📊 Parse results: ${readingsBatch.length} valid, ${skippedNoVehicle} no vehicle, ${skippedNoDate} no date, ${skippedNoValue} no values`);
       
       if (parseErrors > 0) {
         console.warn(`⚠️ Total parse errors: ${parseErrors}`);
