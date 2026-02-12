@@ -66,14 +66,15 @@ export function MaintenanceDuplicatesTab({ orders, onRefresh }: MaintenanceDupli
   const [activeGroup, setActiveGroup] = useState<string | null>(null);
   const [vehicleFilter, setVehicleFilter] = useState('');
 
-  // Detect duplicates: same vehicle_code + same entry_date
+  // Detect duplicates: same vehicle_code + same entry_date + same problem
   const duplicateGroups = useMemo(() => {
     const groups = new Map<string, ServiceOrder[]>();
 
     orders.forEach(order => {
       const date = order.entry_date || order.order_date;
       if (!order.vehicle_code || !date) return;
-      const key = `${order.vehicle_code}|${date}`;
+      const problem = (order.problem_description || '').trim().toLowerCase();
+      const key = `${order.vehicle_code}|${date}|${problem}`;
       const existing = groups.get(key) || [];
       existing.push(order);
       groups.set(key, existing);
