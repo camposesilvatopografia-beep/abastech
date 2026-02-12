@@ -582,6 +582,9 @@ export function FieldPage() {
             onNavigateToForm={() => setCurrentView('fuel-menu')}
             onNavigateToHorimeter={() => setCurrentView('horimeter')}
             onNavigateToOS={() => setCurrentView('os')}
+            pendingSyncCount={pendingCount + offlineStorage.pendingCount}
+            isSyncing={isSyncing}
+            onSync={syncPendingRecords}
           />
         ) : currentView === 'fuel-menu' ? (
           <FieldFuelMenu

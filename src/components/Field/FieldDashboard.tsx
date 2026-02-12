@@ -69,6 +69,9 @@ interface FieldDashboardProps {
   onNavigateToFuelMenu?: () => void;
   onNavigateToHorimeter?: () => void;
   onNavigateToOS?: () => void;
+  pendingSyncCount?: number;
+  isSyncing?: boolean;
+  onSync?: () => void;
 }
 
 interface RecentRecord {
@@ -93,7 +96,7 @@ interface DeleteConfirmation {
   reason: string;
 }
 
-export function FieldDashboard({ user, onNavigateToForm, onNavigateToFuelMenu, onNavigateToHorimeter, onNavigateToOS }: FieldDashboardProps) {
+export function FieldDashboard({ user, onNavigateToForm, onNavigateToFuelMenu, onNavigateToHorimeter, onNavigateToOS, pendingSyncCount = 0, isSyncing = false, onSync }: FieldDashboardProps) {
   const { theme } = useTheme();
   const navigate = useNavigate();
   const [dashboardTab, setDashboardTab] = useState<'inicio' | 'resumo'>('inicio');
@@ -836,6 +839,40 @@ export function FieldDashboard({ user, onNavigateToForm, onNavigateToFuelMenu, o
             </button>
           </div>
 
+          {/* Pending Sync Counter */}
+          {pendingSyncCount > 0 && (
+            <button
+              onClick={onSync}
+              disabled={isSyncing}
+              className={cn(
+                "flex items-center gap-4 p-4 rounded-2xl text-white shadow-lg active:scale-[0.98] transition-transform text-left w-full",
+                isSyncing
+                  ? "bg-gradient-to-r from-yellow-600 to-yellow-700 shadow-yellow-600/30"
+                  : "bg-gradient-to-r from-orange-500 to-red-500 shadow-orange-500/30 animate-pulse"
+              )}
+            >
+              <div className="w-14 h-14 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center shrink-0 relative">
+                {isSyncing ? (
+                  <Loader2 className="w-7 h-7 animate-spin" />
+                ) : (
+                  <RefreshCw className="w-7 h-7" />
+                )}
+                <span className="absolute -top-2 -right-2 bg-white text-red-600 text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center shadow">
+                  {pendingSyncCount}
+                </span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <span className="text-base font-bold block">
+                  {isSyncing ? 'Sincronizando...' : `${pendingSyncCount} registro(s) pendente(s)`}
+                </span>
+                <span className="text-xs opacity-80">
+                  {isSyncing ? 'Aguarde a sincronização' : 'Toque para sincronizar agora'}
+                </span>
+              </div>
+              {!isSyncing && <ArrowRight className="w-5 h-5 opacity-60 shrink-0" />}
+            </button>
+          )}
+
           {/* PWA Install Banner for Mobile */}
           {showInstallButton && !isStandalone && (
             <div 
@@ -859,7 +896,6 @@ export function FieldDashboard({ user, onNavigateToForm, onNavigateToFuelMenu, o
         </>
       ) : (
         <>
-          {/* Today's Stats Summary */}
           <div className={cn(
             "rounded-xl p-4 border",
             theme === 'dark' 
