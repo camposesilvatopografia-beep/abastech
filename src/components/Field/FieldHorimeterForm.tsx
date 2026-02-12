@@ -49,6 +49,7 @@ import { format, startOfDay, isAfter, isSameDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useTheme } from '@/hooks/useTheme';
 import { useFieldSettings, playSuccessSound, vibrateDevice } from '@/hooks/useFieldSettings';
+import { useOfflineStorage } from '@/hooks/useOfflineStorage';
 
 interface FieldUser {
   id: string;
@@ -155,10 +156,12 @@ function DateGroup({ dateKey, readings, isDark, getVehicleCode, getVehicleName }
 export function FieldHorimeterForm({ user, onBack }: FieldHorimeterFormProps) {
   const { theme } = useTheme();
   const { settings } = useFieldSettings();
+  const offlineStorage = useOfflineStorage(user.id);
   const isDark = theme === 'dark';
   const [subView, setSubView] = useState<'menu' | 'form' | 'records'>('menu');
   const [allReadings, setAllReadings] = useState<HorimeterReading[]>([]);
   const [loadingReadings, setLoadingReadings] = useState(false);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
 
   // Form state
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -181,15 +184,40 @@ export function FieldHorimeterForm({ user, onBack }: FieldHorimeterFormProps) {
   // History
   const [vehicleHistory, setVehicleHistory] = useState<HorimeterReading[]>([]);
 
-  // Fetch vehicles
+  // Monitor online status
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  // Fetch vehicles (with offline cache fallback)
   useEffect(() => {
     const fetchVehicles = async () => {
       setVehiclesLoading(true);
-      const { data, error } = await supabase
-        .from('vehicles')
-        .select('id, code, name, description, category, company, unit')
-        .order('code');
-      if (!error && data) setVehicles(data);
+      try {
+        const { data, error } = await supabase
+          .from('vehicles')
+          .select('id, code, name, description, category, company, unit')
+          .order('code');
+        if (!error && data && data.length > 0) {
+          setVehicles(data);
+          offlineStorage.cacheData('vehicles', data);
+        } else {
+          throw new Error('No data');
+        }
+      } catch {
+        // Offline: load from cache
+        try {
+          const cached = await offlineStorage.getCachedData<Vehicle[]>('vehicles');
+          if (cached) setVehicles(cached);
+        } catch {}
+      }
       setVehiclesLoading(false);
     };
     fetchVehicles();
@@ -595,6 +623,43 @@ export function FieldHorimeterForm({ user, onBack }: FieldHorimeterFormProps) {
 
     } catch (err: any) {
       console.error('Erro ao salvar horímetro:', err);
+      
+      // Offline fallback: save to IndexedDB
+      if (offlineStorage.isSupported) {
+        try {
+          await offlineStorage.saveOfflineRecord({
+            vehicle_id: selectedVehicleId,
+            vehicle_code: selectedVehicle?.code || '',
+            vehicle_name: selectedVehicle?.name || '',
+            vehicle_category: selectedVehicle?.category || '',
+            vehicle_company: selectedVehicle?.company || '',
+            reading_date: format(selectedDate, 'yyyy-MM-dd'),
+            current_value: horimeterValue ?? 0,
+            previous_value: previousHorimeter > 0 ? previousHorimeter : null,
+            current_km: kmValue ?? null,
+            previous_km: previousKm > 0 ? previousKm : null,
+            operator: operador || null,
+            observations: observacao || null,
+          }, 'horimeter_reading');
+
+          if (settings.soundEnabled) playSuccessSound();
+          if (settings.vibrationEnabled) vibrateDevice();
+          toast.success('Salvo offline! Será sincronizado quando houver conexão.', {
+            icon: '📱',
+            duration: 4000,
+          });
+          
+          setHorimeterValue(null);
+          setKmValue(null);
+          setObservacao('');
+          setPreviousHorimeter((horimeterValue ?? 0) > 0 ? (horimeterValue ?? 0) : previousHorimeter);
+          setPreviousKm((kmValue ?? 0) > 0 ? (kmValue ?? 0) : previousKm);
+          return;
+        } catch (offlineErr) {
+          console.error('Offline save also failed:', offlineErr);
+        }
+      }
+      
       toast.error(err.message || 'Erro ao salvar registro');
     } finally {
       setIsSaving(false);
