@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import { format, subDays, startOfDay, eachDayOfInterval } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { AlertTriangle, Check, Calendar, Filter, ListChecks, Eye, Copy, FileEdit } from 'lucide-react';
+import { AlertTriangle, Check, Calendar, Filter, ListChecks, Eye, Copy, FileEdit, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -15,6 +15,8 @@ import { DatabaseHorimeterModal } from '@/components/Horimetros/DatabaseHorimete
 import { VehicleCombobox, VehicleOption } from '@/components/ui/vehicle-combobox';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { formatPtBRNumber } from '@/lib/ptBRNumber';
+import { getSheetData } from '@/lib/googleSheets';
 
 interface MissingReadingsTabProps {
   vehicles: Vehicle[];
@@ -187,18 +189,74 @@ export function MissingReadingsTab({ vehicles, readings, loading, refetch }: Mis
     }
     setRepeating(true);
     try {
+      const currHor = prev.current_value || 0;
+      const currKm = (prev as any).current_km || 0;
+
       const { error } = await supabase.from('horimeter_readings').insert({
         vehicle_id: vehicleId,
         reading_date: dateStr,
-        current_value: prev.current_value,
-        previous_value: prev.current_value,
-        current_km: (prev as any).current_km || 0,
-        previous_km: (prev as any).current_km || 0,
-        operator: prev.operator || 'Repetido (não trabalhou)',
+        current_value: currHor,
+        previous_value: currHor,
+        current_km: currKm,
+        previous_km: currKm,
+        operator: 'Repetido (não trabalhou)',
         observations: `Repetido do dia ${prev.reading_date} - Equipamento não trabalhou`,
         source: 'system',
       });
       if (error) throw error;
+
+      // Sync to Google Sheets
+      try {
+        const vehicle = vehicles.find(v => v.id === vehicleId);
+        if (vehicle) {
+          const [year, month, day] = dateStr.split('-');
+          const formattedDate = `${day}/${month}/${year}`;
+          const fmtNum = (v: number) => v > 0 ? formatPtBRNumber(v, { decimals: 2 }) : '';
+
+          // Build semantic data matching the Horimetros sheet structure
+          const semanticData: Record<string, string> = {
+            'Data': formattedDate,
+            'Veiculo': vehicle.code,
+            'Categoria': vehicle.category || '',
+            'Descricao': vehicle.name || '',
+            'Empresa': vehicle.company || '',
+            'Operador': 'Repetido (não trabalhou)',
+            'Horimetro Anterior': currHor > 0 ? fmtNum(currHor) : '',
+            'Horimetro Atual': currHor > 0 ? fmtNum(currHor) : '',
+            'Intervalo H': '0',
+            'Km Anterior': currKm > 0 ? fmtNum(currKm) : '',
+            'Km Atual': currKm > 0 ? fmtNum(currKm) : '',
+            'Total Km': '0',
+          };
+
+          // Try to get actual headers for fuzzy matching
+          let rowData = semanticData;
+          try {
+            const sheetData = await getSheetData('Horimetros', { noCache: false });
+            const headers = sheetData.headers || [];
+            if (headers.length > 0) {
+              const normalizeHeader = (h: string) => h.normalize('NFD').replace(/\p{Diacritic}/gu, '').toUpperCase().replace(/[\s_.]/g, '');
+              const normalizedMap = new Map<string, string>();
+              for (const h of headers) normalizedMap.set(normalizeHeader(h), h);
+              const mapped: Record<string, string> = {};
+              for (const [key, value] of Object.entries(semanticData)) {
+                const actual = normalizedMap.get(normalizeHeader(key));
+                mapped[actual || key] = value;
+              }
+              rowData = mapped;
+            }
+          } catch { /* use semantic keys as fallback */ }
+
+          await supabase.functions.invoke('google-sheets', {
+            body: { action: 'create', sheetName: 'Horimetros', data: rowData },
+          });
+          console.log('✓ Repetição sincronizada com planilha Horimetros');
+        }
+      } catch (syncErr) {
+        console.error('Erro ao sincronizar repetição com planilha:', syncErr);
+        // Don't block - DB save was successful
+      }
+
       toast.success(`Lançamento repetido para ${format(new Date(dateStr + 'T12:00:00'), 'dd/MM/yyyy')}`);
       await refetch();
     } catch (err: any) {
