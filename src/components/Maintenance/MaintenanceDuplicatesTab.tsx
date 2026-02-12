@@ -45,6 +45,7 @@ interface ServiceOrder {
 
 interface DuplicateGroup {
   key: string;
+  orderNumber: string;
   vehicleCode: string;
   entryDate: string;
   problem: string;
@@ -65,16 +66,15 @@ export function MaintenanceDuplicatesTab({ orders, onRefresh }: MaintenanceDupli
   const [isDeleting, setIsDeleting] = useState(false);
   const [activeGroup, setActiveGroup] = useState<string | null>(null);
   const [vehicleFilter, setVehicleFilter] = useState('');
+  const [viewingOrder, setViewingOrder] = useState<ServiceOrder | null>(null);
 
-  // Detect duplicates: same vehicle_code + same entry_date + same problem
+  // Detect duplicates: same order_number appearing multiple times
   const duplicateGroups = useMemo(() => {
     const groups = new Map<string, ServiceOrder[]>();
 
     orders.forEach(order => {
-      const date = order.entry_date || order.order_date;
-      if (!order.vehicle_code || !date) return;
-      const problem = (order.problem_description || '').trim().toLowerCase();
-      const key = `${order.vehicle_code}|${date}|${problem}`;
+      if (!order.order_number) return;
+      const key = order.order_number;
       const existing = groups.get(key) || [];
       existing.push(order);
       groups.set(key, existing);
@@ -92,6 +92,7 @@ export function MaintenanceDuplicatesTab({ orders, onRefresh }: MaintenanceDupli
 
         result.push({
           key,
+          orderNumber: key,
           vehicleCode: groupOrders[0].vehicle_code,
           entryDate: groupOrders[0].entry_date || groupOrders[0].order_date,
           problem: groupOrders[0].problem_description || '-',
@@ -189,9 +190,19 @@ export function MaintenanceDuplicatesTab({ orders, onRefresh }: MaintenanceDupli
     }
   };
 
-  // Delete selected duplicates
+  // Delete selected duplicates - never delete the "keeper" (first in each group)
   const handleDeleteSelected = async () => {
     if (selectedToDelete.size === 0) return;
+    
+    // Safety: remove any "keeper" IDs from the selection
+    const keeperIds = new Set(duplicateGroups.map(g => g.orders[0]?.id).filter(Boolean));
+    const safeToDelete = new Set([...selectedToDelete].filter(id => !keeperIds.has(id)));
+    
+    if (safeToDelete.size === 0) {
+      toast.error('Nenhum registro pode ser excluído — pelo menos um deve ser mantido em cada grupo.');
+      return;
+    }
+    
     setIsDeleting(true);
 
     let deleted = 0;
@@ -199,7 +210,7 @@ export function MaintenanceDuplicatesTab({ orders, onRefresh }: MaintenanceDupli
     let errors = 0;
 
     try {
-      for (const id of selectedToDelete) {
+      for (const id of safeToDelete) {
         const order = orders.find(o => o.id === id);
         if (!order) continue;
 
@@ -366,14 +377,16 @@ export function MaintenanceDuplicatesTab({ orders, onRefresh }: MaintenanceDupli
             filteredGroups.map(group => (
               <div key={group.key} className="bg-card rounded-lg border border-border overflow-hidden">
                 <div className="flex items-center justify-between bg-muted/50 p-3 border-b border-border">
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" className="bg-red-100 text-red-700 border-red-300 font-bold">
-                      {group.orders.length}x
-                    </Badge>
-                    <span className="font-mono font-medium text-sm">{group.vehicleCode}</span>
-                    <span className="text-sm text-muted-foreground">—</span>
-                    <span className="text-sm">{formatDate(group.entryDate)}</span>
-                  </div>
+                   <div className="flex items-center gap-2">
+                     <Badge variant="outline" className="bg-red-100 text-red-700 border-red-300 font-bold">
+                       {group.orders.length}x
+                     </Badge>
+                     <span className="font-mono font-medium text-sm">{group.orderNumber}</span>
+                     <span className="text-sm text-muted-foreground">—</span>
+                     <span className="text-sm">{group.vehicleCode}</span>
+                     <span className="text-sm text-muted-foreground">—</span>
+                     <span className="text-sm">{formatDate(group.entryDate)}</span>
+                   </div>
                   <div className="flex items-center gap-1">
                     <Button
                       variant="outline"
@@ -400,6 +413,7 @@ export function MaintenanceDuplicatesTab({ orders, onRefresh }: MaintenanceDupli
                     <TableRow>
                       <TableHead className="w-10 py-1 px-2"></TableHead>
                       <TableHead className="py-1 px-2">Nº OS</TableHead>
+                      <TableHead className="py-1 px-2">Data Entrada</TableHead>
                       <TableHead className="py-1 px-2">Problema</TableHead>
                       <TableHead className="py-1 px-2 hidden sm:table-cell">Mecânico</TableHead>
                       <TableHead className="py-1 px-2">Status</TableHead>
@@ -432,6 +446,7 @@ export function MaintenanceDuplicatesTab({ orders, onRefresh }: MaintenanceDupli
                             )}
                           </TableCell>
                           <TableCell className="py-1 px-2 font-mono">{order.order_number}</TableCell>
+                          <TableCell className="py-1 px-2">{formatDate(order.entry_date || order.order_date)}</TableCell>
                           <TableCell className="py-1 px-2 max-w-[200px] truncate">
                             {order.problem_description || '-'}
                           </TableCell>
@@ -445,19 +460,29 @@ export function MaintenanceDuplicatesTab({ orders, onRefresh }: MaintenanceDupli
                             {format(new Date(order.created_at), 'dd/MM HH:mm')}
                           </TableCell>
                           <TableCell className="py-1 px-2">
-                            {!isKeeper && (
+                            <div className="flex items-center gap-1">
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                className="h-6 text-xs text-destructive hover:text-destructive"
-                                onClick={() => {
-                                  setSelectedToDelete(new Set([order.id]));
-                                  setConfirmOpen(true);
-                                }}
+                                className="h-6 text-xs"
+                                onClick={() => setViewingOrder(order)}
                               >
-                                <Trash2 className="w-3 h-3" />
+                                <Eye className="w-3 h-3" />
                               </Button>
-                            )}
+                              {!isKeeper && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 text-xs text-destructive hover:text-destructive"
+                                  onClick={() => {
+                                    setSelectedToDelete(new Set([order.id]));
+                                    setConfirmOpen(true);
+                                  }}
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </Button>
+                              )}
+                            </div>
                           </TableCell>
                         </TableRow>
                       );
@@ -486,11 +511,10 @@ export function MaintenanceDuplicatesTab({ orders, onRefresh }: MaintenanceDupli
             </TableHeader>
             <TableBody>
               {orders.slice(0, 200).map(order => {
+                const isDuplicate = duplicateGroups.some(g => g.orderNumber === order.order_number);
                 const date = order.entry_date || order.order_date;
-                const key = `${order.vehicle_code}|${date}`;
-                const isDuplicate = duplicateGroups.some(g => g.key === key);
                 return (
-                  <TableRow key={order.id} className={cn(isDuplicate && 'bg-red-50/30 dark:bg-red-950/10')}>
+                  <TableRow key={order.id} className={cn(isDuplicate && 'bg-red-50/30 dark:bg-red-950/10', 'cursor-pointer')} onClick={() => setViewingOrder(order)}>
                     <TableCell className="py-1 px-2 font-mono">{order.order_number}</TableCell>
                     <TableCell className="py-1 px-2">{order.vehicle_code}</TableCell>
                     <TableCell className="py-1 px-2">{formatDate(date)}</TableCell>
@@ -557,6 +581,66 @@ export function MaintenanceDuplicatesTab({ orders, onRefresh }: MaintenanceDupli
                 </>
               )}
             </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* View order detail dialog */}
+      <AlertDialog open={!!viewingOrder} onOpenChange={(open) => !open && setViewingOrder(null)}>
+        <AlertDialogContent className="bg-card max-w-lg">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Eye className="w-5 h-5" />
+              Detalhes da OS {viewingOrder?.order_number}
+            </AlertDialogTitle>
+          </AlertDialogHeader>
+          {viewingOrder && (
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <p className="text-muted-foreground text-xs">Veículo</p>
+                <p className="font-medium">{viewingOrder.vehicle_code}</p>
+                {viewingOrder.vehicle_description && <p className="text-xs text-muted-foreground">{viewingOrder.vehicle_description}</p>}
+              </div>
+              <div>
+                <p className="text-muted-foreground text-xs">Data Entrada</p>
+                <p className="font-medium">{formatDate(viewingOrder.entry_date || viewingOrder.order_date)}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground text-xs">Tipo</p>
+                <p className="font-medium">{viewingOrder.order_type}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground text-xs">Prioridade</p>
+                <p className="font-medium">{viewingOrder.priority}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground text-xs">Status</p>
+                <Badge variant="outline">{viewingOrder.status}</Badge>
+              </div>
+              <div>
+                <p className="text-muted-foreground text-xs">Mecânico</p>
+                <p className="font-medium">{viewingOrder.mechanic_name || '-'}</p>
+              </div>
+              <div className="col-span-2">
+                <p className="text-muted-foreground text-xs">Problema</p>
+                <p className="font-medium">{viewingOrder.problem_description || '-'}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground text-xs">Hora Entrada</p>
+                <p className="font-medium">{viewingOrder.entry_time || '-'}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground text-xs">Data Saída</p>
+                <p className="font-medium">{viewingOrder.end_date ? formatDate(viewingOrder.end_date) : '-'}</p>
+              </div>
+              <div className="col-span-2">
+                <p className="text-muted-foreground text-xs">Criado em</p>
+                <p className="font-medium">{format(new Date(viewingOrder.created_at), 'dd/MM/yyyy HH:mm:ss')}</p>
+              </div>
+            </div>
+          )}
+          <AlertDialogFooter>
+            <Button variant="outline" onClick={() => setViewingOrder(null)}>Fechar</Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
