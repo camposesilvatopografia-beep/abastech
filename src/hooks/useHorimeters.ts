@@ -771,11 +771,60 @@ export function useSheetSync() {
         let readingDate: string | null = null;
         
         if (dateStr) {
+          // Handle dd/MM/yyyy
           const match = dateStr.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
           if (match) {
             readingDate = `${match[3]}-${match[2]}-${match[1]}`;
           } else if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+            // Already yyyy-MM-dd
             readingDate = dateStr;
+          } else if (/^\d+(\.\d+)?$/.test(dateStr)) {
+            // Google Sheets serial date number (e.g., 46037 = 2026-01-15)
+            const serial = Number(dateStr);
+            if (Number.isFinite(serial) && serial > 25000) {
+              const utcMs = (serial - 25569) * 86400 * 1000;
+              const d = new Date(utcMs);
+              if (!isNaN(d.getTime())) {
+                const y = d.getUTCFullYear();
+                const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+                const day = String(d.getUTCDate()).padStart(2, '0');
+                readingDate = `${y}-${m}-${day}`;
+              }
+            }
+          } else if (dateStr.includes('/')) {
+            // Try M/d/yyyy or other slash formats
+            const parts = dateStr.split('/');
+            if (parts.length === 3) {
+              const [p1, p2, p3] = parts.map(Number);
+              if (p3 > 1000) {
+                // p1/p2/p3 where p3 is year
+                if (p1 > 12) {
+                  // dd/MM/yyyy
+                  readingDate = `${p3}-${String(p2).padStart(2,'0')}-${String(p1).padStart(2,'0')}`;
+                } else if (p2 > 12) {
+                  // MM/dd/yyyy
+                  readingDate = `${p3}-${String(p1).padStart(2,'0')}-${String(p2).padStart(2,'0')}`;
+                } else {
+                  // Assume dd/MM/yyyy (Brazilian format)
+                  readingDate = `${p3}-${String(p2).padStart(2,'0')}-${String(p1).padStart(2,'0')}`;
+                }
+              }
+            }
+          }
+        }
+
+        // Also try raw numeric value directly from the row object (not stringified)
+        if (!readingDate) {
+          const rawDate = getColValue(row, ['Data', 'DATA', ' Data']);
+          if (typeof rawDate === 'number' && rawDate > 25000) {
+            const utcMs = (rawDate - 25569) * 86400 * 1000;
+            const d = new Date(utcMs);
+            if (!isNaN(d.getTime())) {
+              const y = d.getUTCFullYear();
+              const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+              const day = String(d.getUTCDate()).padStart(2, '0');
+              readingDate = `${y}-${m}-${day}`;
+            }
           }
         }
 
