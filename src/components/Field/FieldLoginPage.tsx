@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { User, Lock, LogIn, Mic, Eye, EyeOff, Loader2, CheckCircle2, Sparkles, Monitor, CloudOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,6 +21,15 @@ export function FieldLoginPage({ onLogin }: FieldLoginPageProps) {
   const [showWelcome, setShowWelcome] = useState(false);
   const [welcomeName, setWelcomeName] = useState('');
   const [pendingUser, setPendingUser] = useState<any>(null);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+
+  useEffect(() => {
+    const onOn = () => setIsOnline(true);
+    const onOff = () => setIsOnline(false);
+    window.addEventListener('online', onOn);
+    window.addEventListener('offline', onOff);
+    return () => { window.removeEventListener('online', onOn); window.removeEventListener('offline', onOff); };
+  }, []);
 
   // Cache credentials after successful online login
   const cacheCredentials = (userData: any, pwd: string) => {
@@ -220,6 +229,17 @@ export function FieldLoginPage({ onLogin }: FieldLoginPageProps) {
               </p>
             </div>
           </div>
+
+          {/* Offline Indicator */}
+          {!isOnline && (
+            <div className="flex items-center gap-3 bg-amber-500/20 border border-amber-500/30 rounded-xl px-4 py-3 animate-pulse">
+              <CloudOff className="w-5 h-5 text-amber-400 shrink-0" />
+              <div>
+                <p className="text-amber-300 text-sm font-semibold">Você está offline</p>
+                <p className="text-amber-400/70 text-xs">Login disponível se já acessou antes</p>
+              </div>
+            </div>
+          )}
 
           {/* Form */}
           <form onSubmit={handleLogin} className="space-y-5">
