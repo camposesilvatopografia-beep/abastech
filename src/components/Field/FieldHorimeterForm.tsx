@@ -670,15 +670,31 @@ export function FieldHorimeterForm({ user, onBack }: FieldHorimeterFormProps) {
   const fetchAllReadings = useCallback(async () => {
     setLoadingReadings(true);
     try {
-      const { data, error } = await supabase
-        .from('horimeter_readings')
-        .select('id, vehicle_id, reading_date, current_value, previous_value, current_km, previous_km, operator, observations')
-        .order('reading_date', { ascending: false })
-        .order('created_at', { ascending: false })
-        .limit(100);
-      if (!error && data) {
-        setAllReadings(data as HorimeterReading[]);
+      // Fetch all readings without limit to show all dates
+      let allData: HorimeterReading[] = [];
+      let from = 0;
+      const pageSize = 1000;
+      let hasMore = true;
+      
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('horimeter_readings')
+          .select('id, vehicle_id, reading_date, current_value, previous_value, current_km, previous_km, operator, observations')
+          .order('reading_date', { ascending: false })
+          .order('created_at', { ascending: false })
+          .range(from, from + pageSize - 1);
+        
+        if (error) throw error;
+        if (data && data.length > 0) {
+          allData = allData.concat(data as HorimeterReading[]);
+          from += pageSize;
+          hasMore = data.length === pageSize;
+        } else {
+          hasMore = false;
+        }
       }
+      
+      setAllReadings(allData);
     } catch (err) {
       console.error('Error fetching readings:', err);
     } finally {
