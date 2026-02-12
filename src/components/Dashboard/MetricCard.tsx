@@ -8,6 +8,7 @@ interface MetricCardProps {
   icon?: LucideIcon;
   variant?: 'default' | 'primary' | 'blue' | 'green' | 'red' | 'yellow' | 'white' | 'navy';
   className?: string;
+  onClick?: () => void;
 }
 
 export function MetricCard({ 
@@ -16,7 +17,8 @@ export function MetricCard({
   subtitle = 'Hoje',
   icon: Icon,
   variant = 'default',
-  className 
+  className,
+  onClick
 }: MetricCardProps) {
   const variantStyles = {
     default: {
@@ -88,11 +90,17 @@ export function MetricCard({
   const styles = variantStyles[variant];
 
   return (
-    <div className={cn(
-      "rounded-lg p-3 md:p-4 relative overflow-hidden",
-      styles.container,
-      className
-    )}>
+    <div 
+      className={cn(
+        "rounded-lg p-3 md:p-4 relative overflow-hidden",
+        styles.container,
+        onClick && "cursor-pointer hover:opacity-90 hover:scale-[1.02] transition-all",
+        className
+      )}
+      onClick={onClick}
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+    >
       <div className="flex justify-between items-start gap-2">
         <div className="space-y-0.5 md:space-y-1 min-w-0">
           <p className={cn(
