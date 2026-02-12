@@ -42,6 +42,7 @@ interface DatabaseHorimeterModalProps {
   onOpenChange: (open: boolean) => void;
   onSuccess?: () => void;
   initialVehicleId?: string;
+  initialDate?: string; // yyyy-MM-dd format
   editRecord?: HorimeterWithVehicle | null;
   externalReadings?: HorimeterWithVehicle[];
 }
@@ -51,6 +52,7 @@ export function DatabaseHorimeterModal({
   onOpenChange,
   onSuccess,
   initialVehicleId,
+  initialDate,
   editRecord,
   externalReadings,
 }: DatabaseHorimeterModalProps) {
@@ -70,7 +72,7 @@ export function DatabaseHorimeterModal({
   const [previousKmValue, setPreviousKmValue] = useState<number | null>(null);
   const [operador, setOperador] = useState('');
   const [observacao, setObservacao] = useState('');
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [selectedDate, setSelectedDate] = useState<Date>(initialDate ? new Date(initialDate + 'T12:00:00') : new Date());
   const [isSaving, setIsSaving] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 
@@ -528,10 +530,10 @@ export function DatabaseHorimeterModal({
       } else {
         if (!initialVehicleId) {
           setSelectedVehicleId('');
-          setSelectedDate(new Date());
+          setSelectedDate(initialDate ? new Date(initialDate + 'T12:00:00') : new Date());
         } else {
           setSelectedVehicleId(initialVehicleId);
-          // Date will be set by the vehicle change effect
+          setSelectedDate(initialDate ? new Date(initialDate + 'T12:00:00') : new Date());
         }
         setHorimeterValue(null);
         setKmValue(null);
@@ -541,7 +543,7 @@ export function DatabaseHorimeterModal({
         setObservacao('');
       }
     }
-  }, [open, editRecord, initialVehicleId, vehicles]);
+  }, [open, editRecord, initialVehicleId, initialDate, vehicles]);
 
   const validateForm = (): boolean => {
     if (!selectedVehicleId) {
