@@ -309,6 +309,7 @@ serve(async (req) => {
       }
 
       const rowMap: Record<string, string> = {
+        "IdOrdem": order.order_number || "",
         "Data": formatDate(order.entry_date || order.order_date),
         "Veiculo": order.vehicle_code || "",
         "Empresa": vehicleInfo?.empresa || "",
