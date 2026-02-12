@@ -1,7 +1,7 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { format, subDays, startOfDay, eachDayOfInterval } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { AlertTriangle, Check, Calendar, Filter, ListChecks, Eye } from 'lucide-react';
+import { AlertTriangle, Check, Calendar, Filter, ListChecks, Eye, Copy, FileEdit } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -13,6 +13,8 @@ import { Vehicle, HorimeterWithVehicle } from '@/hooks/useHorimeters';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { DatabaseHorimeterModal } from '@/components/Horimetros/DatabaseHorimeterModal';
 import { VehicleCombobox, VehicleOption } from '@/components/ui/vehicle-combobox';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 interface MissingReadingsTabProps {
   vehicles: Vehicle[];
@@ -36,6 +38,8 @@ export function MissingReadingsTab({ vehicles, readings, loading, refetch }: Mis
   const [modalOpen, setModalOpen] = useState(false);
   const [modalVehicleId, setModalVehicleId] = useState<string | undefined>(undefined);
   const [modalDate, setModalDate] = useState<string | undefined>(undefined);
+  const [repeating, setRepeating] = useState(false);
+  const [activePopover, setActivePopover] = useState<string | null>(null);
 
   // Date range
   const dateRange = useMemo(() => {
@@ -153,12 +157,56 @@ export function MissingReadingsTab({ vehicles, readings, loading, refetch }: Mis
     return count;
   }, [dateStats]);
 
+  const findPreviousReading = useCallback((vehicleId: string, dateStr: string): HorimeterWithVehicle | null => {
+    // Find the most recent reading for this vehicle before dateStr
+    const sorted = readings
+      .filter(r => r.vehicle_id === vehicleId && r.reading_date < dateStr)
+      .sort((a, b) => b.reading_date.localeCompare(a.reading_date));
+    return sorted[0] || null;
+  }, [readings]);
+
   const handleCellClick = (vehicleId: string, dateStr: string) => {
     const key = `${vehicleId}|${dateStr}`;
     if (readingsMap.has(key)) return;
+    setActivePopover(key);
+  };
+
+  const handleOpenForm = (vehicleId: string, dateStr: string) => {
+    setActivePopover(null);
     setModalVehicleId(vehicleId);
     setModalDate(dateStr);
     setModalOpen(true);
+  };
+
+  const handleRepeatPrevious = async (vehicleId: string, dateStr: string) => {
+    const prev = findPreviousReading(vehicleId, dateStr);
+    if (!prev) {
+      toast.error('Nenhum lançamento anterior encontrado para este equipamento.');
+      setActivePopover(null);
+      return;
+    }
+    setRepeating(true);
+    try {
+      const { error } = await supabase.from('horimeter_readings').insert({
+        vehicle_id: vehicleId,
+        reading_date: dateStr,
+        current_value: prev.current_value,
+        previous_value: prev.current_value,
+        current_km: (prev as any).current_km || 0,
+        previous_km: (prev as any).current_km || 0,
+        operator: prev.operator || 'Repetido (não trabalhou)',
+        observations: `Repetido do dia ${prev.reading_date} - Equipamento não trabalhou`,
+        source: 'system',
+      });
+      if (error) throw error;
+      toast.success(`Lançamento repetido para ${format(new Date(dateStr + 'T12:00:00'), 'dd/MM/yyyy')}`);
+      await refetch();
+    } catch (err: any) {
+      toast.error('Erro ao repetir lançamento: ' + (err.message || ''));
+    } finally {
+      setRepeating(false);
+      setActivePopover(null);
+    }
   };
 
   const handleModalSuccess = async () => {
@@ -424,19 +472,66 @@ export function MissingReadingsTab({ vehicles, readings, loading, refetch }: Mis
                             );
                           }
 
-                          // Missing - clickable → opens modal
+                          // Missing - clickable → opens popover with options
+                          const popoverKey = `${vehicle.id}|${dateStr}`;
+                          const prevReading = findPreviousReading(vehicle.id, dateStr);
                           return (
                             <td 
                               key={dateStr}
                               className={cn(
-                                "px-1 py-1.5 text-center border-r cursor-pointer transition-colors",
-                                "bg-red-50/50 dark:bg-red-950/20 hover:bg-red-100 dark:hover:bg-red-950/40",
+                                "px-1 py-1.5 text-center border-r",
+                                "bg-red-50/50 dark:bg-red-950/20",
                                 isToday && "bg-red-100/70 dark:bg-red-950/30"
                               )}
-                              onClick={() => handleCellClick(vehicle.id, dateStr)}
-                              title={`Clique para lançar - ${vehicle.code} em ${format(date, 'dd/MM/yyyy')}`}
                             >
-                              <div className="text-red-400 dark:text-red-600 text-lg leading-none">—</div>
+                              <Popover 
+                                open={activePopover === popoverKey} 
+                                onOpenChange={(open) => !open && setActivePopover(null)}
+                              >
+                                <PopoverTrigger asChild>
+                                  <button
+                                    className="w-full h-full cursor-pointer hover:bg-red-100 dark:hover:bg-red-950/40 rounded transition-colors py-0.5"
+                                    onClick={() => handleCellClick(vehicle.id, dateStr)}
+                                    title={`Clique para lançar - ${vehicle.code} em ${format(date, 'dd/MM/yyyy')}`}
+                                  >
+                                    <div className="text-red-400 dark:text-red-600 text-lg leading-none">—</div>
+                                  </button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-56 p-2" align="center" side="bottom">
+                                  <div className="space-y-1">
+                                    <p className="text-xs font-semibold text-foreground mb-2 truncate">
+                                      {vehicle.code} — {format(date, 'dd/MM', { locale: ptBR })}
+                                    </p>
+                                    {prevReading && (
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="w-full justify-start gap-2 h-8 text-xs"
+                                        disabled={repeating}
+                                        onClick={() => handleRepeatPrevious(vehicle.id, dateStr)}
+                                      >
+                                        <Copy className="w-3.5 h-3.5 text-amber-500" />
+                                        <div className="text-left">
+                                          <div>Repetir anterior</div>
+                                          <div className="text-[10px] text-muted-foreground">
+                                            Hor: {formatBR(prevReading.current_value)}
+                                            {(prevReading as any).current_km > 0 && ` | KM: ${formatBR((prevReading as any).current_km)}`}
+                                          </div>
+                                        </div>
+                                      </Button>
+                                    )}
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="w-full justify-start gap-2 h-8 text-xs"
+                                      onClick={() => handleOpenForm(vehicle.id, dateStr)}
+                                    >
+                                      <FileEdit className="w-3.5 h-3.5 text-primary" />
+                                      Lançar manualmente
+                                    </Button>
+                                  </div>
+                                </PopoverContent>
+                              </Popover>
                             </td>
                           );
                         })}
