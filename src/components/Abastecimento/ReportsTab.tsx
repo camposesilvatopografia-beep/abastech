@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { 
   FileText, 
   FileSpreadsheet, 
@@ -10,10 +11,12 @@ import {
   BarChart3,
   Layers,
   Printer,
+  Filter,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -24,6 +27,9 @@ interface ReportsTabProps {
   startDate: Date | undefined;
   endDate: Date | undefined;
   sortByDescription: boolean;
+  availableCategories: string[];
+  selectedCategory: string;
+  onCategoryChange: (category: string) => void;
   onToggleSortByDescription: () => void;
   onExportPDF: () => void;
   onExportXLSX: () => void;
@@ -46,6 +52,9 @@ export function ReportsTab({
   startDate,
   endDate,
   sortByDescription,
+  availableCategories,
+  selectedCategory,
+  onCategoryChange,
   onToggleSortByDescription,
   onExportPDF,
   onExportXLSX,
@@ -96,17 +105,40 @@ export function ReportsTab({
 
         <Separator className="my-4" />
 
-        <div className="flex items-center gap-3">
-          <span className="text-xs font-medium text-muted-foreground">Ordenação:</span>
-          <Button
-            variant={sortByDescription ? 'default' : 'outline'}
-            size="sm"
-            onClick={onToggleSortByDescription}
-            className="gap-2 h-8"
-          >
-            <ArrowDownUp className="w-3.5 h-3.5" />
-            {sortByDescription ? 'Alfabética por Descrição ✓' : 'Padrão (por data)'}
-          </Button>
+        <div className="flex items-center gap-4 flex-wrap">
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-medium text-muted-foreground">Ordenação:</span>
+            <Button
+              variant={sortByDescription ? 'default' : 'outline'}
+              size="sm"
+              onClick={onToggleSortByDescription}
+              className="gap-2 h-8"
+            >
+              <ArrowDownUp className="w-3.5 h-3.5" />
+              {sortByDescription ? 'Alfabética por Descrição ✓' : 'Padrão (por data)'}
+            </Button>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-medium text-muted-foreground">Categoria:</span>
+            <Select value={selectedCategory} onValueChange={onCategoryChange}>
+              <SelectTrigger className="h-8 w-[200px] text-xs">
+                <Filter className="w-3.5 h-3.5 mr-1.5" />
+                <SelectValue placeholder="Todas as categorias" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas as categorias</SelectItem>
+                {availableCategories.map((cat) => (
+                  <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {selectedCategory !== 'all' && (
+              <Badge variant="destructive" className="text-[10px] py-0.5 px-2 cursor-pointer" onClick={() => onCategoryChange('all')}>
+                Limpar filtro
+              </Badge>
+            )}
+          </div>
         </div>
       </div>
 
@@ -235,6 +267,8 @@ export function ReportsTab({
           </div>
         </div>
       </div>
+
+      {/* Combined Report */}
       <div className="bg-card rounded-xl border border-border overflow-hidden">
         <div className="bg-gradient-to-r from-slate-700 to-slate-800 px-5 py-3.5">
           <div className="flex items-center gap-3">
