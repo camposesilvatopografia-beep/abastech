@@ -613,6 +613,12 @@ export function FieldHorimeterForm({ user, onBack }: FieldHorimeterFormProps) {
             toast.warning('⚠️ Registro salvo no banco, mas falhou ao sincronizar com a planilha Horimetros.', { duration: 5000 });
           } else {
             console.log('Horimeter synced to sheet successfully:', syncResult);
+            // Mark as synced
+            if (data?.id) {
+              await supabase.from('horimeter_readings')
+                .update({ synced_from_sheet: true })
+                .eq('id', data.id);
+            }
           }
         } else {
           console.warn('Vehicle data not available for sheet sync');
