@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Sidebar } from '@/components/Layout/Sidebar';
 import { TopBar } from '@/components/Layout/TopBar';
+import { supabase } from '@/integrations/supabase/client';
 import { DashboardContent } from '@/components/Dashboard/DashboardContent';
 import { AbastecimentoPage } from '@/components/Pages/AbastecimentoPage';
 import { EstoquesPage } from '@/components/Pages/EstoquesPage';
@@ -26,6 +27,9 @@ import logoWatermark from '@/assets/logo-abastech-full.png';
 const Index = () => {
   const [activeItem, setActiveItem] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [currentUser, setCurrentUser] = useState<{ id: string; role: string } | null>(null);
+  const [permissions, setPermissions] = useState<{ module_id: string; can_view: boolean }[]>([]);
+  const [userPerms, setUserPerms] = useState<{ module_id: string; can_view: boolean }[]>([]);
   const isMobile = useIsMobile();
   const navigate = useNavigate();
 
@@ -46,14 +50,66 @@ const Index = () => {
       if (hoursElapsed > 24) {
         localStorage.removeItem('abastech_user');
         navigate('/login');
+        return;
       }
+      
+      setCurrentUser({ id: userData.id, role: userData.role });
+      
+      // Fetch permissions
+      const fetchPerms = async () => {
+        const [roleRes, userRes] = await Promise.all([
+          supabase.from('role_permissions').select('module_id, can_view').eq('role', userData.role),
+          supabase.from('user_permissions').select('module_id, can_view').eq('user_id', userData.id),
+        ]);
+        if (roleRes.data) setPermissions(roleRes.data as any[]);
+        if (userRes.data) setUserPerms(userRes.data as any[]);
+      };
+      fetchPerms();
     } catch {
       localStorage.removeItem('abastech_user');
       navigate('/login');
     }
   }, [navigate]);
 
+  const canViewModule = useCallback((moduleId: string): boolean => {
+    if (!currentUser) return true; // still loading, allow
+    if (currentUser.role === 'admin') return true;
+    const userPerm = userPerms.find(p => p.module_id === moduleId);
+    if (userPerm) return userPerm.can_view;
+    const perm = permissions.find(p => p.module_id === moduleId);
+    return perm?.can_view ?? false;
+  }, [currentUser, permissions, userPerms]);
+
   const renderContent = () => {
+    // Map activeItem to module_id for permission check
+    const moduleMap: Record<string, string> = {
+      dashboard: 'dashboard',
+      abastecimento: 'abastecimento',
+      frota: 'frota',
+      horimetros: 'horimetros',
+      manutencao: 'manutencao',
+      calendario: 'calendario',
+      alertas: 'alertas',
+      fornecedores: 'fornecedores',
+      lubrificantes: 'lubrificantes',
+      mecanicos: 'mecanicos',
+      tiposoleos: 'tiposoleos',
+      usuarios: 'usuarios',
+      obra: 'obra',
+    };
+
+    const moduleId = moduleMap[activeItem];
+    if (moduleId && !canViewModule(moduleId)) {
+      return (
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <h2 className="text-xl font-semibold mb-2">Acesso Restrito</h2>
+            <p className="text-muted-foreground">Você não tem permissão para acessar este módulo.</p>
+          </div>
+        </div>
+      );
+    }
+
     switch (activeItem) {
       case 'dashboard':
         return <DashboardContent />;
@@ -89,15 +145,6 @@ const Index = () => {
         return <ObraSettingsPage />;
       case 'sync-tests':
         return <SyncTestPage />;
-      case 'suporte':
-        return (
-          <div className="flex-1 flex items-center justify-center">
-            <div className="text-center">
-              <h2 className="text-xl font-semibold mb-2">Central de Suporte</h2>
-              <p className="text-muted-foreground">Em desenvolvimento</p>
-            </div>
-          </div>
-        );
       default:
         return <DashboardContent />;
     }

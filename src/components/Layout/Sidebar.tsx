@@ -148,7 +148,7 @@ export function Sidebar({ activeItem, onItemClick, onClose }: SidebarProps) {
         }
         return item;
       });
-  }, [currentUser, permissions]);
+  }, [currentUser, permissions, userPerms]);
 
   const checkPendingRequests = async () => {
     try {
