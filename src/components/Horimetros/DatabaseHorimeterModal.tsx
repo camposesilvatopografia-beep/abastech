@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -29,7 +29,7 @@ import { VehicleCombobox } from '@/components/ui/vehicle-combobox';
 import { CurrencyInput } from '@/components/ui/currency-input';
 import { useVehicles, useHorimeterReadings, HorimeterWithVehicle } from '@/hooks/useHorimeters';
 import { useToast } from '@/hooks/use-toast';
-import { Clock, Save, History, AlertTriangle, RefreshCw, TrendingUp, CalendarIcon, X } from 'lucide-react';
+import { Clock, Save, History, AlertTriangle, RefreshCw, TrendingUp, CalendarIcon, X, ChevronUp, ChevronDown } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, isWithinInterval, startOfDay, isSameDay, isAfter } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -727,209 +727,170 @@ export function DatabaseHorimeterModal({
   };
 
   const isLoading = vehiclesLoading || readingsLoading;
+  const [showHistory, setShowHistory] = useState(false);
 
-  const [isExpanded, setIsExpanded] = useState(false);
+  // Auto-focus horimeter input after vehicle selection
+  const horimeterInputRef = React.useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (selectedVehicleId && !isEditMode) {
+      setTimeout(() => horimeterInputRef.current?.focus(), 200);
+    }
+  }, [selectedVehicleId, isEditMode]);
 
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className={cn(
-          "max-h-[95vh] overflow-y-auto transition-all duration-300",
-          isExpanded ? "max-w-4xl" : "max-w-xl"
-        )}>
-          <DialogHeader className="flex flex-row items-start justify-between">
-            <div>
-              <DialogTitle className="flex items-center gap-2">
-                <Clock className="w-5 h-5 text-primary" />
-                {isEditMode ? 'Editar Registro' : 'Novo Registro'}
-              </DialogTitle>
-              <DialogDescription>
-                {isEditMode 
-                  ? 'Altere os dados do registro de horímetro ou quilometragem' 
-                  : 'Preencha os dados para registrar o horímetro ou quilometragem'}
-              </DialogDescription>
-            </div>
-            <Button 
-              variant="ghost" 
-              size="sm"
-              onClick={() => setIsExpanded(!isExpanded)}
-              className="shrink-0"
-            >
-              {isExpanded ? 'Reduzir' : 'Expandir'}
-            </Button>
+        <DialogContent className="max-h-[95vh] overflow-y-auto max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <Clock className="w-5 h-5 text-primary" />
+              {isEditMode ? 'Editar Registro' : 'Lançamento de Horímetro'}
+            </DialogTitle>
+            <DialogDescription className="sr-only">
+              {isEditMode ? 'Editar registro de horímetro' : 'Novo registro de horímetro'}
+            </DialogDescription>
           </DialogHeader>
 
           {isLoading ? (
             <div className="flex items-center justify-center py-8">
               <RefreshCw className="w-6 h-6 animate-spin text-primary" />
-              <span className="ml-2">Carregando dados...</span>
+              <span className="ml-2">Carregando...</span>
             </div>
           ) : (
-            <div className="space-y-4">
-              {/* Vehicle Selection */}
-              <div className="space-y-1">
-                <Label htmlFor="vehicle" className="text-sm">Veículo/Equipamento *</Label>
-                <VehicleCombobox
-                  vehicles={vehicles.map(v => ({
-                    id: v.id,
-                    code: v.code,
-                    name: v.name || '',
-                    description: v.description || '',
-                    category: v.category || '',
-                  }))}
-                  value={selectedVehicleId}
-                  onValueChange={setSelectedVehicleId}
-                  useIdAsValue={true}
-                  placeholder="Pesquisar veículo..."
-                  emptyMessage="Nenhum veículo encontrado. Importe da planilha primeiro."
-                />
+            <div className="space-y-3">
+              {/* Row 1: Vehicle + Date side by side */}
+              <div className="grid grid-cols-3 gap-2">
+                <div className="col-span-2 space-y-1">
+                  <Label className="text-xs text-muted-foreground">Veículo *</Label>
+                  <VehicleCombobox
+                    vehicles={vehicles.map(v => ({
+                      id: v.id,
+                      code: v.code,
+                      name: v.name || '',
+                      description: v.description || '',
+                      category: v.category || '',
+                    }))}
+                    value={selectedVehicleId}
+                    onValueChange={setSelectedVehicleId}
+                    useIdAsValue={true}
+                    placeholder="Pesquisar veículo..."
+                    emptyMessage="Nenhum veículo encontrado."
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Data *</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          'w-full justify-start text-left font-normal h-10',
+                          !selectedDate && 'text-muted-foreground'
+                        )}
+                      >
+                        <CalendarIcon className="mr-1.5 h-4 w-4 text-primary shrink-0" />
+                        <span className="text-sm font-medium">{format(selectedDate, 'dd/MM/yy', { locale: ptBR })}</span>
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0 pointer-events-auto bg-background" align="end" sideOffset={4}>
+                      <CalendarComponent
+                        mode="single"
+                        selected={selectedDate}
+                        onSelect={(date) => date && setSelectedDate(date)}
+                        disabled={(date) => date > new Date()}
+                        initialFocus
+                        locale={ptBR}
+                        className="p-3"
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
               </div>
 
-              {/* Vehicle Info */}
+              {hasDuplicateRecord && (
+                <p className="text-xs text-destructive flex items-center gap-1">
+                  <AlertTriangle className="w-3 h-3" />
+                  Já existe registro nesta data
+                </p>
+              )}
+
+              {/* Compact vehicle info + previous values */}
               {selectedVehicle && (
-                <div className="bg-muted/30 rounded-lg p-3 space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">{selectedVehicle.name || selectedVehicle.category}</span>
-                    <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">
-                      {selectedVehicle.company || 'Sem empresa'}
+                <div className="rounded-lg border bg-muted/20 p-2.5 space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground truncate">{selectedVehicle.name || selectedVehicle.category}</span>
+                    <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded text-[10px] font-medium shrink-0">
+                      {selectedVehicle.company || '—'}
                     </span>
                   </div>
-                  
-                  {/* Previous values - editable in edit mode, display-only in create mode */}
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="p-2 bg-amber-500/10 rounded-lg text-center">
-                      <div className="text-xs text-muted-foreground flex items-center justify-center gap-1">
-                        <Clock className="w-3 h-3" />
-                        Horímetro Anterior
-                      </div>
+                  <div className="grid grid-cols-3 gap-1.5 text-center">
+                    <div className="p-1.5 bg-amber-500/10 rounded text-xs">
+                      <div className="text-[10px] text-muted-foreground">Hor. Ant.</div>
                       {isEditMode ? (
                         <CurrencyInput
                           value={previousHorimeterValue}
                           onChange={setPreviousHorimeterValue}
                           decimals={2}
                           placeholder="0,00"
-                          className="h-7 text-center font-semibold text-amber-600 bg-transparent border-amber-300 text-sm mt-1"
+                          className="h-6 text-center text-xs font-semibold text-amber-600 bg-transparent border-amber-300 p-0"
                         />
                       ) : (
-                        <div className="font-semibold text-amber-600">
-                          {previousHorimeterDerived.toLocaleString('pt-BR')}h
-                        </div>
+                        <div className="font-semibold text-amber-600">{previousHorimeterDerived.toLocaleString('pt-BR')}h</div>
                       )}
                     </div>
-                    <div className="p-2 bg-blue-500/10 rounded-lg text-center">
-                      <div className="text-xs text-muted-foreground flex items-center justify-center gap-1">
-                        <TrendingUp className="w-3 h-3" />
-                        KM Anterior
-                      </div>
+                    <div className="p-1.5 bg-blue-500/10 rounded text-xs">
+                      <div className="text-[10px] text-muted-foreground">KM Ant.</div>
                       {isEditMode ? (
                         <CurrencyInput
                           value={previousKmValue}
                           onChange={setPreviousKmValue}
                           decimals={0}
                           placeholder="0"
-                          className="h-7 text-center font-semibold text-blue-600 bg-transparent border-blue-300 text-sm mt-1"
+                          className="h-6 text-center text-xs font-semibold text-blue-600 bg-transparent border-blue-300 p-0"
                         />
                       ) : (
-                        <div className="font-semibold text-blue-600">
-                          {previousKmDerived.toLocaleString('pt-BR')} km
-                        </div>
+                        <div className="font-semibold text-blue-600">{previousKmDerived.toLocaleString('pt-BR')} km</div>
                       )}
                     </div>
-                  </div>
-                  
-                  <div className="p-2 bg-green-500/10 rounded-lg text-center">
-                    <div className="text-xs text-muted-foreground">Total do Mês</div>
-                    <div className="font-semibold text-green-600">
-                      {monthlyTotal.total.toLocaleString('pt-BR')} {selectedVehicle.unit}
+                    <div className="p-1.5 bg-green-500/10 rounded text-xs">
+                      <div className="text-[10px] text-muted-foreground">Mês</div>
+                      <div className="font-semibold text-green-600">
+                        {monthlyTotal.total.toLocaleString('pt-BR')} {selectedVehicle.unit}
+                      </div>
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* Date Selection - Expanded */}
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">Data do Registro *</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className={cn(
-                        'w-full justify-start text-left font-normal h-11 text-base',
-                        !selectedDate && 'text-muted-foreground'
-                      )}
-                    >
-                      <CalendarIcon className="mr-3 h-5 w-5 text-primary" />
-                      <div className="flex flex-col items-start">
-                        <span className="font-semibold">{format(selectedDate, 'dd/MM/yyyy', { locale: ptBR })}</span>
-                        <span className="text-xs text-muted-foreground capitalize">
-                          {format(selectedDate, 'EEEE', { locale: ptBR })}
-                        </span>
-                      </div>
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0 pointer-events-auto bg-background" align="start" sideOffset={8}>
-                    <CalendarComponent
-                      mode="single"
-                      selected={selectedDate}
-                      onSelect={(date) => date && setSelectedDate(date)}
-                      disabled={(date) => date > new Date()}
-                      initialFocus
-                      locale={ptBR}
-                      className="p-3"
-                    />
-                  </PopoverContent>
-                </Popover>
-                {hasDuplicateRecord && (
-                  <p className="text-xs text-destructive flex items-center gap-1 mt-1">
-                    <AlertTriangle className="w-3 h-3" />
-                    Já existe registro nesta data
-                  </p>
-                )}
-              </div>
-
-              {/* Horimeter and KM Values - Expanded or Compact */}
-              <div className={cn(
-                "grid gap-4",
-                isExpanded ? "grid-cols-2" : "grid-cols-2"
-              )}>
-                <div className={cn(
-                  "space-y-2 p-4 rounded-lg border-2 border-dashed border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/20",
-                  isExpanded && "p-6"
-                )}>
-                  <Label htmlFor="horimeter" className={cn(
-                    "flex items-center gap-2 font-semibold text-amber-700 dark:text-amber-400",
-                    isExpanded && "text-base"
-                  )}>
-                    <Clock className={cn("w-4 h-4", isExpanded && "w-5 h-5")} />
-                    Horímetro (horas)
+              {/* Main inputs: Horimeter + KM side by side */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label htmlFor="horimeter" className="text-xs flex items-center gap-1 font-semibold text-amber-700 dark:text-amber-400">
+                    <Clock className="w-3.5 h-3.5" />
+                    Horímetro (h)
                   </Label>
                   <CurrencyInput
+                    ref={horimeterInputRef}
                     id="horimeter"
                     value={horimeterValue}
                     onChange={setHorimeterValue}
                     decimals={2}
                     placeholder="0,00"
-                    className={cn(
-                      "font-mono text-lg",
-                      isExpanded && "h-14 text-2xl"
-                    )}
+                    className="font-mono text-lg h-12 border-amber-200 dark:border-amber-800 focus-visible:ring-amber-500"
                   />
-                  {previousHorimeter > 0 && (
-                    <p className="text-xs text-amber-600 dark:text-amber-400">
-                      Anterior: {previousHorimeter.toLocaleString('pt-BR')}h
+                  {(horimeterValue ?? 0) > 0 && previousHorimeter > 0 && (
+                    <p className={cn(
+                      'text-[11px] font-medium',
+                      (horimeterValue ?? 0) > previousHorimeter ? 'text-green-600' : 'text-destructive'
+                    )}>
+                      Δ {((horimeterValue ?? 0) - previousHorimeter).toLocaleString('pt-BR')}h
                     </p>
                   )}
                 </div>
-                <div className={cn(
-                  "space-y-2 p-4 rounded-lg border-2 border-dashed border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20",
-                  isExpanded && "p-6"
-                )}>
-                  <Label htmlFor="km" className={cn(
-                    "flex items-center gap-2 font-semibold text-blue-700 dark:text-blue-400",
-                    isExpanded && "text-base"
-                  )}>
-                    <TrendingUp className={cn("w-4 h-4", isExpanded && "w-5 h-5")} />
-                    Quilometragem (km)
+                <div className="space-y-1">
+                  <Label htmlFor="km" className="text-xs flex items-center gap-1 font-semibold text-blue-700 dark:text-blue-400">
+                    <TrendingUp className="w-3.5 h-3.5" />
+                    KM
                   </Label>
                   <CurrencyInput
                     id="km"
@@ -937,116 +898,92 @@ export function DatabaseHorimeterModal({
                     onChange={setKmValue}
                     decimals={0}
                     placeholder="0"
-                    className={cn(
-                      "font-mono text-lg",
-                      isExpanded && "h-14 text-2xl"
-                    )}
+                    className="font-mono text-lg h-12 border-blue-200 dark:border-blue-800 focus-visible:ring-blue-500"
                   />
-                  {previousKm > 0 && (
-                    <p className="text-xs text-blue-600 dark:text-blue-400">
-                      Anterior: {previousKm.toLocaleString('pt-BR')} km
+                  {(kmValue ?? 0) > 0 && previousKm > 0 && (
+                    <p className={cn(
+                      'text-[11px] font-medium',
+                      (kmValue ?? 0) > previousKm ? 'text-green-600' : 'text-destructive'
+                    )}>
+                      Δ {((kmValue ?? 0) - previousKm).toLocaleString('pt-BR')} km
                     </p>
                   )}
                 </div>
               </div>
-              
-              {/* Difference display */}
-              {selectedVehicleId && ((horimeterValue ?? 0) > 0 || (kmValue ?? 0) > 0) && (
-                <div className="text-xs text-muted-foreground bg-muted/30 rounded p-2 space-y-1">
-                  {(horimeterValue ?? 0) > 0 && (
-                    <p className={cn(
-                      'flex items-center gap-1',
-                      previousHorimeter === 0 || (horimeterValue ?? 0) > previousHorimeter ? 'text-green-600' : 'text-destructive'
-                    )}>
-                      Diferença Horímetro: {((horimeterValue ?? 0) - previousHorimeter).toLocaleString('pt-BR')}h
-                      {previousHorimeter > 0 && ` (anterior: ${previousHorimeter.toLocaleString('pt-BR')}h)`}
-                    </p>
-                  )}
-                  {(kmValue ?? 0) > 0 && (
-                    <p className={cn(
-                      'flex items-center gap-1',
-                      previousKm === 0 || (kmValue ?? 0) > previousKm ? 'text-green-600' : 'text-destructive'
-                    )}>
-                      Diferença KM: {((kmValue ?? 0) - previousKm).toLocaleString('pt-BR')} km
-                      {previousKm > 0 && ` (anterior: ${previousKm.toLocaleString('pt-BR')} km)`}
-                    </p>
-                  )}
+
+              {/* Operator + Observations in one row */}
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <Label htmlFor="operador" className="text-xs text-muted-foreground">Operador</Label>
+                  <Input
+                    id="operador"
+                    value={operador}
+                    onChange={(e) => setOperador(e.target.value)}
+                    placeholder="Operador"
+                    className="h-9 text-sm"
+                  />
                 </div>
-              )}
-
-              {/* Operator */}
-              <div className="space-y-1">
-                <Label htmlFor="operador" className="text-sm flex items-center gap-2">
-                  Operador
-                  {operador && vehicleHistory.length > 0 && vehicleHistory.some(h => h.operator === operador) && (
-                    <span className="text-xs text-green-600 bg-green-100 px-2 py-0.5 rounded-full">
-                      Preenchido automaticamente
-                    </span>
-                  )}
-                </Label>
-                <Input
-                  id="operador"
-                  value={operador}
-                  onChange={(e) => setOperador(e.target.value)}
-                  placeholder="Nome do operador"
-                  className="h-9"
-                />
+                <div className="space-y-1">
+                  <Label htmlFor="observacao" className="text-xs text-muted-foreground">Observações</Label>
+                  <Input
+                    id="observacao"
+                    value={observacao}
+                    onChange={(e) => setObservacao(e.target.value)}
+                    placeholder="Observações"
+                    className="h-9 text-sm"
+                  />
+                </div>
               </div>
 
-              {/* Observations */}
-              <div className="space-y-1">
-                <Label htmlFor="observacao" className="text-sm">Observações</Label>
-                <Input
-                  id="observacao"
-                  value={observacao}
-                  onChange={(e) => setObservacao(e.target.value)}
-                  placeholder="Observações adicionais"
-                  className="h-9"
-                />
-              </div>
-
-              {/* History */}
+              {/* Collapsible History */}
               {vehicleHistory.length > 0 && (
-                <div className="space-y-2">
-                  <Label className="text-sm flex items-center gap-1">
-                    <History className="w-4 h-4" />
-                    Últimos {vehicleHistory.length} Registros
-                  </Label>
-                  <div className="max-h-40 overflow-y-auto space-y-1">
-                    {vehicleHistory.map((h) => (
-                      <div key={h.id} className="flex items-center justify-between text-xs p-2 bg-muted/30 rounded gap-2">
-                        <span className="shrink-0 font-medium">
-                          {format(new Date(h.reading_date + 'T00:00:00'), 'dd/MM/yyyy')}
-                        </span>
-                        <div className="flex items-center gap-3 flex-wrap justify-end">
-                          {h.current_value > 0 && (
-                            <span className="text-amber-600 font-medium">
-                              {h.current_value.toLocaleString('pt-BR')}h
-                              {h.intervaloHor > 0 && (
-                                <span className="text-green-600 ml-1">(+{h.intervaloHor.toLocaleString('pt-BR')})</span>
-                              )}
-                            </span>
-                          )}
-                          {h.currentKm > 0 && (
-                            <span className="text-blue-600 font-medium">
-                              {h.currentKm.toLocaleString('pt-BR')} km
-                              {h.intervaloKm > 0 && (
-                                <span className="text-green-600 ml-1">(+{h.intervaloKm.toLocaleString('pt-BR')})</span>
-                              )}
-                            </span>
-                          )}
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => setShowHistory(!showHistory)}
+                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <History className="w-3.5 h-3.5" />
+                    Últimos {vehicleHistory.length} registros
+                    {showHistory ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                  </button>
+                  {showHistory && (
+                    <div className="mt-1.5 max-h-32 overflow-y-auto space-y-1">
+                      {vehicleHistory.map((h) => (
+                        <div key={h.id} className="flex items-center justify-between text-xs p-1.5 bg-muted/30 rounded gap-2">
+                          <span className="shrink-0 font-medium">
+                            {format(new Date(h.reading_date + 'T00:00:00'), 'dd/MM/yy')}
+                          </span>
+                          <div className="flex items-center gap-2 flex-wrap justify-end">
+                            {h.current_value > 0 && (
+                              <span className="text-amber-600 font-medium">
+                                {h.current_value.toLocaleString('pt-BR')}h
+                                {h.intervaloHor > 0 && (
+                                  <span className="text-green-600 ml-0.5">(+{h.intervaloHor.toLocaleString('pt-BR')})</span>
+                                )}
+                              </span>
+                            )}
+                            {h.currentKm > 0 && (
+                              <span className="text-blue-600 font-medium">
+                                {h.currentKm.toLocaleString('pt-BR')} km
+                                {h.intervaloKm > 0 && (
+                                  <span className="text-green-600 ml-0.5">(+{h.intervaloKm.toLocaleString('pt-BR')})</span>
+                                )}
+                              </span>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
               {/* Actions */}
-              <div className="flex gap-2 pt-2">
+              <div className="flex gap-2 pt-1">
                 <Button
                   onClick={handleButtonClick}
-                  className="flex-1"
+                  className="flex-1 h-11"
                   disabled={isSaving || !selectedVehicleId || (horimeterValue === null && kmValue === null)}
                 >
                   {isSaving ? (
@@ -1066,8 +1003,7 @@ export function DatabaseHorimeterModal({
                   onClick={() => onOpenChange(false)}
                   disabled={isSaving}
                 >
-                  <X className="w-4 h-4 mr-2" />
-                  Fechar
+                  <X className="w-4 h-4" />
                 </Button>
               </div>
             </div>
