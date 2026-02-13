@@ -199,7 +199,7 @@ export function MissingReadingsTab({ vehicles, readings, loading, refetch }: Mis
         previous_value: currHor,
         current_km: currKm,
         previous_km: currKm,
-        operator: 'Repetido (não trabalhou)',
+        operator: prev.operator || 'Sem operador',
         observations: `Repetido do dia ${prev.reading_date} - Equipamento não trabalhou`,
         source: 'system',
       }).select('id').single();
@@ -220,7 +220,7 @@ export function MissingReadingsTab({ vehicles, readings, loading, refetch }: Mis
             'Categoria': vehicle.category || '',
             'Descricao': vehicle.name || '',
             'Empresa': vehicle.company || '',
-            'Operador': 'Repetido (não trabalhou)',
+            'Operador': prev.operator || 'Sem operador',
             'Horimetro Anterior': currHor > 0 ? fmtNum(currHor) : '',
             'Horimetro Atual': currHor > 0 ? fmtNum(currHor) : '',
             'Intervalo H': '0',
