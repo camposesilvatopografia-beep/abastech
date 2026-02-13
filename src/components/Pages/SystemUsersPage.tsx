@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import {
   Plus,
   Edit,
@@ -57,6 +58,7 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { RolePermissionsManager } from '@/components/Cadastros/RolePermissionsManager';
 import type { Database } from '@/integrations/supabase/types';
 
 type SystemUserRole = Database['public']['Enums']['system_user_role'];
@@ -281,9 +283,25 @@ export default function SystemUsersPage() {
             Usuários do Sistema
           </h1>
           <p className="text-muted-foreground text-sm">
-            Gerencie os usuários com acesso ao sistema de apontamento
+            Gerencie usuários e permissões de acesso
           </p>
         </div>
+      </div>
+
+      <Tabs defaultValue="users" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="users" className="gap-2">
+            <Users className="w-4 h-4" />
+            Usuários
+          </TabsTrigger>
+          <TabsTrigger value="permissions" className="gap-2">
+            <Shield className="w-4 h-4" />
+            Permissões
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="users" className="space-y-4">
+      <div className="flex items-center gap-2">
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={fetchUsers} disabled={loading}>
             <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
@@ -559,6 +577,12 @@ export default function SystemUsersPage() {
           )}
         </CardContent>
       </Card>
+        </TabsContent>
+
+        <TabsContent value="permissions">
+          <RolePermissionsManager />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
