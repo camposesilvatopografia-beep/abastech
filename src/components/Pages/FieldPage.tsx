@@ -63,12 +63,13 @@ type FieldView = 'dashboard' | 'form' | 'fuel-menu' | 'fuel-abastecer' | 'fuel-c
 export function FieldPage() {
   const [user, setUser] = useState<FieldUser | null>(null);
   const [currentView, setCurrentView] = useState<FieldView>('dashboard');
+  const [permissionsLoaded, setPermissionsLoaded] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [pendingCount, setPendingCount] = useState(0);
   const [isSyncing, setIsSyncing] = useState(false);
   const { theme, toggleTheme } = useTheme();
   const { settings, toggleSound, toggleVibration } = useFieldSettings();
-  const { canView: canViewModule } = useRolePermissions();
+  const { canView: canViewModule, loading: permLoading } = useRolePermissions();
   const { 
     permission: notificationPermission, 
     requestPermission: requestNotificationPermission,
@@ -86,7 +87,24 @@ export function FieldPage() {
   // Derive user role for permission checks
   const userRole = user?.role || 'operador';
 
-  // Function to fetch and update user data from database
+  // Auto-redirect to first allowed view when permissions load
+  useEffect(() => {
+    if (permLoading || !user) return;
+    const viewModuleMap: { view: FieldView; module: string }[] = [
+      { view: 'dashboard', module: 'field_dashboard' },
+      { view: 'fuel-menu', module: 'field_abastecimento' },
+      { view: 'horimeter', module: 'field_horimetros' },
+      { view: 'os', module: 'field_os' },
+    ];
+    const canSeeCurrentView = viewModuleMap.find(v => v.view === currentView);
+    if (canSeeCurrentView && !canViewModule(userRole, canSeeCurrentView.module, user.id)) {
+      const firstAllowed = viewModuleMap.find(v => canViewModule(userRole, v.module, user.id));
+      if (firstAllowed) {
+        setCurrentView(firstAllowed.view);
+      }
+    }
+  }, [permLoading, user, userRole, canViewModule]);
+
   const refreshUserData = useCallback(async (userId: string) => {
     try {
       const { data, error } = await supabase
