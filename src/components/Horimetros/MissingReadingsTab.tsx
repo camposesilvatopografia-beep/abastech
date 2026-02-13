@@ -86,7 +86,13 @@ export function MissingReadingsTab({ vehicles, readings, loading, refetch }: Mis
         if (!v.code.toLowerCase().includes(s) && !v.name.toLowerCase().includes(s)) return false;
       }
       return true;
-    }).sort((a, b) => (a.name || a.code).localeCompare(b.name || b.code, 'pt-BR', { sensitivity: 'base' }));
+    }).sort((a, b) => {
+      const nameA = (a.name || '').toLowerCase();
+      const nameB = (b.name || '').toLowerCase();
+      const nameCompare = nameA.localeCompare(nameB, 'pt-BR', { sensitivity: 'base' });
+      if (nameCompare !== 0) return nameCompare;
+      return a.code.localeCompare(b.code, 'pt-BR', { sensitivity: 'base' });
+    });
   }, [vehicles, companyFilter, categoryFilter, statusFilter, vehicleFilter, searchFilter]);
 
   // Build readings lookup: vehicleId|date -> reading
@@ -514,6 +520,7 @@ export function MissingReadingsTab({ vehicles, readings, loading, refetch }: Mis
                           if (reading) {
                             const val = reading.current_value;
                             const km = (reading as any).current_km;
+                            const prevKm = (reading as any).previous_km;
                             return (
                               <td 
                                 key={dateStr}
@@ -521,16 +528,20 @@ export function MissingReadingsTab({ vehicles, readings, loading, refetch }: Mis
                                   "px-1 py-1.5 text-center border-r",
                                   isToday && "bg-primary/5"
                                 )}
-                                title={`Hor: ${formatBR(val)} | KM: ${formatBR(km)}\nOperador: ${reading.operator || '-'}`}
+                                title={`Hor: ${formatBR(val)} | KM: ${formatBR(km || prevKm)}\nOperador: ${reading.operator || '-'}`}
                               >
                                 <div className="text-emerald-600 dark:text-emerald-400 font-medium text-[10px]">
                                   {val > 0 ? formatBR(val) : ''}
                                 </div>
-                                {km > 0 && (
+                                {km > 0 ? (
                                   <div className="text-blue-500 text-[9px]">
                                     {formatBR(km)}
                                   </div>
-                                )}
+                                ) : prevKm > 0 ? (
+                                  <div className="text-blue-400/60 text-[9px] italic">
+                                    {formatBR(prevKm)}
+                                  </div>
+                                ) : null}
                                 {!val && !km && (
                                   <span className="text-emerald-400 text-[10px]">✓</span>
                                 )}
