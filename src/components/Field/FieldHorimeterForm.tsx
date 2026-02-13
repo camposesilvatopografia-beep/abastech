@@ -484,7 +484,21 @@ export function FieldHorimeterForm({ user, onBack }: FieldHorimeterFormProps) {
     const horNum = horimeterValue ?? 0;
     const kmNum = kmValue ?? 0;
 
-    if (horNum <= 0 && kmNum <= 0) {
+    const vehicleCategory = selectedVehicle?.category?.toLowerCase() || '';
+    const isVeiculo = vehicleCategory.includes('veiculo') || vehicleCategory.includes('veículo');
+    const isEquipamento = vehicleCategory.includes('equipamento');
+
+    if (isVeiculo && kmNum <= 0) {
+      toast.error('Para veículos, o campo KM Atual é obrigatório');
+      return;
+    }
+
+    if (isEquipamento && horNum <= 0) {
+      toast.error('Para equipamentos, o campo Horímetro Atual é obrigatório');
+      return;
+    }
+
+    if (!isVeiculo && !isEquipamento && horNum <= 0 && kmNum <= 0) {
       toast.error('Informe pelo menos um valor (Horímetro ou KM)');
       return;
     }
