@@ -86,7 +86,7 @@ export function MissingReadingsTab({ vehicles, readings, loading, refetch }: Mis
         if (!v.code.toLowerCase().includes(s) && !v.name.toLowerCase().includes(s)) return false;
       }
       return true;
-    }).sort((a, b) => a.code.localeCompare(b.code));
+    }).sort((a, b) => (a.name || a.code).localeCompare(b.name || b.code, 'pt-BR', { sensitivity: 'base' }));
   }, [vehicles, companyFilter, categoryFilter, statusFilter, vehicleFilter, searchFilter]);
 
   // Build readings lookup: vehicleId|date -> reading
