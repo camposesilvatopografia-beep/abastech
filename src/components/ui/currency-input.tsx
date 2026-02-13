@@ -43,7 +43,11 @@ const CurrencyInput = React.forwardRef<HTMLInputElement, CurrencyInputProps>(
     const formatDisplay = React.useCallback((num: number | null): string => {
       if (num === null || num === undefined || isNaN(num)) return "";
       
-      const formatted = num.toLocaleString("pt-BR", {
+      // Round to the specified decimals to avoid floating point artifacts (e.g. 89540.200 -> 89540.20)
+      const factor = Math.pow(10, decimals);
+      const rounded = Math.round(num * factor) / factor;
+      
+      const formatted = rounded.toLocaleString("pt-BR", {
         minimumFractionDigits: decimals,
         maximumFractionDigits: decimals,
       });
