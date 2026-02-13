@@ -81,6 +81,7 @@ export function Sidebar({ activeItem, onItemClick, onClose }: SidebarProps) {
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [pendingRequests, setPendingRequests] = useState(0);
   const [permissions, setPermissions] = useState<{ module_id: string; can_view: boolean; can_edit: boolean }[]>([]);
+  const [userPerms, setUserPerms] = useState<{ module_id: string; can_view: boolean; can_edit: boolean }[]>([]);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -92,23 +93,24 @@ export function Sidebar({ activeItem, onItemClick, onClose }: SidebarProps) {
         if (user.role === 'admin') {
           checkPendingRequests();
         }
-        // Fetch role permissions
-        fetchPermissions(user.role);
+        // Fetch role permissions and user-specific permissions
+        fetchPermissions(user.role, user.id);
       } catch {
         setCurrentUser(null);
       }
     }
   }, []);
 
-  const fetchPermissions = async (role: string) => {
+  const fetchPermissions = async (role: string, userId?: string) => {
     try {
-      const { data, error } = await supabase
-        .from('role_permissions')
-        .select('module_id, can_view, can_edit')
-        .eq('role', role);
-      if (!error && data) {
-        setPermissions(data as any[]);
-      }
+      const [roleRes, userRes] = await Promise.all([
+        supabase.from('role_permissions').select('module_id, can_view, can_edit').eq('role', role),
+        userId
+          ? supabase.from('user_permissions').select('module_id, can_view, can_edit').eq('user_id', userId)
+          : Promise.resolve({ data: [], error: null }),
+      ]);
+      if (!roleRes.error && roleRes.data) setPermissions(roleRes.data as any[]);
+      if (!userRes.error && userRes.data) setUserPerms(userRes.data as any[]);
     } catch (err) {
       console.error('Error fetching permissions:', err);
     }
@@ -117,6 +119,9 @@ export function Sidebar({ activeItem, onItemClick, onClose }: SidebarProps) {
   const canViewModule = (moduleId: string): boolean => {
     if (!currentUser) return false;
     if (currentUser.role === 'admin') return true;
+    // User-level overrides role-level
+    const userPerm = userPerms.find(p => p.module_id === moduleId);
+    if (userPerm) return userPerm.can_view;
     const perm = permissions.find(p => p.module_id === moduleId);
     return perm?.can_view ?? false;
   };
