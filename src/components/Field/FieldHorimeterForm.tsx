@@ -610,31 +610,36 @@ export function FieldHorimeterForm({ user, onBack }: FieldHorimeterFormProps) {
 
           if (syncError) {
             console.error('Erro ao sincronizar com planilha:', syncError);
-            toast.error('Registro salvo, mas falhou ao sincronizar com a planilha Horimetros.');
+            toast.warning('⚠️ Registro salvo no banco, mas falhou ao sincronizar com a planilha Horimetros.', { duration: 5000 });
           } else {
             console.log('Horimeter synced to sheet successfully:', syncResult);
           }
         } else {
           console.warn('Vehicle data not available for sheet sync');
+          toast.warning('⚠️ Dados do veículo indisponíveis para sincronizar com a planilha.', { duration: 5000 });
         }
-      } catch (syncErr) {
+      } catch (syncErr: any) {
         console.error('Erro ao sincronizar com planilha:', syncErr);
-        toast.error('Registro salvo, mas falhou ao sincronizar com a planilha. Verifique se a aba "Horimetros" existe.');
+        toast.warning(`⚠️ Registro salvo no banco, mas erro na planilha: ${syncErr?.message || 'Verifique se a aba "Horimetros" existe.'}`, { duration: 5000 });
       }
 
       // Success feedback
       if (settings.soundEnabled) playSuccessSound();
       if (settings.vibrationEnabled) vibrateDevice();
 
-      toast.success('Horímetro registrado com sucesso!');
+      toast.success('✅ Horímetro registrado e sincronizado com sucesso!', { duration: 4000 });
 
-      // Reset for next entry
+      // Reset ALL form fields for new entry
+      setSelectedVehicleId('');
+      setVehicleSearch('');
+      setSelectedDate(new Date());
       setHorimeterValue(null);
       setKmValue(null);
       setObservacao('');
-      // Refresh previous values
-      setPreviousHorimeter(horNum > 0 ? horNum : previousHorimeter);
-      setPreviousKm(kmNum > 0 ? kmNum : previousKm);
+      setOperador(user.name);
+      setPreviousHorimeter(0);
+      setPreviousKm(0);
+      setVehicleHistory([]);
 
     } catch (err: any) {
       console.error('Erro ao salvar horímetro:', err);
@@ -659,23 +664,30 @@ export function FieldHorimeterForm({ user, onBack }: FieldHorimeterFormProps) {
 
           if (settings.soundEnabled) playSuccessSound();
           if (settings.vibrationEnabled) vibrateDevice();
-          toast.success('Salvo offline! Será sincronizado quando houver conexão.', {
-            icon: '📱',
+          toast.success('📱 Salvo offline! Será sincronizado quando houver conexão.', {
             duration: 4000,
           });
           
+          // Reset ALL form fields
+          setSelectedVehicleId('');
+          setVehicleSearch('');
+          setSelectedDate(new Date());
           setHorimeterValue(null);
           setKmValue(null);
           setObservacao('');
-          setPreviousHorimeter((horimeterValue ?? 0) > 0 ? (horimeterValue ?? 0) : previousHorimeter);
-          setPreviousKm((kmValue ?? 0) > 0 ? (kmValue ?? 0) : previousKm);
+          setOperador(user.name);
+          setPreviousHorimeter(0);
+          setPreviousKm(0);
+          setVehicleHistory([]);
           return;
         } catch (offlineErr) {
           console.error('Offline save also failed:', offlineErr);
         }
       }
       
-      toast.error(err.message || 'Erro ao salvar registro');
+      const errorMsg = err?.message || err?.details || 'Erro desconhecido ao salvar';
+      const errorHint = err?.hint ? ` (${err.hint})` : '';
+      toast.error(`❌ Erro ao salvar: ${errorMsg}${errorHint}`, { duration: 6000 });
     } finally {
       setIsSaving(false);
     }
