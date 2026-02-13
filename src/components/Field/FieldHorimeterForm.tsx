@@ -170,6 +170,7 @@ export function FieldHorimeterForm({ user, onBack }: FieldHorimeterFormProps) {
   const [vehicleOpen, setVehicleOpen] = useState(false);
   const [vehicleSearch, setVehicleSearch] = useState('');
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const lastSavedDateRef = React.useRef<Date>(new Date());
   const [dateOpen, setDateOpen] = useState(false);
   const [horimeterValue, setHorimeterValue] = useState<number | null>(null);
   const [kmValue, setKmValue] = useState<number | null>(null);
@@ -638,7 +639,8 @@ export function FieldHorimeterForm({ user, onBack }: FieldHorimeterFormProps) {
       // Reset ALL form fields for new entry
       setSelectedVehicleId('');
       setVehicleSearch('');
-      setSelectedDate(new Date());
+      lastSavedDateRef.current = selectedDate;
+      setSelectedDate(selectedDate);
       setHorimeterValue(null);
       setKmValue(null);
       setObservacao('');
@@ -677,7 +679,8 @@ export function FieldHorimeterForm({ user, onBack }: FieldHorimeterFormProps) {
           // Reset ALL form fields
           setSelectedVehicleId('');
           setVehicleSearch('');
-          setSelectedDate(new Date());
+          lastSavedDateRef.current = selectedDate;
+          setSelectedDate(selectedDate);
           setHorimeterValue(null);
           setKmValue(null);
           setObservacao('');
