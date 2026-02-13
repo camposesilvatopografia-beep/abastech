@@ -1922,67 +1922,31 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-100 via-slate-50 to-white dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 pb-4">
-      {/* Header with Logo */}
-      <div className="bg-gradient-to-r from-blue-900 to-blue-800 p-4 mb-4">
-        <div className="flex items-center gap-3 max-w-2xl mx-auto">
-          <img src={logoAbastech} alt="Abastech" className="h-10 w-auto" />
-          <div className="text-white">
-            <h1 className="text-lg font-bold">Apontamento de Campo</h1>
-            <p className="text-xs opacity-90">Registro de Combustível</p>
+      {/* Compact Header */}
+      <div className="bg-gradient-to-r from-blue-900 to-blue-800 px-4 py-3">
+        <div className="flex items-center justify-between max-w-2xl mx-auto">
+          <div className="flex items-center gap-2">
+            <img src={logoAbastech} alt="Abastech" className="h-8 w-auto" />
+            <span className="text-white font-bold text-base">Abastecimento</span>
+          </div>
+          <div className="flex items-center gap-2 text-white/80 text-xs">
+            <Clock className="w-3.5 h-3.5" />
+            <span>{new Date().toLocaleDateString('pt-BR')} {new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
           </div>
         </div>
       </div>
       
-      {/* Voice status */}
-      {voice.isListening && (
-        <div className="bg-blue-800 text-white p-3 flex items-center justify-center gap-2 animate-pulse">
-          <Mic className="w-5 h-5" />
-          <span>Ouvindo... Fale agora</span>
-          <Button 
-            size="sm" 
-            variant="ghost" 
-            onClick={voice.stopListening}
-            className="text-white hover:bg-white/20"
-          >
-            <X className="w-4 h-4" />
-          </Button>
-        </div>
-      )}
-
       {/* Form */}
-      <div className="p-4 space-y-4 max-w-2xl mx-auto">
-        {/* Current Date/Time Display (Auto-filled) */}
-        <div className="bg-white dark:bg-slate-800 backdrop-blur-sm rounded-xl border border-blue-200 dark:border-blue-800 p-4 shadow-lg">
-          <div className="flex items-center gap-2 text-blue-700 dark:text-blue-400 mb-2">
-            <Clock className="w-4 h-4" />
-            <span className="text-sm font-medium">Data e Hora do Registro</span>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <p className="text-xs text-muted-foreground">Data</p>
-              <p className="text-lg font-bold text-foreground">{new Date().toLocaleDateString('pt-BR')}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Hora</p>
-              <p className="text-lg font-bold text-foreground">{new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>
-            </div>
-          </div>
-          <p className="text-xs text-muted-foreground mt-2 italic">
-            * Preenchido automaticamente no momento do registro
-          </p>
-        </div>
+      <div className="px-3 py-3 space-y-3 max-w-2xl mx-auto">
 
-        {/* Record Type Selection */}
-        <div className="bg-white dark:bg-slate-800 backdrop-blur-sm rounded-xl border border-blue-200 dark:border-blue-800 p-4 space-y-3 shadow-lg">
-          <Label className="flex items-center gap-2 text-base font-medium text-foreground">
-            Tipo de Registro
-          </Label>
-          <div className="grid grid-cols-2 gap-3">
+        {/* Record Type Selection - Compact */}
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-3 shadow-sm">
+          <div className="grid grid-cols-2 gap-2">
             <Button
               type="button"
               variant={recordType === 'saida' && quickEntryMode === 'normal' ? 'default' : 'outline'}
               className={cn(
-                "h-14 text-lg font-bold transition-all",
+                "h-12 text-base font-bold transition-all",
                 recordType === 'saida' && quickEntryMode === 'normal'
                   ? "bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white border-0 shadow-lg shadow-red-500/30"
                   : "border-red-600/30 text-muted-foreground hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/50"
@@ -1996,7 +1960,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
               type="button"
               variant={recordType === 'entrada' && quickEntryMode === 'normal' ? 'default' : 'outline'}
               className={cn(
-                "h-14 text-lg font-bold transition-all",
+                "h-12 text-base font-bold transition-all",
                 recordType === 'entrada' && quickEntryMode === 'normal'
                   ? "bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white border-0 shadow-lg shadow-green-500/30"
                   : "border-green-600/30 text-muted-foreground hover:bg-green-500/10 hover:text-green-400 hover:border-green-500/50"
@@ -2011,7 +1975,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
 
         {/* Quick Entry Options based on user location */}
         {recordType === 'saida' && (
-          <div className="bg-purple-50/80 dark:bg-purple-950/30 backdrop-blur-sm rounded-xl border border-purple-200 dark:border-purple-800 p-4 space-y-3 shadow-sm">
+          <div className="bg-purple-50/80 dark:bg-purple-950/30 rounded-xl border border-purple-200 dark:border-purple-800 p-3 space-y-2 shadow-sm">
             <div className="flex items-center justify-between">
               <Label className="flex items-center gap-2 text-base text-purple-700 dark:text-purple-400">
                 <Wrench className="w-4 h-4" />
@@ -2436,8 +2400,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         {/* NORMAL SAÍDA FORM - only when not in quick mode (but comboio_tank_refuel shows vehicle selection) */}
         {recordType === 'saida' && (quickEntryMode === 'normal' || quickEntryMode === 'comboio_tank_refuel') && (
           <>
-            {/* Vehicle Selection with Searchable Combobox - OPTIMIZED FOR SUNLIGHT */}
-            <div className="bg-blue-50 dark:bg-blue-950/40 rounded-2xl border-3 border-blue-400 dark:border-blue-600 p-5 space-y-4 shadow-xl">
+            <div className="bg-blue-50 dark:bg-blue-950/40 rounded-2xl border-2 border-blue-400 dark:border-blue-600 p-4 space-y-3 shadow-lg">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3 bg-blue-100 dark:bg-blue-900/60 px-4 py-2.5 rounded-xl -ml-1">
                   <Truck className="w-6 h-6 text-blue-600 dark:text-blue-400" />
@@ -2660,7 +2623,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
           
               {/* Previous horimeter/km display with refresh button - hide for comboio tank refuel */}
               {vehicleCode && quickEntryMode !== 'comboio_tank_refuel' && (
-                <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700/50 p-3 rounded-lg space-y-2">
+                <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700/50 p-2 rounded-lg space-y-1">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 text-blue-700 dark:text-blue-300">
                       <Clock className="w-4 h-4" />
@@ -2775,7 +2738,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
             </div>
 
         {/* Fuel Quantity with OCR - OPTIMIZED FOR SUNLIGHT */}
-        <div className="bg-amber-50 dark:bg-amber-950/40 rounded-2xl border-3 border-amber-400 dark:border-amber-600 p-5 space-y-4 shadow-xl">
+        <div className="bg-amber-50 dark:bg-amber-950/40 rounded-2xl border-2 border-amber-400 dark:border-amber-600 p-4 space-y-3 shadow-lg">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3 bg-amber-100 dark:bg-amber-900/60 px-4 py-2.5 rounded-xl -ml-1">
               <Fuel className="w-6 h-6 text-amber-600 dark:text-amber-400" />
@@ -2850,13 +2813,13 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
             value={fuelQuantity}
             onChange={setFuelQuantity}
             decimals={2}
-            className="h-20 text-4xl text-center font-black border-3 border-amber-300 dark:border-amber-600 bg-white dark:bg-slate-900 focus:border-amber-500 focus:ring-4 focus:ring-amber-200 dark:focus:ring-amber-800 shadow-[0_4px_12px_rgba(0,0,0,0.4)] dark:shadow-[0_4px_12px_rgba(0,0,0,0.7)]"
+            className="h-16 text-3xl text-center font-black border-2 border-amber-300 dark:border-amber-600 bg-white dark:bg-slate-900 focus:border-amber-500 focus:ring-2 focus:ring-amber-200 dark:focus:ring-amber-800 shadow-md"
           />
         </div>
 
-        {/* Horimeter with OCR - Hide for comboio tank refuel mode - OPTIMIZED FOR SUNLIGHT */}
+        {/* Horimeter with OCR */}
         {quickEntryMode !== 'comboio_tank_refuel' && (
-        <div className="bg-emerald-50 dark:bg-emerald-950/40 rounded-2xl border-3 border-emerald-400 dark:border-emerald-600 p-5 space-y-4 shadow-xl">
+        <div className="bg-emerald-50 dark:bg-emerald-950/40 rounded-2xl border-2 border-emerald-400 dark:border-emerald-600 p-4 space-y-3 shadow-lg">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3 bg-emerald-100 dark:bg-emerald-900/60 px-4 py-2.5 rounded-xl -ml-1">
               <Gauge className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
@@ -2934,7 +2897,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
             value={horimeterCurrent}
             onChange={setHorimeterCurrent}
             decimals={2}
-            className="h-16 text-2xl text-center font-bold border-3 border-emerald-300 dark:border-emerald-600 bg-white dark:bg-slate-900 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-200 dark:focus:ring-emerald-800 shadow-[0_4px_12px_rgba(0,0,0,0.4)] dark:shadow-[0_4px_12px_rgba(0,0,0,0.7)]"
+            className="h-14 text-2xl text-center font-bold border-2 border-emerald-300 dark:border-emerald-600 bg-white dark:bg-slate-900 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 dark:focus:ring-emerald-800 shadow-md"
           />
           
           {/* Validation warning */}
@@ -3307,25 +3270,21 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
 
         {/* Photos Section - Only for Saida - OPTIMIZED FOR SUNLIGHT */}
         {recordType === 'saida' && (
-        <div className="bg-rose-50 dark:bg-rose-950/40 rounded-2xl border-3 border-rose-400 dark:border-rose-600 p-5 space-y-5 shadow-xl">
-          <div className="flex items-center gap-3 bg-rose-100 dark:bg-rose-900/60 px-4 py-2.5 rounded-xl -mx-1">
-            <Camera className="w-6 h-6 text-rose-600 dark:text-rose-400" />
-            <span className="text-lg font-bold text-rose-800 dark:text-rose-200">
-              {quickEntryMode === 'comboio_tank_refuel' ? 'Foto da Bomba' : 'Fotos Obrigatórias'}
+        <div className="bg-rose-50 dark:bg-rose-950/40 rounded-2xl border-2 border-rose-400 dark:border-rose-600 p-4 space-y-3 shadow-lg">
+          <div className="flex items-center gap-2 text-rose-700 dark:text-rose-300">
+            <Camera className="w-5 h-5" />
+            <span className="text-base font-bold">
+              {quickEntryMode === 'comboio_tank_refuel' ? 'Foto da Bomba' : 'Fotos'} *
             </span>
-            <span className="text-rose-600 text-2xl font-bold">*</span>
           </div>
           
           <div className={cn(
-            "grid gap-5",
+            "grid gap-3",
             quickEntryMode === 'comboio_tank_refuel' ? "grid-cols-1" : "grid-cols-2"
           )}>
             {/* Pump Photo - Always visible */}
-            <div className="space-y-3">
-              <p className="text-base font-bold flex items-center gap-2 text-rose-700 dark:text-rose-300">
-                📷 Foto da Bomba
-                <span className="text-rose-500 text-xl">*</span>
-              </p>
+            <div className="space-y-2">
+              <p className="text-sm font-bold text-rose-700 dark:text-rose-300">📷 Bomba *</p>
               <input
                 ref={photoPumpInputRef}
                 type="file"
@@ -3339,41 +3298,38 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                   <img 
                     src={photoPumpPreview} 
                     alt="Bomba" 
-                    className="w-full h-40 object-cover rounded-xl border-4 border-green-500 shadow-lg"
+                    className="w-full h-32 object-cover rounded-lg border-2 border-green-500 shadow-md"
                   />
                   <Button
                     type="button"
                     size="icon"
                     variant="destructive"
-                    className="absolute -top-3 -right-3 h-10 w-10 shadow-lg"
+                    className="absolute -top-2 -right-2 h-8 w-8 shadow-md"
                     onClick={() => removePhoto('pump')}
                   >
-                    <Trash2 className="w-5 h-5" />
+                    <Trash2 className="w-4 h-4" />
                   </Button>
-                  <div className="absolute bottom-2 left-2 bg-green-500 text-white px-3 py-1 rounded-full text-sm font-bold">
-                    ✓ Foto OK
+                  <div className="absolute bottom-1 left-1 bg-green-500 text-white px-2 py-0.5 rounded-full text-xs font-bold">
+                    ✓ OK
                   </div>
                 </div>
               ) : (
                 <Button
                   type="button"
                   variant="outline"
-                  className="w-full h-40 flex flex-col gap-3 border-3 border-dashed border-rose-300 hover:border-rose-500 hover:bg-rose-100 dark:hover:bg-rose-950 rounded-xl transition-all"
+                  className="w-full h-32 flex flex-col gap-2 border-2 border-dashed border-rose-300 hover:border-rose-500 hover:bg-rose-100 dark:hover:bg-rose-950 rounded-lg transition-all"
                   onClick={() => photoPumpInputRef.current?.click()}
                 >
-                  <Camera className="w-12 h-12 text-rose-500" />
-                  <span className="text-base font-bold text-rose-600">TIRAR FOTO *</span>
+                  <Camera className="w-10 h-10 text-rose-500" />
+                  <span className="text-sm font-bold text-rose-600">TIRAR FOTO</span>
                 </Button>
               )}
             </div>
 
             {/* Horimeter Photo - Hide for comboio tank refuel */}
             {quickEntryMode !== 'comboio_tank_refuel' && (
-            <div className="space-y-3">
-              <p className="text-base font-bold flex items-center gap-2 text-rose-700 dark:text-rose-300">
-                📷 Foto do Horímetro
-                <span className="text-rose-500 text-xl">*</span>
-              </p>
+            <div className="space-y-2">
+              <p className="text-sm font-bold text-rose-700 dark:text-rose-300">📷 Horímetro *</p>
               <input
                 ref={photoHorimeterInputRef}
                 type="file"
@@ -3387,30 +3343,30 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                   <img 
                     src={photoHorimeterPreview} 
                     alt="Horímetro" 
-                    className="w-full h-40 object-cover rounded-xl border-4 border-green-500 shadow-lg"
+                    className="w-full h-32 object-cover rounded-lg border-2 border-green-500 shadow-md"
                   />
                   <Button
                     type="button"
                     size="icon"
                     variant="destructive"
-                    className="absolute -top-3 -right-3 h-10 w-10 shadow-lg"
+                    className="absolute -top-2 -right-2 h-8 w-8 shadow-md"
                     onClick={() => removePhoto('horimeter')}
                   >
-                    <Trash2 className="w-5 h-5" />
+                    <Trash2 className="w-4 h-4" />
                   </Button>
-                  <div className="absolute bottom-2 left-2 bg-green-500 text-white px-3 py-1 rounded-full text-sm font-bold">
-                    ✓ Foto OK
+                  <div className="absolute bottom-1 left-1 bg-green-500 text-white px-2 py-0.5 rounded-full text-xs font-bold">
+                    ✓ OK
                   </div>
                 </div>
               ) : (
                 <Button
                   type="button"
                   variant="outline"
-                  className="w-full h-40 flex flex-col gap-3 border-3 border-dashed border-rose-300 hover:border-rose-500 hover:bg-rose-100 dark:hover:bg-rose-950 rounded-xl transition-all"
+                  className="w-full h-32 flex flex-col gap-2 border-2 border-dashed border-rose-300 hover:border-rose-500 hover:bg-rose-100 dark:hover:bg-rose-950 rounded-lg transition-all"
                   onClick={() => photoHorimeterInputRef.current?.click()}
                 >
-                  <Gauge className="w-12 h-12 text-rose-500" />
-                  <span className="text-base font-bold text-rose-600">TIRAR FOTO *</span>
+                  <Gauge className="w-10 h-10 text-rose-500" />
+                  <span className="text-sm font-bold text-rose-600">TIRAR FOTO</span>
                 </Button>
               )}
             </div>
@@ -3420,21 +3376,21 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         )}
 
         {/* Observations */}
-        <div className="bg-white dark:bg-slate-800 backdrop-blur-sm rounded-xl border border-blue-200 dark:border-blue-800 p-4 space-y-3 shadow-lg">
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-3 space-y-2 shadow-sm">
           <div className="flex items-center justify-between">
-            <Label className="text-base text-foreground">Observações</Label>
+            <Label className="text-sm text-muted-foreground">Observações</Label>
             {voice.isSupported && (
               <Button
                 type="button"
                 size="sm"
-                variant="outline"
+                variant="ghost"
                 onClick={() => startVoiceForField('observations')}
                 className={cn(
-                  "border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50",
+                  "h-7 w-7 p-0",
                   activeVoiceField === 'observations' && voice.isListening && "bg-blue-200 dark:bg-blue-800"
                 )}
               >
-                <Mic className="w-4 h-4" />
+                <Mic className="w-3.5 h-3.5" />
               </Button>
             )}
           </div>
@@ -3442,14 +3398,13 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
             placeholder="Observações opcionais..."
             value={observations}
             onChange={(e) => setObservations(e.target.value)}
-            rows={3}
-            className="bg-slate-100 dark:bg-slate-700/50 border-slate-300 dark:border-slate-600 text-foreground placeholder:text-muted-foreground"
+            rows={2}
+            className="bg-slate-50 dark:bg-slate-700/50 border-slate-200 dark:border-slate-600 text-foreground placeholder:text-muted-foreground text-sm"
           />
         </div>
-      </div>
 
-      {/* Save Button */}
-      <div className="p-4 pb-8 max-w-2xl mx-auto">
+        {/* Save Button - Sticky at bottom */}
+        <div className="sticky bottom-0 pt-2 pb-6 bg-gradient-to-t from-slate-100 dark:from-slate-900 via-slate-100/95 dark:via-slate-900/95 to-transparent -mx-3 px-3">
         <Button 
           onClick={handleSave} 
           disabled={
@@ -3490,6 +3445,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
             </>
           )}
         </Button>
+        </div>
       </div>
 
       {/* QR Code Scanner Modal */}
