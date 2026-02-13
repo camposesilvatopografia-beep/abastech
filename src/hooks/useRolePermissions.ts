@@ -25,6 +25,11 @@ export const MODULE_LABELS: Record<string, string> = {
   alertas: 'Alertas',
   campo: 'Apontamento Campo',
   campo_usuarios: 'Usuários de Campo',
+  // Field-specific modules
+  field_dashboard: 'Dashboard (Campo)',
+  field_abastecimento: 'Abastecimento (Campo)',
+  field_horimetros: 'Horímetros (Campo)',
+  field_os: 'Ordens de Serviço (Campo)',
 };
 
 export const MODULE_GROUPS: { label: string; modules: string[] }[] = [
@@ -37,8 +42,12 @@ export const MODULE_GROUPS: { label: string; modules: string[] }[] = [
     modules: ['fornecedores', 'lubrificantes', 'mecanicos', 'tiposoleos', 'usuarios', 'obra'],
   },
   {
-    label: 'Campo',
+    label: 'Campo (Acesso Admin)',
     modules: ['campo', 'campo_usuarios'],
+  },
+  {
+    label: 'Módulos Campo (Mobile)',
+    modules: ['field_dashboard', 'field_abastecimento', 'field_horimetros', 'field_os'],
   },
 ];
 

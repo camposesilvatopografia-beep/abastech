@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { FieldLoginPage } from '@/components/Field/FieldLoginPage';
 import { FieldFuelForm } from '@/components/Field/FieldFuelForm';
 import { FieldDashboard } from '@/components/Field/FieldDashboard';
@@ -7,6 +7,7 @@ import { FieldServiceOrderForm } from '@/components/Field/FieldServiceOrderForm'
 import { FieldFuelMenu } from '@/components/Field/FieldFuelMenu';
 import { FieldComboioForm } from '@/components/Field/FieldComboioForm';
 import { FieldFuelRecords } from '@/components/Field/FieldFuelRecords';
+import { useRolePermissions } from '@/hooks/useRolePermissions';
 import { 
   LayoutDashboard, 
   Fuel, 
@@ -67,6 +68,7 @@ export function FieldPage() {
   const [isSyncing, setIsSyncing] = useState(false);
   const { theme, toggleTheme } = useTheme();
   const { settings, toggleSound, toggleVibration } = useFieldSettings();
+  const { canView: canViewModule } = useRolePermissions();
   const { 
     permission: notificationPermission, 
     requestPermission: requestNotificationPermission,
@@ -80,6 +82,9 @@ export function FieldPage() {
   
   // Offline storage hook - will be null until user is loaded
   const offlineStorage = useOfflineStorage(user?.id);
+  
+  // Derive user role for permission checks
+  const userRole = user?.role || 'operador';
 
   // Function to fetch and update user data from database
   const refreshUserData = useCallback(async (userId: string) => {
@@ -470,73 +475,81 @@ export function FieldPage() {
         </div>
       </header>
 
-      {/* Navigation Tabs - Icons only */}
+      {/* Navigation Tabs - Icons only, filtered by permissions */}
       <nav className={cn(
         "backdrop-blur-sm border-b px-3 py-2 flex gap-2 justify-around",
         theme === 'dark' 
           ? "bg-slate-800/90 border-slate-700" 
           : "bg-white/90 border-slate-200"
       )}>
-        <Button
-          variant="ghost"
-          size="icon"
-          className={cn(
-            "h-11 w-11 rounded-xl",
-            currentView === 'dashboard' 
-              ? "bg-amber-500 hover:bg-amber-600 text-white shadow-lg shadow-amber-500/30" 
-              : theme === 'dark'
-                ? "text-slate-400 hover:text-white hover:bg-slate-700"
-                : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
-          )}
-          onClick={() => setCurrentView('dashboard')}
-        >
-          <LayoutDashboard className="w-5 h-5" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className={cn(
-            "h-11 w-11 rounded-xl",
-            (currentView === 'fuel-menu' || currentView === 'fuel-abastecer' || currentView === 'fuel-comboio' || currentView === 'fuel-registros' || currentView === 'form')
-              ? "bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/30" 
-              : theme === 'dark'
-                ? "text-slate-400 hover:text-white hover:bg-slate-700"
-                : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
-          )}
-          onClick={() => setCurrentView('fuel-menu')}
-        >
-          <Fuel className="w-5 h-5" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className={cn(
-            "h-11 w-11 rounded-xl",
-            currentView === 'horimeter' 
-              ? "bg-amber-600 hover:bg-amber-700 text-white shadow-lg shadow-amber-600/30" 
-              : theme === 'dark'
-                ? "text-slate-400 hover:text-white hover:bg-slate-700"
-                : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
-          )}
-          onClick={() => setCurrentView('horimeter')}
-        >
-          <Clock className="w-5 h-5" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className={cn(
-            "h-11 w-11 rounded-xl",
-            currentView === 'os' 
-              ? "bg-purple-600 hover:bg-purple-700 text-white shadow-lg shadow-purple-600/30" 
-              : theme === 'dark'
-                ? "text-slate-400 hover:text-white hover:bg-slate-700"
-                : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
-          )}
-          onClick={() => setCurrentView('os')}
-        >
-          <Wrench className="w-5 h-5" />
-        </Button>
+        {canViewModule(userRole, 'field_dashboard') && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className={cn(
+              "h-11 w-11 rounded-xl",
+              currentView === 'dashboard' 
+                ? "bg-amber-500 hover:bg-amber-600 text-white shadow-lg shadow-amber-500/30" 
+                : theme === 'dark'
+                  ? "text-slate-400 hover:text-white hover:bg-slate-700"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+            )}
+            onClick={() => setCurrentView('dashboard')}
+          >
+            <LayoutDashboard className="w-5 h-5" />
+          </Button>
+        )}
+        {canViewModule(userRole, 'field_abastecimento') && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className={cn(
+              "h-11 w-11 rounded-xl",
+              (currentView === 'fuel-menu' || currentView === 'fuel-abastecer' || currentView === 'fuel-comboio' || currentView === 'fuel-registros' || currentView === 'form')
+                ? "bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/30" 
+                : theme === 'dark'
+                  ? "text-slate-400 hover:text-white hover:bg-slate-700"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+            )}
+            onClick={() => setCurrentView('fuel-menu')}
+          >
+            <Fuel className="w-5 h-5" />
+          </Button>
+        )}
+        {canViewModule(userRole, 'field_horimetros') && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className={cn(
+              "h-11 w-11 rounded-xl",
+              currentView === 'horimeter' 
+                ? "bg-amber-600 hover:bg-amber-700 text-white shadow-lg shadow-amber-600/30" 
+                : theme === 'dark'
+                  ? "text-slate-400 hover:text-white hover:bg-slate-700"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+            )}
+            onClick={() => setCurrentView('horimeter')}
+          >
+            <Clock className="w-5 h-5" />
+          </Button>
+        )}
+        {canViewModule(userRole, 'field_os') && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className={cn(
+              "h-11 w-11 rounded-xl",
+              currentView === 'os' 
+                ? "bg-purple-600 hover:bg-purple-700 text-white shadow-lg shadow-purple-600/30" 
+                : theme === 'dark'
+                  ? "text-slate-400 hover:text-white hover:bg-slate-700"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+            )}
+            onClick={() => setCurrentView('os')}
+          >
+            <Wrench className="w-5 h-5" />
+          </Button>
+        )}
       </nav>
 
       {/* Connection Banner - Offline or Pending Sync */}
