@@ -524,6 +524,69 @@ export function exportTanquesComboiosPDF(
   doc.save(`Tanques_Comboios_${format(selectedDate, 'dd-MM-yyyy')}.pdf`);
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// PAGE — RELATÓRIO VEÍCULOS TANQUE COMBOIO (por categoria)
+// ═══════════════════════════════════════════════════════════════════════
+
+function filterByCategory(rows: FuelRecord[], category: string): FuelRecord[] {
+  return rows.filter(row => {
+    const cat = String(row['CATEGORIA'] || row['categoria'] || '').toLowerCase();
+    return cat.includes(category.toLowerCase());
+  });
+}
+
+function renderTanqueComboioPage(
+  doc: jsPDF,
+  fuelRecords: FuelRecord[],
+  selectedDate: Date,
+  obraSettings?: ObraSettings | null,
+  sortByDescription?: boolean,
+) {
+  let currentY = renderHeader(doc, 'RELATÓRIO DE TANQUE COMBOIO', selectedDate, obraSettings);
+  const pageHeight = doc.internal.pageSize.getHeight();
+
+  const saidas = sortRecords(fuelRecords.filter(r => !isEntradaRecord(r)), sortByDescription);
+  const entradas = sortRecords(fuelRecords.filter(r => isEntradaRecord(r)), sortByDescription);
+
+  currentY = renderSaidasTable(doc, saidas, currentY, pageHeight);
+  currentY = renderEntradasTable(doc, entradas, currentY, 'comboio', pageHeight);
+
+  if (saidas.length === 0 && entradas.length === 0) {
+    doc.setTextColor(120, 120, 130);
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'italic');
+    doc.text('Nenhum registro de abastecimento encontrado para Tanque Comboio nesta data.', PAGE_MARGIN, currentY + 4);
+  }
+}
+
+/** PDF: Relatório dos Tanque Comboio — filtrado por categoria */
+export function exportTanqueComboioPDF(
+  rows: FuelRecord[],
+  selectedDate: Date,
+  obraSettings?: ObraSettings | null,
+  sortByDescription?: boolean
+) {
+  const doc = new jsPDF('landscape');
+  const records = filterByCategory(rows, 'tanque comboio');
+  renderTanqueComboioPage(doc, records, selectedDate, obraSettings, sortByDescription);
+  addPageFooters(doc);
+  doc.save(`Relatorio_Tanque_Comboio_${format(selectedDate, 'dd-MM-yyyy')}.pdf`);
+}
+
+/** XLSX: Tanque Comboio */
+export function exportTanqueComboioXLSX(
+  rows: FuelRecord[],
+  selectedDate: Date,
+  sortByDescription?: boolean
+) {
+  const records = sortRecords(filterByCategory(rows, 'tanque comboio'), sortByDescription);
+  const workbook = XLSX.utils.book_new();
+  const sheet = XLSX.utils.json_to_sheet(records.map(mapRecordForXLSX));
+  sheet['!cols'] = XLSX_COL_WIDTHS;
+  XLSX.utils.book_append_sheet(workbook, sheet, 'Tanque Comboio');
+  XLSX.writeFile(workbook, `Abastecimento_Tanque_Comboio_${format(selectedDate, 'dd-MM-yyyy')}.xlsx`);
+}
+
 // ─── XLSX Exports ──────────────────────────────────────────────────────
 
 /** XLSX: Only Tanques */
