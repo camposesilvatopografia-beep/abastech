@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import {
   Plus,
@@ -61,6 +61,7 @@ import { toast } from 'sonner';
 import { RolePermissionsManager } from '@/components/Cadastros/RolePermissionsManager';
 import { UserPermissionsModal } from '@/components/Cadastros/UserPermissionsModal';
 import type { Database } from '@/integrations/supabase/types';
+import { FieldUsersPage } from '@/components/Pages/FieldUsersPage';
 
 type SystemUserRole = Database['public']['Enums']['system_user_role'];
 
@@ -294,7 +295,11 @@ export default function SystemUsersPage() {
         <TabsList>
           <TabsTrigger value="users" className="gap-2">
             <Users className="w-4 h-4" />
-            Usuários
+            Sistema
+          </TabsTrigger>
+          <TabsTrigger value="field-users" className="gap-2">
+            <UserCheck className="w-4 h-4" />
+            Campo
           </TabsTrigger>
           <TabsTrigger value="permissions" className="gap-2">
             <Shield className="w-4 h-4" />
@@ -588,6 +593,10 @@ export default function SystemUsersPage() {
           )}
         </CardContent>
       </Card>
+        </TabsContent>
+
+        <TabsContent value="field-users">
+          <FieldUsersPage embedded />
         </TabsContent>
 
         <TabsContent value="permissions">
