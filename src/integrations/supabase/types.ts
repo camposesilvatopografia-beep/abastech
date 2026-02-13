@@ -597,6 +597,36 @@ export type Database = {
         }
         Relationships: []
       }
+      role_permissions: {
+        Row: {
+          can_edit: boolean
+          can_view: boolean
+          created_at: string
+          id: string
+          module_id: string
+          role: string
+          updated_at: string
+        }
+        Insert: {
+          can_edit?: boolean
+          can_view?: boolean
+          created_at?: string
+          id?: string
+          module_id: string
+          role: string
+          updated_at?: string
+        }
+        Update: {
+          can_edit?: boolean
+          can_view?: boolean
+          created_at?: string
+          id?: string
+          module_id?: string
+          role?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       scheduled_maintenance: {
         Row: {
           created_at: string

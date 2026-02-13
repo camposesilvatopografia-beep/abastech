@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { 
   LayoutDashboard, 
   Fuel, 
@@ -80,6 +80,7 @@ export function Sidebar({ activeItem, onItemClick, onClose }: SidebarProps) {
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [pendingRequests, setPendingRequests] = useState(0);
+  const [permissions, setPermissions] = useState<{ module_id: string; can_view: boolean; can_edit: boolean }[]>([]);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -91,11 +92,58 @@ export function Sidebar({ activeItem, onItemClick, onClose }: SidebarProps) {
         if (user.role === 'admin') {
           checkPendingRequests();
         }
+        // Fetch role permissions
+        fetchPermissions(user.role);
       } catch {
         setCurrentUser(null);
       }
     }
   }, []);
+
+  const fetchPermissions = async (role: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('role_permissions')
+        .select('module_id, can_view, can_edit')
+        .eq('role', role);
+      if (!error && data) {
+        setPermissions(data as any[]);
+      }
+    } catch (err) {
+      console.error('Error fetching permissions:', err);
+    }
+  };
+
+  const canViewModule = (moduleId: string): boolean => {
+    if (!currentUser) return false;
+    if (currentUser.role === 'admin') return true;
+    const perm = permissions.find(p => p.module_id === moduleId);
+    return perm?.can_view ?? false;
+  };
+
+  // Filter menu items based on permissions
+  const filteredMenuItems = useMemo(() => {
+    if (!currentUser) return menuItems;
+    if (currentUser.role === 'admin') return menuItems;
+    
+    return menuItems
+      .filter(item => {
+        if (item.children) {
+          // Keep parent if any child is visible
+          return item.children.some(child => canViewModule(child.id));
+        }
+        return canViewModule(item.id);
+      })
+      .map(item => {
+        if (item.children) {
+          return {
+            ...item,
+            children: item.children.filter(child => canViewModule(child.id)),
+          };
+        }
+        return item;
+      });
+  }, [currentUser, permissions]);
 
   const checkPendingRequests = async () => {
     try {
@@ -168,7 +216,7 @@ export function Sidebar({ activeItem, onItemClick, onClose }: SidebarProps) {
       {/* Navigation - distributed evenly */}
       <nav className="flex-1 px-2 py-1 flex flex-col justify-between">
         <div className="space-y-0.5">
-          {menuItems.map((item) => (
+          {filteredMenuItems.map((item) => (
             <div key={item.id}>
               <button
                 onClick={() => {
@@ -257,20 +305,24 @@ export function Sidebar({ activeItem, onItemClick, onClose }: SidebarProps) {
 
       {/* Field App Links */}
       <div className="px-2 py-1 border-t border-sidebar-border">
-        <Link
-          to="/campo"
-          className="sidebar-item w-full flex items-center gap-2 bg-primary/10 hover:bg-primary/20 text-primary py-1.5"
-        >
-          <Smartphone className="w-4 h-4" />
-          <span className="text-xs font-medium">Apontamento Campo</span>
-        </Link>
-        <Link
-          to="/campo/usuarios"
-          className="sidebar-item w-full flex items-center gap-2 hover:bg-sidebar-accent py-1.5 mt-0.5"
-        >
-          <Users className="w-4 h-4" />
-          <span className="text-xs">Usuários de Campo</span>
-        </Link>
+        {canViewModule('campo') && (
+          <Link
+            to="/campo"
+            className="sidebar-item w-full flex items-center gap-2 bg-primary/10 hover:bg-primary/20 text-primary py-1.5"
+          >
+            <Smartphone className="w-4 h-4" />
+            <span className="text-xs font-medium">Apontamento Campo</span>
+          </Link>
+        )}
+        {canViewModule('campo_usuarios') && (
+          <Link
+            to="/campo/usuarios"
+            className="sidebar-item w-full flex items-center gap-2 hover:bg-sidebar-accent py-1.5 mt-0.5"
+          >
+            <Users className="w-4 h-4" />
+            <span className="text-xs">Usuários de Campo</span>
+          </Link>
+        )}
       </div>
 
       {/* User Profile */}
