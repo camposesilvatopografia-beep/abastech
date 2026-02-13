@@ -36,6 +36,8 @@ interface ReportsTabProps {
   onExportComboiosXLSX: () => void;
   onExportTanquesComboiosPDF: () => void;
   onExportTanquesComboiosXLSX: () => void;
+  onExportTanqueComboioPDF: () => void;
+  onExportTanqueComboioXLSX: () => void;
 }
 
 export function ReportsTab({
@@ -56,6 +58,8 @@ export function ReportsTab({
   onExportComboiosXLSX,
   onExportTanquesComboiosPDF,
   onExportTanquesComboiosXLSX,
+  onExportTanqueComboioPDF,
+  onExportTanqueComboioXLSX,
 }: ReportsTabProps) {
   const dateLabel = startDate && endDate
     ? `${format(startDate, 'dd/MM/yyyy', { locale: ptBR })} — ${format(endDate, 'dd/MM/yyyy', { locale: ptBR })}`
@@ -191,7 +195,46 @@ export function ReportsTab({
         </div>
       </div>
 
-      {/* Combined Report */}
+      {/* Tanque Comboio Report */}
+      <div className="bg-card rounded-xl border border-border overflow-hidden">
+        <div className="bg-gradient-to-r from-amber-600 to-amber-700 px-5 py-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-white/15 flex items-center justify-center">
+              <Truck className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h3 className="text-white font-bold text-base">Tanque Comboio</h3>
+              <p className="text-amber-100 text-xs">Veículos da categoria Tanque Comboio</p>
+            </div>
+          </div>
+        </div>
+        <div className="p-4 space-y-3">
+          <p className="text-xs text-muted-foreground">
+            Relatório exclusivo dos veículos com categoria Tanque Comboio, com tabela de saídas e entradas.
+          </p>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              className="flex-1 gap-1.5 bg-amber-600 hover:bg-amber-700"
+              onClick={onExportTanqueComboioPDF}
+              disabled={isExporting}
+            >
+              <FileText className="w-3.5 h-3.5" />
+              Gerar PDF
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5"
+              onClick={onExportTanqueComboioXLSX}
+              disabled={isExporting}
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5" />
+              Excel
+            </Button>
+          </div>
+        </div>
+      </div>
       <div className="bg-card rounded-xl border border-border overflow-hidden">
         <div className="bg-gradient-to-r from-slate-700 to-slate-800 px-5 py-3.5">
           <div className="flex items-center gap-3">
