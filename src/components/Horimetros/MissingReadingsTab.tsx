@@ -192,7 +192,7 @@ export function MissingReadingsTab({ vehicles, readings, loading, refetch }: Mis
       const currHor = prev.current_value || 0;
       const currKm = (prev as any).current_km || 0;
 
-      const { error } = await supabase.from('horimeter_readings').insert({
+      const { data: insertedRecord, error } = await supabase.from('horimeter_readings').insert({
         vehicle_id: vehicleId,
         reading_date: dateStr,
         current_value: currHor,
@@ -202,7 +202,7 @@ export function MissingReadingsTab({ vehicles, readings, loading, refetch }: Mis
         operator: 'Repetido (não trabalhou)',
         observations: `Repetido do dia ${prev.reading_date} - Equipamento não trabalhou`,
         source: 'system',
-      });
+      }).select('id').single();
       if (error) throw error;
 
       // Sync to Google Sheets
@@ -247,14 +247,22 @@ export function MissingReadingsTab({ vehicles, readings, loading, refetch }: Mis
             }
           } catch { /* use semantic keys as fallback */ }
 
-          await supabase.functions.invoke('google-sheets', {
+          const { error: syncError } = await supabase.functions.invoke('google-sheets', {
             body: { action: 'create', sheetName: 'Horimetros', data: rowData },
           });
+          if (syncError) throw syncError;
+          
+          // Mark as synced in DB
+          if (insertedRecord?.id) {
+            await supabase.from('horimeter_readings')
+              .update({ synced_from_sheet: true })
+              .eq('id', insertedRecord.id);
+          }
           console.log('✓ Repetição sincronizada com planilha Horimetros');
         }
       } catch (syncErr) {
         console.error('Erro ao sincronizar repetição com planilha:', syncErr);
-        // Don't block - DB save was successful
+        toast.warning('Registro salvo no sistema, mas falhou ao sincronizar com a planilha.', { duration: 5000 });
       }
 
       toast.success(`Lançamento repetido para ${format(new Date(dateStr + 'T12:00:00'), 'dd/MM/yyyy')}`);

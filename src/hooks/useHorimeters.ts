@@ -357,6 +357,13 @@ export function useHorimeterReadings(vehicleId?: string) {
           if (syncError) throw syncError;
           
           syncSuccess = true;
+          
+          // Mark as synced in DB
+          if (data?.id) {
+            await supabase.from('horimeter_readings')
+              .update({ synced_from_sheet: true })
+              .eq('id', (data as any).id);
+          }
           console.log('✓ Registro sincronizado com planilha Horimetros');
         } catch (syncErr) {
           console.error('Erro ao sincronizar com planilha (registro salvo no BD):', syncErr);
