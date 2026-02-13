@@ -34,6 +34,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { UserPermissionsModal } from '@/components/Cadastros/UserPermissionsModal';
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -311,6 +312,7 @@ export function FieldUsersPage() {
   const [formData, setFormData] = useState<UserFormData>(initialFormData);
   const [saving, setSaving] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [permUser, setPermUser] = useState<FieldUser | null>(null);
   
   // History state
   const [showHistoryModal, setShowHistoryModal] = useState(false);
@@ -1032,6 +1034,14 @@ export function FieldUsersPage() {
                             <Button
                               variant="ghost"
                               size="icon"
+                              onClick={() => setPermUser(user)}
+                              title="Permissões"
+                            >
+                              <Shield className="w-4 h-4 text-primary" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
                               onClick={() => openEditModal(user)}
                               title="Editar"
                             >
@@ -1721,6 +1731,17 @@ export function FieldUsersPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {permUser && (
+        <UserPermissionsModal
+          open={!!permUser}
+          onOpenChange={(open) => !open && setPermUser(null)}
+          userId={permUser.id}
+          userName={permUser.name}
+          userRole={permUser.role || 'operador'}
+          userType="field"
+        />
+      )}
     </div>
   );
 }

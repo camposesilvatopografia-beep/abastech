@@ -482,7 +482,7 @@ export function FieldPage() {
           ? "bg-slate-800/90 border-slate-700" 
           : "bg-white/90 border-slate-200"
       )}>
-        {canViewModule(userRole, 'field_dashboard') && (
+        {canViewModule(userRole, 'field_dashboard', user?.id) && (
           <Button
             variant="ghost"
             size="icon"
@@ -499,7 +499,7 @@ export function FieldPage() {
             <LayoutDashboard className="w-5 h-5" />
           </Button>
         )}
-        {canViewModule(userRole, 'field_abastecimento') && (
+        {canViewModule(userRole, 'field_abastecimento', user?.id) && (
           <Button
             variant="ghost"
             size="icon"
@@ -516,7 +516,7 @@ export function FieldPage() {
             <Fuel className="w-5 h-5" />
           </Button>
         )}
-        {canViewModule(userRole, 'field_horimetros') && (
+        {canViewModule(userRole, 'field_horimetros', user?.id) && (
           <Button
             variant="ghost"
             size="icon"
@@ -533,7 +533,7 @@ export function FieldPage() {
             <Clock className="w-5 h-5" />
           </Button>
         )}
-        {canViewModule(userRole, 'field_os') && (
+        {canViewModule(userRole, 'field_os', user?.id) && (
           <Button
             variant="ghost"
             size="icon"

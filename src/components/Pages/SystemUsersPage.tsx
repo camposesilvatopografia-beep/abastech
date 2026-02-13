@@ -59,6 +59,7 @@ import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { RolePermissionsManager } from '@/components/Cadastros/RolePermissionsManager';
+import { UserPermissionsModal } from '@/components/Cadastros/UserPermissionsModal';
 import type { Database } from '@/integrations/supabase/types';
 
 type SystemUserRole = Database['public']['Enums']['system_user_role'];
@@ -91,6 +92,7 @@ export default function SystemUsersPage() {
   const [editingUser, setEditingUser] = useState<SystemUser | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [permUser, setPermUser] = useState<SystemUser | null>(null);
   
   const [formData, setFormData] = useState({
     name: '',
@@ -485,6 +487,7 @@ export default function SystemUsersPage() {
                     },
                   ]}
                   actions={[
+                    { icon: <Shield className="w-4 h-4 text-primary" />, onClick: () => setPermUser(user) },
                     { icon: <Edit className="w-4 h-4" />, onClick: () => handleEdit(user) },
                     { icon: <Trash2 className="w-4 h-4 text-destructive" />, onClick: () => handleDelete(user) },
                   ]}
@@ -553,6 +556,14 @@ export default function SystemUsersPage() {
                           <Button
                             variant="ghost"
                             size="sm"
+                            onClick={() => setPermUser(user)}
+                            title="Permissões"
+                          >
+                            <Shield className="w-4 h-4 text-primary" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
                             onClick={() => handleEdit(user)}
                             title="Editar"
                           >
@@ -583,6 +594,17 @@ export default function SystemUsersPage() {
           <RolePermissionsManager />
         </TabsContent>
       </Tabs>
+
+      {permUser && (
+        <UserPermissionsModal
+          open={!!permUser}
+          onOpenChange={(open) => !open && setPermUser(null)}
+          userId={permUser.id}
+          userName={permUser.name}
+          userRole={permUser.role || 'operador'}
+          userType="system"
+        />
+      )}
     </div>
   );
 }
