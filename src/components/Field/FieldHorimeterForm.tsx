@@ -506,7 +506,7 @@ export function FieldHorimeterForm({ user, onBack }: FieldHorimeterFormProps) {
           observations: observacao || null,
           source: 'field',
         })
-        .select('*, vehicle:vehicles(*)')
+        .select('id')
         .single();
 
       if (error) throw error;
@@ -541,10 +541,9 @@ export function FieldHorimeterForm({ user, onBack }: FieldHorimeterFormProps) {
         });
       }
 
-      // Sync to Google Sheets
+      // Sync to Google Sheets - use selectedVehicle from state (more reliable than join)
       try {
-        const vehicle = (data as any).vehicle;
-        if (vehicle) {
+        if (selectedVehicle) {
           const [year, month, day] = readingDate.split('-');
           const formattedDate = `${day}/${month}/${year}`;
           
@@ -553,10 +552,10 @@ export function FieldHorimeterForm({ user, onBack }: FieldHorimeterFormProps) {
           
           const semanticData: Record<string, string> = {
             'Data': formattedDate,
-            'Veiculo': vehicle.code || '',
-            'Categoria': vehicle.category || '',
-            'Descricao': vehicle.name || '',
-            'Empresa': vehicle.company || '',
+            'Veiculo': selectedVehicle.code || '',
+            'Categoria': selectedVehicle.category || '',
+            'Descricao': selectedVehicle.name || '',
+            'Empresa': selectedVehicle.company || '',
             'Operador': operador || '',
             'Horimetro Anterior': previousHorimeter ? fmtNum(previousHorimeter) : '',
             'Horimetro Atual': fmtNum(horNum),
@@ -601,6 +600,8 @@ export function FieldHorimeterForm({ user, onBack }: FieldHorimeterFormProps) {
           } else {
             console.log('Horimeter synced to sheet successfully:', syncResult);
           }
+        } else {
+          console.warn('Vehicle data not available for sheet sync');
         }
       } catch (syncErr) {
         console.error('Erro ao sincronizar com planilha:', syncErr);
