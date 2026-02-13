@@ -303,7 +303,7 @@ const initialFormData: UserFormData = {
   required_fields: DEFAULT_REQUIRED_FIELDS,
 };
 
-export function FieldUsersPage() {
+export function FieldUsersPage({ embedded = false }: { embedded?: boolean }) {
   const [users, setUsers] = useState<FieldUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -728,8 +728,8 @@ export function FieldUsersPage() {
   const totalRecords = Object.values(userRecordCounts).reduce((a, b) => a + b, 0);
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
+    <div className={embedded ? "" : "min-h-screen bg-background"}>
+      {!embedded && (
       <div className="sticky top-0 z-10 bg-primary text-primary-foreground p-4 shadow-lg">
         <div className="flex items-center justify-between max-w-5xl mx-auto">
           <div className="flex items-center gap-3">
@@ -863,8 +863,9 @@ export function FieldUsersPage() {
           </div>
         </div>
       </div>
+      )}
 
-      <main className="p-4 md:p-6 space-y-6 max-w-5xl mx-auto">
+      <main className={embedded ? "space-y-6" : "p-4 md:p-6 space-y-6 max-w-5xl mx-auto"}>
         {/* Stats Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Card>

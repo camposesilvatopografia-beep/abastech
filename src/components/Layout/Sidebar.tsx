@@ -319,15 +319,6 @@ export function Sidebar({ activeItem, onItemClick, onClose }: SidebarProps) {
             <span className="text-xs font-medium">Apontamento Campo</span>
           </Link>
         )}
-        {canViewModule('campo_usuarios') && (
-          <Link
-            to="/campo/usuarios"
-            className="sidebar-item w-full flex items-center gap-2 hover:bg-sidebar-accent py-1.5 mt-0.5"
-          >
-            <Users className="w-4 h-4" />
-            <span className="text-xs">Usuários de Campo</span>
-          </Link>
-        )}
       </div>
 
       {/* User Profile */}
