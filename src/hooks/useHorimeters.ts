@@ -245,29 +245,79 @@ export function useHorimeterReadings(vehicleId?: string) {
     }
   }, [vehicleId]);
 
-  // Realtime subscription for live updates
+  // Realtime subscription for live updates — incremental to avoid full refetch
   useEffect(() => {
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+
     const channel = supabase
       .channel('horimeter-readings-realtime')
       .on(
         'postgres_changes',
         {
-          event: '*',
+          event: 'INSERT',
+          schema: 'public',
+          table: 'horimeter_readings',
+        },
+        async (payload) => {
+          console.log('📡 Realtime INSERT:', payload.new?.id);
+          // Fetch the full record with vehicle join
+          const { data } = await supabase
+            .from('horimeter_readings')
+            .select('*, vehicle:vehicles(*)')
+            .eq('id', (payload.new as any).id)
+            .single();
+          if (data) {
+            setReadings(prev => {
+              // Avoid duplicates
+              if (prev.some(r => r.id === data.id)) return prev;
+              return [data as HorimeterWithVehicle, ...prev];
+            });
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'horimeter_readings',
+        },
+        async (payload) => {
+          console.log('📡 Realtime UPDATE:', payload.new?.id);
+          const { data } = await supabase
+            .from('horimeter_readings')
+            .select('*, vehicle:vehicles(*)')
+            .eq('id', (payload.new as any).id)
+            .single();
+          if (data) {
+            setReadings(prev => prev.map(r => r.id === data.id ? data as HorimeterWithVehicle : r));
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
           schema: 'public',
           table: 'horimeter_readings',
         },
         (payload) => {
-          console.log('📡 Realtime horimeter update:', payload.eventType);
-          // Refetch on any change to ensure consistency with vehicle joins
-          fetchReadings();
+          console.log('📡 Realtime DELETE:', payload.old?.id);
+          const deletedId = (payload.old as any)?.id;
+          if (deletedId) {
+            setReadings(prev => prev.filter(r => r.id !== deletedId));
+          }
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('📡 Horimeter realtime status:', status);
+      });
 
     return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
       supabase.removeChannel(channel);
     };
-  }, [fetchReadings]);
+  }, []);
 
   const createReading = useCallback(async (reading: {
     vehicle_id: string;
