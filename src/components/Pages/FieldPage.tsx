@@ -238,45 +238,11 @@ export function FieldPage() {
         let sheetSynced = 0;
         for (const record of pendingRecords) {
           try {
-            const [year, month, day] = (record.record_date || '').split('-');
-            const formattedDate = day && month && year ? `${day}/${month}/${year}` : record.record_date;
             
-            const fmtNum = (v: any) => {
-              const n = Number(v);
-              return n > 0 ? n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '';
-            };
-
-            const sheetData: Record<string, any> = {
-              'DATA': formattedDate,
-              'HORA': record.record_time || '',
-              'TIPO': (record as any).record_type === 'Entrada' ? 'Entrada' : 'Saida',
-              'VEICULO': record.vehicle_code || '',
-              'DESCRICAO': record.vehicle_description || '',
-              'CATEGORIA': record.category || '',
-              'MOTORISTA': record.operator_name || '',
-              'EMPRESA': record.company || '',
-              'OBRA': record.work_site || '',
-              'HORIMETRO ANTERIOR': fmtNum(record.horimeter_previous),
-              'HORIMETRO ATUAL': fmtNum(record.horimeter_current),
-              'KM ANTERIOR': fmtNum(record.km_previous),
-              'KM ATUAL': fmtNum(record.km_current),
-              'QUANTIDADE': fmtNum(record.fuel_quantity),
-              'TIPO DE COMBUSTIVEL': record.fuel_type || '',
-              'LOCAL': record.location || '',
-              'ARLA': (record.arla_quantity && Number(record.arla_quantity) > 0) ? 'TRUE' : 'FALSE',
-              'QUANTIDADE DE ARLA': fmtNum(record.arla_quantity),
-              'OBSERVAÇÃO': record.observations || '',
-              'LUBRIFICAR': (record as any).lubricant ? 'TRUE' : 'FALSE',
-              'LUBRIFICANTE': (record as any).lubricant || '',
-              'COMPLETAR ÓLEO': (record as any).oil_type ? 'TRUE' : 'FALSE',
-              'TIPO ÓLEO': (record as any).oil_type || '',
-              'QUANTIDADE ÓLEO': fmtNum((record as any).oil_quantity),
-              'SOPRA FILTRO': fmtNum((record as any).filter_blow_quantity),
-              'FORNECEDOR': (record as any).supplier || '',
-              'NOTA FISCAL': (record as any).invoice_number || '',
-              'VALOR UNITÁRIO': fmtNum((record as any).unit_price),
-              'LOCAL DE ENTRADA': (record as any).entry_location || '',
-            };
+            
+            const { buildFuelSheetData, dbRecordToSheetRecord } = await import('@/lib/fuelSheetMapping');
+            const sheetRecord = dbRecordToSheetRecord(record);
+            const sheetData = buildFuelSheetData(sheetRecord);
 
             const response = await supabase.functions.invoke('google-sheets', {
               body: { action: 'create', sheetName: 'AbastecimentoCanteiro01', data: sheetData },

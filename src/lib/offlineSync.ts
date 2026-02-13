@@ -84,42 +84,36 @@ async function syncFuelRecord(record: OfflineRecord) {
     const [year, month, day] = (data.record_date || '').split('-');
     const formattedDate = day && month && year ? `${day}/${month}/${year}` : data.record_date;
     
-    const fmtNum = (v: any) => {
-      const n = Number(v);
-      return n > 0 ? formatPtBRNumber(n, { decimals: 2 }) : '';
-    };
-
-    const sheetData: Record<string, any> = {
-      'DATA': formattedDate,
-      'HORA': data.record_time || '',
-      'TIPO': data.record_type === 'entrada' || data.record_type === 'Entrada' ? 'Entrada' : 'Saida',
-      'VEICULO': data.vehicle_code || '',
-      'DESCRICAO': data.vehicle_description || '',
-      'CATEGORIA': data.category || '',
-      'MOTORISTA': data.operator_name || '',
-      'EMPRESA': data.company || '',
-      'OBRA': data.work_site || '',
-      'HORIMETRO ANTERIOR': fmtNum(data.horimeter_previous),
-      'HORIMETRO ATUAL': fmtNum(data.horimeter_current),
-      'KM ANTERIOR': fmtNum(data.km_previous),
-      'KM ATUAL': fmtNum(data.km_current),
-      'QUANTIDADE': fmtNum(data.fuel_quantity),
-      'TIPO DE COMBUSTIVEL': data.fuel_type || '',
-      'LOCAL': data.location || '',
-      'ARLA': (data.arla_quantity && Number(data.arla_quantity) > 0) ? 'TRUE' : 'FALSE',
-      'QUANTIDADE DE ARLA': fmtNum(data.arla_quantity),
-      'OBSERVAÇÃO': data.observations || '',
-      'LUBRIFICAR': data.lubricant ? 'TRUE' : 'FALSE',
-      'LUBRIFICANTE': data.lubricant || '',
-      'COMPLETAR ÓLEO': data.oil_type ? 'TRUE' : 'FALSE',
-      'TIPO ÓLEO': data.oil_type || '',
-      'QUANTIDADE ÓLEO': fmtNum(data.oil_quantity),
-      'SOPRA FILTRO': fmtNum(data.filter_blow_quantity),
-      'FORNECEDOR': data.supplier || '',
-      'NOTA FISCAL': data.invoice_number || '',
-      'VALOR UNITÁRIO': fmtNum(data.unit_price),
-      'LOCAL DE ENTRADA': data.entry_location || '',
-    };
+    const { buildFuelSheetData } = await import('@/lib/fuelSheetMapping');
+    const sheetData = buildFuelSheetData({
+      id: savedRecord?.id || '',
+      date: formattedDate,
+      time: data.record_time || '',
+      recordType: data.record_type || 'saida',
+      category: data.category || '',
+      vehicleCode: data.vehicle_code || '',
+      vehicleDescription: data.vehicle_description || '',
+      operatorName: data.operator_name || '',
+      company: data.company || '',
+      workSite: data.work_site || '',
+      horimeterPrevious: Number(data.horimeter_previous) || 0,
+      horimeterCurrent: Number(data.horimeter_current) || 0,
+      kmPrevious: Number(data.km_previous) || 0,
+      kmCurrent: Number(data.km_current) || 0,
+      fuelQuantity: Number(data.fuel_quantity) || 0,
+      fuelType: data.fuel_type || '',
+      location: data.location || '',
+      arlaQuantity: Number(data.arla_quantity) || 0,
+      observations: data.observations || '',
+      oilType: data.oil_type || '',
+      oilQuantity: Number(data.oil_quantity) || 0,
+      filterBlowQuantity: Number(data.filter_blow_quantity) || 0,
+      lubricant: data.lubricant || '',
+      supplier: data.supplier || '',
+      invoiceNumber: data.invoice_number || '',
+      unitPrice: Number(data.unit_price) || 0,
+      entryLocation: data.entry_location || '',
+    });
 
     const response = await supabase.functions.invoke('google-sheets', {
       body: { action: 'create', sheetName: 'AbastecimentoCanteiro01', data: sheetData },

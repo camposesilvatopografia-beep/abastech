@@ -1251,42 +1251,37 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
     entryLocation?: string;
   }): Promise<boolean> => {
     try {
-      // Format data according to sheet columns (must match exact header names in spreadsheet)
-      const sheetData: Record<string, any> = {
-        'DATA': recordData.date,
-        'HORA': recordData.time,
-        'TIPO': recordData.recordType === 'entrada' ? 'Entrada' : 'Saida',
-        'VEICULO': recordData.vehicleCode,
-        'DESCRICAO': recordData.vehicleDescription,
-        'CATEGORIA': recordData.category,
-        'MOTORISTA': recordData.operatorName,
-        'EMPRESA': recordData.company,
-        'OBRA': recordData.workSite,
-        'HORIMETRO ANTERIOR': recordData.horimeterPrevious || '',
-        'HORIMETRO ATUAL': recordData.horimeterCurrent || '',
-        'KM ANTERIOR': recordData.kmPrevious || '',
-        'KM ATUAL': recordData.kmCurrent || '',
-        'QUANTIDADE': recordData.fuelQuantity,
-        'TIPO DE COMBUSTIVEL': recordData.fuelType,
-        'LOCAL': recordData.location,
-        'ARLA': recordData.arlaQuantity ? 'TRUE' : 'FALSE',
-        'QUANTIDADE DE ARLA': recordData.arlaQuantity || '',
-        'OBSERVAÇÃO': recordData.observations || '',
-        'FOTO BOMBA': recordData.photoPumpUrl || '',
-        'FOTO HORIMETRO': recordData.photoHorimeterUrl || '',
-        // Equipment fields - column names must match spreadsheet exactly
-        'LUBRIFICAR': recordData.lubricant ? 'TRUE' : 'FALSE',
-        'LUBRIFICANTE': recordData.lubricant || '',
-        'COMPLETAR ÓLEO': recordData.oilType ? 'TRUE' : 'FALSE',
-        'TIPO ÓLEO': recordData.oilType || '',
-        'QUANTIDADE ÓLEO': recordData.oilQuantity || '',
-        'SOPRA FILTRO': recordData.filterBlowQuantity || '',
-        // Entry fields
-        'FORNECEDOR': recordData.supplier || '',
-        'NOTA FISCAL': recordData.invoiceNumber || '',
-        'VALOR UNITÁRIO': recordData.unitPrice || '',
-        'LOCAL DE ENTRADA': recordData.entryLocation || '',
-      };
+      const { buildFuelSheetData } = await import('@/lib/fuelSheetMapping');
+      const sheetData = buildFuelSheetData({
+        date: recordData.date,
+        time: recordData.time,
+        recordType: recordData.recordType,
+        category: recordData.category,
+        vehicleCode: recordData.vehicleCode,
+        vehicleDescription: recordData.vehicleDescription,
+        operatorName: recordData.operatorName,
+        company: recordData.company,
+        workSite: recordData.workSite,
+        horimeterPrevious: recordData.horimeterPrevious,
+        horimeterCurrent: recordData.horimeterCurrent,
+        kmPrevious: recordData.kmPrevious || 0,
+        kmCurrent: recordData.kmCurrent || 0,
+        fuelQuantity: recordData.fuelQuantity,
+        fuelType: recordData.fuelType,
+        location: recordData.location,
+        arlaQuantity: recordData.arlaQuantity,
+        observations: recordData.observations,
+        photoPumpUrl: recordData.photoPumpUrl,
+        photoHorimeterUrl: recordData.photoHorimeterUrl,
+        oilType: recordData.oilType,
+        oilQuantity: recordData.oilQuantity,
+        filterBlowQuantity: recordData.filterBlowQuantity,
+        lubricant: recordData.lubricant,
+        supplier: recordData.supplier,
+        invoiceNumber: recordData.invoiceNumber,
+        unitPrice: recordData.unitPrice,
+        entryLocation: recordData.entryLocation,
+      });
 
       const response = await supabase.functions.invoke('google-sheets', {
         body: {
