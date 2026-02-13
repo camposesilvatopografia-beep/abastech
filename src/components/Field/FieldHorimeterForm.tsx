@@ -854,46 +854,77 @@ export function FieldHorimeterForm({ user, onBack }: FieldHorimeterFormProps) {
               variant="outline"
               role="combobox"
               className={cn(
-                "w-full h-14 justify-between text-left font-medium text-base",
+                "w-full h-auto min-h-[3.5rem] justify-between text-left font-medium text-base py-2",
                 isDark ? "bg-slate-700 border-slate-600 text-white" : "bg-white border-slate-300",
                 !selectedVehicleId && "text-muted-foreground"
               )}
             >
               {selectedVehicle ? (
-                <span className="truncate">
-                  <span className="font-bold">{selectedVehicle.code}</span> - {selectedVehicle.name}
-                </span>
+                <div className="flex flex-col gap-0.5 min-w-0 overflow-hidden">
+                  <span className="font-bold text-base truncate">{selectedVehicle.code}</span>
+                  <span className="text-xs text-muted-foreground truncate">{selectedVehicle.name}</span>
+                </div>
               ) : (
                 "Selecione o veículo"
               )}
               <ChevronsUpDown className="ml-2 h-5 w-5 shrink-0 opacity-50" />
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="w-[calc(100vw-2rem)] p-0" align="start">
-            <Command>
+          <PopoverContent 
+            className={cn(
+              "w-[calc(100vw-2rem)] p-0 z-50",
+              isDark ? "bg-slate-800 border-slate-700" : "bg-white"
+            )} 
+            align="start"
+            sideOffset={4}
+          >
+            <Command className={isDark ? "bg-slate-800" : ""}>
               <CommandInput
-                placeholder="Buscar veículo..."
+                placeholder="Buscar por código ou nome..."
                 value={vehicleSearch}
                 onValueChange={setVehicleSearch}
                 autoFocus
+                className="h-12 text-base"
               />
-              <CommandList className="max-h-60">
-                <CommandEmpty>Nenhum veículo encontrado</CommandEmpty>
+              <CommandList className="max-h-[50vh]">
+                <CommandEmpty>
+                  <div className="flex flex-col items-center gap-2 py-4 text-muted-foreground">
+                    <Search className="w-5 h-5" />
+                    <span className="text-sm">Nenhum veículo encontrado</span>
+                  </div>
+                </CommandEmpty>
                 <CommandGroup>
                   {filteredVehicles.slice(0, 50).map(v => (
                     <CommandItem
                       key={v.id}
-                      value={v.code}
+                      value={`${v.code} ${v.name} ${v.category || ''}`}
                       onSelect={() => {
                         setSelectedVehicleId(v.id);
                         setVehicleOpen(false);
                         setVehicleSearch('');
                       }}
+                      className={cn(
+                        "py-3 px-3 cursor-pointer",
+                        selectedVehicleId === v.id && (isDark ? "bg-green-900/30 border-l-2 border-green-500" : "bg-green-50 border-l-2 border-green-500")
+                      )}
                     >
-                      <Check className={cn("mr-2 h-4 w-4", selectedVehicleId === v.id ? "opacity-100" : "opacity-0")} />
-                      <div className="flex flex-col">
-                        <span className="font-bold">{v.code}</span>
-                        <span className="text-xs text-muted-foreground">{v.name} {v.category ? `• ${v.category}` : ''}</span>
+                      <Check className={cn("mr-2 h-4 w-4 shrink-0", selectedVehicleId === v.id ? "opacity-100 text-green-500" : "opacity-0")} />
+                      <div className="flex flex-col min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-sm">{v.code}</span>
+                          {v.category && (
+                            <span className={cn(
+                              "text-[10px] px-1.5 py-0.5 rounded-full font-medium",
+                              v.category?.toLowerCase().includes('equip') 
+                                ? (isDark ? "bg-amber-900/40 text-amber-400" : "bg-amber-100 text-amber-700")
+                                : (isDark ? "bg-blue-900/40 text-blue-400" : "bg-blue-100 text-blue-700")
+                            )}>
+                              {v.category}
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-xs text-muted-foreground truncate">{v.name}</span>
+                        {v.company && <span className="text-[10px] text-muted-foreground/70 truncate">{v.company}</span>}
                       </div>
                     </CommandItem>
                   ))}
@@ -903,45 +934,65 @@ export function FieldHorimeterForm({ user, onBack }: FieldHorimeterFormProps) {
           </PopoverContent>
         </Popover>
 
+        {/* Vehicle info card */}
         {selectedVehicle && (
-          <div className={cn("text-sm rounded-lg p-2", isDark ? "bg-slate-700/50" : "bg-blue-50")}>
-            <span className="font-medium">{selectedVehicle.category || 'Equipamento'}</span>
-            {selectedVehicle.company && <span className="ml-2 opacity-70">• {selectedVehicle.company}</span>}
-          </div>
-        )}
-
-        {/* Previous readings summary */}
-        {selectedVehicle && (previousHorimeter > 0 || previousKm > 0) && (
           <div className={cn(
-            "rounded-lg p-3 border",
-            isDark ? "bg-slate-700/30 border-slate-600" : "bg-slate-50 border-slate-200"
+            "rounded-xl p-3 border space-y-2",
+            isDark ? "bg-slate-700/40 border-slate-600" : "bg-gradient-to-br from-blue-50 to-slate-50 border-blue-200"
           )}>
-            <div className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
-              <History className="w-3.5 h-3.5" />
-              Último registro
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className={cn(
+                  "text-xs px-2 py-0.5 rounded-full font-semibold",
+                  selectedVehicle.category?.toLowerCase().includes('equip')
+                    ? (isDark ? "bg-amber-900/40 text-amber-400" : "bg-amber-100 text-amber-700")
+                    : (isDark ? "bg-blue-900/40 text-blue-400" : "bg-blue-100 text-blue-700")
+                )}>
+                  {selectedVehicle.category || 'Equipamento'}
+                </span>
+                {selectedVehicle.company && (
+                  <span className="text-xs text-muted-foreground">{selectedVehicle.company}</span>
+                )}
+              </div>
             </div>
-            <div className="flex items-center gap-4">
-              {previousHorimeter > 0 && (
-                <div className="flex items-center gap-1.5">
-                  <Clock className="w-4 h-4 text-amber-500" />
-                  <span className={cn("font-bold text-base", isDark ? "text-amber-400" : "text-amber-700")}>
-                    {previousHorimeter.toLocaleString('pt-BR')}h
-                  </span>
+            {selectedVehicle.description && selectedVehicle.description !== selectedVehicle.name && (
+              <p className="text-xs text-muted-foreground">{selectedVehicle.description}</p>
+            )}
+
+            {/* Previous readings */}
+            {(previousHorimeter > 0 || previousKm > 0) && (
+              <div className={cn(
+                "rounded-lg p-2.5 border mt-1",
+                isDark ? "bg-slate-800/60 border-slate-600" : "bg-white/80 border-slate-200"
+              )}>
+                <div className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1.5 flex items-center gap-1">
+                  <History className="w-3 h-3" />
+                  Último Registro
                 </div>
-              )}
-              {previousKm > 0 && (
-                <div className="flex items-center gap-1.5">
-                  <Gauge className="w-4 h-4 text-blue-500" />
-                  <span className={cn("font-bold text-base", isDark ? "text-blue-400" : "text-blue-700")}>
-                    {previousKm.toLocaleString('pt-BR')} km
-                  </span>
+                <div className="flex items-center gap-4">
+                  {previousHorimeter > 0 && (
+                    <div className="flex items-center gap-1.5">
+                      <Clock className="w-4 h-4 text-amber-500" />
+                      <span className={cn("font-bold text-sm", isDark ? "text-amber-400" : "text-amber-700")}>
+                        {previousHorimeter.toLocaleString('pt-BR')}h
+                      </span>
+                    </div>
+                  )}
+                  {previousKm > 0 && (
+                    <div className="flex items-center gap-1.5">
+                      <Gauge className="w-4 h-4 text-blue-500" />
+                      <span className={cn("font-bold text-sm", isDark ? "text-blue-400" : "text-blue-700")}>
+                        {previousKm.toLocaleString('pt-BR')} km
+                      </span>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-            {vehicleHistory.length > 0 && (
-              <div className="text-xs text-muted-foreground mt-1">
-                em {format(new Date(vehicleHistory[0].reading_date + 'T12:00:00'), 'dd/MM/yyyy', { locale: ptBR })}
-                {vehicleHistory[0].operator && ` • ${vehicleHistory[0].operator}`}
+                {vehicleHistory.length > 0 && (
+                  <div className="text-[10px] text-muted-foreground mt-1">
+                    em {format(new Date(vehicleHistory[0].reading_date + 'T12:00:00'), 'dd/MM/yyyy', { locale: ptBR })}
+                    {vehicleHistory[0].operator && ` • ${vehicleHistory[0].operator}`}
+                  </div>
+                )}
               </div>
             )}
           </div>
