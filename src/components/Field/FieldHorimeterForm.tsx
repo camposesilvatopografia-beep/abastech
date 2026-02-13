@@ -888,7 +888,9 @@ export function FieldHorimeterForm({ user, onBack }: FieldHorimeterFormProps) {
               isDark ? "bg-slate-800 border-slate-700" : "bg-white"
             )} 
             align="start"
+            side="bottom"
             sideOffset={4}
+            avoidCollisions={false}
           >
             <Command className={isDark ? "bg-slate-800" : ""}>
               <CommandInput
