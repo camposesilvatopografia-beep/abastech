@@ -196,6 +196,7 @@ export function AbastecimentoPage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [sortByDescription, setSortByDescription] = useState(false);
+  const [reportCategoryFilter, setReportCategoryFilter] = useState('all');
   
   // Inline editing state for expanded rows
   const [expandedRowId, setExpandedRowId] = useState<number | null>(null);
@@ -2960,29 +2961,47 @@ export function AbastecimentoPage() {
           />
         )}
 
-        {activeTab === 'relatorios' && (
-          <ReportsTab
-            isExporting={isExporting}
-            filteredRowsCount={filteredRows.length}
-            startDate={startDate}
-            endDate={endDate}
-            sortByDescription={sortByDescription}
-            onToggleSortByDescription={() => setSortByDescription(!sortByDescription)}
-            onExportPDF={exportPDF}
-            onExportXLSX={exportToXLSX}
-            onExportPDFPorEmpresa={exportPDFPorEmpresa}
-            onExportPorEmpresaXLSX={exportPorEmpresaToXLSX}
-            onExportDetailedPDF={exportDetailedPDF}
-            onExportTanquesPDF={() => exportTanquesPDF(filteredRows, startDate || new Date(), buildStockData(), obraSettings, sortByDescription)}
-            onExportTanquesXLSX={() => exportTanquesXLSX(filteredRows, startDate || new Date(), sortByDescription)}
-            onExportComboiosPDF={() => exportComboiosPDF(filteredRows, startDate || new Date(), buildStockData(), obraSettings, sortByDescription)}
-            onExportComboiosXLSX={() => exportComboiosXLSX(filteredRows, startDate || new Date(), sortByDescription)}
-            onExportTanquesComboiosPDF={() => exportTanquesComboiosPDF(filteredRows, startDate || new Date(), buildStockData(), obraSettings, sortByDescription)}
-            onExportTanquesComboiosXLSX={() => exportTanquesComboiosXLSX(filteredRows, startDate || new Date(), sortByDescription)}
-            onExportTanqueComboioPDF={() => exportTanqueComboioPDF(filteredRows, startDate || new Date(), obraSettings, sortByDescription)}
-            onExportTanqueComboioXLSX={() => exportTanqueComboioXLSX(filteredRows, startDate || new Date(), sortByDescription)}
-          />
-        )}
+        {activeTab === 'relatorios' && (() => {
+          const availableCategories = Array.from(new Set(
+            filteredRows
+              .map(r => String(r['CATEGORIA'] || r['Categoria'] || '').trim())
+              .filter(c => c.length > 0)
+          )).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+          
+          const reportRows = reportCategoryFilter === 'all'
+            ? filteredRows
+            : filteredRows.filter(r => {
+                const cat = String(r['CATEGORIA'] || r['Categoria'] || '').trim();
+                return cat === reportCategoryFilter;
+              });
+
+          return (
+            <ReportsTab
+              isExporting={isExporting}
+              filteredRowsCount={reportRows.length}
+              startDate={startDate}
+              endDate={endDate}
+              sortByDescription={sortByDescription}
+              availableCategories={availableCategories}
+              selectedCategory={reportCategoryFilter}
+              onCategoryChange={setReportCategoryFilter}
+              onToggleSortByDescription={() => setSortByDescription(!sortByDescription)}
+              onExportPDF={() => exportPDF()}
+              onExportXLSX={() => exportToXLSX()}
+              onExportPDFPorEmpresa={() => exportPDFPorEmpresa()}
+              onExportPorEmpresaXLSX={() => exportPorEmpresaToXLSX()}
+              onExportDetailedPDF={() => exportDetailedPDF()}
+              onExportTanquesPDF={() => exportTanquesPDF(reportRows, startDate || new Date(), buildStockData(), obraSettings, sortByDescription)}
+              onExportTanquesXLSX={() => exportTanquesXLSX(reportRows, startDate || new Date(), sortByDescription)}
+              onExportComboiosPDF={() => exportComboiosPDF(reportRows, startDate || new Date(), buildStockData(), obraSettings, sortByDescription)}
+              onExportComboiosXLSX={() => exportComboiosXLSX(reportRows, startDate || new Date(), sortByDescription)}
+              onExportTanquesComboiosPDF={() => exportTanquesComboiosPDF(reportRows, startDate || new Date(), buildStockData(), obraSettings, sortByDescription)}
+              onExportTanquesComboiosXLSX={() => exportTanquesComboiosXLSX(reportRows, startDate || new Date(), sortByDescription)}
+              onExportTanqueComboioPDF={() => exportTanqueComboioPDF(reportRows, startDate || new Date(), obraSettings, sortByDescription)}
+              onExportTanqueComboioXLSX={() => exportTanqueComboioXLSX(reportRows, startDate || new Date(), sortByDescription)}
+            />
+          );
+        })()}
       </div>
 
       {/* Detail Modal */}
