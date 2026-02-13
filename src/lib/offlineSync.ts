@@ -45,7 +45,7 @@ async function syncFuelRecord(record: OfflineRecord) {
   const data = record.data;
 
   // Insert into Supabase
-  const { error } = await supabase.from('field_fuel_records').insert({
+  const { data: savedRecord, error } = await supabase.from('field_fuel_records').insert({
     vehicle_code: data.vehicle_code,
     vehicle_description: data.vehicle_description || null,
     record_date: data.record_date,
@@ -75,9 +75,65 @@ async function syncFuelRecord(record: OfflineRecord) {
     record_type: data.record_type || 'abastecimento',
     work_site: data.work_site || null,
     entry_location: data.entry_location || null,
-  });
+  }).select('id').single();
 
   if (error) throw error;
+
+  // Sync to Google Sheets
+  try {
+    const [year, month, day] = (data.record_date || '').split('-');
+    const formattedDate = day && month && year ? `${day}/${month}/${year}` : data.record_date;
+    
+    const fmtNum = (v: any) => {
+      const n = Number(v);
+      return n > 0 ? formatPtBRNumber(n, { decimals: 2 }) : '';
+    };
+
+    const sheetData: Record<string, any> = {
+      'DATA': formattedDate,
+      'HORA': data.record_time || '',
+      'TIPO': data.record_type === 'entrada' || data.record_type === 'Entrada' ? 'Entrada' : 'Saida',
+      'VEICULO': data.vehicle_code || '',
+      'DESCRICAO': data.vehicle_description || '',
+      'CATEGORIA': data.category || '',
+      'MOTORISTA': data.operator_name || '',
+      'EMPRESA': data.company || '',
+      'OBRA': data.work_site || '',
+      'HORIMETRO ANTERIOR': fmtNum(data.horimeter_previous),
+      'HORIMETRO ATUAL': fmtNum(data.horimeter_current),
+      'KM ANTERIOR': fmtNum(data.km_previous),
+      'KM ATUAL': fmtNum(data.km_current),
+      'QUANTIDADE': fmtNum(data.fuel_quantity),
+      'TIPO DE COMBUSTIVEL': data.fuel_type || '',
+      'LOCAL': data.location || '',
+      'ARLA': (data.arla_quantity && Number(data.arla_quantity) > 0) ? 'TRUE' : 'FALSE',
+      'QUANTIDADE DE ARLA': fmtNum(data.arla_quantity),
+      'OBSERVAÇÃO': data.observations || '',
+      'LUBRIFICAR': data.lubricant ? 'TRUE' : 'FALSE',
+      'LUBRIFICANTE': data.lubricant || '',
+      'COMPLETAR ÓLEO': data.oil_type ? 'TRUE' : 'FALSE',
+      'TIPO ÓLEO': data.oil_type || '',
+      'QUANTIDADE ÓLEO': fmtNum(data.oil_quantity),
+      'SOPRA FILTRO': fmtNum(data.filter_blow_quantity),
+      'FORNECEDOR': data.supplier || '',
+      'NOTA FISCAL': data.invoice_number || '',
+      'VALOR UNITÁRIO': fmtNum(data.unit_price),
+      'LOCAL DE ENTRADA': data.entry_location || '',
+    };
+
+    const response = await supabase.functions.invoke('google-sheets', {
+      body: { action: 'create', sheetName: 'AbastecimentoCanteiro01', data: sheetData },
+    });
+
+    if (!response.error && savedRecord?.id) {
+      await supabase
+        .from('field_fuel_records')
+        .update({ synced_to_sheet: true })
+        .eq('id', savedRecord.id);
+    }
+  } catch (syncErr) {
+    console.warn('[OfflineSync] Sheet sync failed for fuel record (DB saved):', syncErr);
+  }
 }
 
 async function syncHorimeterRecord(record: OfflineRecord) {
