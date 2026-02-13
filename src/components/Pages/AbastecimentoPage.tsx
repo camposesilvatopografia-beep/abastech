@@ -81,7 +81,7 @@ import { Package2, Wrench, BarChart } from 'lucide-react';
 import { useObraSettings } from '@/hooks/useObraSettings';
 import { HorimeterCorrectionsTab } from '@/components/Abastecimento/HorimeterCorrectionsTab';
 import { VehicleConsumptionDetailTab } from '@/components/Abastecimento/VehicleConsumptionDetailTab';
-import { exportTanquesComboiosPDF, exportTanquesComboiosXLSX, exportTanquesPDF, exportTanquesXLSX, exportComboiosPDF, exportComboiosXLSX, exportTanqueComboioPDF, exportTanqueComboioXLSX, type TanquesComboiosStockData } from '@/components/Abastecimento/TanquesComboiosReport';
+import { exportTanquesComboiosPDF, exportTanquesComboiosXLSX, exportTanquesPDF, exportTanquesXLSX, exportComboiosPDF, exportComboiosXLSX, type TanquesComboiosStockData } from '@/components/Abastecimento/TanquesComboiosReport';
 import { ReportsTab } from '@/components/Abastecimento/ReportsTab';
 
 const TABS = [
@@ -2997,8 +2997,6 @@ export function AbastecimentoPage() {
               onExportComboiosXLSX={() => exportComboiosXLSX(reportRows, startDate || new Date(), sortByDescription)}
               onExportTanquesComboiosPDF={() => exportTanquesComboiosPDF(reportRows, startDate || new Date(), buildStockData(), obraSettings, sortByDescription)}
               onExportTanquesComboiosXLSX={() => exportTanquesComboiosXLSX(reportRows, startDate || new Date(), sortByDescription)}
-              onExportTanqueComboioPDF={() => exportTanqueComboioPDF(reportRows, startDate || new Date(), obraSettings, sortByDescription)}
-              onExportTanqueComboioXLSX={() => exportTanqueComboioXLSX(reportRows, startDate || new Date(), sortByDescription)}
             />
           );
         })()}
