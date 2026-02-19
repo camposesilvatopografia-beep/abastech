@@ -2,12 +2,15 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   AlertCircle,
   CalendarIcon,
+  Check,
   ChevronDown,
   ChevronLeft,
   ChevronUp,
   Clock,
   Copy,
   Gauge,
+  Grid3X3,
+  List,
   Loader2,
   Plus,
   Search,
@@ -21,6 +24,16 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { getSheetData } from '@/lib/googleSheets';
 import { parsePtBRNumber, formatPtBRNumber } from '@/lib/ptBRNumber';
@@ -96,7 +109,11 @@ export function FieldPendingHorimeters({ onBack, onRegister }: FieldPendingHorim
   const [searchFilter, setSearchFilter] = useState('');
   const [specificDate, setSpecificDate] = useState<Date | undefined>(undefined);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
-  const [repeatingKey, setRepeatingKey] = useState<string | null>(null); // "vehicleId|date"
+  const [repeatingKey, setRepeatingKey] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'list' | 'matrix'>('matrix');
+  
+  // Confirmation dialog state
+  const [confirmRepeat, setConfirmRepeat] = useState<{ vehicle: Vehicle; dateStr: string } | null>(null);
 
   const dateRange = useMemo(() => {
     if (specificDate) {
@@ -243,7 +260,7 @@ export function FieldPendingHorimeters({ onBack, onRegister }: FieldPendingHorim
     fetchData();
   }, [fetchData]);
 
-  // "Repetir anterior" - clone last reading values for this vehicle on the given date
+  // "Repetir anterior" with confirmation
   const handleRepeatPrevious = useCallback(async (vehicle: Vehicle, dateStr: string) => {
     const last = lastReadingMap[vehicle.id];
     if (!last || (last.value <= 0 && (last.km ?? 0) <= 0)) {
@@ -255,7 +272,6 @@ export function FieldPendingHorimeters({ onBack, onRegister }: FieldPendingHorim
     setRepeatingKey(key);
 
     try {
-      // 1) Insert into horimeter_readings
       const { error: dbError } = await supabase
         .from('horimeter_readings')
         .insert({
@@ -272,12 +288,10 @@ export function FieldPendingHorimeters({ onBack, onRegister }: FieldPendingHorim
 
       if (dbError) throw dbError;
 
-      // 2) Sync to Google Sheets
       try {
         const [year, month, day] = dateStr.split('-');
         const formattedDate = `${day}/${month}/${year}`;
         const fmtNum = (v: number) => v > 0 ? formatPtBRNumber(v, { decimals: 2 }) : '';
-        const interval = 0;
 
         const sheetPayload: Record<string, string> = {
           'Data': formattedDate,
@@ -300,7 +314,6 @@ export function FieldPendingHorimeters({ onBack, onRegister }: FieldPendingHorim
         console.warn('Sheet sync failed (non-critical):', sheetErr);
       }
 
-      // Update local state to remove from pending
       setReadingsMap(prev => {
         const next = { ...prev };
         if (!next[vehicle.id]) next[vehicle.id] = new Set();
@@ -317,6 +330,16 @@ export function FieldPendingHorimeters({ onBack, onRegister }: FieldPendingHorim
     } finally {
       setRepeatingKey(null);
     }
+  }, [lastReadingMap]);
+
+  // Ask for confirmation before repeating
+  const askConfirmRepeat = useCallback((vehicle: Vehicle, dateStr: string) => {
+    const last = lastReadingMap[vehicle.id];
+    if (!last || (last.value <= 0 && (last.km ?? 0) <= 0)) {
+      toast.error('Sem leitura anterior para repetir');
+      return;
+    }
+    setConfirmRepeat({ vehicle, dateStr });
   }, [lastReadingMap]);
 
   const pendingByDate = useMemo(() => {
@@ -350,6 +373,31 @@ export function FieldPendingHorimeters({ onBack, onRegister }: FieldPendingHorim
     return result;
   }, [dateRange, vehicles, readingsMap, lastReadingMap, searchFilter]);
 
+  // For matrix view: all vehicles that have at least one pending day
+  const matrixVehicles = useMemo(() => {
+    const search = searchFilter.toLowerCase().trim();
+    const vehicleIds = new Set<string>();
+    for (const dateStr of dateRange) {
+      for (const v of vehicles) {
+        if (readingsMap[v.id]?.has(dateStr)) continue;
+        if (search) {
+          const match = v.name.toLowerCase().includes(search) ||
+            v.code.toLowerCase().includes(search) ||
+            (v.category?.toLowerCase().includes(search)) ||
+            (v.description?.toLowerCase().includes(search));
+          if (!match) continue;
+        }
+        vehicleIds.add(v.id);
+      }
+    }
+    return vehicles
+      .filter(v => vehicleIds.has(v.id))
+      .sort((a, b) => {
+        const nameCompare = a.name.localeCompare(b.name, 'pt-BR');
+        return nameCompare !== 0 ? nameCompare : a.code.localeCompare(b.code);
+      });
+  }, [dateRange, vehicles, readingsMap, searchFilter]);
+
   const totalPending = useMemo(() => {
     return Object.values(pendingByDate).reduce((sum, arr) => sum + arr.length, 0);
   }, [pendingByDate]);
@@ -367,6 +415,14 @@ export function FieldPendingHorimeters({ onBack, onRegister }: FieldPendingHorim
     return label;
   };
 
+  const formatShortDate = (dateStr: string) => {
+    const today = format(new Date(), 'yyyy-MM-dd');
+    const yesterday = format(subDays(new Date(), 1), 'yyyy-MM-dd');
+    if (dateStr === today) return 'Hoje';
+    if (dateStr === yesterday) return 'Ontem';
+    return format(new Date(dateStr + 'T12:00:00'), 'dd/MM', { locale: ptBR });
+  };
+
   return (
     <div className={cn("p-4 space-y-4 pb-8", isDark ? "text-white" : "text-slate-900")}>
       <button
@@ -382,9 +438,41 @@ export function FieldPendingHorimeters({ onBack, onRegister }: FieldPendingHorim
           <AlertCircle className="w-5 h-5 text-orange-500" />
           Pendências
         </h2>
-        <Badge variant="destructive" className="text-sm px-3 py-1">
-          {totalPending} pendentes
-        </Badge>
+        <div className="flex items-center gap-2">
+          {/* View mode toggle */}
+          <div className={cn(
+            "flex rounded-lg border overflow-hidden",
+            isDark ? "border-slate-700" : "border-slate-300"
+          )}>
+            <button
+              onClick={() => setViewMode('matrix')}
+              className={cn(
+                "p-1.5 transition-colors",
+                viewMode === 'matrix'
+                  ? (isDark ? "bg-blue-600 text-white" : "bg-blue-500 text-white")
+                  : (isDark ? "text-slate-400 hover:bg-slate-700" : "text-slate-500 hover:bg-slate-100")
+              )}
+              title="Visão Matriz"
+            >
+              <Grid3X3 className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setViewMode('list')}
+              className={cn(
+                "p-1.5 transition-colors",
+                viewMode === 'list'
+                  ? (isDark ? "bg-blue-600 text-white" : "bg-blue-500 text-white")
+                  : (isDark ? "text-slate-400 hover:bg-slate-700" : "text-slate-500 hover:bg-slate-100")
+              )}
+              title="Visão Lista"
+            >
+              <List className="w-4 h-4" />
+            </button>
+          </div>
+          <Badge variant="destructive" className="text-sm px-3 py-1">
+            {totalPending} pendentes
+          </Badge>
+        </div>
       </div>
 
       {/* Search filter */}
@@ -397,10 +485,7 @@ export function FieldPendingHorimeters({ onBack, onRegister }: FieldPendingHorim
           className={cn("pl-9 h-10 text-sm", isDark ? "bg-slate-800 border-slate-700" : "")}
         />
         {searchFilter && (
-          <button
-            onClick={() => setSearchFilter('')}
-            className="absolute right-3 top-1/2 -translate-y-1/2"
-          >
+          <button onClick={() => setSearchFilter('')} className="absolute right-3 top-1/2 -translate-y-1/2">
             <X className="w-4 h-4 text-muted-foreground" />
           </button>
         )}
@@ -422,11 +507,7 @@ export function FieldPendingHorimeters({ onBack, onRegister }: FieldPendingHorim
         ))}
         <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
           <PopoverTrigger asChild>
-            <Button
-              size="sm"
-              variant={specificDate ? 'default' : 'outline'}
-              className="h-8 text-xs px-3 gap-1"
-            >
+            <Button size="sm" variant={specificDate ? 'default' : 'outline'} className="h-8 text-xs px-3 gap-1">
               <CalendarIcon className="w-3.5 h-3.5" />
               {specificDate ? format(specificDate, 'dd/MM/yyyy') : 'Data'}
             </Button>
@@ -435,10 +516,7 @@ export function FieldPendingHorimeters({ onBack, onRegister }: FieldPendingHorim
             <Calendar
               mode="single"
               selected={specificDate}
-              onSelect={(date) => {
-                setSpecificDate(date);
-                setDatePickerOpen(false);
-              }}
+              onSelect={(date) => { setSpecificDate(date); setDatePickerOpen(false); }}
               disabled={(date) => date > new Date()}
               initialFocus
               className={cn("p-3 pointer-events-auto")}
@@ -447,12 +525,7 @@ export function FieldPendingHorimeters({ onBack, onRegister }: FieldPendingHorim
           </PopoverContent>
         </Popover>
         {specificDate && (
-          <Button
-            size="sm"
-            variant="ghost"
-            className="h-8 text-xs px-2"
-            onClick={() => setSpecificDate(undefined)}
-          >
+          <Button size="sm" variant="ghost" className="h-8 text-xs px-2" onClick={() => setSpecificDate(undefined)}>
             <X className="w-3.5 h-3.5" />
           </Button>
         )}
@@ -460,24 +533,15 @@ export function FieldPendingHorimeters({ onBack, onRegister }: FieldPendingHorim
 
       {/* Summary cards */}
       <div className="grid grid-cols-3 gap-2">
-        <div className={cn(
-          "rounded-xl p-3 text-center border",
-          isDark ? "bg-slate-800/80 border-slate-700" : "bg-white border-slate-200"
-        )}>
+        <div className={cn("rounded-xl p-3 text-center border", isDark ? "bg-slate-800/80 border-slate-700" : "bg-white border-slate-200")}>
           <div className="text-2xl font-bold text-orange-500">{totalPending}</div>
           <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Total Pendente</div>
         </div>
-        <div className={cn(
-          "rounded-xl p-3 text-center border",
-          isDark ? "bg-slate-800/80 border-slate-700" : "bg-white border-slate-200"
-        )}>
+        <div className={cn("rounded-xl p-3 text-center border", isDark ? "bg-slate-800/80 border-slate-700" : "bg-white border-slate-200")}>
           <div className="text-2xl font-bold text-blue-500">{vehicles.length}</div>
           <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Veículos Ativos</div>
         </div>
-        <div className={cn(
-          "rounded-xl p-3 text-center border",
-          isDark ? "bg-slate-800/80 border-slate-700" : "bg-white border-slate-200"
-        )}>
+        <div className={cn("rounded-xl p-3 text-center border", isDark ? "bg-slate-800/80 border-slate-700" : "bg-white border-slate-200")}>
           <div className="text-2xl font-bold text-green-500">{dateRange.length}</div>
           <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Dias Analisados</div>
         </div>
@@ -487,7 +551,130 @@ export function FieldPendingHorimeters({ onBack, onRegister }: FieldPendingHorim
         <div className="flex items-center justify-center py-12">
           <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
         </div>
+      ) : viewMode === 'matrix' ? (
+        /* ===== MATRIX VIEW ===== */
+        <div className={cn("rounded-xl border overflow-hidden", isDark ? "border-slate-700" : "border-slate-200")}>
+          {matrixVehicles.length === 0 ? (
+            <div className="text-center py-8 text-sm text-green-500 font-medium">
+              ✅ Todos os veículos com lançamento no período
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className={cn(isDark ? "bg-slate-800" : "bg-slate-50")}>
+                    <th className={cn(
+                      "sticky left-0 z-10 text-left px-2 py-2 font-semibold border-b min-w-[140px]",
+                      isDark ? "bg-slate-800 border-slate-700" : "bg-slate-50 border-slate-200"
+                    )}>
+                      Veículo
+                    </th>
+                    {dateRange.map(dateStr => (
+                      <th
+                        key={dateStr}
+                        className={cn(
+                          "px-1 py-2 font-semibold border-b text-center min-w-[60px]",
+                          isDark ? "border-slate-700" : "border-slate-200"
+                        )}
+                      >
+                        {formatShortDate(dateStr)}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {matrixVehicles.map((vehicle, idx) => {
+                    const last = lastReadingMap[vehicle.id];
+                    const canRepeat = last && (last.value > 0 || (last.km ?? 0) > 0);
+
+                    return (
+                      <tr
+                        key={vehicle.id}
+                        className={cn(
+                          idx % 2 === 0
+                            ? (isDark ? "bg-slate-900/40" : "bg-white")
+                            : (isDark ? "bg-slate-800/40" : "bg-slate-50/50")
+                        )}
+                      >
+                        <td className={cn(
+                          "sticky left-0 z-10 px-2 py-1.5 border-b",
+                          isDark ? "border-slate-700" : "border-slate-200",
+                          idx % 2 === 0
+                            ? (isDark ? "bg-slate-900/95" : "bg-white")
+                            : (isDark ? "bg-slate-800/95" : "bg-slate-50")
+                        )}>
+                          <div className="flex flex-col">
+                            <span className="font-bold text-amber-500 text-[11px]">{vehicle.code}</span>
+                            <span className="text-muted-foreground text-[10px] truncate max-w-[120px]">{vehicle.name}</span>
+                          </div>
+                        </td>
+                        {dateRange.map(dateStr => {
+                          const hasReading = readingsMap[vehicle.id]?.has(dateStr);
+                          const isRepeating = repeatingKey === `${vehicle.id}|${dateStr}`;
+
+                          if (hasReading) {
+                            return (
+                              <td key={dateStr} className={cn(
+                                "px-1 py-1.5 text-center border-b",
+                                isDark ? "border-slate-700" : "border-slate-200"
+                              )}>
+                                <div className="flex items-center justify-center">
+                                  <Check className="w-4 h-4 text-green-500" />
+                                </div>
+                              </td>
+                            );
+                          }
+
+                          return (
+                            <td key={dateStr} className={cn(
+                              "px-1 py-1.5 text-center border-b",
+                              isDark ? "border-slate-700" : "border-slate-200"
+                            )}>
+                              <div className="flex items-center justify-center gap-0.5">
+                                <button
+                                  onClick={() => onRegister(vehicle.id, dateStr)}
+                                  className={cn(
+                                    "w-7 h-7 rounded-md flex items-center justify-center transition-colors",
+                                    isDark
+                                      ? "bg-amber-900/40 text-amber-400 hover:bg-amber-800/60"
+                                      : "bg-amber-50 text-amber-600 hover:bg-amber-100"
+                                  )}
+                                  title="Lançar manualmente"
+                                >
+                                  <Plus className="w-3.5 h-3.5" />
+                                </button>
+                                {canRepeat && (
+                                  <button
+                                    onClick={() => askConfirmRepeat(vehicle, dateStr)}
+                                    disabled={isRepeating}
+                                    className={cn(
+                                      "w-7 h-7 rounded-md flex items-center justify-center transition-colors",
+                                      isDark
+                                        ? "bg-blue-900/40 text-blue-400 hover:bg-blue-800/60"
+                                        : "bg-blue-50 text-blue-600 hover:bg-blue-100"
+                                    )}
+                                    title="Repetir anterior"
+                                  >
+                                    {isRepeating
+                                      ? <Loader2 className="w-3 h-3 animate-spin" />
+                                      : <Copy className="w-3 h-3" />
+                                    }
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       ) : (
+        /* ===== LIST VIEW ===== */
         <div className="space-y-3">
           {dateRange.map(dateStr => {
             const pending = pendingByDate[dateStr] || [];
@@ -505,10 +692,7 @@ export function FieldPendingHorimeters({ onBack, onRegister }: FieldPendingHorim
                   <span className="flex items-center gap-2">
                     <CalendarIcon className="w-4 h-4" />
                     {formatDateLabel(dateStr)}
-                    <Badge
-                      variant={pending.length > 0 ? "destructive" : "secondary"}
-                      className="text-[10px] px-1.5"
-                    >
+                    <Badge variant={pending.length > 0 ? "destructive" : "secondary"} className="text-[10px] px-1.5">
                       {pending.length} pendente{pending.length !== 1 ? 's' : ''}
                     </Badge>
                   </span>
@@ -588,7 +772,7 @@ export function FieldPendingHorimeters({ onBack, onRegister }: FieldPendingHorim
                                       "h-9 w-9 p-0 rounded-lg text-blue-500 border-blue-300 hover:bg-blue-50",
                                       isDark && "border-blue-700 hover:bg-blue-900/30"
                                     )}
-                                    onClick={() => handleRepeatPrevious(vehicle, dateStr)}
+                                    onClick={() => askConfirmRepeat(vehicle, dateStr)}
                                     disabled={isRepeating}
                                     title="Repetir anterior"
                                   >
@@ -611,6 +795,72 @@ export function FieldPendingHorimeters({ onBack, onRegister }: FieldPendingHorim
           })}
         </div>
       )}
+
+      {/* Confirmation Dialog for Repeat */}
+      <AlertDialog open={!!confirmRepeat} onOpenChange={(open) => { if (!open) setConfirmRepeat(null); }}>
+        <AlertDialogContent className={cn(isDark ? "bg-slate-800 border-slate-700" : "")}>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Repetir leitura anterior?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2">
+                {confirmRepeat && (
+                  <>
+                    <p>
+                      Confirma repetir os valores do último registro para <strong className="text-foreground">{confirmRepeat.vehicle.code} - {confirmRepeat.vehicle.name}</strong>?
+                    </p>
+                    <div className={cn(
+                      "rounded-lg p-3 border text-sm space-y-1",
+                      isDark ? "bg-slate-700/60 border-slate-600" : "bg-slate-50 border-slate-200"
+                    )}>
+                      <p className="text-muted-foreground text-xs font-medium uppercase">Valores que serão lançados:</p>
+                      {(() => {
+                        const last = lastReadingMap[confirmRepeat.vehicle.id];
+                        if (!last) return null;
+                        return (
+                          <div className="flex items-center gap-4 text-foreground">
+                            <span className="flex items-center gap-1">
+                              <CalendarIcon className="w-3.5 h-3.5 text-muted-foreground" />
+                              {format(new Date(confirmRepeat.dateStr + 'T12:00:00'), 'dd/MM/yyyy')}
+                            </span>
+                            {last.value > 0 && (
+                              <span className="flex items-center gap-1 font-semibold">
+                                <Clock className="w-3.5 h-3.5 text-amber-500" />
+                                {last.value.toLocaleString('pt-BR')}h
+                              </span>
+                            )}
+                            {(last.km ?? 0) > 0 && (
+                              <span className="flex items-center gap-1 font-semibold">
+                                <Gauge className="w-3.5 h-3.5 text-blue-500" />
+                                {(last.km ?? 0).toLocaleString('pt-BR')}km
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })()}
+                      <p className="text-muted-foreground text-xs italic mt-1">Obs: "Equipamento não trabalhou"</p>
+                    </div>
+                  </>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+              onClick={() => {
+                if (confirmRepeat) {
+                  handleRepeatPrevious(confirmRepeat.vehicle, confirmRepeat.dateStr);
+                }
+                setConfirmRepeat(null);
+              }}
+            >
+              <Copy className="w-4 h-4 mr-2" />
+              Confirmar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
