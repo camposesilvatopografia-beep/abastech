@@ -775,7 +775,7 @@ export function FieldPendingHorimeters({ onBack, onRegister }: FieldPendingHorim
                                   return (
                                     <td key={dateStr} className={cn(
                                       "px-1 py-1.5 text-center border-b",
-                                      isDark ? "border-slate-700" : "border-slate-200"
+                                      isDark ? "border-slate-700 bg-green-950/30" : "border-slate-200 bg-green-50"
                                     )}>
                                       <div className="flex items-center justify-center">
                                         <Check className="w-4 h-4 text-green-500" />
@@ -787,7 +787,7 @@ export function FieldPendingHorimeters({ onBack, onRegister }: FieldPendingHorim
                                 return (
                                   <td key={dateStr} className={cn(
                                     "px-1 py-1.5 text-center border-b",
-                                    isDark ? "border-slate-700" : "border-slate-200"
+                                    isDark ? "border-slate-700 bg-red-950/25" : "border-slate-200 bg-red-50/70"
                                   )}>
                                     <div className="flex items-center justify-center gap-0.5">
                                       <button
