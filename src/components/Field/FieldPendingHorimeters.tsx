@@ -6,7 +6,7 @@ import {
   ChevronLeft,
   ChevronUp,
   Clock,
-  Filter,
+  Copy,
   Gauge,
   Loader2,
   Plus,
@@ -23,7 +23,7 @@ import {
 } from '@/components/ui/popover';
 import { supabase } from '@/integrations/supabase/client';
 import { getSheetData } from '@/lib/googleSheets';
-import { parsePtBRNumber } from '@/lib/ptBRNumber';
+import { parsePtBRNumber, formatPtBRNumber } from '@/lib/ptBRNumber';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { format, subDays, eachDayOfInterval, startOfDay } from 'date-fns';
@@ -44,7 +44,7 @@ interface Vehicle {
 
 interface PendingVehicle {
   vehicle: Vehicle;
-  lastReading?: { date: string; value: number; km: number | null };
+  lastReading?: { date: string; value: number; km: number | null; operator?: string | null };
 }
 
 interface FieldPendingHorimetersProps {
@@ -52,7 +52,6 @@ interface FieldPendingHorimetersProps {
   onRegister: (vehicleId: string, date: string) => void;
 }
 
-// Helper to parse dates from sheets (dd/MM/yyyy or serial)
 function parseSheetDate(raw: any): string | null {
   if (!raw) return null;
   const str = String(raw).trim();
@@ -91,15 +90,15 @@ export function FieldPendingHorimeters({ onBack, onRegister }: FieldPendingHorim
   const [loading, setLoading] = useState(true);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [readingsMap, setReadingsMap] = useState<Record<string, Set<string>>>({});
-  const [lastReadingMap, setLastReadingMap] = useState<Record<string, { date: string; value: number; km: number | null }>>({});
+  const [lastReadingMap, setLastReadingMap] = useState<Record<string, { date: string; value: number; km: number | null; operator?: string | null }>>({});
   const [daysBack, setDaysBack] = useState(3);
   const [expandedDates, setExpandedDates] = useState<Record<string, boolean>>({});
   const [searchFilter, setSearchFilter] = useState('');
   const [specificDate, setSpecificDate] = useState<Date | undefined>(undefined);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const [repeatingKey, setRepeatingKey] = useState<string | null>(null); // "vehicleId|date"
 
   const dateRange = useMemo(() => {
-    // If specific date is selected, use only that date
     if (specificDate) {
       return [format(specificDate, 'yyyy-MM-dd')];
     }
@@ -131,7 +130,7 @@ export function FieldPendingHorimeters({ onBack, onRegister }: FieldPendingHorim
       const [readingsRes, fuelRes, sheetData] = await Promise.all([
         supabase
           .from('horimeter_readings')
-          .select('vehicle_id, reading_date, current_value, current_km')
+          .select('vehicle_id, reading_date, current_value, current_km, operator')
           .gte('reading_date', oldestDate)
           .order('reading_date', { ascending: false }),
         supabase
@@ -144,14 +143,14 @@ export function FieldPendingHorimeters({ onBack, onRegister }: FieldPendingHorim
 
       const sheetRows = sheetData?.rows || [];
       const rMap: Record<string, Set<string>> = {};
-      const lrMap: Record<string, { date: string; value: number; km: number | null }> = {};
+      const lrMap: Record<string, { date: string; value: number; km: number | null; operator?: string | null }> = {};
 
       if (readingsRes.data) {
         for (const r of readingsRes.data) {
           if (!rMap[r.vehicle_id]) rMap[r.vehicle_id] = new Set();
           rMap[r.vehicle_id].add(r.reading_date);
           if (!lrMap[r.vehicle_id]) {
-            lrMap[r.vehicle_id] = { date: r.reading_date, value: r.current_value, km: r.current_km };
+            lrMap[r.vehicle_id] = { date: r.reading_date, value: r.current_value, km: r.current_km, operator: r.operator };
           }
         }
       }
@@ -207,7 +206,7 @@ export function FieldPendingHorimeters({ onBack, onRegister }: FieldPendingHorim
         if (missingVehicleIds.length > 0) {
           const { data: lastReadings } = await supabase
             .from('horimeter_readings')
-            .select('vehicle_id, reading_date, current_value, current_km')
+            .select('vehicle_id, reading_date, current_value, current_km, operator')
             .in('vehicle_id', missingVehicleIds)
             .order('reading_date', { ascending: false })
             .limit(missingVehicleIds.length * 2);
@@ -215,7 +214,7 @@ export function FieldPendingHorimeters({ onBack, onRegister }: FieldPendingHorim
           if (lastReadings) {
             for (const r of lastReadings) {
               if (!lrMap[r.vehicle_id]) {
-                lrMap[r.vehicle_id] = { date: r.reading_date, value: r.current_value, km: r.current_km };
+                lrMap[r.vehicle_id] = { date: r.reading_date, value: r.current_value, km: r.current_km, operator: r.operator };
               }
             }
           }
@@ -244,7 +243,82 @@ export function FieldPendingHorimeters({ onBack, onRegister }: FieldPendingHorim
     fetchData();
   }, [fetchData]);
 
-  // Build pending vehicles per date, sorted by name (Descrição) A-Z, filtered by search
+  // "Repetir anterior" - clone last reading values for this vehicle on the given date
+  const handleRepeatPrevious = useCallback(async (vehicle: Vehicle, dateStr: string) => {
+    const last = lastReadingMap[vehicle.id];
+    if (!last || (last.value <= 0 && (last.km ?? 0) <= 0)) {
+      toast.error('Sem leitura anterior para repetir');
+      return;
+    }
+
+    const key = `${vehicle.id}|${dateStr}`;
+    setRepeatingKey(key);
+
+    try {
+      // 1) Insert into horimeter_readings
+      const { error: dbError } = await supabase
+        .from('horimeter_readings')
+        .insert({
+          vehicle_id: vehicle.id,
+          reading_date: dateStr,
+          current_value: last.value,
+          previous_value: last.value,
+          current_km: last.km ?? null,
+          previous_km: last.km ?? null,
+          operator: last.operator || null,
+          observations: 'Equipamento não trabalhou',
+          source: 'field',
+        });
+
+      if (dbError) throw dbError;
+
+      // 2) Sync to Google Sheets
+      try {
+        const [year, month, day] = dateStr.split('-');
+        const formattedDate = `${day}/${month}/${year}`;
+        const fmtNum = (v: number) => v > 0 ? formatPtBRNumber(v, { decimals: 2 }) : '';
+        const interval = 0;
+
+        const sheetPayload: Record<string, string> = {
+          'Data': formattedDate,
+          'Código': vehicle.code,
+          'Descrição': vehicle.name,
+          'Horímetro Anterior': fmtNum(last.value),
+          'Horímetro Atual': fmtNum(last.value),
+          'H.T': '0',
+          'KM Anterior': fmtNum(last.km ?? 0),
+          'KM Atual': fmtNum(last.km ?? 0),
+          'Total KM': '0',
+          'Operador/Motorista': last.operator || '',
+          'Observação': 'Equipamento não trabalhou',
+        };
+
+        await supabase.functions.invoke('google-sheets', {
+          body: { action: 'create', sheetName: 'Horimetros', data: sheetPayload },
+        });
+      } catch (sheetErr) {
+        console.warn('Sheet sync failed (non-critical):', sheetErr);
+      }
+
+      // Update local state to remove from pending
+      setReadingsMap(prev => {
+        const next = { ...prev };
+        if (!next[vehicle.id]) next[vehicle.id] = new Set();
+        else next[vehicle.id] = new Set(next[vehicle.id]);
+        next[vehicle.id].add(dateStr);
+        return next;
+      });
+
+      const [year, month, day] = dateStr.split('-');
+      toast.success(`${vehicle.code} - Leitura repetida para ${day}/${month}`);
+    } catch (err: any) {
+      console.error('Error repeating reading:', err);
+      toast.error('Erro ao repetir leitura: ' + (err.message || ''));
+    } finally {
+      setRepeatingKey(null);
+    }
+  }, [lastReadingMap]);
+
   const pendingByDate = useMemo(() => {
     const search = searchFilter.toLowerCase().trim();
     const result: Record<string, PendingVehicle[]> = {};
@@ -253,7 +327,6 @@ export function FieldPendingHorimeters({ onBack, onRegister }: FieldPendingHorim
       for (const v of vehicles) {
         const hasReading = readingsMap[v.id]?.has(dateStr);
         if (!hasReading) {
-          // Apply search filter on name (Descrição), code, or category
           if (search) {
             const matchName = v.name.toLowerCase().includes(search);
             const matchCode = v.code.toLowerCase().includes(search);
@@ -267,7 +340,6 @@ export function FieldPendingHorimeters({ onBack, onRegister }: FieldPendingHorim
           });
         }
       }
-      // Sort by name (Descrição) A-Z, then by code
       pending.sort((a, b) => {
         const nameCompare = a.vehicle.name.localeCompare(b.vehicle.name, 'pt-BR');
         if (nameCompare !== 0) return nameCompare;
@@ -450,59 +522,87 @@ export function FieldPendingHorimeters({ onBack, onRegister }: FieldPendingHorim
                         ✅ Todos os veículos com lançamento nesta data
                       </div>
                     ) : (
-                      pending.map(({ vehicle, lastReading }) => (
-                        <div
-                          key={vehicle.id}
-                          className={cn(
-                            "rounded-xl p-3 shadow-sm border flex items-center gap-3",
-                            isDark ? "bg-slate-800/80 border-slate-700" : "bg-white border-slate-200"
-                          )}
-                        >
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className="font-bold text-sm text-amber-500">{vehicle.code}</span>
-                              {vehicle.category && (
-                                <span className={cn(
-                                  "text-[10px] px-1.5 py-0.5 rounded-full font-medium",
-                                  vehicle.category?.toLowerCase().includes('equip')
-                                    ? (isDark ? "bg-amber-900/40 text-amber-400" : "bg-amber-100 text-amber-700")
-                                    : (isDark ? "bg-blue-900/40 text-blue-400" : "bg-blue-100 text-blue-700")
-                                )}>
-                                  {vehicle.category}
-                                </span>
-                              )}
-                            </div>
-                            <div className="text-xs text-muted-foreground truncate">{vehicle.name}</div>
-                            {lastReading && (
-                              <div className="flex items-center gap-3 mt-1 text-[11px] text-muted-foreground">
-                                <span className="flex items-center gap-1">
-                                  <CalendarIcon className="w-3 h-3" />
-                                  {format(new Date(lastReading.date + 'T12:00:00'), 'dd/MM', { locale: ptBR })}
-                                </span>
-                                {lastReading.value > 0 && (
-                                  <span className="flex items-center gap-1">
-                                    <Clock className="w-3 h-3 text-amber-500" />
-                                    {lastReading.value.toLocaleString('pt-BR')}h
-                                  </span>
-                                )}
-                                {(lastReading.km ?? 0) > 0 && (
-                                  <span className="flex items-center gap-1">
-                                    <Gauge className="w-3 h-3 text-blue-500" />
-                                    {(lastReading.km ?? 0).toLocaleString('pt-BR')}km
-                                  </span>
+                      pending.map(({ vehicle, lastReading }) => {
+                        const isRepeating = repeatingKey === `${vehicle.id}|${dateStr}`;
+                        const canRepeat = lastReading && (lastReading.value > 0 || (lastReading.km ?? 0) > 0);
+
+                        return (
+                          <div
+                            key={vehicle.id}
+                            className={cn(
+                              "rounded-xl p-3 shadow-sm border",
+                              isDark ? "bg-slate-800/80 border-slate-700" : "bg-white border-slate-200"
+                            )}
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-bold text-sm text-amber-500">{vehicle.code}</span>
+                                  {vehicle.category && (
+                                    <span className={cn(
+                                      "text-[10px] px-1.5 py-0.5 rounded-full font-medium",
+                                      vehicle.category?.toLowerCase().includes('equip')
+                                        ? (isDark ? "bg-amber-900/40 text-amber-400" : "bg-amber-100 text-amber-700")
+                                        : (isDark ? "bg-blue-900/40 text-blue-400" : "bg-blue-100 text-blue-700")
+                                    )}>
+                                      {vehicle.category}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-xs text-muted-foreground truncate">{vehicle.name}</div>
+                                {lastReading && (
+                                  <div className="flex items-center gap-3 mt-1 text-[11px] text-muted-foreground">
+                                    <span className="flex items-center gap-1">
+                                      <CalendarIcon className="w-3 h-3" />
+                                      {format(new Date(lastReading.date + 'T12:00:00'), 'dd/MM', { locale: ptBR })}
+                                    </span>
+                                    {lastReading.value > 0 && (
+                                      <span className="flex items-center gap-1">
+                                        <Clock className="w-3 h-3 text-amber-500" />
+                                        {lastReading.value.toLocaleString('pt-BR')}h
+                                      </span>
+                                    )}
+                                    {(lastReading.km ?? 0) > 0 && (
+                                      <span className="flex items-center gap-1">
+                                        <Gauge className="w-3 h-3 text-blue-500" />
+                                        {(lastReading.km ?? 0).toLocaleString('pt-BR')}km
+                                      </span>
+                                    )}
+                                  </div>
                                 )}
                               </div>
-                            )}
+                              <div className="flex flex-col gap-1.5 shrink-0">
+                                <Button
+                                  size="sm"
+                                  className="h-9 w-9 p-0 bg-amber-600 hover:bg-amber-700 text-white rounded-lg"
+                                  onClick={() => onRegister(vehicle.id, dateStr)}
+                                  title="Lançar manualmente"
+                                >
+                                  <Plus className="w-5 h-5" />
+                                </Button>
+                                {canRepeat && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className={cn(
+                                      "h-9 w-9 p-0 rounded-lg text-blue-500 border-blue-300 hover:bg-blue-50",
+                                      isDark && "border-blue-700 hover:bg-blue-900/30"
+                                    )}
+                                    onClick={() => handleRepeatPrevious(vehicle, dateStr)}
+                                    disabled={isRepeating}
+                                    title="Repetir anterior"
+                                  >
+                                    {isRepeating
+                                      ? <Loader2 className="w-4 h-4 animate-spin" />
+                                      : <Copy className="w-4 h-4" />
+                                    }
+                                  </Button>
+                                )}
+                              </div>
+                            </div>
                           </div>
-                          <Button
-                            size="sm"
-                            className="h-9 w-9 p-0 bg-amber-600 hover:bg-amber-700 text-white shrink-0 rounded-lg"
-                            onClick={() => onRegister(vehicle.id, dateStr)}
-                          >
-                            <Plus className="w-5 h-5" />
-                          </Button>
-                        </div>
-                      ))
+                        );
+                      })
                     )}
                   </div>
                 )}
