@@ -293,22 +293,42 @@ export function FieldPendingHorimeters({ onBack, onRegister }: FieldPendingHorim
         const formattedDate = `${day}/${month}/${year}`;
         const fmtNum = (v: number) => v > 0 ? formatPtBRNumber(v, { decimals: 2 }) : '';
 
-        const sheetPayload: Record<string, string> = {
+        // Use correct semantic keys matching the actual Horimetros sheet structure
+        const semanticData: Record<string, string> = {
           'Data': formattedDate,
-          'Código': vehicle.code,
-          'Descrição': vehicle.name,
-          'Horímetro Anterior': fmtNum(last.value),
-          'Horímetro Atual': fmtNum(last.value),
-          'H.T': '0',
-          'KM Anterior': fmtNum(last.km ?? 0),
-          'KM Atual': fmtNum(last.km ?? 0),
-          'Total KM': '0',
-          'Operador/Motorista': last.operator || '',
-          'Observação': 'Equipamento não trabalhou',
+          'Veiculo': vehicle.code,
+          'Categoria': vehicle.category || '',
+          'Descricao': vehicle.name,
+          'Empresa': vehicle.company || '',
+          'Operador': last.operator || '',
+          'Horimetro Anterior': fmtNum(last.value),
+          'Horimetro Atual': fmtNum(last.value),
+          'Intervalo H': '0',
+          'Km Anterior': fmtNum(last.km ?? 0),
+          'Km Atual': fmtNum(last.km ?? 0),
+          'Total Km': '0',
         };
 
+        // Fetch actual sheet headers and map to exact names via normalization
+        let rowData = semanticData;
+        try {
+          const sheetInfo = await getSheetData('Horimetros', { noCache: false });
+          const headers = sheetInfo.headers || [];
+          if (headers.length > 0) {
+            const normalizeH = (h: string) => h.normalize('NFD').replace(/\p{Diacritic}/gu, '').toUpperCase().replace(/[\s_.]/g, '');
+            const normalizedMap = new Map<string, string>();
+            for (const h of headers) normalizedMap.set(normalizeH(h), h);
+            const mapped: Record<string, string> = {};
+            for (const [key, value] of Object.entries(semanticData)) {
+              const actual = normalizedMap.get(normalizeH(key));
+              mapped[actual || key] = value;
+            }
+            rowData = mapped;
+          }
+        } catch { /* use semantic keys as fallback */ }
+
         await supabase.functions.invoke('google-sheets', {
-          body: { action: 'create', sheetName: 'Horimetros', data: sheetPayload },
+          body: { action: 'create', sheetName: 'Horimetros', data: rowData },
         });
       } catch (sheetErr) {
         console.warn('Sheet sync failed (non-critical):', sheetErr);
