@@ -59,17 +59,29 @@ export function MaintenanceRankingTab({ orders }: MaintenanceRankingTabProps) {
   const [filterType, setFilterType] = useState<'all' | 'corretiva' | 'preventiva'>('all');
 
   // Calculate downtime for an order
+  // entry_time from DB can be "HH:MM:SS" or "HH:MM" — normalize to HH:MM only
   const calculateDowntime = (order: ServiceOrder): { hours: number; days: number } => {
     const entryDate = order.entry_date || order.start_date;
     if (!entryDate) return { hours: 0, days: 0 };
 
-    const entryTime = order.entry_time || '00:00';
-    const startDateTime = new Date(`${entryDate}T${entryTime}:00`);
-    const endDateTime = order.end_date 
-      ? new Date(order.end_date) 
-      : order.status.toLowerCase().includes('finalizada') 
-        ? new Date(order.end_date || order.order_date)
-        : new Date();
+    // Normalize time: take only HH:MM portion
+    const rawEntryTime = order.entry_time || '00:00';
+    const entryTime = rawEntryTime.toString().slice(0, 5);
+    
+    // Use only the date part of entryDate in case it has a timestamp
+    const entryDateOnly = entryDate.toString().split('T')[0];
+    const startDateTime = new Date(`${entryDateOnly}T${entryTime}:00`);
+    
+    if (isNaN(startDateTime.getTime())) return { hours: 0, days: 0 };
+
+    const isFinalized = order.status?.toLowerCase().includes('finalizada');
+    
+    // For finalized orders use end_date; for open orders use now
+    const endDateTime = (isFinalized && order.end_date)
+      ? new Date(order.end_date)
+      : (!isFinalized ? new Date() : null);
+
+    if (!endDateTime || isNaN(endDateTime.getTime())) return { hours: 0, days: 0 };
 
     const hours = differenceInHours(endDateTime, startDateTime);
     const days = differenceInDays(endDateTime, startDateTime);
