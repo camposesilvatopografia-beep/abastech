@@ -432,9 +432,11 @@ export function FrotaPage() {
     let emManutencao = 0;
     let mobilizados = 0;
     let desmobilizados = 0;
+    let obraSaneamento = 0;
     
     filteredRows.forEach(row => {
       const empresa = getRowValue(row as any, ['EMPRESA', 'Empresa', 'empresa']).trim();
+      const obra = getRowValue(row as any, ['OBRA', 'Obra', 'obra']).trim();
       const categoria = getRowValue(row as any, ['CATEGORIA', 'Categoria', 'categoria', 'TIPO', 'Tipo', 'tipo']).trim().toLowerCase();
       const status = (getRowValue(row as any, ['STATUS', 'Status', 'status']) || 'ativo').toLowerCase();
       
@@ -446,8 +448,13 @@ export function FrotaPage() {
       } else {
         veiculos++;
       }
+
+      // Veículos de "Obra Saneamento" ficam em KPI separado
+      const isObraSaneamento = empresa.toLowerCase().includes('obra saneamento') || obra.toLowerCase().includes('obra saneamento');
       
-      if (status === 'ativo') ativos++;
+      if (isObraSaneamento && (status === 'mobilizado' || status === 'desmobilizado' || status === 'ativo')) {
+        obraSaneamento++;
+      } else if (status === 'ativo') ativos++;
       else if (status === 'inativo') inativos++;
       else if (status === 'manutencao' || status === 'manutenção') emManutencao++;
       else if (status === 'mobilizado') mobilizados++;
@@ -465,6 +472,7 @@ export function FrotaPage() {
       emManutencao,
       mobilizados,
       desmobilizados,
+      obraSaneamento,
     };
   }, [filteredRows]);
 
@@ -843,7 +851,7 @@ export function FrotaPage() {
         </div>
 
         {/* KPI Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-3 md:gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3 md:gap-4">
           {/* Total - Blue */}
           <div 
             className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-4 text-white shadow-lg cursor-pointer transition-transform hover:scale-105"
@@ -946,8 +954,26 @@ export function FrotaPage() {
                 <p className="text-xs text-red-200 mt-1">Retirados</p>
               </div>
               <X className="w-8 h-8 text-red-200" />
+          </div>
+
+          {/* Obra Saneamento - Purple */}
+          <div 
+            className={cn(
+              "bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl p-4 text-white shadow-lg cursor-pointer transition-transform hover:scale-105",
+              statusFilter === 'obra_saneamento' && "ring-2 ring-white ring-offset-2 ring-offset-purple-500"
+            )}
+            onClick={() => handleKpiClick('obra_saneamento')}
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-purple-100 uppercase tracking-wide">SANEAMENTO</p>
+                <p className="text-3xl font-bold mt-1">{metrics.obraSaneamento}</p>
+                <p className="text-xs text-purple-200 mt-1">Obra Saneamento</p>
+              </div>
+              <Building2 className="w-8 h-8 text-purple-200" />
             </div>
           </div>
+        </div>
         </div>
 
         {/* Mobilized View Mode */}
