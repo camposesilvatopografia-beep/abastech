@@ -20,7 +20,10 @@ import {
   Trash2,
   Settings2,
   LayoutGrid,
-  List
+  List,
+  CheckSquare,
+  Square,
+  Minus
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -69,6 +72,8 @@ import { useObraSettings } from '@/hooks/useObraSettings';
 import { ColumnConfigModal } from '@/components/Layout/ColumnConfigModal';
 import { useLayoutPreferences, ColumnConfig } from '@/hooks/useLayoutPreferences';
 import { FrotaKpiDetailModal, type KpiType } from '@/components/Frota/FrotaKpiDetailModal';
+import { BatchStatusModal } from '@/components/Frota/BatchStatusModal';
+import { Checkbox } from '@/components/ui/checkbox';
 
 const SHEET_NAME = 'Veiculo';
 
@@ -242,6 +247,42 @@ export function FrotaPage() {
   // KPI detail modal state
   const [kpiDetailOpen, setKpiDetailOpen] = useState(false);
   const [selectedKpi, setSelectedKpi] = useState<KpiType>('total');
+
+  // Batch selection state
+  const [selectedCodes, setSelectedCodes] = useState<Set<string>>(new Set());
+  const [batchStatusOpen, setBatchStatusOpen] = useState(false);
+
+  const toggleSelectVehicle = (code: string) => {
+    setSelectedCodes(prev => {
+      const next = new Set(prev);
+      if (next.has(code)) next.delete(code);
+      else next.add(code);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    const allCodes = filteredRows.map(row => getRowValue(row as any, ['CODIGO', 'Codigo', 'codigo', 'VEICULO', 'Veiculo', 'veiculo']));
+    if (selectedCodes.size === allCodes.length) {
+      setSelectedCodes(new Set());
+    } else {
+      setSelectedCodes(new Set(allCodes));
+    }
+  };
+
+  const toggleSelectGroup = (items: Array<{ codigo: string }>) => {
+    const groupCodes = items.map(i => i.codigo);
+    const allSelected = groupCodes.every(c => selectedCodes.has(c));
+    setSelectedCodes(prev => {
+      const next = new Set(prev);
+      if (allSelected) {
+        groupCodes.forEach(c => next.delete(c));
+      } else {
+        groupCodes.forEach(c => next.add(c));
+      }
+      return next;
+    });
+  };
 
   const handleKpiClick = (kpi: KpiType) => {
     setSelectedKpi(kpi);
@@ -1053,6 +1094,22 @@ export function FrotaPage() {
               <p className="text-sm text-muted-foreground">
                 Exibindo <span className="font-semibold text-foreground">{filteredRows.length}</span> de {data.rows.length} ativos
               </p>
+
+              {/* Batch Action Bar */}
+              {selectedCodes.size > 0 && (
+                <div className="flex items-center gap-3 p-3 rounded-lg bg-primary/10 border border-primary/20">
+                  <span className="text-sm font-medium">
+                    {selectedCodes.size} selecionado(s)
+                  </span>
+                  <Button size="sm" variant="outline" onClick={() => setBatchStatusOpen(true)} className="gap-1">
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    Alterar Status
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setSelectedCodes(new Set())}>
+                    Limpar seleção
+                  </Button>
+                </div>
+              )}
             </div>
           </>
         )}
@@ -1071,35 +1128,49 @@ export function FrotaPage() {
             ) : (
               groupedVehicles.map(group => (
                 <div key={group.name} className="bg-card rounded-lg border border-border overflow-hidden shadow-sm">
-                  <button
-                    onClick={() => toggleGroup(group.name)}
-                    className="w-full flex items-center justify-between p-4 hover:bg-muted/50 transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      {expandedGroups.includes(group.name) ? (
-                        <ChevronDown className="w-5 h-5 text-primary" />
-                      ) : (
-                        <ChevronRight className="w-5 h-5 text-muted-foreground" />
-                      )}
-                      <div className="text-left">
-                        <span className="font-semibold text-lg">{group.name}</span>
-                        <span className="text-sm text-muted-foreground ml-3">
-                          {group.empresas} empresa{group.empresas !== 1 ? 's' : ''} • {group.veiculos} unidade{group.veiculos !== 1 ? 's' : ''}
+                  <div className="flex items-center w-full p-4 hover:bg-muted/50 transition-colors">
+                    <div className="mr-2" onClick={(e) => e.stopPropagation()}>
+                      <Checkbox
+                        checked={group.items.every(i => selectedCodes.has(i.codigo))}
+                        onCheckedChange={() => toggleSelectGroup(group.items)}
+                      />
+                    </div>
+                    <button
+                      onClick={() => toggleGroup(group.name)}
+                      className="flex-1 flex items-center justify-between"
+                    >
+                      <div className="flex items-center gap-3">
+                        {expandedGroups.includes(group.name) ? (
+                          <ChevronDown className="w-5 h-5 text-primary" />
+                        ) : (
+                          <ChevronRight className="w-5 h-5 text-muted-foreground" />
+                        )}
+                        <div className="text-left">
+                          <span className="font-semibold text-lg">{group.name}</span>
+                          <span className="text-sm text-muted-foreground ml-3">
+                            {group.empresas} empresa{group.empresas !== 1 ? 's' : ''} • {group.veiculos} unidade{group.veiculos !== 1 ? 's' : ''}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="px-3 py-1 rounded-full bg-primary text-primary-foreground text-sm font-semibold">
+                          {group.veiculos}
                         </span>
                       </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="px-3 py-1 rounded-full bg-primary text-primary-foreground text-sm font-semibold">
-                        {group.veiculos}
-                      </span>
-                    </div>
-                  </button>
+                    </button>
+                  </div>
                   
                   {expandedGroups.includes(group.name) && (
                     <div className="border-t border-border overflow-x-auto">
                       <Table>
                         <TableHeader>
                           <TableRow className="bg-muted/30">
+                            <TableHead className="w-10">
+                              <Checkbox
+                                checked={group.items.every(i => selectedCodes.has(i.codigo))}
+                                onCheckedChange={() => toggleSelectGroup(group.items)}
+                              />
+                            </TableHead>
                             {visibleColumns.map((col) => (
                               <TableHead key={col.key} className={col.key === 'acoes' ? 'text-center' : ''}>
                                 {col.label}
@@ -1112,7 +1183,13 @@ export function FrotaPage() {
                             const allStatuses = getAllStatusLabels();
                             const statusInfo = allStatuses[item.status?.toLowerCase() || 'ativo'] || allStatuses.ativo;
                             return (
-                              <TableRow key={idx} className="hover:bg-muted/30">
+                              <TableRow key={idx} className={cn("hover:bg-muted/30", selectedCodes.has(item.codigo) && "bg-primary/5")}>
+                                <TableCell className="w-10">
+                                  <Checkbox
+                                    checked={selectedCodes.has(item.codigo)}
+                                    onCheckedChange={() => toggleSelectVehicle(item.codigo)}
+                                  />
+                                </TableCell>
                                 {visibleColumns.map((col) => {
                                   switch (col.key) {
                                     case 'codigo':
@@ -1362,6 +1439,16 @@ export function FrotaPage() {
             empresa: vehicle.empresa,
           });
         }}
+      />
+      {/* Batch Status Modal */}
+      <BatchStatusModal
+        open={batchStatusOpen}
+        onClose={() => setBatchStatusOpen(false)}
+        onSuccess={() => {
+          setSelectedCodes(new Set());
+          refetch();
+        }}
+        selectedVehicles={Array.from(selectedCodes)}
       />
     </div>
   );
