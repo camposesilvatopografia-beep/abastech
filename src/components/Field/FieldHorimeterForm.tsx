@@ -571,7 +571,9 @@ export function FieldHorimeterForm({ user, onBack }: FieldHorimeterFormProps) {
           // Format numbers in pt-BR (e.g., 1.150,27) for the spreadsheet
           const fmtNum = (v: number) => v > 0 ? formatPtBRNumber(v, { decimals: 2 }) : '';
           
+          const { generateHorimeterId } = await import('@/lib/sheetIdGenerator');
           const semanticData: Record<string, string> = {
+            'Id': generateHorimeterId(),
             'Data': formattedDate,
             'Veiculo': selectedVehicle.code || '',
             'Categoria': selectedVehicle.category || '',

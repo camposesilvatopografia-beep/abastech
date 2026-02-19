@@ -641,6 +641,81 @@ serve(async (req) => {
         break;
       }
 
+      case "fillBlankIds": {
+        if (!sheetName) {
+          throw new Error("sheetName is required for fillBlankIds action");
+        }
+
+        const idPrefix = data?.prefix || "HOR";
+        const batchLimit = data?.limit || 50; // Process in batches to avoid timeout
+        const startFromRow = data?.startRow || 2; // 1-based, skip header
+        const allRows = await fetchSheetValues(accessToken, sheetId, formatRange(sheetName, "A:ZZ"));
+        if (allRows.length <= 1) {
+          result = { success: true, filled: 0, message: "No data rows found" };
+          break;
+        }
+
+        // Collect existing IDs to ensure uniqueness
+        const existingIds = new Set<string>();
+        for (let i = 1; i < allRows.length; i++) {
+          const cellA = String(allRows[i]?.[0] || "").trim();
+          if (cellA) existingIds.add(cellA);
+        }
+
+        let filled = 0;
+        let lastProcessedRow = 0;
+        for (let i = Math.max(1, startFromRow - 1); i < allRows.length; i++) {
+          if (filled >= batchLimit) {
+            lastProcessedRow = i + 1; // 1-based next row to process
+            break;
+          }
+          const cellA = String(allRows[i]?.[0] || "").trim();
+          if (!cellA) {
+            // Check if row has any data (not completely empty)
+            const hasData = allRows[i]?.some((cell: any, idx: number) => idx > 0 && String(cell || "").trim() !== "");
+            if (!hasData) continue;
+
+            // Generate unique ID
+            let newId: string;
+            do {
+              const ts = Date.now().toString(36);
+              const rnd = Math.random().toString(36).substring(2, 5);
+              newId = `${idPrefix}-${ts}-${rnd}`;
+            } while (existingIds.has(newId));
+
+            existingIds.add(newId);
+
+            // Write only column A for this row, with retry on 429
+            const rowNum = i + 1; // 1-based
+            const cellRange = formatRange(sheetName, `A${rowNum}`);
+            let retries = 3;
+            while (retries > 0) {
+              try {
+                await updateRow(accessToken, sheetId, cellRange, [newId]);
+                break;
+              } catch (e: any) {
+                if (String(e?.message || '').includes('429') && retries > 1) {
+                  retries--;
+                  console.log(`Rate limited on row ${rowNum}, waiting 10s... (${retries} retries left)`);
+                  await sleep(10000);
+                } else {
+                  throw e;
+                }
+              }
+            }
+            filled++;
+
+            // Throttle to stay under 60 writes/min
+            if (filled % 10 === 0) await sleep(2000);
+          }
+        }
+
+        invalidateSheetCaches(sheetId, sheetName);
+        const hasMore = lastProcessedRow > 0;
+        result = { success: true, filled, hasMore, nextStartRow: lastProcessedRow, message: `${filled} IDs preenchidos${hasMore ? ' (há mais linhas)' : ''}` };
+        break;
+      }
+
       default:
         throw new Error(`Unknown action: ${action}`);
     }
