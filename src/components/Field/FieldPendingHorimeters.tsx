@@ -111,6 +111,7 @@ export function FieldPendingHorimeters({ onBack, onRegister }: FieldPendingHorim
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [repeatingKey, setRepeatingKey] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'list' | 'matrix'>('matrix');
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
   
   // Confirmation dialog state
   const [confirmRepeat, setConfirmRepeat] = useState<{ vehicle: Vehicle; dateStr: string } | null>(null);
@@ -428,6 +429,21 @@ export function FieldPendingHorimeters({ onBack, onRegister }: FieldPendingHorim
       });
   }, [dateRange, vehicles, readingsMap, searchFilter]);
 
+  // Group matrix vehicles by description (name) for collapsible sections
+  const groupedMatrixVehicles = useMemo(() => {
+    const groups: { name: string; vehicles: Vehicle[] }[] = [];
+    const groupMap = new Map<string, Vehicle[]>();
+    for (const v of matrixVehicles) {
+      const key = v.name || 'Sem descrição';
+      if (!groupMap.has(key)) groupMap.set(key, []);
+      groupMap.get(key)!.push(v);
+    }
+    for (const [name, vehs] of groupMap) {
+      groups.push({ name, vehicles: vehs });
+    }
+    return groups;
+  }, [matrixVehicles]);
+
   const totalPending = useMemo(() => {
     return Object.values(pendingByDate).reduce((sum, arr) => sum + arr.length, 0);
   }, [pendingByDate]);
@@ -613,89 +629,125 @@ export function FieldPendingHorimeters({ onBack, onRegister }: FieldPendingHorim
                   </tr>
                 </thead>
                 <tbody>
-                  {matrixVehicles.map((vehicle, idx) => {
-                    const last = lastReadingMap[vehicle.id];
-                    const canRepeat = last && (last.value > 0 || (last.km ?? 0) > 0);
+                  {groupedMatrixVehicles.map((group) => {
+                    const isCollapsed = collapsedGroups[group.name] ?? false;
+                    const groupPendingCount = group.vehicles.reduce((sum, v) => {
+                      return sum + dateRange.filter(d => !readingsMap[v.id]?.has(d)).length;
+                    }, 0);
 
                     return (
-                      <tr
-                        key={vehicle.id}
-                        className={cn(
-                          idx % 2 === 0
-                            ? (isDark ? "bg-slate-900/40" : "bg-white")
-                            : (isDark ? "bg-slate-800/40" : "bg-slate-50/50")
-                        )}
-                      >
-                        <td className={cn(
-                          "sticky left-0 z-10 px-2 py-1.5 border-b",
-                          isDark ? "border-slate-700" : "border-slate-200",
-                          idx % 2 === 0
-                            ? (isDark ? "bg-slate-900/95" : "bg-white")
-                            : (isDark ? "bg-slate-800/95" : "bg-slate-50")
-                        )}>
-                          <div className="flex flex-col">
-                            <span className="font-bold text-amber-500 text-[11px]">{vehicle.code}</span>
-                            <span className="text-muted-foreground text-[10px] truncate max-w-[120px]">{vehicle.name}</span>
-                          </div>
-                        </td>
-                        {dateRange.map(dateStr => {
-                          const hasReading = readingsMap[vehicle.id]?.has(dateStr);
-                          const isRepeating = repeatingKey === `${vehicle.id}|${dateStr}`;
-
-                          if (hasReading) {
-                            return (
-                              <td key={dateStr} className={cn(
-                                "px-1 py-1.5 text-center border-b",
-                                isDark ? "border-slate-700" : "border-slate-200"
-                              )}>
-                                <div className="flex items-center justify-center">
-                                  <Check className="w-4 h-4 text-green-500" />
-                                </div>
-                              </td>
-                            );
-                          }
+                      <React.Fragment key={group.name}>
+                        {/* Group header row */}
+                        <tr
+                          className={cn(
+                            "cursor-pointer select-none",
+                            isDark ? "bg-slate-700/60 hover:bg-slate-700/80" : "bg-slate-100 hover:bg-slate-200/80"
+                          )}
+                          onClick={() => setCollapsedGroups(prev => ({ ...prev, [group.name]: !prev[group.name] }))}
+                        >
+                          <td
+                            colSpan={dateRange.length + 1}
+                            className={cn(
+                              "px-2 py-1.5 border-b font-semibold text-[11px]",
+                              isDark ? "border-slate-600" : "border-slate-300"
+                            )}
+                          >
+                            <div className="flex items-center gap-2">
+                              {isCollapsed
+                                ? <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
+                                : <ChevronUp className="w-3.5 h-3.5 text-muted-foreground" />
+                              }
+                              <span>{group.name}</span>
+                              <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4">
+                                {group.vehicles.length} veíc. · {groupPendingCount} pend.
+                              </Badge>
+                            </div>
+                          </td>
+                        </tr>
+                        {/* Vehicle rows within group */}
+                        {!isCollapsed && group.vehicles.map((vehicle, idx) => {
+                          const last = lastReadingMap[vehicle.id];
+                          const canRepeat = last && (last.value > 0 || (last.km ?? 0) > 0);
 
                           return (
-                            <td key={dateStr} className={cn(
-                              "px-1 py-1.5 text-center border-b",
-                              isDark ? "border-slate-700" : "border-slate-200"
-                            )}>
-                              <div className="flex items-center justify-center gap-0.5">
-                                <button
-                                  onClick={() => onRegister(vehicle.id, dateStr)}
-                                  className={cn(
-                                    "w-7 h-7 rounded-md flex items-center justify-center transition-colors",
-                                    isDark
-                                      ? "bg-amber-900/40 text-amber-400 hover:bg-amber-800/60"
-                                      : "bg-amber-50 text-amber-600 hover:bg-amber-100"
-                                  )}
-                                  title="Lançar manualmente"
-                                >
-                                  <Plus className="w-3.5 h-3.5" />
-                                </button>
-                                {canRepeat && (
-                                  <button
-                                    onClick={() => askConfirmRepeat(vehicle, dateStr)}
-                                    disabled={isRepeating}
-                                    className={cn(
-                                      "w-7 h-7 rounded-md flex items-center justify-center transition-colors",
-                                      isDark
-                                        ? "bg-blue-900/40 text-blue-400 hover:bg-blue-800/60"
-                                        : "bg-blue-50 text-blue-600 hover:bg-blue-100"
-                                    )}
-                                    title="Repetir anterior"
-                                  >
-                                    {isRepeating
-                                      ? <Loader2 className="w-3 h-3 animate-spin" />
-                                      : <Copy className="w-3 h-3" />
-                                    }
-                                  </button>
-                                )}
-                              </div>
-                            </td>
+                            <tr
+                              key={vehicle.id}
+                              className={cn(
+                                idx % 2 === 0
+                                  ? (isDark ? "bg-slate-900/40" : "bg-white")
+                                  : (isDark ? "bg-slate-800/40" : "bg-slate-50/50")
+                              )}
+                            >
+                              <td className={cn(
+                                "sticky left-0 z-10 px-2 py-1.5 border-b",
+                                isDark ? "border-slate-700" : "border-slate-200",
+                                idx % 2 === 0
+                                  ? (isDark ? "bg-slate-900/95" : "bg-white")
+                                  : (isDark ? "bg-slate-800/95" : "bg-slate-50")
+                              )}>
+                                <span className="font-bold text-amber-500 text-[11px]">{vehicle.code}</span>
+                              </td>
+                              {dateRange.map(dateStr => {
+                                const hasReading = readingsMap[vehicle.id]?.has(dateStr);
+                                const isRepeating = repeatingKey === `${vehicle.id}|${dateStr}`;
+
+                                if (hasReading) {
+                                  return (
+                                    <td key={dateStr} className={cn(
+                                      "px-1 py-1.5 text-center border-b",
+                                      isDark ? "border-slate-700" : "border-slate-200"
+                                    )}>
+                                      <div className="flex items-center justify-center">
+                                        <Check className="w-4 h-4 text-green-500" />
+                                      </div>
+                                    </td>
+                                  );
+                                }
+
+                                return (
+                                  <td key={dateStr} className={cn(
+                                    "px-1 py-1.5 text-center border-b",
+                                    isDark ? "border-slate-700" : "border-slate-200"
+                                  )}>
+                                    <div className="flex items-center justify-center gap-0.5">
+                                      <button
+                                        onClick={() => onRegister(vehicle.id, dateStr)}
+                                        className={cn(
+                                          "w-7 h-7 rounded-md flex items-center justify-center transition-colors",
+                                          isDark
+                                            ? "bg-amber-900/40 text-amber-400 hover:bg-amber-800/60"
+                                            : "bg-amber-50 text-amber-600 hover:bg-amber-100"
+                                        )}
+                                        title="Lançar manualmente"
+                                      >
+                                        <Plus className="w-3.5 h-3.5" />
+                                      </button>
+                                      {canRepeat && (
+                                        <button
+                                          onClick={() => askConfirmRepeat(vehicle, dateStr)}
+                                          disabled={isRepeating}
+                                          className={cn(
+                                            "w-7 h-7 rounded-md flex items-center justify-center transition-colors",
+                                            isDark
+                                              ? "bg-blue-900/40 text-blue-400 hover:bg-blue-800/60"
+                                              : "bg-blue-50 text-blue-600 hover:bg-blue-100"
+                                          )}
+                                          title="Repetir anterior"
+                                        >
+                                          {isRepeating
+                                            ? <Loader2 className="w-3 h-3 animate-spin" />
+                                            : <Copy className="w-3 h-3" />
+                                          }
+                                        </button>
+                                      )}
+                                    </div>
+                                  </td>
+                                );
+                              })}
+                            </tr>
                           );
                         })}
-                      </tr>
+                      </React.Fragment>
                     );
                   })}
                 </tbody>
