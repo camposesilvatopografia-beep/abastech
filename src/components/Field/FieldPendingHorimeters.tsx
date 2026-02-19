@@ -6,12 +6,21 @@ import {
   ChevronLeft,
   ChevronUp,
   Clock,
+  Filter,
   Gauge,
   Loader2,
   Plus,
-  Truck,
+  Search,
+  X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Calendar } from '@/components/ui/calendar';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 import { supabase } from '@/integrations/supabase/client';
 import { getSheetData } from '@/lib/googleSheets';
 import { parsePtBRNumber } from '@/lib/ptBRNumber';
@@ -47,15 +56,12 @@ interface FieldPendingHorimetersProps {
 function parseSheetDate(raw: any): string | null {
   if (!raw) return null;
   const str = String(raw).trim();
-  // dd/MM/yyyy
   const brMatch = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
   if (brMatch) {
     const [, d, m, y] = brMatch;
     return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
   }
-  // yyyy-MM-dd
   if (/^\d{4}-\d{2}-\d{2}/.test(str)) return str.substring(0, 10);
-  // Google Sheets serial date
   const num = Number(str);
   if (!isNaN(num) && num > 40000 && num < 60000) {
     const d = new Date((num - 25569) * 86400000);
@@ -88,17 +94,23 @@ export function FieldPendingHorimeters({ onBack, onRegister }: FieldPendingHorim
   const [lastReadingMap, setLastReadingMap] = useState<Record<string, { date: string; value: number; km: number | null }>>({});
   const [daysBack, setDaysBack] = useState(3);
   const [expandedDates, setExpandedDates] = useState<Record<string, boolean>>({});
+  const [searchFilter, setSearchFilter] = useState('');
+  const [specificDate, setSpecificDate] = useState<Date | undefined>(undefined);
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
 
   const dateRange = useMemo(() => {
+    // If specific date is selected, use only that date
+    if (specificDate) {
+      return [format(specificDate, 'yyyy-MM-dd')];
+    }
     const today = startOfDay(new Date());
     const start = subDays(today, daysBack - 1);
     return eachDayOfInterval({ start, end: today }).map(d => format(d, 'yyyy-MM-dd')).reverse();
-  }, [daysBack]);
+  }, [daysBack, specificDate]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      // Fetch active vehicles
       const { data: vehicleData } = await supabase
         .from('vehicles')
         .select('id, code, name, description, category, company, unit, status')
@@ -107,7 +119,6 @@ export function FieldPendingHorimeters({ onBack, onRegister }: FieldPendingHorim
 
       if (vehicleData) setVehicles(vehicleData);
 
-      // Build code->id map for sheet matching
       const codeToId: Record<string, string> = {};
       if (vehicleData) {
         for (const v of vehicleData) {
@@ -117,7 +128,6 @@ export function FieldPendingHorimeters({ onBack, onRegister }: FieldPendingHorim
 
       const oldestDate = dateRange[dateRange.length - 1];
 
-      // Fetch from 3 sources in parallel: horimeter_readings, field_fuel_records, Google Sheets
       const [readingsRes, fuelRes, sheetData] = await Promise.all([
         supabase
           .from('horimeter_readings')
@@ -133,12 +143,9 @@ export function FieldPendingHorimeters({ onBack, onRegister }: FieldPendingHorim
       ]);
 
       const sheetRows = sheetData?.rows || [];
-
-      // Build readings map: vehicleId -> Set of dates with readings
       const rMap: Record<string, Set<string>> = {};
       const lrMap: Record<string, { date: string; value: number; km: number | null }> = {};
 
-      // 1) From horimeter_readings table
       if (readingsRes.data) {
         for (const r of readingsRes.data) {
           if (!rMap[r.vehicle_id]) rMap[r.vehicle_id] = new Set();
@@ -149,7 +156,6 @@ export function FieldPendingHorimeters({ onBack, onRegister }: FieldPendingHorim
         }
       }
 
-      // 2) From field_fuel_records (fuel records with horimeter data)
       if (fuelRes.data && vehicleData) {
         for (const fr of fuelRes.data) {
           const vid = codeToId[fr.vehicle_code?.toLowerCase().trim()];
@@ -162,7 +168,6 @@ export function FieldPendingHorimeters({ onBack, onRegister }: FieldPendingHorim
         }
       }
 
-      // 3) From Google Sheets (Horimetros)
       if (sheetRows.length > 0) {
         const sample = sheetRows[0];
         const dateCol = findCol(sample, ['Data', 'DATE', 'data']);
@@ -174,7 +179,6 @@ export function FieldPendingHorimeters({ onBack, onRegister }: FieldPendingHorim
           for (const row of sheetRows) {
             const dateStr = parseSheetDate(row[dateCol]);
             if (!dateStr) continue;
-            // Only consider dates in our range
             if (dateStr < oldestDate) continue;
 
             const code = String(row[codeCol] || '').trim().toLowerCase();
@@ -195,7 +199,6 @@ export function FieldPendingHorimeters({ onBack, onRegister }: FieldPendingHorim
         }
       }
 
-      // Fetch last reading for vehicles still missing context
       if (vehicleData) {
         const missingVehicleIds = vehicleData
           .filter(v => !lrMap[v.id])
@@ -222,7 +225,6 @@ export function FieldPendingHorimeters({ onBack, onRegister }: FieldPendingHorim
       setReadingsMap(rMap);
       setLastReadingMap(lrMap);
 
-      // Auto-expand first date
       if (dateRange.length > 0) {
         setExpandedDates(prev => {
           const next = { ...prev };
@@ -242,26 +244,39 @@ export function FieldPendingHorimeters({ onBack, onRegister }: FieldPendingHorim
     fetchData();
   }, [fetchData]);
 
-  // Build pending vehicles per date
+  // Build pending vehicles per date, sorted by name (Descrição) A-Z, filtered by search
   const pendingByDate = useMemo(() => {
+    const search = searchFilter.toLowerCase().trim();
     const result: Record<string, PendingVehicle[]> = {};
     for (const dateStr of dateRange) {
       const pending: PendingVehicle[] = [];
       for (const v of vehicles) {
         const hasReading = readingsMap[v.id]?.has(dateStr);
         if (!hasReading) {
+          // Apply search filter on name (Descrição), code, or category
+          if (search) {
+            const matchName = v.name.toLowerCase().includes(search);
+            const matchCode = v.code.toLowerCase().includes(search);
+            const matchCategory = v.category?.toLowerCase().includes(search);
+            const matchDesc = v.description?.toLowerCase().includes(search);
+            if (!matchName && !matchCode && !matchCategory && !matchDesc) continue;
+          }
           pending.push({
             vehicle: v,
             lastReading: lastReadingMap[v.id],
           });
         }
       }
-      // Sort by code
-      pending.sort((a, b) => a.vehicle.code.localeCompare(b.vehicle.code));
+      // Sort by name (Descrição) A-Z, then by code
+      pending.sort((a, b) => {
+        const nameCompare = a.vehicle.name.localeCompare(b.vehicle.name, 'pt-BR');
+        if (nameCompare !== 0) return nameCompare;
+        return a.vehicle.code.localeCompare(b.vehicle.code);
+      });
       result[dateStr] = pending;
     }
     return result;
-  }, [dateRange, vehicles, readingsMap, lastReadingMap]);
+  }, [dateRange, vehicles, readingsMap, lastReadingMap, searchFilter]);
 
   const totalPending = useMemo(() => {
     return Object.values(pendingByDate).reduce((sum, arr) => sum + arr.length, 0);
@@ -300,20 +315,75 @@ export function FieldPendingHorimeters({ onBack, onRegister }: FieldPendingHorim
         </Badge>
       </div>
 
-      {/* Days filter */}
-      <div className="flex items-center gap-2">
+      {/* Search filter */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <Input
+          placeholder="Filtrar por descrição, código..."
+          value={searchFilter}
+          onChange={e => setSearchFilter(e.target.value)}
+          className={cn("pl-9 h-10 text-sm", isDark ? "bg-slate-800 border-slate-700" : "")}
+        />
+        {searchFilter && (
+          <button
+            onClick={() => setSearchFilter('')}
+            className="absolute right-3 top-1/2 -translate-y-1/2"
+          >
+            <X className="w-4 h-4 text-muted-foreground" />
+          </button>
+        )}
+      </div>
+
+      {/* Days filter + specific date */}
+      <div className="flex items-center gap-2 flex-wrap">
         <span className="text-xs text-muted-foreground">Período:</span>
         {[3, 5, 7].map(d => (
           <Button
             key={d}
             size="sm"
-            variant={daysBack === d ? 'default' : 'outline'}
+            variant={!specificDate && daysBack === d ? 'default' : 'outline'}
             className="h-8 text-xs px-3"
-            onClick={() => setDaysBack(d)}
+            onClick={() => { setSpecificDate(undefined); setDaysBack(d); }}
           >
             {d} dias
           </Button>
         ))}
+        <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              size="sm"
+              variant={specificDate ? 'default' : 'outline'}
+              className="h-8 text-xs px-3 gap-1"
+            >
+              <CalendarIcon className="w-3.5 h-3.5" />
+              {specificDate ? format(specificDate, 'dd/MM/yyyy') : 'Data'}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <Calendar
+              mode="single"
+              selected={specificDate}
+              onSelect={(date) => {
+                setSpecificDate(date);
+                setDatePickerOpen(false);
+              }}
+              disabled={(date) => date > new Date()}
+              initialFocus
+              className={cn("p-3 pointer-events-auto")}
+              locale={ptBR}
+            />
+          </PopoverContent>
+        </Popover>
+        {specificDate && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-8 text-xs px-2"
+            onClick={() => setSpecificDate(undefined)}
+          >
+            <X className="w-3.5 h-3.5" />
+          </Button>
+        )}
       </div>
 
       {/* Summary cards */}
