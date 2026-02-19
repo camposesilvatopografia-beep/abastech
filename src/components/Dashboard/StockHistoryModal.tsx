@@ -1,6 +1,6 @@
 import { format, parse, isAfter, startOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { X, Calendar, Package2, ArrowUp, ArrowDown, History, Table2, BarChart3, TrendingUp, TrendingDown } from 'lucide-react';
+import { X, Calendar, Package2, ArrowUp, ArrowDown, History, Table2, BarChart3, TrendingUp, TrendingDown, Clock } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -29,9 +29,10 @@ interface StockHistoryModalProps {
 }
 
 function parseNumber(value: any): number {
-  if (!value) return 0;
-  const str = String(value).replace(/\./g, '').replace(',', '.');
-  return parseFloat(str) || 0;
+  if (!value && value !== 0) return 0;
+  const str = String(value).trim().replace(/\./g, '').replace(',', '.');
+  const num = parseFloat(str);
+  return isNaN(num) ? 0 : num;
 }
 
 function formatNumber(value: number): string {
@@ -70,47 +71,44 @@ function extractHistoryRows(sheetData: SheetData): HistoryRow[] {
     );
 
     const estoqueAnterior = parseNumber(
-      row['EstoqueAnterior'] || 
-      row['Estoque Anterior'] || 
-      row['ESTOQUE_ANTERIOR'] || 
-      row['ESTOQUE ANTERIOR'] ||
-      0
+      row['EstoqueAnterior'] ??
+      row['Estoque Anterior'] ??
+      row['ESTOQUE_ANTERIOR'] ??
+      row['ESTOQUE ANTERIOR'] ??
+      null
     );
 
     const entrada = parseNumber(
-      row['Entrada'] || 
-      row['Entradas'] || 
-      row['ENTRADA'] || 
-      row['ENTRADAS'] ||
-      0
+      row['Entrada'] ??
+      row['Entradas'] ??
+      row['ENTRADA'] ??
+      row['ENTRADAS'] ??
+      null
     );
 
     const saida = parseNumber(
-      row['Saida'] || 
-      row['Saída'] || 
-      row['Saidas'] || 
-      row['Saídas'] ||
-      row['SAIDA'] || 
-      row['SAÍDA'] ||
-      row['Saida para Comboios'] ||
-      row['Saida para Equipamentos'] ||
-      0
+      row['Saida'] ??
+      row['Saída'] ??
+      row['Saidas'] ??
+      row['Saídas'] ??
+      row['SAIDA'] ??
+      row['SAÍDA'] ??
+      null
     );
 
-    // Try to calculate saidas for Geral sheet (sum of comboios + equipamentos)
-    const saidaComboios = parseNumber(row['Saida para Comboios'] || 0);
-    const saidaEquipamentos = parseNumber(row['Saida para Equipamentos'] || 0);
-    const totalSaida = saidaComboios + saidaEquipamentos > 0 
-      ? saidaComboios + saidaEquipamentos 
+    // For Geral sheet: sum comboios + equipamentos if available
+    const saidaComboios = parseNumber(row['Saida para Comboios'] ?? null);
+    const saidaEquipamentos = parseNumber(row['Saida para Equipamentos'] ?? null);
+    const totalSaida = (saidaComboios + saidaEquipamentos) > 0
+      ? saidaComboios + saidaEquipamentos
       : saida;
 
     const estoqueAtual = parseNumber(
-      row['EstoqueAtual'] || 
-      row['Estoque Atual'] || 
-      row['ESTOQUE_ATUAL'] || 
-      row['ESTOQUE ATUAL'] ||
-      row['H'] ||
-      0
+      row['EstoqueAtual'] ??
+      row['Estoque Atual'] ??
+      row['ESTOQUE_ATUAL'] ??
+      row['ESTOQUE ATUAL'] ??
+      null
     );
 
     return {
@@ -123,7 +121,6 @@ function extractHistoryRows(sheetData: SheetData): HistoryRow[] {
   })
   .filter(row => {
     if (!row.data) return false;
-    // Filtra datas futuras — exibe apenas até a data atual
     const parsed = parseDateBR(row.data);
     if (!parsed) return true; // mantém linhas sem data parseável
     return !isAfter(startOfDay(parsed), today);
@@ -152,8 +149,13 @@ export function StockHistoryModal({ open, onClose, title, sheetData }: StockHist
 
   // Dados do dia atual
   const todayRow = historyRows.find(r => r.data.trim() === todayStr);
+  
+  // Fallback: se não há dados hoje, usar a linha mais recente disponível
+  const latestRow = historyRows[0];
+  const displayRow = todayRow || latestRow;
+  const hasToday = !!todayRow;
 
-  // Calculate totals (from resumo)
+  // Calculate totals (from resumo) — apenas sobre linhas com datas válidas
   const totals = historyRows.reduce(
     (acc, row) => ({
       entradas: acc.entradas + row.entrada,
@@ -167,7 +169,7 @@ export function StockHistoryModal({ open, onClose, title, sheetData }: StockHist
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-5xl max-h-[90vh] p-0 gap-0 overflow-hidden">
-        {/* Header with navy blue gradient */}
+        {/* Header */}
         <div className="bg-gradient-to-r from-slate-800 to-slate-900 px-6 py-5 text-white">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -185,15 +187,22 @@ export function StockHistoryModal({ open, onClose, title, sheetData }: StockHist
           </div>
         </div>
 
-        {/* ── KPIs do DIA ATUAL ─────────────────────────────────── */}
+        {/* ── KPIs do DIA ATUAL (ou mais recente) ────────────────── */}
         <div className="bg-slate-800 px-6 py-4 border-b border-slate-700">
           <div className="flex items-center gap-2 mb-3">
             <Calendar className="h-4 w-4 text-sky-400" />
-            <span className="text-sm font-semibold text-white uppercase tracking-wide">Hoje — {todayStr}</span>
-            {todayRow ? (
+            <span className="text-sm font-semibold text-white uppercase tracking-wide">
+              {hasToday ? `Hoje — ${todayStr}` : `Mais Recente — ${displayRow?.data || '—'}`}
+            </span>
+            {hasToday ? (
               <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">Com dados</span>
+            ) : displayRow ? (
+              <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center gap-1">
+                <Clock className="h-3 w-3" />
+                Último registro disponível
+              </span>
             ) : (
-              <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-slate-600 text-slate-400">Sem registro hoje</span>
+              <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-slate-600 text-slate-400">Sem registros</span>
             )}
           </div>
 
@@ -201,27 +210,34 @@ export function StockHistoryModal({ open, onClose, title, sheetData }: StockHist
             {/* Estoque Anterior */}
             <div className="rounded-xl bg-amber-500/10 border border-amber-500/20 px-4 py-3 text-center">
               <span className="text-[10px] font-semibold uppercase tracking-wider text-amber-300 block">Est. Anterior</span>
-              <span className="text-2xl font-black text-amber-200 mt-1 block">
-                {todayRow ? formatNumber(todayRow.estoqueAnterior) : '—'}
+              <span className={cn(
+                "text-2xl font-black mt-1 block",
+                displayRow && displayRow.estoqueAnterior < 0 ? "text-rose-300" : "text-amber-200"
+              )}>
+                {displayRow ? formatNumber(displayRow.estoqueAnterior) : '—'}
               </span>
             </div>
-            {/* Entrada Hoje */}
+            {/* Entrada */}
             <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/20 px-4 py-3 text-center">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-emerald-300 block">Entrada Hoje</span>
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-emerald-300 block">
+                {hasToday ? 'Entrada Hoje' : 'Entrada'}
+              </span>
               <div className="flex items-center justify-center gap-1 mt-1">
-                {(todayRow?.entrada ?? 0) > 0 && <ArrowUp className="h-4 w-4 text-emerald-400" />}
+                {(displayRow?.entrada ?? 0) > 0 && <ArrowUp className="h-4 w-4 text-emerald-400" />}
                 <span className="text-2xl font-black text-emerald-200">
-                  {todayRow ? formatNumber(todayRow.entrada) : '—'}
+                  {displayRow ? formatNumber(displayRow.entrada) : '—'}
                 </span>
               </div>
             </div>
-            {/* Saída Hoje */}
+            {/* Saída */}
             <div className="rounded-xl bg-rose-500/10 border border-rose-500/20 px-4 py-3 text-center">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-rose-300 block">Saída Hoje</span>
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-rose-300 block">
+                {hasToday ? 'Saída Hoje' : 'Saída'}
+              </span>
               <div className="flex items-center justify-center gap-1 mt-1">
-                {(todayRow?.saida ?? 0) > 0 && <ArrowDown className="h-4 w-4 text-rose-400" />}
+                {(displayRow?.saida ?? 0) > 0 && <ArrowDown className="h-4 w-4 text-rose-400" />}
                 <span className="text-2xl font-black text-rose-200">
-                  {todayRow ? formatNumber(todayRow.saida) : '—'}
+                  {displayRow ? formatNumber(displayRow.saida) : '—'}
                 </span>
               </div>
             </div>
@@ -230,8 +246,11 @@ export function StockHistoryModal({ open, onClose, title, sheetData }: StockHist
               <span className="text-[10px] font-semibold uppercase tracking-wider text-sky-300 block">Est. Atual</span>
               <div className="flex items-center justify-center gap-1 mt-1">
                 <Package2 className="h-4 w-4 text-sky-400" />
-                <span className="text-2xl font-black text-sky-200">
-                  {todayRow ? formatNumber(todayRow.estoqueAtual) : '—'}
+                <span className={cn(
+                  "text-2xl font-black",
+                  displayRow && displayRow.estoqueAtual < 0 ? "text-rose-300" : "text-sky-200"
+                )}>
+                  {displayRow ? formatNumber(displayRow.estoqueAtual) : '—'}
                 </span>
               </div>
             </div>
@@ -286,7 +305,7 @@ export function StockHistoryModal({ open, onClose, title, sheetData }: StockHist
             </TabsList>
           </div>
 
-          {/* RESUMO (movimentações) */}
+          {/* RESUMO (movimentações diárias) */}
           <TabsContent value="resumo" className="m-0 flex-1">
             {/* Summary Cards */}
             <div className="px-6 py-4 grid grid-cols-2 md:grid-cols-4 gap-3 border-b border-border bg-muted/20">
@@ -321,7 +340,7 @@ export function StockHistoryModal({ open, onClose, title, sheetData }: StockHist
             </div>
 
             {/* History Table */}
-            <ScrollArea className="h-[360px]">
+            <ScrollArea className="h-[320px]">
               {historyRows.length > 0 ? (
                 <Table>
                   <TableHeader className="sticky top-0 bg-background z-10">
@@ -345,41 +364,59 @@ export function StockHistoryModal({ open, onClose, title, sheetData }: StockHist
                   <TableBody>
                     {historyRows.map((row, index) => {
                       const isToday = row.data.trim() === todayStr;
+                      const isLatest = !hasToday && index === 0;
                       return (
-                      <TableRow key={index} className={cn("hover:bg-muted/50", isToday && "bg-sky-50 dark:bg-sky-950/30 font-semibold")}>
-                        <TableCell className="font-medium">
-                          <Badge
-                            variant="outline"
-                            className={cn("font-mono text-xs", isToday && "bg-sky-100 dark:bg-sky-900/50 border-sky-400 text-sky-700 dark:text-sky-300")}
-                          >
-                            {isToday ? '📅 Hoje' : row.data}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right text-amber-600 dark:text-amber-500 font-medium">
-                          {formatNumber(row.estoqueAnterior)}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {row.entrada > 0 ? (
-                            <span className="text-emerald-600 dark:text-emerald-500 font-semibold">
-                              +{formatNumber(row.entrada)}
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground">-</span>
+                        <TableRow
+                          key={index}
+                          className={cn(
+                            "hover:bg-muted/50",
+                            isToday && "bg-sky-50 dark:bg-sky-950/30 font-semibold",
+                            isLatest && !isToday && "bg-amber-50 dark:bg-amber-950/20"
                           )}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {row.saida > 0 ? (
-                            <span className="text-rose-600 dark:text-rose-500 font-semibold">
-                              -{formatNumber(row.saida)}
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right font-bold text-sky-600 dark:text-sky-500">
-                          {formatNumber(row.estoqueAtual)}
-                        </TableCell>
-                      </TableRow>
+                        >
+                          <TableCell className="font-medium">
+                            <Badge
+                              variant="outline"
+                              className={cn(
+                                "font-mono text-xs",
+                                isToday && "bg-sky-100 dark:bg-sky-900/50 border-sky-400 text-sky-700 dark:text-sky-300",
+                                isLatest && !isToday && "bg-amber-100 dark:bg-amber-900/30 border-amber-400 text-amber-700 dark:text-amber-300"
+                              )}
+                            >
+                              {isToday ? '📅 Hoje' : isLatest ? `⏱ ${row.data}` : row.data}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className={cn(
+                            "text-right font-medium",
+                            row.estoqueAnterior < 0 ? "text-rose-600 dark:text-rose-500" : "text-amber-600 dark:text-amber-500"
+                          )}>
+                            {formatNumber(row.estoqueAnterior)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {row.entrada > 0 ? (
+                              <span className="text-emerald-600 dark:text-emerald-500 font-semibold">
+                                +{formatNumber(row.entrada)}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {row.saida > 0 ? (
+                              <span className="text-rose-600 dark:text-rose-500 font-semibold">
+                                -{formatNumber(row.saida)}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </TableCell>
+                          <TableCell className={cn(
+                            "text-right font-bold",
+                            row.estoqueAtual < 0 ? "text-rose-600 dark:text-rose-500" : "text-sky-600 dark:text-sky-500"
+                          )}>
+                            {formatNumber(row.estoqueAtual)}
+                          </TableCell>
+                        </TableRow>
                       );
                     })}
                   </TableBody>
@@ -395,7 +432,7 @@ export function StockHistoryModal({ open, onClose, title, sheetData }: StockHist
 
           {/* TABELA (igual planilha) */}
           <TabsContent value="tabela" className="m-0 flex-1">
-            <ScrollArea className="h-[480px]">
+            <ScrollArea className="h-[440px]">
               {rawHeaders.length > 0 && rawRows.length > 0 ? (
                 <div className="w-full overflow-x-auto">
                   <Table>
@@ -409,15 +446,27 @@ export function StockHistoryModal({ open, onClose, title, sheetData }: StockHist
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {rawRows.map((row: any, idx: number) => (
-                        <TableRow key={row?._rowIndex ?? idx} className="hover:bg-muted/50">
-                          {rawHeaders.map((h) => (
-                            <TableCell key={String(h)} className="whitespace-nowrap">
-                              {String(row?.[h] ?? '')}
-                            </TableCell>
-                          ))}
-                        </TableRow>
-                      ))}
+                      {rawRows.map((row: any, idx: number) => {
+                        const dateStr = String(row['Data'] || row['DATA'] || row['data'] || '').trim();
+                        const isToday = dateStr === todayStr;
+                        const isLatest = !historyRows.some(r => r.data.trim() === todayStr) && idx === 0;
+                        return (
+                          <TableRow
+                            key={row?._rowIndex ?? idx}
+                            className={cn(
+                              "hover:bg-muted/50",
+                              isToday && "bg-sky-50 dark:bg-sky-950/30 font-semibold",
+                              isLatest && !isToday && "bg-amber-50 dark:bg-amber-950/20"
+                            )}
+                          >
+                            {rawHeaders.map((h) => (
+                              <TableCell key={String(h)} className="whitespace-nowrap">
+                                {String(row?.[h] ?? '')}
+                              </TableCell>
+                            ))}
+                          </TableRow>
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 </div>
