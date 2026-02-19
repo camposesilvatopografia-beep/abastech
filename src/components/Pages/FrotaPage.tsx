@@ -449,10 +449,12 @@ export function FrotaPage() {
         veiculos++;
       }
 
-      // Veículos de "Obra Saneamento" ficam em KPI separado
+      // Veículos de "Obra Saneamento", "Aferição Comboio" e "AJUSTE" ficam fora da contagem Mob/Desmob
+      const descricao = getRowValue(row as any, ['DESCRICAO', 'DESCRIÇÃO', 'Descricao', 'descrição', 'descricao']).trim().toLowerCase();
       const isObraSaneamento = empresa.toLowerCase().includes('obra saneamento') || obra.toLowerCase().includes('obra saneamento');
+      const isExcluded = isObraSaneamento || descricao.includes('aferição comboio') || descricao.includes('afericao comboio') || descricao === 'ajuste';
       
-      if (isObraSaneamento && (status === 'mobilizado' || status === 'desmobilizado' || status === 'ativo')) {
+      if (isExcluded && (status === 'mobilizado' || status === 'desmobilizado' || status === 'ativo')) {
         obraSaneamento++;
       } else if (status === 'ativo') ativos++;
       else if (status === 'inativo') inativos++;
