@@ -46,6 +46,7 @@ import { parsePtBRNumber, formatPtBRNumber } from '@/lib/ptBRNumber';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { format, startOfDay, isAfter, isSameDay } from 'date-fns';
+import { FieldPendingHorimeters } from './FieldPendingHorimeters';
 import { ptBR } from 'date-fns/locale';
 import { useTheme } from '@/hooks/useTheme';
 import { useFieldSettings, playSuccessSound, vibrateDevice } from '@/hooks/useFieldSettings';
@@ -158,7 +159,9 @@ export function FieldHorimeterForm({ user, onBack }: FieldHorimeterFormProps) {
   const { settings } = useFieldSettings();
   const offlineStorage = useOfflineStorage(user.id);
   const isDark = theme === 'dark';
-  const [subView, setSubView] = useState<'menu' | 'form' | 'records'>('menu');
+  const [subView, setSubView] = useState<'menu' | 'form' | 'records' | 'pendencias'>('menu');
+  const [prefillVehicleId, setPrefillVehicleId] = useState('');
+  const [prefillDate, setPrefillDate] = useState('');
   const [allReadings, setAllReadings] = useState<HorimeterReading[]>([]);
   const [loadingReadings, setLoadingReadings] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
@@ -742,7 +745,16 @@ export function FieldHorimeterForm({ user, onBack }: FieldHorimeterFormProps) {
     if (subView === 'records') {
       fetchAllReadings();
     }
-  }, [subView, fetchAllReadings]);
+    // Apply prefill when switching to form from pendencias
+    if (subView === 'form' && prefillVehicleId) {
+      setSelectedVehicleId(prefillVehicleId);
+      if (prefillDate) {
+        setSelectedDate(new Date(prefillDate + 'T12:00:00'));
+      }
+      setPrefillVehicleId('');
+      setPrefillDate('');
+    }
+  }, [subView, fetchAllReadings, prefillVehicleId, prefillDate]);
 
   const sectionClass = (color: string) => cn(
     "rounded-xl p-4 space-y-3 shadow-md",
@@ -802,8 +814,36 @@ export function FieldHorimeterForm({ user, onBack }: FieldHorimeterFormProps) {
             </div>
             <ArrowRight className="w-5 h-5 opacity-60 shrink-0" />
           </button>
+
+          <button
+            onClick={() => setSubView('pendencias')}
+            className="w-full flex items-center gap-4 p-4 rounded-2xl bg-gradient-to-r from-orange-500 to-red-600 text-white shadow-lg shadow-orange-500/30 active:scale-[0.98] transition-transform text-left"
+          >
+            <div className="w-14 h-14 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center shrink-0">
+              <AlertCircle className="w-7 h-7" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <span className="text-base font-bold block">Pendências</span>
+              <span className="text-xs opacity-80">Veículos sem lançamento por data</span>
+            </div>
+            <ArrowRight className="w-5 h-5 opacity-60 shrink-0" />
+          </button>
         </div>
       </div>
+    );
+  }
+
+  // PENDENCIAS VIEW
+  if (subView === 'pendencias') {
+    return (
+      <FieldPendingHorimeters
+        onBack={() => setSubView('menu')}
+        onRegister={(vehicleId, date) => {
+          setPrefillVehicleId(vehicleId);
+          setPrefillDate(date);
+          setSubView('form');
+        }}
+      />
     );
   }
 
