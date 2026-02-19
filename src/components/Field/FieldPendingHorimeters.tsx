@@ -37,6 +37,7 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { getSheetData } from '@/lib/googleSheets';
 import { parsePtBRNumber, formatPtBRNumber } from '@/lib/ptBRNumber';
+import { generateHorimeterId } from '@/lib/sheetIdGenerator';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { format, subDays, eachDayOfInterval, startOfDay } from 'date-fns';
@@ -316,6 +317,7 @@ export function FieldPendingHorimeters({ onBack, onRegister }: FieldPendingHorim
         // Send data with semantic keys - the edge function handles header normalization
         // (exact match → trimmed → accent/space-insensitive)
         const sheetData: Record<string, string> = {
+          'Id': generateHorimeterId(),
           'Data': formattedDate,
           'Veiculo': vehicle.code,
           'Categoria': vehicle.category || '',

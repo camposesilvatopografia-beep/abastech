@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { parsePtBRNumber, formatPtBRNumber } from '@/lib/ptBRNumber';
 import { getSheetData } from '@/lib/googleSheets';
+import { generateHorimeterId } from '@/lib/sheetIdGenerator';
 
 /**
  * Normalize a header string for fuzzy matching:
@@ -377,6 +378,7 @@ export function useHorimeterReadings(vehicleId?: string) {
           
           // Use semantic keys that will be matched to actual sheet headers via normalized comparison
           const semanticData: Record<string, string> = {
+            'Id': generateHorimeterId(),
             'Data': formattedDate,
             'Veiculo': vehicle.code,
             'Categoria': vehicle.category || '',

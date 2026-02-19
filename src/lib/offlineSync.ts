@@ -2,6 +2,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { offlineDB, OfflineRecord } from '@/hooks/useOfflineStorage';
 import { formatPtBRNumber } from '@/lib/ptBRNumber';
 import { getSheetData } from '@/lib/googleSheets';
+import { generateHorimeterId } from '@/lib/sheetIdGenerator';
 
 /**
  * Enriches an offline fuel record with fresh data from the DB:
@@ -347,6 +348,7 @@ async function syncHorimeterRecord(record: OfflineRecord) {
     const currKm = Number(data.current_km) || 0;
 
     const sheetPayload: Record<string, string> = {
+      'Id': generateHorimeterId(),
       'Data': formattedDate,
       'Veiculo': data.vehicle_code || '',
       'Categoria': data.vehicle_category || '',
