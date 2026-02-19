@@ -7,6 +7,7 @@ import {
   Calendar,
   AlertTriangle,
   User,
+  Building2,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -27,7 +28,7 @@ import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
-export type KpiType = 'total' | 'ativos' | 'inativos' | 'manutencao' | 'mobilizados' | 'desmobilizados';
+export type KpiType = 'total' | 'ativos' | 'inativos' | 'manutencao' | 'mobilizados' | 'desmobilizados' | 'obra_saneamento';
 
 interface VehicleItem {
   codigo: string;
@@ -103,6 +104,13 @@ const KPI_CONFIG: Record<KpiType, {
     headerBg: 'bg-gradient-to-r from-red-400 to-red-500',
     statusFilter: 'desmobilizado',
   },
+  obra_saneamento: { 
+    title: 'Obra Saneamento', 
+    icon: Building2, 
+    color: 'text-purple-600',
+    headerBg: 'bg-gradient-to-r from-purple-500 to-purple-600',
+    statusFilter: 'obra_saneamento',
+  },
 };
 
 export function FrotaKpiDetailModal({
@@ -120,6 +128,10 @@ export function FrotaKpiDetailModal({
   const filteredVehicles = config.statusFilter
     ? vehicles.filter(v => {
         const s = v.status.toLowerCase();
+        const empresa = (v.empresa || '').toLowerCase();
+        if (config.statusFilter === 'obra_saneamento') {
+          return empresa.includes('obra saneamento');
+        }
         if (config.statusFilter === 'manutencao') {
           return s === 'manutencao' || s === 'manutenção';
         }
