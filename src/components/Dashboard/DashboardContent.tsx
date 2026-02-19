@@ -50,11 +50,12 @@ function parseBrazilianDate(dateStr: string): Date | null {
 }
 
 export function DashboardContent() {
-  // NO POLLING - Use Supabase Realtime to detect changes, then refresh Google Sheets only when needed
-  const { data: geralData, loading, refetch: refetchGeral } = useSheetData(GERAL_SHEET);
-  const { data: abastecimentoData, refetch: refetchAbastecimento } = useSheetData(ABASTECIMENTO_SHEET);
+  // Polling de 30s como fallback para edições diretas na planilha (sem evento Supabase)
+  const POLL_MS = 30000;
+  const { data: geralData, loading, refetch: refetchGeral } = useSheetData(GERAL_SHEET, { pollingInterval: POLL_MS });
+  const { data: abastecimentoData, refetch: refetchAbastecimento } = useSheetData(ABASTECIMENTO_SHEET, { pollingInterval: POLL_MS });
   const { data: vehicleData } = useSheetData(VEHICLE_SHEET);
-  const { data: arlaData, refetch: refetchArla } = useSheetData(ARLA_SHEET);
+  const { data: arlaData, refetch: refetchArla } = useSheetData(ARLA_SHEET, { pollingInterval: POLL_MS });
   const [isSending, setIsSending] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   const [search, setSearch] = useState('');
