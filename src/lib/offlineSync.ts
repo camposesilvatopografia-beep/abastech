@@ -4,7 +4,187 @@ import { formatPtBRNumber } from '@/lib/ptBRNumber';
 import { getSheetData } from '@/lib/googleSheets';
 
 /**
+ * Enriches an offline fuel record with fresh data from the DB:
+ * - Fills missing horimeter_previous / km_previous from the latest record
+ * - Fills missing or incorrect operator_name from vehicle history
+ */
+async function enrichFuelRecord(data: Record<string, any>, userId: string): Promise<Record<string, any>> {
+  const vehicleCode = data.vehicle_code;
+  if (!vehicleCode) return data;
+
+  const enriched = { ...data };
+
+  try {
+    // 1. Fix operator: if it matches the field user's own name, look up the correct driver
+    const { data: fieldUser } = await supabase
+      .from('field_users')
+      .select('name')
+      .eq('id', userId)
+      .maybeSingle();
+
+    const userOwnName = fieldUser?.name || '';
+    const currentOp = (enriched.operator_name || '').trim();
+    const needsOperatorFix = !currentOp || (userOwnName && currentOp.toLowerCase() === userOwnName.toLowerCase());
+
+    if (needsOperatorFix) {
+      // Try from recent fuel records
+      const { data: recentFuel } = await supabase
+        .from('field_fuel_records')
+        .select('operator_name')
+        .eq('vehicle_code', vehicleCode)
+        .not('operator_name', 'is', null)
+        .neq('operator_name', '')
+        .order('created_at', { ascending: false })
+        .limit(5);
+
+      const correctOp = recentFuel?.find(r =>
+        r.operator_name && r.operator_name.toLowerCase() !== userOwnName.toLowerCase()
+      );
+
+      if (correctOp?.operator_name) {
+        enriched.operator_name = correctOp.operator_name;
+      } else {
+        // Fallback: horimeter readings
+        const { data: vehicleRow } = await supabase
+          .from('vehicles')
+          .select('id')
+          .eq('code', vehicleCode)
+          .maybeSingle();
+
+        if (vehicleRow?.id) {
+          const { data: horRec } = await supabase
+            .from('horimeter_readings')
+            .select('operator')
+            .eq('vehicle_id', vehicleRow.id)
+            .not('operator', 'is', null)
+            .neq('operator', '')
+            .order('created_at', { ascending: false })
+            .limit(1);
+
+          if (horRec?.[0]?.operator) {
+            enriched.operator_name = horRec[0].operator;
+          }
+        }
+      }
+    }
+
+    // 2. Fill missing horimeter_previous and km_previous
+    const horPrev = Number(enriched.horimeter_previous) || 0;
+    const kmPrev = Number(enriched.km_previous) || 0;
+
+    if (horPrev === 0 || kmPrev === 0) {
+      // Get the most recent fuel record for this vehicle
+      const { data: lastFuel } = await supabase
+        .from('field_fuel_records')
+        .select('horimeter_current, km_current')
+        .eq('vehicle_code', vehicleCode)
+        .not('horimeter_current', 'is', null)
+        .order('record_date', { ascending: false })
+        .order('record_time', { ascending: false })
+        .limit(1);
+
+      if (lastFuel?.[0]) {
+        if (horPrev === 0 && Number(lastFuel[0].horimeter_current) > 0) {
+          enriched.horimeter_previous = lastFuel[0].horimeter_current;
+        }
+        if (kmPrev === 0 && Number(lastFuel[0].km_current) > 0) {
+          enriched.km_previous = lastFuel[0].km_current;
+        }
+      }
+
+      // Also check horimeter_readings table for more recent data
+      const { data: vehicleRow } = await supabase
+        .from('vehicles')
+        .select('id')
+        .eq('code', vehicleCode)
+        .maybeSingle();
+
+      if (vehicleRow?.id) {
+        const { data: lastHor } = await supabase
+          .from('horimeter_readings')
+          .select('current_value, current_km')
+          .eq('vehicle_id', vehicleRow.id)
+          .order('reading_date', { ascending: false })
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        if (lastHor?.[0]) {
+          const dbHor = Number(lastHor[0].current_value) || 0;
+          const dbKm = Number(lastHor[0].current_km) || 0;
+          // Use whichever is higher (more recent)
+          if (dbHor > Number(enriched.horimeter_previous || 0)) {
+            enriched.horimeter_previous = dbHor;
+          }
+          if (dbKm > Number(enriched.km_previous || 0)) {
+            enriched.km_previous = dbKm;
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[OfflineSync] Enrichment failed, using original data:', err);
+  }
+
+  return enriched;
+}
+
+/**
+ * Enriches an offline horimeter record with fresh data from the DB
+ */
+async function enrichHorimeterRecord(data: Record<string, any>): Promise<Record<string, any>> {
+  const vehicleId = data.vehicle_id;
+  if (!vehicleId) return data;
+
+  const enriched = { ...data };
+
+  try {
+    const prevVal = Number(enriched.previous_value) || 0;
+    const prevKm = Number(enriched.previous_km) || 0;
+
+    if (prevVal === 0 || prevKm === 0) {
+      const { data: lastReading } = await supabase
+        .from('horimeter_readings')
+        .select('current_value, current_km')
+        .eq('vehicle_id', vehicleId)
+        .order('reading_date', { ascending: false })
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (lastReading?.[0]) {
+        if (prevVal === 0 && Number(lastReading[0].current_value) > 0) {
+          enriched.previous_value = lastReading[0].current_value;
+        }
+        if (prevKm === 0 && Number(lastReading[0].current_km) > 0) {
+          enriched.previous_km = lastReading[0].current_km;
+        }
+      }
+    }
+
+    // Fix operator if missing
+    if (!enriched.operator) {
+      const { data: lastOp } = await supabase
+        .from('horimeter_readings')
+        .select('operator')
+        .eq('vehicle_id', vehicleId)
+        .not('operator', 'is', null)
+        .neq('operator', '')
+        .order('reading_date', { ascending: false })
+        .limit(1);
+
+      if (lastOp?.[0]?.operator) {
+        enriched.operator = lastOp[0].operator;
+      }
+    }
+  } catch (err) {
+    console.warn('[OfflineSync] Horimeter enrichment failed:', err);
+  }
+
+  return enriched;
+}
+
+/**
  * Syncs all pending offline records to Supabase and Google Sheets.
+ * Enriches each record with fresh DB data before inserting.
  * Returns { synced, failed } counts.
  */
 export async function syncAllOfflineRecords(userId: string): Promise<{ synced: number; failed: number }> {
@@ -18,9 +198,12 @@ export async function syncAllOfflineRecords(userId: string): Promise<{ synced: n
     try {
       switch (record.type) {
         case 'fuel_record':
+          // Enrich with fresh DB data before sync
+          record.data = await enrichFuelRecord(record.data, userId);
           await syncFuelRecord(record);
           break;
         case 'horimeter_reading':
+          record.data = await enrichHorimeterRecord(record.data);
           await syncHorimeterRecord(record);
           break;
         case 'service_order':
