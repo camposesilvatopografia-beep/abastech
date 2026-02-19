@@ -327,16 +327,36 @@ export function FrotaPage() {
     
     setDeleting(true);
     try {
+      // First find the rowIndex for the vehicle
+      const { data: sheetData, error: fetchError } = await supabase.functions.invoke('google-sheets', {
+        body: { action: 'getData', sheetName: 'Veiculo', noCache: true },
+      });
+      if (fetchError) throw fetchError;
+
+      const rows = sheetData?.rows || [];
+      const normalize = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/\s/g, '');
+      const targetCode = normalize(vehicleToDelete);
+      const matchedRow = rows.find((r: any) => {
+        const code = normalize(String(r.CODIGO || r['CÓDIGO'] || r['Codigo'] || ''));
+        return code === targetCode;
+      });
+
+      if (!matchedRow?._rowIndex) {
+        throw new Error('Veículo não encontrado na planilha');
+      }
+
       const { error } = await supabase.functions.invoke('google-sheets', {
         body: {
           action: 'delete',
           sheetName: 'Veiculo',
-          searchColumn: 'CODIGO',
-          searchValue: vehicleToDelete,
+          rowIndex: matchedRow._rowIndex,
         },
       });
 
       if (error) throw error;
+      
+      // Also sync deletion to Supabase vehicles table
+      await supabase.from('vehicles').delete().eq('code', vehicleToDelete);
       
       toast.success('Veículo excluído com sucesso!');
       refetch();
