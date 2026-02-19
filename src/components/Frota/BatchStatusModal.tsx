@@ -100,6 +100,12 @@ export function BatchStatusModal({ open, onClose, onSuccess, selectedVehicles }:
           });
 
           if (error) throw error;
+          
+          // Also sync to Supabase vehicles table
+          await supabase.from('vehicles')
+            .update({ status: newStatus })
+            .eq('code', code);
+          
           updated++;
         } catch (e) {
           console.error(`Error updating ${code}:`, e);

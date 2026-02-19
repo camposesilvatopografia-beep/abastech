@@ -137,6 +137,17 @@ export function VehicleFormModal({
         });
 
         if (error) throw error;
+
+        // Also sync to Supabase vehicles table
+        await supabase.from('vehicles').upsert({
+          code: formData.codigo.trim(),
+          name: formData.descricao.trim(),
+          description: formData.descricao.trim(),
+          category: formData.categoria.trim(),
+          company: formData.empresa.trim(),
+          status: formData.status,
+        }, { onConflict: 'code' });
+
         toast.success('Veículo cadastrado com sucesso!');
       } else {
         // First, find the row index by searching for the vehicle code
@@ -173,6 +184,18 @@ export function VehicleFormModal({
         });
 
         if (error) throw error;
+
+        // Also sync to Supabase vehicles table
+        await supabase.from('vehicles')
+          .update({
+            name: formData.descricao.trim(),
+            description: formData.descricao.trim(),
+            category: formData.categoria.trim(),
+            company: formData.empresa.trim(),
+            status: formData.status,
+          })
+          .eq('code', vehicle?.codigo || '');
+
         toast.success('Veículo atualizado com sucesso!');
       }
 
