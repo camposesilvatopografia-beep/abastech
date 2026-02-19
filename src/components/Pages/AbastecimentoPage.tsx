@@ -220,6 +220,46 @@ export function AbastecimentoPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeletingRecord, setIsDeletingRecord] = useState(false);
   
+  // Pending sync state
+  const [isSyncingPending, setIsSyncingPending] = useState(false);
+  const [pendingSyncCount, setPendingSyncCount] = useState(0);
+
+  // Check pending records count on mount and after refetch
+  const checkPendingSync = useCallback(async () => {
+    try {
+      const { count } = await supabase
+        .from('field_fuel_records')
+        .select('*', { count: 'exact', head: true })
+        .eq('synced_to_sheet', false);
+      setPendingSyncCount(count || 0);
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => { checkPendingSync(); }, [checkPendingSync]);
+
+  // Retry sync for all unsynced records via edge function
+  const syncPendingToSheet = useCallback(async () => {
+    if (isSyncingPending) return;
+    setIsSyncingPending(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('sync-pending-fuel', {});
+      if (error) throw error;
+      if (data?.synced > 0) {
+        toast.success(`✅ ${data.synced} registro(s) sincronizado(s) com a planilha!`);
+        // Refetch sheet data to show the newly synced records
+        await Promise.all([refetch(), refetchGeral()]);
+      } else {
+        toast.info('Nenhum registro pendente para sincronizar.');
+      }
+      await checkPendingSync();
+    } catch (err) {
+      console.error('Sync pending failed:', err);
+      toast.error('Erro ao sincronizar registros pendentes');
+    } finally {
+      setIsSyncingPending(false);
+    }
+  }, [isSyncingPending, refetch, refetchGeral, checkPendingSync]);
+
   // Store field users for location responsibility mapping
   const [fieldUsers, setFieldUsers] = useState<Array<{ id: string; name: string; assigned_locations: string[] | null }>>([]);
   
@@ -2096,6 +2136,20 @@ export function AbastecimentoPage() {
               >
                 <Plus className="w-4 h-4 sm:mr-2" />
                 <span className="hidden sm:inline">Novo Apontamento</span>
+              </Button>
+            )}
+            {pendingSyncCount > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={syncPendingToSheet}
+                disabled={isSyncingPending}
+                className="border-amber-400 text-amber-700 hover:bg-amber-50 dark:border-amber-500 dark:text-amber-400 dark:hover:bg-amber-950/30"
+                title={`${pendingSyncCount} registro(s) não sincronizado(s) com a planilha`}
+              >
+                <RefreshCw className={cn("w-4 h-4 sm:mr-2", isSyncingPending && "animate-spin")} />
+                <span className="hidden sm:inline">{isSyncingPending ? 'Sincronizando...' : `Sync Pendentes (${pendingSyncCount})`}</span>
+                <span className="sm:hidden">{pendingSyncCount}</span>
               </Button>
             )}
             <Button variant="outline" size="sm" onClick={() => refetch()} disabled={loading}>
