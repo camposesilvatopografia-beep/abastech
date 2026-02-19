@@ -129,8 +129,9 @@ export function FrotaKpiDetailModal({
     ? vehicles.filter(v => {
         const s = v.status.toLowerCase();
         const empresa = (v.empresa || '').toLowerCase();
+        const descricao = (v.descricao || '').toLowerCase();
         if (config.statusFilter === 'obra_saneamento') {
-          return empresa.includes('obra saneamento');
+          return empresa.includes('obra saneamento') || descricao.includes('aferição comboio') || descricao.includes('afericao comboio') || descricao === 'ajuste';
         }
         if (config.statusFilter === 'manutencao') {
           return s === 'manutencao' || s === 'manutenção';
