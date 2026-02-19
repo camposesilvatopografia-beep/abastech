@@ -137,6 +137,8 @@ export function StockHistoryModal({ open, onClose, title, sheetData }: StockHist
   // Raw rows (most recent first), sem datas futuras
   const rawHeaders = (sheetData.headers || []).filter((h) => String(h).trim() && String(h) !== '_rowIndex');
   const _today = startOfDay(new Date());
+  const todayStr = format(_today, 'dd/MM/yyyy');
+
   const rawRows = (sheetData.rows || [])
     .filter(row => {
       const dateStr = String(row['Data'] || row['DATA'] || row['data'] || '').trim();
@@ -147,6 +149,9 @@ export function StockHistoryModal({ open, onClose, title, sheetData }: StockHist
     })
     .slice()
     .reverse();
+
+  // Dados do dia atual
+  const todayRow = historyRows.find(r => r.data.trim() === todayStr);
 
   // Calculate totals (from resumo)
   const totals = historyRows.reduce(
@@ -180,51 +185,87 @@ export function StockHistoryModal({ open, onClose, title, sheetData }: StockHist
           </div>
         </div>
 
-        {/* RESUMO DE ESTOQUE - Summary Bar */}
+        {/* ── KPIs do DIA ATUAL ─────────────────────────────────── */}
         <div className="bg-slate-800 px-6 py-4 border-b border-slate-700">
-          <div className="flex items-center gap-3 mb-3">
-            <Package2 className="h-4 w-4 text-slate-400" />
-            <span className="text-sm font-semibold text-white uppercase tracking-wide">Resumo de Estoque</span>
+          <div className="flex items-center gap-2 mb-3">
+            <Calendar className="h-4 w-4 text-sky-400" />
+            <span className="text-sm font-semibold text-white uppercase tracking-wide">Hoje — {todayStr}</span>
+            {todayRow ? (
+              <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">Com dados</span>
+            ) : (
+              <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-slate-600 text-slate-400">Sem registro hoje</span>
+            )}
           </div>
-          
-          <div className="grid grid-cols-4 gap-4">
-            {/* Registros */}
-            <div className="flex items-center gap-3">
-              <span className="text-sm text-slate-400">Registros:</span>
-              <span className="text-lg font-bold text-white">{historyRows.length}</span>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {/* Estoque Anterior */}
+            <div className="rounded-xl bg-amber-500/10 border border-amber-500/20 px-4 py-3 text-center">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-amber-300 block">Est. Anterior</span>
+              <span className="text-2xl font-black text-amber-200 mt-1 block">
+                {todayRow ? formatNumber(todayRow.estoqueAnterior) : '—'}
+              </span>
             </div>
-            
-            {/* Entradas */}
-            <div className="flex items-center gap-3">
-              <span className="text-sm text-slate-400">Entradas:</span>
-              <span className={cn(
-                "text-lg font-bold flex items-center gap-1",
-                totals.entradas > 0 ? "text-emerald-400" : "text-slate-400"
-              )}>
-                {totals.entradas > 0 && <TrendingUp className="h-4 w-4" />}
+            {/* Entrada Hoje */}
+            <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/20 px-4 py-3 text-center">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-emerald-300 block">Entrada Hoje</span>
+              <div className="flex items-center justify-center gap-1 mt-1">
+                {(todayRow?.entrada ?? 0) > 0 && <ArrowUp className="h-4 w-4 text-emerald-400" />}
+                <span className="text-2xl font-black text-emerald-200">
+                  {todayRow ? formatNumber(todayRow.entrada) : '—'}
+                </span>
+              </div>
+            </div>
+            {/* Saída Hoje */}
+            <div className="rounded-xl bg-rose-500/10 border border-rose-500/20 px-4 py-3 text-center">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-rose-300 block">Saída Hoje</span>
+              <div className="flex items-center justify-center gap-1 mt-1">
+                {(todayRow?.saida ?? 0) > 0 && <ArrowDown className="h-4 w-4 text-rose-400" />}
+                <span className="text-2xl font-black text-rose-200">
+                  {todayRow ? formatNumber(todayRow.saida) : '—'}
+                </span>
+              </div>
+            </div>
+            {/* Estoque Atual */}
+            <div className="rounded-xl bg-sky-500/10 border border-sky-500/20 px-4 py-3 text-center">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-sky-300 block">Est. Atual</span>
+              <div className="flex items-center justify-center gap-1 mt-1">
+                <Package2 className="h-4 w-4 text-sky-400" />
+                <span className="text-2xl font-black text-sky-200">
+                  {todayRow ? formatNumber(todayRow.estoqueAtual) : '—'}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── RESUMO GERAL (histórico acumulado) ─────────────────── */}
+        <div className="bg-slate-900/60 px-6 py-3 border-b border-slate-700">
+          <div className="flex items-center gap-4 flex-wrap">
+            <div className="flex items-center gap-2">
+              <Package2 className="h-3.5 w-3.5 text-slate-400" />
+              <span className="text-xs text-slate-400 uppercase tracking-wide font-semibold">Histórico acumulado</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-slate-500">Registros:</span>
+              <span className="text-sm font-bold text-white">{historyRows.length}</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-slate-500">Entradas:</span>
+              <span className={cn("text-sm font-bold flex items-center gap-0.5", totals.entradas > 0 ? "text-emerald-400" : "text-slate-400")}>
+                {totals.entradas > 0 && <TrendingUp className="h-3 w-3" />}
                 +{formatNumber(totals.entradas)} L
               </span>
             </div>
-            
-            {/* Saídas */}
-            <div className="flex items-center gap-3">
-              <span className="text-sm text-slate-400">Saídas:</span>
-              <span className={cn(
-                "text-lg font-bold flex items-center gap-1",
-                totals.saidas > 0 ? "text-rose-400" : "text-slate-400"
-              )}>
-                {totals.saidas > 0 && <TrendingDown className="h-4 w-4" />}
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-slate-500">Saídas:</span>
+              <span className={cn("text-sm font-bold flex items-center gap-0.5", totals.saidas > 0 ? "text-rose-400" : "text-slate-400")}>
+                {totals.saidas > 0 && <TrendingDown className="h-3 w-3" />}
                 -{formatNumber(totals.saidas)} L
               </span>
             </div>
-            
-            {/* Saldo */}
-            <div className="flex items-center gap-3">
-              <span className="text-sm text-slate-400">Saldo:</span>
-              <span className={cn(
-                "text-lg font-bold",
-                saldo >= 0 ? "text-sky-400" : "text-rose-400"
-              )}>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-slate-500">Saldo:</span>
+              <span className={cn("text-sm font-bold", saldo >= 0 ? "text-sky-400" : "text-rose-400")}>
                 {saldo >= 0 ? '+' : ''}{formatNumber(saldo)} L
               </span>
             </div>
@@ -302,11 +343,16 @@ export function StockHistoryModal({ open, onClose, title, sheetData }: StockHist
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {historyRows.map((row, index) => (
-                      <TableRow key={index} className="hover:bg-muted/50">
+                    {historyRows.map((row, index) => {
+                      const isToday = row.data.trim() === todayStr;
+                      return (
+                      <TableRow key={index} className={cn("hover:bg-muted/50", isToday && "bg-sky-50 dark:bg-sky-950/30 font-semibold")}>
                         <TableCell className="font-medium">
-                          <Badge variant="outline" className="font-mono text-xs">
-                            {row.data}
+                          <Badge
+                            variant="outline"
+                            className={cn("font-mono text-xs", isToday && "bg-sky-100 dark:bg-sky-900/50 border-sky-400 text-sky-700 dark:text-sky-300")}
+                          >
+                            {isToday ? '📅 Hoje' : row.data}
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right text-amber-600 dark:text-amber-500 font-medium">
@@ -334,7 +380,8 @@ export function StockHistoryModal({ open, onClose, title, sheetData }: StockHist
                           {formatNumber(row.estoqueAtual)}
                         </TableCell>
                       </TableRow>
-                    ))}
+                      );
+                    })}
                   </TableBody>
                 </Table>
               ) : (
