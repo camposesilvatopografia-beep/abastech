@@ -1,4 +1,4 @@
-import { format } from 'date-fns';
+import { format, parse, isAfter, startOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { X, Calendar, Package2, ArrowUp, ArrowDown, History, Table2, BarChart3, TrendingUp, TrendingDown } from 'lucide-react';
 import {
@@ -46,10 +46,23 @@ interface HistoryRow {
   estoqueAtual: number;
 }
 
+/** Tenta parsear uma data no formato dd/MM/yyyy */
+function parseDateBR(dateStr: string): Date | null {
+  try {
+    const parsed = parse(dateStr.trim(), 'dd/MM/yyyy', new Date());
+    if (isNaN(parsed.getTime())) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
 function extractHistoryRows(sheetData: SheetData): HistoryRow[] {
   if (!sheetData.rows || sheetData.rows.length === 0) {
     return [];
   }
+
+  const today = startOfDay(new Date());
 
   return sheetData.rows.map(row => {
     const data = String(
@@ -107,15 +120,33 @@ function extractHistoryRows(sheetData: SheetData): HistoryRow[] {
       saida: totalSaida,
       estoqueAtual
     };
-  }).filter(row => row.data).reverse(); // Most recent first
+  })
+  .filter(row => {
+    if (!row.data) return false;
+    // Filtra datas futuras — exibe apenas até a data atual
+    const parsed = parseDateBR(row.data);
+    if (!parsed) return true; // mantém linhas sem data parseável
+    return !isAfter(startOfDay(parsed), today);
+  })
+  .reverse(); // Mais recente primeiro
 }
 
 export function StockHistoryModal({ open, onClose, title, sheetData }: StockHistoryModalProps) {
   const historyRows = extractHistoryRows(sheetData);
 
-  // Raw rows (most recent first)
+  // Raw rows (most recent first), sem datas futuras
   const rawHeaders = (sheetData.headers || []).filter((h) => String(h).trim() && String(h) !== '_rowIndex');
-  const rawRows = (sheetData.rows || []).slice().reverse();
+  const _today = startOfDay(new Date());
+  const rawRows = (sheetData.rows || [])
+    .filter(row => {
+      const dateStr = String(row['Data'] || row['DATA'] || row['data'] || '').trim();
+      if (!dateStr) return true;
+      const parsed = parseDateBR(dateStr);
+      if (!parsed) return true;
+      return !isAfter(startOfDay(parsed), _today);
+    })
+    .slice()
+    .reverse();
 
   // Calculate totals (from resumo)
   const totals = historyRows.reduce(
