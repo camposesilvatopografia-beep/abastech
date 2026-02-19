@@ -45,18 +45,20 @@ async function syncFuelRecord(record: OfflineRecord) {
   const data = record.data;
 
   // Insert into Supabase
+  // IMPORTANT: Use ?? (nullish coalescing) instead of || for numeric fields
+  // to preserve valid 0 values. Using || would convert 0 to null.
   const { data: savedRecord, error } = await supabase.from('field_fuel_records').insert({
     vehicle_code: data.vehicle_code,
     vehicle_description: data.vehicle_description || null,
     record_date: data.record_date,
     record_time: data.record_time,
-    fuel_quantity: data.fuel_quantity,
+    fuel_quantity: data.fuel_quantity ?? 0,
     fuel_type: data.fuel_type || null,
-    arla_quantity: data.arla_quantity || null,
-    horimeter_current: data.horimeter_current || null,
-    horimeter_previous: data.horimeter_previous || null,
-    km_current: data.km_current || null,
-    km_previous: data.km_previous || null,
+    arla_quantity: data.arla_quantity ?? null,
+    horimeter_current: data.horimeter_current ?? null,
+    horimeter_previous: data.horimeter_previous ?? null,
+    km_current: data.km_current ?? null,
+    km_previous: data.km_previous ?? null,
     operator_name: data.operator_name || null,
     location: data.location || null,
     observations: data.observations || null,
@@ -65,12 +67,12 @@ async function syncFuelRecord(record: OfflineRecord) {
     category: data.category || null,
     company: data.company || null,
     oil_type: data.oil_type || null,
-    oil_quantity: data.oil_quantity || null,
+    oil_quantity: data.oil_quantity ?? null,
     lubricant: data.lubricant || null,
-    filter_blow: data.filter_blow || false,
-    filter_blow_quantity: data.filter_blow_quantity || null,
+    filter_blow: data.filter_blow ?? false,
+    filter_blow_quantity: data.filter_blow_quantity ?? null,
     supplier: data.supplier || null,
-    unit_price: data.unit_price || null,
+    unit_price: data.unit_price ?? null,
     invoice_number: data.invoice_number || null,
     record_type: data.record_type || 'abastecimento',
     work_site: data.work_site || null,
