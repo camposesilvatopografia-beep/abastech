@@ -187,9 +187,9 @@ export function FieldPendingHorimeters({ onBack, onRegister }: FieldPendingHorim
       if (sheetRows.length > 0) {
         const sample = sheetRows[0];
         const dateCol = findCol(sample, ['Data', 'DATE', 'data']);
-        const codeCol = findCol(sample, ['Código', 'Codigo', 'Cod', 'codigo', 'código', 'COD']);
-        const horCol = findCol(sample, ['Horímetro Atual', 'Horimetro Atual', 'Hor. Atual', 'Hor Atual', 'Horímetro atual', 'H. Atual']);
-        const kmCol = findCol(sample, ['KM Atual', 'Km Atual', 'km atual', 'KM atual']);
+        const codeCol = findCol(sample, ['Veiculo', 'Código', 'Codigo', 'Cod', 'codigo', 'código', 'COD', 'Vehicle']);
+        const horCol = findCol(sample, ['Horimetro Atual', 'Horímetro Atual', 'Hor. Atual', 'Hor Atual', 'H. Atual']);
+        const kmCol = findCol(sample, ['Km Atual', 'KM Atual', 'km atual', 'KM atual']);
 
         if (dateCol && codeCol) {
           for (const row of sheetRows) {
@@ -272,6 +272,20 @@ export function FieldPendingHorimeters({ onBack, onRegister }: FieldPendingHorim
     setRepeatingKey(key);
 
     try {
+      // Check for existing reading on the same date for this vehicle
+      const { data: existing } = await supabase
+        .from('horimeter_readings')
+        .select('id')
+        .eq('vehicle_id', vehicle.id)
+        .eq('reading_date', dateStr)
+        .limit(1);
+
+      if (existing && existing.length > 0) {
+        toast.warning(`${vehicle.code} já possui leitura em ${dateStr.split('-').reverse().join('/')}`);
+        setRepeatingKey(null);
+        return;
+      }
+
       const { error: dbError } = await supabase
         .from('horimeter_readings')
         .insert({
