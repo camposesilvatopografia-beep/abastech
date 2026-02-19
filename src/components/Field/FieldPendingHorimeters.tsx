@@ -13,6 +13,8 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
+import { getSheetData } from '@/lib/googleSheets';
+import { parsePtBRNumber } from '@/lib/ptBRNumber';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { format, subDays, eachDayOfInterval, startOfDay } from 'date-fns';
@@ -41,6 +43,42 @@ interface FieldPendingHorimetersProps {
   onRegister: (vehicleId: string, date: string) => void;
 }
 
+// Helper to parse dates from sheets (dd/MM/yyyy or serial)
+function parseSheetDate(raw: any): string | null {
+  if (!raw) return null;
+  const str = String(raw).trim();
+  // dd/MM/yyyy
+  const brMatch = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if (brMatch) {
+    const [, d, m, y] = brMatch;
+    return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+  }
+  // yyyy-MM-dd
+  if (/^\d{4}-\d{2}-\d{2}/.test(str)) return str.substring(0, 10);
+  // Google Sheets serial date
+  const num = Number(str);
+  if (!isNaN(num) && num > 40000 && num < 60000) {
+    const d = new Date((num - 25569) * 86400000);
+    if (!isNaN(d.getTime())) return format(d, 'yyyy-MM-dd');
+  }
+  return null;
+}
+
+function findCol(row: Record<string, any>, candidates: string[]): string | null {
+  const keys = Object.keys(row);
+  for (const c of candidates) {
+    const cl = c.toLowerCase().trim();
+    const found = keys.find(k => k.toLowerCase().trim() === cl);
+    if (found) return found;
+  }
+  for (const c of candidates) {
+    const cl = c.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const found = keys.find(k => k.toLowerCase().replace(/[^a-z0-9]/g, '') === cl);
+    if (found) return found;
+  }
+  return null;
+}
+
 export function FieldPendingHorimeters({ onBack, onRegister }: FieldPendingHorimetersProps) {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
@@ -67,44 +105,103 @@ export function FieldPendingHorimeters({ onBack, onRegister }: FieldPendingHorim
         .or('status.eq.ativo,status.is.null')
         .order('code');
 
-      // Fetch readings for the date range
-      const oldestDate = dateRange[dateRange.length - 1];
-      const { data: readingData } = await supabase
-        .from('horimeter_readings')
-        .select('vehicle_id, reading_date, current_value, current_km')
-        .gte('reading_date', oldestDate)
-        .order('reading_date', { ascending: false });
-
       if (vehicleData) setVehicles(vehicleData);
+
+      // Build code->id map for sheet matching
+      const codeToId: Record<string, string> = {};
+      if (vehicleData) {
+        for (const v of vehicleData) {
+          codeToId[v.code.toLowerCase().trim()] = v.id;
+        }
+      }
+
+      const oldestDate = dateRange[dateRange.length - 1];
+
+      // Fetch from 3 sources in parallel: horimeter_readings, field_fuel_records, Google Sheets
+      const [readingsRes, fuelRes, sheetData] = await Promise.all([
+        supabase
+          .from('horimeter_readings')
+          .select('vehicle_id, reading_date, current_value, current_km')
+          .gte('reading_date', oldestDate)
+          .order('reading_date', { ascending: false }),
+        supabase
+          .from('field_fuel_records')
+          .select('vehicle_code, record_date, horimeter_current, km_current')
+          .gte('record_date', oldestDate)
+          .gt('horimeter_current', 0),
+        getSheetData('Horimetros').catch(() => ({ headers: [], rows: [] })),
+      ]);
+
+      const sheetRows = sheetData?.rows || [];
 
       // Build readings map: vehicleId -> Set of dates with readings
       const rMap: Record<string, Set<string>> = {};
       const lrMap: Record<string, { date: string; value: number; km: number | null }> = {};
 
-      if (readingData) {
-        for (const r of readingData) {
+      // 1) From horimeter_readings table
+      if (readingsRes.data) {
+        for (const r of readingsRes.data) {
           if (!rMap[r.vehicle_id]) rMap[r.vehicle_id] = new Set();
           rMap[r.vehicle_id].add(r.reading_date);
-
-          // Track last reading per vehicle
           if (!lrMap[r.vehicle_id]) {
-            lrMap[r.vehicle_id] = {
-              date: r.reading_date,
-              value: r.current_value,
-              km: r.current_km,
-            };
+            lrMap[r.vehicle_id] = { date: r.reading_date, value: r.current_value, km: r.current_km };
           }
         }
       }
 
-      // Also fetch most recent reading for vehicles not in the range
+      // 2) From field_fuel_records (fuel records with horimeter data)
+      if (fuelRes.data && vehicleData) {
+        for (const fr of fuelRes.data) {
+          const vid = codeToId[fr.vehicle_code?.toLowerCase().trim()];
+          if (!vid) continue;
+          if (!rMap[vid]) rMap[vid] = new Set();
+          rMap[vid].add(fr.record_date);
+          if (!lrMap[vid]) {
+            lrMap[vid] = { date: fr.record_date, value: fr.horimeter_current ?? 0, km: fr.km_current ?? null };
+          }
+        }
+      }
+
+      // 3) From Google Sheets (Horimetros)
+      if (sheetRows.length > 0) {
+        const sample = sheetRows[0];
+        const dateCol = findCol(sample, ['Data', 'DATE', 'data']);
+        const codeCol = findCol(sample, ['Código', 'Codigo', 'Cod', 'codigo', 'código', 'COD']);
+        const horCol = findCol(sample, ['Horímetro Atual', 'Horimetro Atual', 'Hor. Atual', 'Hor Atual', 'Horímetro atual', 'H. Atual']);
+        const kmCol = findCol(sample, ['KM Atual', 'Km Atual', 'km atual', 'KM atual']);
+
+        if (dateCol && codeCol) {
+          for (const row of sheetRows) {
+            const dateStr = parseSheetDate(row[dateCol]);
+            if (!dateStr) continue;
+            // Only consider dates in our range
+            if (dateStr < oldestDate) continue;
+
+            const code = String(row[codeCol] || '').trim().toLowerCase();
+            const vid = codeToId[code];
+            if (!vid) continue;
+
+            if (!rMap[vid]) rMap[vid] = new Set();
+            rMap[vid].add(dateStr);
+
+            if (!lrMap[vid] && horCol) {
+              const horVal = parsePtBRNumber(row[horCol]);
+              const kmVal = kmCol ? parsePtBRNumber(row[kmCol]) : null;
+              if (horVal > 0) {
+                lrMap[vid] = { date: dateStr, value: horVal, km: kmVal };
+              }
+            }
+          }
+        }
+      }
+
+      // Fetch last reading for vehicles still missing context
       if (vehicleData) {
         const missingVehicleIds = vehicleData
           .filter(v => !lrMap[v.id])
           .map(v => v.id);
 
         if (missingVehicleIds.length > 0) {
-          // Fetch last reading for each missing vehicle (batch approach)
           const { data: lastReadings } = await supabase
             .from('horimeter_readings')
             .select('vehicle_id, reading_date, current_value, current_km')
@@ -115,11 +212,7 @@ export function FieldPendingHorimeters({ onBack, onRegister }: FieldPendingHorim
           if (lastReadings) {
             for (const r of lastReadings) {
               if (!lrMap[r.vehicle_id]) {
-                lrMap[r.vehicle_id] = {
-                  date: r.reading_date,
-                  value: r.current_value,
-                  km: r.current_km,
-                };
+                lrMap[r.vehicle_id] = { date: r.reading_date, value: r.current_value, km: r.current_km };
               }
             }
           }
