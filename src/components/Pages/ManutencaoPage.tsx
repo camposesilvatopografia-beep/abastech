@@ -257,18 +257,34 @@ export function ManutencaoPage() {
     photo_5_url: null as string | null,
   });
 
-  // Fetch service orders
+  // Fetch service orders — paginate to avoid silent 1000-row limit
   const fetchOrders = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('service_orders')
-        .select('*')
-        .order('entry_date', { ascending: false })
-        .order('created_at', { ascending: false });
+      const allOrders: ServiceOrder[] = [];
+      const pageSize = 1000;
+      let from = 0;
+      let hasMore = true;
 
-      if (error) throw error;
-      setOrders(data || []);
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('service_orders')
+          .select('*')
+          .order('entry_date', { ascending: false })
+          .order('created_at', { ascending: false })
+          .range(from, from + pageSize - 1);
+
+        if (error) throw error;
+        if (data && data.length > 0) {
+          allOrders.push(...(data as ServiceOrder[]));
+          from += pageSize;
+          hasMore = data.length === pageSize;
+        } else {
+          hasMore = false;
+        }
+      }
+
+      setOrders(allOrders);
     } catch (err) {
       console.error('Error fetching orders:', err);
       toast.error('Erro ao carregar ordens de serviço');
@@ -1251,22 +1267,32 @@ export function ManutencaoPage() {
   };
 
   // Calculate downtime for an order
+  // entry_time from DB can be "HH:MM:SS" or "HH:MM" — normalize to HH:MM before building datetime string
   const calculateDowntime = (order: ServiceOrder) => {
     const entryDate = (order as any).entry_date;
-    const entryTime = (order as any).entry_time;
+    const rawEntryTime = (order as any).entry_time;
     const endDate = order.end_date;
+    const isFinalized = order.status.toLowerCase().includes('finalizada');
     
     if (!entryDate) return null;
     
-    const entryDateTime = entryTime 
-      ? new Date(`${entryDate}T${entryTime}`)
-      : new Date(`${entryDate}T00:00`);
+    // Normalize time: take only HH:MM portion regardless of format
+    const entryTime = rawEntryTime ? rawEntryTime.toString().slice(0, 5) : '00:00';
     
-    const endDateTime = endDate 
+    const entryDateTime = new Date(`${entryDate}T${entryTime}:00`);
+    
+    if (isNaN(entryDateTime.getTime())) return null;
+    
+    // For non-finalized orders: use current time. For finalized: use end_date.
+    const endDateTime = (isFinalized && endDate) 
       ? new Date(endDate) 
-      : new Date();
+      : (!isFinalized ? new Date() : null);
+    
+    if (!endDateTime || isNaN(endDateTime.getTime())) return null;
     
     const diffMs = endDateTime.getTime() - entryDateTime.getTime();
+    if (diffMs <= 0) return null;
+    
     const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
     const diffDays = Math.floor(diffHours / 24);
     const remainingHours = diffHours % 24;
