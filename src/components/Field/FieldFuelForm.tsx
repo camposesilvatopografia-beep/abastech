@@ -1681,9 +1681,23 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
       // Update pending count
       await checkPendingRecords();
       
+      // If sync failed, trigger background retry via edge function (fire-and-forget)
+      if (!syncSuccess && savedRecord) {
+        console.warn('[FieldFuelForm] Sheet sync failed, scheduling background retry...');
+        // Retry via edge function after a short delay
+        setTimeout(async () => {
+          try {
+            await supabase.functions.invoke('sync-pending-fuel', {});
+            console.log('[FieldFuelForm] Background retry completed');
+          } catch (retryErr) {
+            console.error('[FieldFuelForm] Background retry failed:', retryErr);
+          }
+        }, 5000); // Wait 5s then retry
+      }
+
       toast.success(syncSuccess 
         ? 'Abastecimento registrado e sincronizado!' 
-        : 'Abastecimento registrado! (Sincronização pendente)');
+        : 'Abastecimento registrado! Planilha será sincronizada em breve.');
       
       // Broadcast to all clients (desktop + mobile) for real-time sync
       console.log('[FieldFuelForm] Broadcasting fuel_record_created event...');
