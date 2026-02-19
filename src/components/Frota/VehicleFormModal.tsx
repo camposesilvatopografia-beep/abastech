@@ -139,13 +139,35 @@ export function VehicleFormModal({
         if (error) throw error;
         toast.success('Veículo cadastrado com sucesso!');
       } else {
-        // Update in Google Sheets
+        // First, find the row index by searching for the vehicle code
+        const { data: sheetData, error: fetchError } = await supabase.functions.invoke('google-sheets', {
+          body: {
+            action: 'getData',
+            sheetName: 'Veiculo',
+            noCache: true,
+          },
+        });
+
+        if (fetchError) throw fetchError;
+
+        const rows = sheetData?.rows || [];
+        const normalize = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/\s/g, '');
+        const targetCode = normalize(vehicle?.codigo || '');
+        const matchedRow = rows.find((r: any) => {
+          const code = normalize(String(r.CODIGO || r['CÓDIGO'] || r['Codigo'] || ''));
+          return code === targetCode;
+        });
+
+        if (!matchedRow || !matchedRow._rowIndex) {
+          throw new Error('Veículo não encontrado na planilha');
+        }
+
+        // Update in Google Sheets using rowIndex
         const { error } = await supabase.functions.invoke('google-sheets', {
           body: {
             action: 'update',
             sheetName: 'Veiculo',
-            searchColumn: 'CODIGO',
-            searchValue: vehicle?.codigo,
+            rowIndex: matchedRow._rowIndex,
             data: rowData,
           },
         });
