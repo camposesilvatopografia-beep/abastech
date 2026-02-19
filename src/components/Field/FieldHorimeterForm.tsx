@@ -184,6 +184,7 @@ export function FieldHorimeterForm({ user, onBack }: FieldHorimeterFormProps) {
   // Previous values (auto-filled)
   const [previousHorimeter, setPreviousHorimeter] = useState(0);
   const [previousKm, setPreviousKm] = useState(0);
+  const [lastRecordDate, setLastRecordDate] = useState<Date | null>(null);
 
   // History
   const [vehicleHistory, setVehicleHistory] = useState<HorimeterReading[]>([]);
@@ -234,6 +235,7 @@ export function FieldHorimeterForm({ user, onBack }: FieldHorimeterFormProps) {
     if (!selectedVehicleId) {
       setPreviousHorimeter(0);
       setPreviousKm(0);
+      setLastRecordDate(null);
       setVehicleHistory([]);
       setOperador(user.name);
       return;
@@ -423,6 +425,7 @@ export function FieldHorimeterForm({ user, onBack }: FieldHorimeterFormProps) {
 
         setPreviousHorimeter(finalHor);
         setPreviousKm(finalKm);
+        setLastRecordDate(winner.date);
         // Priority: Motorista from Veiculo sheet > operator from last record > user name
         setOperador(sheetMotorista || winner.operator || user.name);
       } else if (sheetMotorista) {
@@ -1031,6 +1034,11 @@ export function FieldHorimeterForm({ user, onBack }: FieldHorimeterFormProps) {
                 <div className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground mb-1.5 flex items-center gap-1">
                   <History className="w-3 h-3" />
                   Último Registro
+                  {lastRecordDate && (
+                    <span className={cn("ml-1 font-bold", isDark ? "text-green-400" : "text-green-700")}>
+                      — {format(lastRecordDate, 'dd/MM/yyyy')}
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-center gap-4">
                   {previousHorimeter > 0 && (
