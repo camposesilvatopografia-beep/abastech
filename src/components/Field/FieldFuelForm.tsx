@@ -725,6 +725,47 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
       setCategory(cachedVehicle.category);
       setCompany(cachedVehicle.company || '');
       
+      // Fetch operator from most recent fuel record or horimeter reading for this vehicle
+      // This ensures the correct operator/driver is used even when offline
+      try {
+        const { data: recentFuel } = await supabase
+          .from('field_fuel_records')
+          .select('operator_name')
+          .eq('vehicle_code', code)
+          .not('operator_name', 'is', null)
+          .neq('operator_name', '')
+          .order('created_at', { ascending: false })
+          .limit(1);
+        
+        if (recentFuel && recentFuel.length > 0 && recentFuel[0].operator_name) {
+          setOperatorName(recentFuel[0].operator_name);
+        } else {
+          // Try from horimeter readings via vehicle code lookup
+          const { data: vehicleRow } = await supabase
+            .from('vehicles')
+            .select('id')
+            .eq('code', code)
+            .maybeSingle();
+          
+          if (vehicleRow?.id) {
+            const { data: recentHor } = await supabase
+              .from('horimeter_readings')
+              .select('operator')
+              .eq('vehicle_id', vehicleRow.id)
+              .not('operator', 'is', null)
+              .neq('operator', '')
+              .order('created_at', { ascending: false })
+              .limit(1);
+            
+            if (recentHor && recentHor.length > 0 && recentHor[0].operator) {
+              setOperatorName(recentHor[0].operator);
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('[FieldFuelForm] Failed to fetch operator for cached vehicle:', err);
+      }
+      
       if (userLocationInfo.isTanqueUser && isComboioVehicle(code, cachedVehicle.description) && recordType === 'saida' && quickEntryMode === 'normal') {
         setShowComboioChoice(true);
         setComboioFuelType(null);
