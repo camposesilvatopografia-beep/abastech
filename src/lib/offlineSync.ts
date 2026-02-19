@@ -323,10 +323,10 @@ async function syncHorimeterRecord(record: OfflineRecord) {
     .insert({
       vehicle_id: data.vehicle_id,
       reading_date: data.reading_date,
-      current_value: data.current_value || 0,
-      previous_value: data.previous_value || null,
-      current_km: data.current_km || null,
-      previous_km: data.previous_km || null,
+      current_value: data.current_value ?? 0,
+      previous_value: data.previous_value ?? null,
+      current_km: data.current_km ?? null,
+      previous_km: data.previous_km ?? null,
       operator: data.operator || null,
       observations: data.observations || null,
       source: 'field',
@@ -341,10 +341,10 @@ async function syncHorimeterRecord(record: OfflineRecord) {
     const fmtNum = (v: number) => v > 0 ? formatPtBRNumber(v, { decimals: 2 }) : '';
     const [year, month, day] = data.reading_date.split('-');
     const formattedDate = `${day}/${month}/${year}`;
-    const prevHor = data.previous_value || 0;
-    const currHor = data.current_value || 0;
-    const prevKm = data.previous_km || 0;
-    const currKm = data.current_km || 0;
+    const prevHor = Number(data.previous_value) || 0;
+    const currHor = Number(data.current_value) || 0;
+    const prevKm = Number(data.previous_km) || 0;
+    const currKm = Number(data.current_km) || 0;
 
     const sheetPayload: Record<string, string> = {
       'Data': formattedDate,
