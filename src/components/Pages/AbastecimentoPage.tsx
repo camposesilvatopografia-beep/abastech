@@ -31,7 +31,18 @@ import {
   ChevronDown,
   ChevronUp,
   Save,
+  Trash2,
 } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { AdminFuelRecordModal } from '@/components/Dashboard/AdminFuelRecordModal';
@@ -202,6 +213,11 @@ export function AbastecimentoPage() {
   const [expandedRowId, setExpandedRowId] = useState<number | null>(null);
   const [inlineEditData, setInlineEditData] = useState<any>(null);
   const [isSavingInline, setIsSavingInline] = useState(false);
+
+  // Delete confirmation state
+  const [deletingRecord, setDeletingRecord] = useState<any>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeletingRecord, setIsDeletingRecord] = useState(false);
   
   // Store field users for location responsibility mapping
   const [fieldUsers, setFieldUsers] = useState<Array<{ id: string; name: string; assigned_locations: string[] | null }>>([]);
@@ -383,6 +399,56 @@ export function AbastecimentoPage() {
       setIsSavingInline(false);
     }
   }, [inlineEditData, refetch]);
+
+  // Handle record deletion with Google Sheets sync
+  const handleDeleteRecord = useCallback(async () => {
+    if (!deletingRecord || !deletingRecord._rowIndex) {
+      toast.error('Não foi possível identificar o registro para exclusão');
+      return;
+    }
+    
+    setIsDeletingRecord(true);
+    try {
+      // Delete from Google Sheets
+      const { error } = await supabase.functions.invoke('google-sheets', {
+        body: {
+          action: 'delete',
+          sheetName: SHEET_NAME,
+          rowIndex: deletingRecord._rowIndex,
+        }
+      });
+      
+      if (error) throw error;
+      
+      // Also delete from field_fuel_records if matching record exists
+      const vehicleCode = String(deletingRecord['VEICULO'] || '').trim();
+      const recordDate = String(deletingRecord['DATA'] || '').trim();
+      const recordTime = String(deletingRecord['HORA'] || '').trim();
+      
+      if (vehicleCode && recordDate) {
+        let formattedDate = recordDate;
+        if (recordDate.includes('/')) {
+          const [day, month, year] = recordDate.split('/');
+          formattedDate = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+        }
+        
+        let query = supabase.from('field_fuel_records').delete().eq('vehicle_code', vehicleCode).eq('record_date', formattedDate);
+        if (recordTime) query = query.eq('record_time', recordTime);
+        const { error: dbError } = await query;
+        if (dbError) console.warn('Aviso: Planilha excluída, mas falha ao remover do banco:', dbError);
+      }
+      
+      toast.success('Registro excluído com sucesso!');
+      setShowDeleteConfirm(false);
+      setDeletingRecord(null);
+      refetch();
+    } catch (err) {
+      console.error('Error deleting record:', err);
+      toast.error('Erro ao excluir registro');
+    } finally {
+      setIsDeletingRecord(false);
+    }
+  }, [deletingRecord, refetch]);
 
   // Get saneamento stock from estoqueobrasaneamento sheet (column H)
   const estoqueSaneamento = useMemo(() => {
@@ -2683,10 +2749,18 @@ export function AbastecimentoPage() {
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold">Detalhamento de Abastecimentos</h2>
-              <Button onClick={exportDetailedPDF} disabled={isExporting} className="gap-2">
-                <Download className="w-4 h-4" />
-                {isExporting ? 'Exportando...' : 'Exportar PDF Detalhado'}
-              </Button>
+              <div className="flex items-center gap-2">
+                {canCreateRecords && (
+                  <Button size="sm" onClick={() => setShowAdminRecordModal(true)} className="gap-2 bg-green-600 hover:bg-green-700">
+                    <Plus className="w-4 h-4" />
+                    Novo
+                  </Button>
+                )}
+                <Button onClick={exportDetailedPDF} disabled={isExporting} variant="outline" size="sm" className="gap-2">
+                  <Download className="w-4 h-4" />
+                  {isExporting ? 'Exportando...' : 'PDF'}
+                </Button>
+              </div>
             </div>
             
             <div className="bg-card rounded-lg border border-border overflow-hidden">
@@ -2701,19 +2775,20 @@ export function AbastecimentoPage() {
                     <TableHead className="text-right">Quantidade</TableHead>
                     <TableHead>Local</TableHead>
                     <TableHead className="text-right">Valor</TableHead>
+                    {canCreateRecords && <TableHead className="w-20 text-center">Ações</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {loading ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center py-8">
+                      <TableCell colSpan={canCreateRecords ? 9 : 8} className="text-center py-8">
                         <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-muted-foreground" />
                         Carregando dados...
                       </TableCell>
                     </TableRow>
                   ) : filteredRows.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={canCreateRecords ? 9 : 8} className="text-center py-8 text-muted-foreground">
                         Nenhum registro encontrado
                       </TableCell>
                     </TableRow>
@@ -2734,6 +2809,20 @@ export function AbastecimentoPage() {
                         <TableCell className="text-right">
                           R$ {parseNumber(row['VALOR TOTAL']).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                         </TableCell>
+                        {canCreateRecords && (
+                          <TableCell className="text-center">
+                            <div className="flex items-center justify-center gap-1">
+                              <Button variant="ghost" size="icon" className="h-7 w-7" title="Editar"
+                                onClick={() => { setEditingRecord(row); setShowEditModal(true); }}>
+                                <Edit2 className="h-4 w-4 text-blue-500" />
+                              </Button>
+                              <Button variant="ghost" size="icon" className="h-7 w-7" title="Excluir"
+                                onClick={() => { setDeletingRecord(row); setShowDeleteConfirm(true); }}>
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        )}
                       </TableRow>
                     ))
                   )}
@@ -2778,10 +2867,18 @@ export function AbastecimentoPage() {
               />
             </div>
 
-            <div className="flex items-center gap-2">
-              <Droplet className="w-5 h-5 text-primary" />
-              <h2 className="text-lg font-semibold">Resumo de Abastecimentos - Obra Saneamento</h2>
-              <Badge variant="outline">{saneamentoFilteredData.length} registros</Badge>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Droplet className="w-5 h-5 text-primary" />
+                <h2 className="text-lg font-semibold">Abastecimentos - Obra Saneamento</h2>
+                <Badge variant="outline">{saneamentoFilteredData.length} registros</Badge>
+              </div>
+              {canCreateRecords && (
+                <Button size="sm" onClick={() => setShowAdminRecordModal(true)} className="gap-2 bg-green-600 hover:bg-green-700">
+                  <Plus className="w-4 h-4" />
+                  Novo
+                </Button>
+              )}
             </div>
 
             {saneamentoFilteredData.length === 0 ? (
@@ -2795,38 +2892,42 @@ export function AbastecimentoPage() {
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-muted/50">
+                      <TableHead>Data</TableHead>
                       <TableHead>Veículo</TableHead>
-                      <TableHead className="text-center">Abastecimentos</TableHead>
                       <TableHead className="text-center">Diesel (L)</TableHead>
                       <TableHead className="text-center">Arla (L)</TableHead>
+                      <TableHead>Local</TableHead>
+                      {canCreateRecords && <TableHead className="w-20 text-center">Ações</TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {saneamentoSummary.entries.map(([veiculo, values]) => (
-                      <TableRow key={veiculo}>
-                        <TableCell className="font-medium">{veiculo}</TableCell>
-                        <TableCell className="text-center">{values.abastecimentos}</TableCell>
-                        <TableCell className="text-center">
-                          {values.diesel.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    {saneamentoFilteredData.map((row, index) => (
+                      <TableRow key={row._rowIndex || index}>
+                        <TableCell>{String(row['DATA'] || '-')}</TableCell>
+                        <TableCell className="font-medium">{String(row['VEICULO'] || '-')}</TableCell>
+                        <TableCell className="text-center font-medium">
+                          {parseNumber(row['QUANTIDADE']).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                         </TableCell>
                         <TableCell className="text-center">
-                          {values.arla > 0 ? values.arla.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '-'}
+                          {parseNumber(row['QUANTIDADE DE ARLA']) > 0 ? parseNumber(row['QUANTIDADE DE ARLA']).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '-'}
                         </TableCell>
+                        <TableCell>{String(row['LOCAL'] || '-')}</TableCell>
+                        {canCreateRecords && (
+                          <TableCell className="text-center">
+                            <div className="flex items-center justify-center gap-1">
+                              <Button variant="ghost" size="icon" className="h-7 w-7" title="Editar"
+                                onClick={() => { setEditingRecord(row); setShowEditModal(true); }}>
+                                <Edit2 className="h-4 w-4 text-blue-500" />
+                              </Button>
+                              <Button variant="ghost" size="icon" className="h-7 w-7" title="Excluir"
+                                onClick={() => { setDeletingRecord(row); setShowDeleteConfirm(true); }}>
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        )}
                       </TableRow>
                     ))}
-                    <TableRow className="bg-muted/30 font-semibold">
-                      <TableCell>Total</TableCell>
-                      <TableCell className="text-center">{saneamentoSummary.total.abastecimentos}</TableCell>
-                      <TableCell className="text-center">
-                        {saneamentoSummary.total.diesel.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        {saneamentoSummary.total.arla > 0 
-                          ? saneamentoSummary.total.arla.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) 
-                          : '-'
-                        }
-                      </TableCell>
-                    </TableRow>
                   </TableBody>
                 </Table>
               </div>
@@ -2836,10 +2937,18 @@ export function AbastecimentoPage() {
 
         {activeTab === 'entradas' && (
           <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-success" />
-              <h2 className="text-lg font-semibold">Entradas de Combustível por Fornecedor</h2>
-              <Badge variant="outline">{entradasData.entries.length} registros</Badge>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="w-5 h-5 text-success" />
+                <h2 className="text-lg font-semibold">Entradas de Combustível</h2>
+                <Badge variant="outline">{entradasData.entries.length} registros</Badge>
+              </div>
+              {canCreateRecords && (
+                <Button size="sm" onClick={() => setShowAdminRecordModal(true)} className="gap-2 bg-green-600 hover:bg-green-700">
+                  <Plus className="w-4 h-4" />
+                  Nova Entrada
+                </Button>
+              )}
             </div>
 
             {/* Summary by Supplier */}
@@ -2882,17 +2991,17 @@ export function AbastecimentoPage() {
                   <h3 className="font-semibold">Entradas por Local (Tanques)</h3>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-4">
-                  {Object.entries(entradasData.byLocation).map(([local, data]) => (
+                  {Object.entries(entradasData.byLocation).map(([local, locData]) => (
                     <div key={local} className="bg-muted/20 rounded-lg p-4 border">
                       <div className="flex items-center gap-2 mb-2">
                         <MapPin className="w-4 h-4 text-primary" />
                         <span className="font-medium">{local}</span>
                       </div>
                       <div className="text-2xl font-bold text-success">
-                        +{data.total.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L
+                        +{locData.total.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L
                       </div>
                       <div className="text-sm text-muted-foreground">
-                        {data.registros.length} entradas
+                        {locData.registros.length} entradas
                       </div>
                     </div>
                   ))}
@@ -2918,6 +3027,7 @@ export function AbastecimentoPage() {
                       <TableHead>Nota Fiscal</TableHead>
                       <TableHead className="text-right">Quantidade</TableHead>
                       <TableHead className="text-right">Valor Total</TableHead>
+                      {canCreateRecords && <TableHead className="w-20 text-center">Ações</TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -2936,6 +3046,20 @@ export function AbastecimentoPage() {
                         <TableCell className="text-right">
                           R$ {parseNumber(row['VALOR TOTAL']).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                         </TableCell>
+                        {canCreateRecords && (
+                          <TableCell className="text-center">
+                            <div className="flex items-center justify-center gap-1">
+                              <Button variant="ghost" size="icon" className="h-7 w-7" title="Editar"
+                                onClick={() => { setEditingRecord(row); setShowEditModal(true); }}>
+                                <Edit2 className="h-4 w-4 text-blue-500" />
+                              </Button>
+                              <Button variant="ghost" size="icon" className="h-7 w-7" title="Excluir"
+                                onClick={() => { setDeletingRecord(row); setShowDeleteConfirm(true); }}>
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        )}
                       </TableRow>
                     ))}
                   </TableBody>
@@ -3236,6 +3360,40 @@ export function AbastecimentoPage() {
           />
         </div>
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir este registro?
+              {deletingRecord && (
+                <span className="block mt-2 font-medium text-foreground">
+                  {String(deletingRecord['DATA'] || '')} — Veículo: {String(deletingRecord['VEICULO'] || '')} — {parseNumber(deletingRecord['QUANTIDADE']).toLocaleString('pt-BR')} L
+                </span>
+              )}
+              <span className="block mt-2 text-destructive font-medium">Esta ação não pode ser desfeita e o registro será removido da planilha imediatamente.</span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => { setShowDeleteConfirm(false); setDeletingRecord(null); }}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteRecord}
+              disabled={isDeletingRecord}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeletingRecord ? (
+                <><RefreshCw className="w-4 h-4 animate-spin mr-2" />Excluindo...</>
+              ) : (
+                <><Trash2 className="w-4 h-4 mr-2" />Excluir</>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Admin Fuel Record Modal */}
       {canCreateRecords && (
