@@ -113,6 +113,7 @@ export function FieldPendingHorimeters({ onBack, onRegister }: FieldPendingHorim
   const [repeatingKey, setRepeatingKey] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'list' | 'matrix'>('matrix');
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
+  const [filterMode, setFilterMode] = useState<'pending' | 'done' | 'all'>('pending');
   
   // Confirmation dialog state
   const [confirmRepeat, setConfirmRepeat] = useState<{ vehicle: Vehicle; dateStr: string } | null>(null);
@@ -455,6 +456,58 @@ export function FieldPendingHorimeters({ onBack, onRegister }: FieldPendingHorim
     return Object.values(pendingByDate).reduce((sum, arr) => sum + arr.length, 0);
   }, [pendingByDate]);
 
+  // Compute "done" (launched) count: vehicles × dates that DO have readings
+  const totalDone = useMemo(() => {
+    let count = 0;
+    for (const dateStr of dateRange) {
+      for (const v of vehicles) {
+        if (readingsMap[v.id]?.has(dateStr)) count++;
+      }
+    }
+    return count;
+  }, [dateRange, vehicles, readingsMap]);
+
+  // Filtered matrix vehicles based on filterMode
+  const filteredMatrixVehicles = useMemo(() => {
+    if (filterMode === 'pending') return matrixVehicles;
+    if (filterMode === 'all') return vehicles.filter(v => {
+      const search = searchFilter.toLowerCase().trim();
+      if (!search) return true;
+      return v.name.toLowerCase().includes(search) ||
+        v.code.toLowerCase().includes(search) ||
+        (v.category?.toLowerCase().includes(search)) ||
+        (v.description?.toLowerCase().includes(search));
+    }).sort((a, b) => {
+      const n = a.name.localeCompare(b.name, 'pt-BR');
+      return n !== 0 ? n : a.code.localeCompare(b.code);
+    });
+    // filterMode === 'done': vehicles that have ALL dates filled
+    const search = searchFilter.toLowerCase().trim();
+    return vehicles.filter(v => {
+      const allFilled = dateRange.every(d => readingsMap[v.id]?.has(d));
+      if (!allFilled) return false;
+      if (!search) return true;
+      return v.name.toLowerCase().includes(search) ||
+        v.code.toLowerCase().includes(search) ||
+        (v.category?.toLowerCase().includes(search)) ||
+        (v.description?.toLowerCase().includes(search));
+    }).sort((a, b) => {
+      const n = a.name.localeCompare(b.name, 'pt-BR');
+      return n !== 0 ? n : a.code.localeCompare(b.code);
+    });
+  }, [filterMode, matrixVehicles, vehicles, dateRange, readingsMap, searchFilter]);
+
+  // Recompute groups based on filtered vehicles
+  const filteredGroupedVehicles = useMemo(() => {
+    const groupMap = new Map<string, Vehicle[]>();
+    for (const v of filteredMatrixVehicles) {
+      const key = v.name || 'Sem descrição';
+      if (!groupMap.has(key)) groupMap.set(key, []);
+      groupMap.get(key)!.push(v);
+    }
+    return Array.from(groupMap, ([name, vehicles]) => ({ name, vehicles }));
+  }, [filteredMatrixVehicles]);
+
   const toggleDate = (dateStr: string) => {
     setExpandedDates(prev => ({ ...prev, [dateStr]: !prev[dateStr] }));
   };
@@ -522,9 +575,29 @@ export function FieldPendingHorimeters({ onBack, onRegister }: FieldPendingHorim
               <List className="w-4 h-4" />
             </button>
           </div>
-          <Badge variant="destructive" className="text-sm px-3 py-1">
-            {totalPending} pendentes
-          </Badge>
+          <button
+            onClick={() => setFilterMode(prev => prev === 'done' ? 'all' : 'done')}
+            className="focus:outline-none"
+          >
+            <Badge variant="secondary" className={cn(
+              "text-sm px-3 py-1 cursor-pointer transition-all",
+              filterMode === 'done' && "ring-2 ring-green-500"
+            )}>
+              <Check className="w-3.5 h-3.5 mr-1" />
+              {totalDone} lançados
+            </Badge>
+          </button>
+          <button
+            onClick={() => setFilterMode(prev => prev === 'pending' ? 'all' : 'pending')}
+            className="focus:outline-none"
+          >
+            <Badge variant="destructive" className={cn(
+              "text-sm px-3 py-1 cursor-pointer transition-all",
+              filterMode === 'pending' && "ring-2 ring-red-500"
+            )}>
+              {totalPending} pendentes
+            </Badge>
+          </button>
         </div>
       </div>
 
@@ -636,7 +709,7 @@ export function FieldPendingHorimeters({ onBack, onRegister }: FieldPendingHorim
                   </tr>
                 </thead>
                 <tbody>
-                  {groupedMatrixVehicles.map((group) => {
+                  {filteredGroupedVehicles.map((group) => {
                     const isCollapsed = collapsedGroups[group.name] ?? false;
                     const groupPendingCount = group.vehicles.reduce((sum, v) => {
                       return sum + dateRange.filter(d => !readingsMap[v.id]?.has(d)).length;
