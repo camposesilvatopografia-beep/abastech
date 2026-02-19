@@ -22,9 +22,12 @@ import { supabase } from '@/integrations/supabase/client';
 
 interface VehicleFormData {
   codigo: string;
-  descricao: string;
+  motorista: string;
+  potencia: string;
   categoria: string;
+  descricao: string;
   empresa: string;
+  obra: string;
   status: string;
 }
 
@@ -33,23 +36,24 @@ interface VehicleFormModalProps {
   onClose: () => void;
   onSuccess: () => void;
   mode: 'create' | 'edit';
-  vehicle?: VehicleFormData | null;
+  vehicle?: Partial<VehicleFormData> | null;
   empresas: string[];
   categorias: string[];
 }
 
 const STATUS_OPTIONS = [
-  { value: 'ativo', label: 'Ativo' },
-  { value: 'inativo', label: 'Inativo' },
-  { value: 'manutencao', label: 'Manutenção' },
-  { value: 'mobilizado', label: 'Mobilizado' },
-  { value: 'desmobilizado', label: 'Desmobilizado' },
-  { value: 'em transito', label: 'Em Trânsito' },
-  { value: 'reserva', label: 'Reserva' },
+  { value: 'Mobilizado', label: 'Mobilizado' },
+  { value: 'Desmobilizado', label: 'Desmobilizado' },
+  { value: 'Ativo', label: 'Ativo' },
+  { value: 'Inativo', label: 'Inativo' },
+  { value: 'Manutenção', label: 'Manutenção' },
+  { value: 'Em Trânsito', label: 'Em Trânsito' },
+  { value: 'Reserva', label: 'Reserva' },
 ];
 
-const DEFAULT_CATEGORIAS = [
+const CATEGORIA_OPTIONS = [
   'Equipamento',
+  'Veiculo',
   'Veículo Leve',
   'Veículo Pesado',
   'Caminhão',
@@ -68,10 +72,13 @@ export function VehicleFormModal({
   const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState<VehicleFormData>({
     codigo: '',
-    descricao: '',
+    motorista: '',
+    potencia: '',
     categoria: '',
+    descricao: '',
     empresa: '',
-    status: 'ativo',
+    obra: '',
+    status: 'Mobilizado',
   });
 
   useEffect(() => {
@@ -79,18 +86,24 @@ export function VehicleFormModal({
       if (mode === 'edit' && vehicle) {
         setFormData({
           codigo: vehicle.codigo || '',
-          descricao: vehicle.descricao || '',
+          motorista: vehicle.motorista || '',
+          potencia: vehicle.potencia || '',
           categoria: vehicle.categoria || '',
+          descricao: vehicle.descricao || '',
           empresa: vehicle.empresa || '',
-          status: vehicle.status?.toLowerCase() || 'ativo',
+          obra: vehicle.obra || '',
+          status: vehicle.status || 'Mobilizado',
         });
       } else {
         setFormData({
           codigo: '',
-          descricao: '',
+          motorista: '',
+          potencia: '',
           categoria: '',
+          descricao: '',
           empresa: '',
-          status: 'ativo',
+          obra: '',
+          status: 'Mobilizado',
         });
       }
     }
@@ -101,33 +114,23 @@ export function VehicleFormModal({
       toast.error('Código é obrigatório');
       return;
     }
-    if (!formData.descricao.trim()) {
-      toast.error('Descrição é obrigatória');
-      return;
-    }
-    if (!formData.categoria.trim()) {
-      toast.error('Categoria é obrigatória');
-      return;
-    }
-    if (!formData.empresa.trim()) {
-      toast.error('Empresa é obrigatória');
-      return;
-    }
 
     setSaving(true);
 
     try {
-      // Prepare data for Google Sheets
-      const rowData = {
-        CODIGO: formData.codigo.trim(),
-        DESCRICAO: formData.descricao.trim(),
-        CATEGORIA: formData.categoria.trim(),
-        EMPRESA: formData.empresa.trim(),
-        STATUS: formData.status,
+      // Match exact column names from the spreadsheet
+      const rowData: Record<string, string> = {
+        Codigo: formData.codigo.trim(),
+        Motorista: formData.motorista.trim(),
+        Potencia: formData.potencia.trim(),
+        Categoria: formData.categoria.trim(),
+        Descricao: formData.descricao.trim(),
+        Empresa: formData.empresa.trim(),
+        Obra: formData.obra.trim(),
+        Status: formData.status,
       };
 
       if (mode === 'create') {
-        // Create in Google Sheets
         const { error } = await supabase.functions.invoke('google-sheets', {
           body: {
             action: 'create',
@@ -138,25 +141,21 @@ export function VehicleFormModal({
 
         if (error) throw error;
 
-        // Also sync to Supabase vehicles table
+        // Sync to Supabase vehicles table
         await supabase.from('vehicles').upsert({
           code: formData.codigo.trim(),
           name: formData.descricao.trim(),
           description: formData.descricao.trim(),
           category: formData.categoria.trim(),
           company: formData.empresa.trim(),
-          status: formData.status,
+          status: formData.status.toLowerCase(),
         }, { onConflict: 'code' });
 
         toast.success('Veículo cadastrado com sucesso!');
       } else {
-        // First, find the row index by searching for the vehicle code
+        // Find the row index
         const { data: sheetData, error: fetchError } = await supabase.functions.invoke('google-sheets', {
-          body: {
-            action: 'getData',
-            sheetName: 'Veiculo',
-            noCache: true,
-          },
+          body: { action: 'getData', sheetName: 'Veiculo', noCache: true },
         });
 
         if (fetchError) throw fetchError;
@@ -165,7 +164,7 @@ export function VehicleFormModal({
         const normalize = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/\s/g, '');
         const targetCode = normalize(vehicle?.codigo || '');
         const matchedRow = rows.find((r: any) => {
-          const code = normalize(String(r.CODIGO || r['CÓDIGO'] || r['Codigo'] || ''));
+          const code = normalize(String(r.Codigo || r.CODIGO || r['CÓDIGO'] || ''));
           return code === targetCode;
         });
 
@@ -173,26 +172,49 @@ export function VehicleFormModal({
           throw new Error('Veículo não encontrado na planilha');
         }
 
-        // Update in Google Sheets using rowIndex
+        // Preserve all existing columns, only override the ones we manage
+        const fullRowData: Record<string, string> = {};
+        for (const [key, val] of Object.entries(matchedRow)) {
+          if (key === '_rowIndex') continue;
+          fullRowData[key] = String(val ?? '');
+        }
+        // Override with form values using the exact header names from the sheet
+        const headerMap: Record<string, string> = {};
+        for (const key of Object.keys(fullRowData)) {
+          headerMap[normalize(key)] = key;
+        }
+        const setField = (normalized: string, value: string) => {
+          const realKey = headerMap[normalized];
+          if (realKey) fullRowData[realKey] = value;
+        };
+        setField('CODIGO', formData.codigo.trim());
+        setField('MOTORISTA', formData.motorista.trim());
+        setField('POTENCIA', formData.potencia.trim());
+        setField('CATEGORIA', formData.categoria.trim());
+        setField('DESCRICAO', formData.descricao.trim());
+        setField('EMPRESA', formData.empresa.trim());
+        setField('OBRA', formData.obra.trim());
+        setField('STATUS', formData.status);
+
         const { error } = await supabase.functions.invoke('google-sheets', {
           body: {
             action: 'update',
             sheetName: 'Veiculo',
             rowIndex: matchedRow._rowIndex,
-            data: rowData,
+            data: fullRowData,
           },
         });
 
         if (error) throw error;
 
-        // Also sync to Supabase vehicles table
+        // Sync to Supabase
         await supabase.from('vehicles')
           .update({
             name: formData.descricao.trim(),
             description: formData.descricao.trim(),
             category: formData.categoria.trim(),
             company: formData.empresa.trim(),
-            status: formData.status,
+            status: formData.status.toLowerCase(),
           })
           .eq('code', vehicle?.codigo || '');
 
@@ -209,11 +231,11 @@ export function VehicleFormModal({
     }
   };
 
-  const allCategorias = [...new Set([...categorias, ...DEFAULT_CATEGORIAS])].sort();
+  const allCategorias = [...new Set([...categorias, ...CATEGORIA_OPTIONS])].sort();
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
@@ -250,26 +272,35 @@ export function VehicleFormModal({
             />
           </div>
 
-          {/* Descrição */}
+          {/* Motorista */}
           <div className="space-y-2">
-            <Label htmlFor="descricao">
-              Descrição <span className="text-destructive">*</span>
-            </Label>
+            <Label htmlFor="motorista">Motorista / Operador</Label>
             <Input
-              id="descricao"
-              value={formData.descricao}
+              id="motorista"
+              value={formData.motorista}
               onChange={(e) =>
-                setFormData({ ...formData, descricao: e.target.value })
+                setFormData({ ...formData, motorista: e.target.value })
               }
-              placeholder="Ex: Escavadeira CAT 320D"
+              placeholder="Ex: José da Silva"
+            />
+          </div>
+
+          {/* Potência */}
+          <div className="space-y-2">
+            <Label htmlFor="potencia">Potência / Modelo</Label>
+            <Input
+              id="potencia"
+              value={formData.potencia}
+              onChange={(e) =>
+                setFormData({ ...formData, potencia: e.target.value })
+              }
+              placeholder="Ex: VM330, 323, VOLVO L60F"
             />
           </div>
 
           {/* Categoria */}
           <div className="space-y-2">
-            <Label htmlFor="categoria">
-              Categoria <span className="text-destructive">*</span>
-            </Label>
+            <Label htmlFor="categoria">Categoria</Label>
             <Select
               value={formData.categoria}
               onValueChange={(v) => setFormData({ ...formData, categoria: v })}
@@ -287,11 +318,22 @@ export function VehicleFormModal({
             </Select>
           </div>
 
+          {/* Descrição */}
+          <div className="space-y-2">
+            <Label htmlFor="descricao">Descrição</Label>
+            <Input
+              id="descricao"
+              value={formData.descricao}
+              onChange={(e) =>
+                setFormData({ ...formData, descricao: e.target.value })
+              }
+              placeholder="Ex: Caminhão Basculante"
+            />
+          </div>
+
           {/* Empresa */}
           <div className="space-y-2">
-            <Label htmlFor="empresa">
-              Empresa <span className="text-destructive">*</span>
-            </Label>
+            <Label htmlFor="empresa">Empresa</Label>
             <Select
               value={formData.empresa}
               onValueChange={(v) => setFormData({ ...formData, empresa: v })}
@@ -307,6 +349,19 @@ export function VehicleFormModal({
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          {/* Obra */}
+          <div className="space-y-2">
+            <Label htmlFor="obra">Obra</Label>
+            <Input
+              id="obra"
+              value={formData.obra}
+              onChange={(e) =>
+                setFormData({ ...formData, obra: e.target.value })
+              }
+              placeholder="Ex: Aeroporto"
+            />
           </div>
 
           {/* Status */}

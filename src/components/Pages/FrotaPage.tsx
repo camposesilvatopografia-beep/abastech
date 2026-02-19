@@ -120,9 +120,12 @@ interface VehicleGroup {
   veiculos: number;
   items: Array<{
     codigo: string;
+    motorista: string;
+    potencia: string;
     descricao: string;
     empresa: string;
     categoria: string;
+    obra: string;
     status: string;
   }>;
 }
@@ -224,9 +227,12 @@ export function FrotaPage() {
   const [vehicleFormMode, setVehicleFormMode] = useState<'create' | 'edit'>('create');
   const [editingVehicle, setEditingVehicle] = useState<{
     codigo: string;
+    motorista: string;
+    potencia: string;
     descricao: string;
     categoria: string;
     empresa: string;
+    obra: string;
     status: string;
   } | null>(null);
   
@@ -311,7 +317,7 @@ export function FrotaPage() {
     setVehicleFormOpen(true);
   };
 
-  const openEditVehicle = (vehicle: { codigo: string; descricao: string; categoria: string; empresa: string; status: string }) => {
+  const openEditVehicle = (vehicle: { codigo: string; motorista: string; potencia: string; descricao: string; categoria: string; empresa: string; obra: string; status: string }) => {
     setVehicleFormMode('edit');
     setEditingVehicle(vehicle);
     setVehicleFormOpen(true);
@@ -469,7 +475,10 @@ export function FrotaPage() {
       const categoria = getRowValue(row as any, ['CATEGORIA', 'Categoria', 'categoria', 'TIPO', 'Tipo', 'tipo']) || 'Outros';
       const empresa = getRowValue(row as any, ['EMPRESA', 'Empresa', 'empresa']) || 'Não informada';
       const codigo = getRowValue(row as any, ['CODIGO', 'Codigo', 'codigo', 'VEICULO', 'Veiculo', 'veiculo']);
+      const motorista = getRowValue(row as any, ['MOTORISTA', 'Motorista', 'motorista']);
+      const potencia = getRowValue(row as any, ['POTENCIA', 'Potencia', 'potencia', 'POTÊNCIA']);
       const descricao = getRowValue(row as any, ['DESCRICAO', 'DESCRIÇÃO', 'Descricao', 'descrição', 'descricao']) || 'Sem descrição';
+      const obra = getRowValue(row as any, ['OBRA', 'Obra', 'obra']);
       const status = getRowValue(row as any, ['STATUS', 'Status', 'status']) || 'ativo';
 
       let groupKey: string;
@@ -491,7 +500,7 @@ export function FrotaPage() {
       }
 
       groups[groupKey].veiculos++;
-      groups[groupKey].items.push({ codigo, descricao, empresa, categoria, status });
+      groups[groupKey].items.push({ codigo, motorista, potencia, descricao, empresa, categoria, obra, status });
     });
 
     Object.values(groups).forEach(group => {
