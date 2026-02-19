@@ -129,11 +129,16 @@ export function FieldPendingHorimeters({ onBack, onRegister }: FieldPendingHorim
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const { data: vehicleData } = await supabase
+      const { data: vehicleDataRaw } = await supabase
         .from('vehicles')
         .select('id, code, name, description, category, company, unit, status')
         .or('status.eq.ativo,status.is.null')
         .order('code');
+
+      // Exclude vehicles with category "Outros"
+      const vehicleData = vehicleDataRaw?.filter(v => 
+        v.category?.toLowerCase().trim() !== 'outros'
+      ) || null;
 
       if (vehicleData) setVehicles(vehicleData);
 
