@@ -58,7 +58,7 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
 import { VehicleCombobox } from '@/components/ui/vehicle-combobox';
-import { BrazilianNumberInput } from '@/components/ui/brazilian-number-input';
+import { CurrencyInput } from '@/components/ui/currency-input';
 import { parsePtBRNumber, formatPtBRNumber } from '@/lib/ptBRNumber';
 import { supabase } from '@/integrations/supabase/client';
 import { useSheetData } from '@/hooks/useGoogleSheets';
@@ -91,13 +91,13 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
   const [company, setCompany] = useState('');
   const [operatorName, setOperatorName] = useState('');
   const [workSite, setWorkSite] = useState('');
-  const [horimeterPrevious, setHorimeterPrevious] = useState('');
-  const [horimeterCurrent, setHorimeterCurrent] = useState('');
-  const [kmPrevious, setKmPrevious] = useState('');
-  const [kmCurrent, setKmCurrent] = useState('');
-  const [fuelQuantity, setFuelQuantity] = useState('');
+  const [horimeterPrevious, setHorimeterPrevious] = useState<number | null>(null);
+  const [horimeterCurrent, setHorimeterCurrent] = useState<number | null>(null);
+  const [kmPrevious, setKmPrevious] = useState<number | null>(null);
+  const [kmCurrent, setKmCurrent] = useState<number | null>(null);
+  const [fuelQuantity, setFuelQuantity] = useState<number | null>(null);
   const [fuelType, setFuelType] = useState('Diesel');
-  const [arlaQuantity, setArlaQuantity] = useState('');
+  const [arlaQuantity, setArlaQuantity] = useState<number | null>(null);
   const [location, setLocation] = useState('Tanque Canteiro 01');
   const [observations, setObservations] = useState('');
   
@@ -148,8 +148,8 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
 
   // Validation for horimeter/km
   const horimeterValidation = useMemo(() => {
-    const current = parsePtBRNumber(horimeterCurrent);
-    const previous = parsePtBRNumber(horimeterPrevious);
+    const current = horimeterCurrent ?? 0;
+    const previous = horimeterPrevious ?? 0;
     
     if (!current || !previous) return { status: 'neutral', message: '' };
     
@@ -175,8 +175,8 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
   }, [horimeterCurrent, horimeterPrevious]);
 
   const kmValidation = useMemo(() => {
-    const current = parsePtBRNumber(kmCurrent);
-    const previous = parsePtBRNumber(kmPrevious);
+    const current = kmCurrent ?? 0;
+    const previous = kmPrevious ?? 0;
     
     if (!current || !previous) return { status: 'neutral', message: '' };
     
@@ -254,13 +254,13 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
     setCompany('');
     setOperatorName('');
     setWorkSite('');
-    setHorimeterPrevious('');
-    setHorimeterCurrent('');
-    setKmPrevious('');
-    setKmCurrent('');
-    setFuelQuantity('');
+    setHorimeterPrevious(null);
+    setHorimeterCurrent(null);
+    setKmPrevious(null);
+    setKmCurrent(null);
+    setFuelQuantity(null);
     setFuelType('Diesel');
-    setArlaQuantity('');
+    setArlaQuantity(null);
     setLocation('Tanque Canteiro 01');
     setObservations('');
     setOilType('');
@@ -444,18 +444,18 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
         if (isVehicle) {
           // VEICULO: prioritize km, fallback to horimeter
           if (mostRecent.kmValue > 0) {
-            setKmPrevious(formatBrazilianNumber(mostRecent.kmValue));
+            setKmPrevious(mostRecent.kmValue);
           }
           if (mostRecent.horValue > 0) {
-            setHorimeterPrevious(formatBrazilianNumber(mostRecent.horValue));
+            setHorimeterPrevious(mostRecent.horValue);
           }
         } else {
           // EQUIPAMENTO: prioritize horimeter, fallback to km
           if (mostRecent.horValue > 0) {
-            setHorimeterPrevious(formatBrazilianNumber(mostRecent.horValue));
+            setHorimeterPrevious(mostRecent.horValue);
           }
           if (mostRecent.kmValue > 0) {
-            setKmPrevious(formatBrazilianNumber(mostRecent.kmValue));
+            setKmPrevious(mostRecent.kmValue);
           }
         }
       } else {
@@ -561,13 +561,13 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
         operator_name: recordType === 'entrada' && quickEntryMode === 'normal' ? '' : operatorName,
         company,
         work_site: workSite,
-        horimeter_previous: parsePtBRNumber(horimeterPrevious),
-        horimeter_current: parsePtBRNumber(horimeterCurrent),
-        km_previous: parsePtBRNumber(kmPrevious),
-        km_current: parsePtBRNumber(kmCurrent),
-        fuel_quantity: parsePtBRNumber(fuelQuantity),
+        horimeter_previous: horimeterPrevious ?? 0,
+        horimeter_current: horimeterCurrent ?? 0,
+        km_previous: kmPrevious ?? 0,
+        km_current: kmCurrent ?? 0,
+        fuel_quantity: fuelQuantity ?? 0,
         fuel_type: fuelType,
-        arla_quantity: parsePtBRNumber(arlaQuantity),
+        arla_quantity: arlaQuantity ?? 0,
         location: recordType === 'entrada' && quickEntryMode === 'normal' ? entryLocation : location,
         observations: quickEntryMode !== 'normal' ? `[${getQuickModeLabel(quickEntryMode)}] ${observations}`.trim() : (observations || null),
         oil_type: oilType || null,
@@ -607,12 +607,12 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
         'MOTORISTA': operatorName,
         'EMPRESA': company,
         'OBRA': workSite,
-        'HORIMETRO ANTERIOR': parsePtBRNumber(horimeterPrevious) || '',
-        'HORIMETRO ATUAL': parsePtBRNumber(horimeterCurrent) || '',
-        'KM ANTERIOR': parsePtBRNumber(kmPrevious) || '',
-        'KM ATUAL': parsePtBRNumber(kmCurrent) || '',
-        'QUANTIDADE': parsePtBRNumber(fuelQuantity) || 0,
-        'QUANTIDADE DE ARLA': parsePtBRNumber(arlaQuantity) || '',
+        'HORIMETRO ANTERIOR': horimeterPrevious || '',
+        'HORIMETRO ATUAL': horimeterCurrent || '',
+        'KM ANTERIOR': kmPrevious || '',
+        'KM ATUAL': kmCurrent || '',
+        'QUANTIDADE': fuelQuantity || 0,
+        'QUANTIDADE DE ARLA': arlaQuantity || '',
         'TIPO DE COMBUSTIVEL': fuelType,
         'LOCAL': dbRecord.location,
         'OBSERVAÇÃO': dbRecord.observations || '',
@@ -846,14 +846,10 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
                     <Droplet className="h-4 w-4 text-blue-500" />
                     Quantidade ARLA (L) *
                   </Label>
-                  <Input
-                    type="text"
-                    inputMode="decimal"
+                  <CurrencyInput
                     value={arlaQuantity}
-                    onChange={(e) => {
-                      const value = e.target.value.replace(/\./g, ',').replace(/[^\d,\-]/g, '');
-                      setArlaQuantity(value);
-                    }}
+                    onChange={setArlaQuantity}
+                    decimals={2}
                     placeholder="0,00"
                     className="text-lg h-12"
                   />
@@ -1032,7 +1028,7 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
                       <Gauge className="h-4 w-4 text-amber-500" />
                       Horímetro Anterior
                     </Label>
-                    <BrazilianNumberInput
+                    <CurrencyInput
                       value={horimeterPrevious}
                       onChange={setHorimeterPrevious}
                       decimals={2}
@@ -1055,7 +1051,7 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
                         </Tooltip>
                       )}
                     </Label>
-                    <BrazilianNumberInput
+                    <CurrencyInput
                       value={horimeterCurrent}
                       onChange={setHorimeterCurrent}
                       decimals={2}
@@ -1077,7 +1073,7 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
                       <Clock className="h-4 w-4 text-blue-500" />
                       KM Anterior
                     </Label>
-                    <BrazilianNumberInput
+                    <CurrencyInput
                       value={kmPrevious}
                       onChange={setKmPrevious}
                       decimals={2}
@@ -1100,7 +1096,7 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
                         </Tooltip>
                       )}
                     </Label>
-                    <BrazilianNumberInput
+                    <CurrencyInput
                       value={kmCurrent}
                       onChange={setKmCurrent}
                       decimals={2}
@@ -1123,7 +1119,7 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
                     <Fuel className="h-4 w-4 text-red-500" />
                     Quantidade (L)
                   </Label>
-                  <BrazilianNumberInput
+                  <CurrencyInput
                     value={fuelQuantity}
                     onChange={setFuelQuantity}
                     decimals={2}
@@ -1152,7 +1148,7 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
                     <Droplet className="h-4 w-4 text-blue-500" />
                     Quantidade ARLA (L)
                   </Label>
-                  <BrazilianNumberInput
+                  <CurrencyInput
                     value={arlaQuantity}
                     onChange={setArlaQuantity}
                     decimals={2}
@@ -1284,12 +1280,11 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
                     <Fuel className="h-4 w-4 text-green-600" />
                     Quantidade (L) *
                   </Label>
-                  <Input
-                    type="number"
+                  <CurrencyInput
                     value={fuelQuantity}
-                    onChange={(e) => setFuelQuantity(e.target.value)}
-                    placeholder="0"
-                    step="0.01"
+                    onChange={setFuelQuantity}
+                    decimals={2}
+                    placeholder="0,00"
                     className="h-12 text-lg border-2 border-green-300 dark:border-green-700 bg-background font-bold"
                   />
                 </div>
@@ -1342,12 +1337,11 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
                   <Droplet className="h-4 w-4 text-blue-500" />
                   Quantidade ARLA (L) - Opcional
                 </Label>
-                <Input
-                  type="number"
+                <CurrencyInput
                   value={arlaQuantity}
-                  onChange={(e) => setArlaQuantity(e.target.value)}
-                  placeholder="0"
-                  step="0.01"
+                  onChange={setArlaQuantity}
+                  decimals={2}
+                  placeholder="0,00"
                   className="h-12 text-base border-2 border-blue-200 dark:border-blue-800 bg-background font-medium"
                 />
               </div>
