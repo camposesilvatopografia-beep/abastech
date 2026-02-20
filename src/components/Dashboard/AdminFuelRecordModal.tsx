@@ -1080,8 +1080,8 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
                     <BrazilianNumberInput
                       value={kmPrevious}
                       onChange={setKmPrevious}
-                      decimals={0}
-                      placeholder="0"
+                      decimals={2}
+                      placeholder="0,00"
                       className="border-blue-300 focus:border-blue-500"
                     />
                   </div>
@@ -1103,8 +1103,8 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
                     <BrazilianNumberInput
                       value={kmCurrent}
                       onChange={setKmCurrent}
-                      decimals={0}
-                      placeholder="0"
+                      decimals={2}
+                      placeholder="0,00"
                       className={cn(
                         "border-blue-300 focus:border-blue-500",
                         kmValidation.status === 'error' && "border-red-500 focus:border-red-600",
