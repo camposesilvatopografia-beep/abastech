@@ -644,18 +644,10 @@ export function FieldHorimeterForm({ user, onBack }: FieldHorimeterFormProps) {
 
       toast.success('✅ Horímetro registrado e sincronizado com sucesso!', { duration: 4000 });
 
-      // Reset ALL form fields for new entry
-      setSelectedVehicleId('');
-      setVehicleSearch('');
-      lastSavedDateRef.current = selectedDate;
-      setSelectedDate(selectedDate);
-      setHorimeterValue(null);
-      setKmValue(null);
-      setObservacao('');
-      setOperador(user.name);
-      setPreviousHorimeter(0);
-      setPreviousKm(0);
-      setVehicleHistory([]);
+      // Navigate back to home after success
+      setTimeout(() => {
+        onBack();
+      }, 1500);
 
     } catch (err: any) {
       console.error('Erro ao salvar horímetro:', err);
@@ -684,18 +676,9 @@ export function FieldHorimeterForm({ user, onBack }: FieldHorimeterFormProps) {
             duration: 4000,
           });
           
-          // Reset ALL form fields
-          setSelectedVehicleId('');
-          setVehicleSearch('');
-          lastSavedDateRef.current = selectedDate;
-          setSelectedDate(selectedDate);
-          setHorimeterValue(null);
-          setKmValue(null);
-          setObservacao('');
-          setOperador(user.name);
-          setPreviousHorimeter(0);
-          setPreviousKm(0);
-          setVehicleHistory([]);
+          setTimeout(() => {
+            onBack();
+          }, 1500);
           return;
         } catch (offlineErr) {
           console.error('Offline save also failed:', offlineErr);
