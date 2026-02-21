@@ -2407,33 +2407,37 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
               </div>
             )}
 
-            {/* Location - for quick modes (only show selector if user has multiple locations) */}
+            {/* Location - for quick modes */}
             {user.assigned_locations && user.assigned_locations.length > 1 ? (
-              <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-xl border border-slate-200 dark:border-slate-700 p-4 space-y-3 shadow-sm">
-                <Label className="flex items-center gap-2 text-base">
-                  <MapPin className="w-4 h-4" />
-                  Local
-                </Label>
+              <div className="bg-indigo-50 dark:bg-indigo-950/40 rounded-2xl border-2 border-indigo-400 dark:border-indigo-600 p-4 space-y-3 shadow-lg">
+                <div className="flex items-center gap-3 bg-indigo-100 dark:bg-indigo-900/60 px-4 py-2.5 rounded-xl -ml-1">
+                  <MapPin className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
+                  <span className="text-lg font-bold text-indigo-800 dark:text-indigo-200">
+                    Local
+                  </span>
+                </div>
                 <Select value={location} onValueChange={setLocation}>
-                  <SelectTrigger className="h-12">
+                  <SelectTrigger className="h-14 text-lg font-bold border-2 border-indigo-300 dark:border-indigo-600 bg-white dark:bg-slate-900 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 dark:focus:ring-indigo-800 shadow-md">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="z-50 bg-popover">
                     {user.assigned_locations.map((loc) => (
-                      <SelectItem key={loc} value={loc}>
+                      <SelectItem key={loc} value={loc} className="text-base py-3 font-medium">
                         {loc}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
-            ) : user.assigned_locations?.length === 1 && (
-              <div className="flex items-center gap-2 px-3 py-2 bg-slate-100 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
-                <MapPin className="w-4 h-4 text-primary" />
-                <span className="text-sm text-muted-foreground">Local:</span>
-                <span className="text-sm font-medium text-foreground">{location}</span>
+            ) : user.assigned_locations?.length === 1 ? (
+              <div className="bg-indigo-50 dark:bg-indigo-950/40 rounded-2xl border-2 border-indigo-400 dark:border-indigo-600 p-4 shadow-lg">
+                <div className="flex items-center gap-3">
+                  <MapPin className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
+                  <span className="text-lg font-bold text-indigo-800 dark:text-indigo-200">Local:</span>
+                  <span className="text-lg font-bold text-foreground">{location}</span>
+                </div>
               </div>
-            )}
+            ) : null}
 
             {/* Observations for quick modes */}
             <div className="bg-white dark:bg-slate-800 backdrop-blur-sm rounded-xl border border-blue-200 dark:border-blue-800 p-4 space-y-3 shadow-lg">
@@ -2452,30 +2456,26 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         {/* NORMAL SAÍDA FORM - only when not in quick mode (but comboio_tank_refuel shows vehicle selection) */}
         {recordType === 'saida' && (quickEntryMode === 'normal' || quickEntryMode === 'comboio_tank_refuel') && (
           <>
-            <div className="bg-blue-50 dark:bg-blue-950/40 rounded-2xl border-2 border-blue-400 dark:border-blue-600 p-4 space-y-3 shadow-lg">
-            {(quickEntryMode !== 'comboio_tank_refuel' || userLocationInfo.isTanqueUser) && (<>
+            {/* Vehicle Selection */}
+            <div className="bg-sky-50 dark:bg-sky-950/40 rounded-2xl border-2 border-sky-400 dark:border-sky-600 p-4 space-y-3 shadow-lg">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3 bg-blue-100 dark:bg-blue-900/60 px-4 py-2.5 rounded-xl -ml-1">
-                  <Truck className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-                  <span className="text-lg font-bold text-blue-800 dark:text-blue-200">
-                    Veículo
+                <div className="flex items-center gap-3 bg-sky-100 dark:bg-sky-900/60 px-4 py-2.5 rounded-xl -ml-1">
+                  <Truck className="w-6 h-6 text-sky-600 dark:text-sky-400" />
+                  <span className="text-lg font-bold text-sky-800 dark:text-sky-200">
+                    Veículo <span className="text-red-500">*</span>
                   </span>
                 </div>
-                {/* QR Code Scanner Button */}
                 <Button
                   type="button"
-                  size="sm"
-                  variant="outline"
+                  variant="ghost"
+                  size="icon"
+                  className="h-10 w-10 text-sky-600"
                   onClick={() => setIsQRScannerOpen(true)}
-                  className="h-12 px-4 gap-2 border-2 border-blue-400 hover:bg-blue-100 text-blue-700"
-                  title="Escanear QR Code do veículo"
                 >
                   <QrCode className="w-6 h-6" />
-                  <span className="text-base font-semibold">QR</span>
                 </Button>
               </div>
-              
-              {/* Searchable Vehicle Combobox - Grouped by Category */}
+
               <Popover open={vehicleSearchOpen} onOpenChange={setVehicleSearchOpen}>
                 <PopoverTrigger asChild>
                   <Button
@@ -2483,110 +2483,64 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                     role="combobox"
                     aria-expanded={vehicleSearchOpen}
                     className={cn(
-                      "w-full h-16 justify-between font-bold border-3 transition-all text-lg shadow-[0_4px_12px_rgba(0,0,0,0.5)] dark:shadow-[0_4px_12px_rgba(0,0,0,0.8)]",
-                      "bg-slate-800 hover:bg-slate-900 border-slate-900 text-white",
-                      vehicleCode && "bg-green-800 border-green-900 hover:bg-green-900"
+                      "w-full justify-between font-medium h-14 text-lg",
+                      "bg-white dark:bg-slate-900 border-2 border-sky-300 dark:border-sky-600",
+                      "hover:border-sky-500 transition-all duration-200 shadow-md",
+                      !vehicleCode && "text-muted-foreground"
                     )}
                   >
-                    <div className="flex items-center gap-3 truncate">
-                      {vehicleCode ? (
-                        <Truck className="h-6 w-6 shrink-0 text-green-300" />
-                      ) : (
-                        <Search className="h-6 w-6 shrink-0 text-blue-300 animate-pulse" />
-                      )}
-                      <span className={cn(
-                        "truncate text-xl font-bold",
-                        vehicleCode ? "text-white" : "text-blue-200"
-                      )}>
-                        {vehicleCode || "🔍 Pesquisar veículo..."}
-                      </span>
+                    <div className="flex items-center gap-2 truncate">
+                      <Truck className={cn("h-5 w-5 shrink-0", vehicleCode ? "text-sky-600" : "text-muted-foreground")} />
+                      <span className="truncate font-bold">{vehicleCode || 'Selecione o veículo...'}</span>
                     </div>
-                    <ChevronsUpDown className="ml-2 h-6 w-6 shrink-0 text-white/80" />
+                    <ChevronsUpDown className="ml-2 h-5 w-5 shrink-0 text-muted-foreground" />
                   </Button>
                 </PopoverTrigger>
-                {/* Offline vehicle count indicator */}
-                {!isOnline && vehicles.length > 0 && (
-                  <div className="flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400 mt-1 px-1">
-                    <WifiOff className="w-3 h-3" />
-                    <span>{vehicles.length} veículos disponíveis offline</span>
-                  </div>
-                )}
-                {!isOnline && vehicles.length === 0 && (
-                  <div className="flex items-center gap-2 text-xs text-red-500 mt-1 px-1">
-                    <WifiOff className="w-3 h-3" />
-                    <span>Sem veículos em cache. Conecte-se para carregar.</span>
-                  </div>
-                )}
-                <PopoverContent 
-                  className="w-[--radix-popover-trigger-width] min-w-[320px] p-0 bg-popover border-2 shadow-xl z-[100]" 
-                  align="start"
-                  sideOffset={4}
-                >
-                  <Command className="bg-popover" filter={vehicleSearchFilter}>
-                    <div className="flex items-center border-b-2 px-3 bg-slate-100 dark:bg-slate-800/50">
-                      <Search className="h-6 w-6 shrink-0 text-slate-700 dark:text-slate-300 mr-2" />
-                      <CommandInput 
-                        placeholder="Digite o prefixo do veículo..." 
-                        className="h-14 text-xl font-bold border-0 focus:ring-0 bg-transparent placeholder:text-slate-500 dark:placeholder:text-slate-400"
-                        autoFocus
-                      />
+                <PopoverContent className="w-[--radix-popover-trigger-width] min-w-[320px] p-0 bg-popover border-2 border-border shadow-xl z-[100]" align="start" sideOffset={4}>
+                  <Command className="bg-popover">
+                    <div className="flex items-center border-b-2 border-border px-3 bg-muted/50">
+                      <Search className="h-5 w-5 shrink-0 text-primary mr-2" />
+                      <CommandInput placeholder="Digite para pesquisar..." className="h-12 text-base border-0 focus:ring-0 bg-transparent placeholder:text-muted-foreground" />
                     </div>
-                    <CommandList className="max-h-[350px] overflow-auto">
+                    <CommandList className="max-h-[400px] overflow-auto">
                       <CommandEmpty className="py-6 text-center">
                         <div className="flex flex-col items-center gap-2 text-muted-foreground">
                           <Truck className="h-8 w-8 opacity-50" />
-                          <span className="text-sm">Nenhum veículo encontrado</span>
+                          <span className="text-sm">Nenhum veículo encontrado.</span>
                         </div>
                       </CommandEmpty>
-                      
-                      {groupedVehicles.map(({ category: cat, vehicles: categoryVehicles }) => (
-                        <CommandGroup 
-                          key={cat} 
-                          heading={
-                            <div className="flex items-center gap-2 px-2 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground bg-muted/30 border-b">
-                              <span className="w-2 h-2 rounded-full bg-primary/50" />
-                              {cat} ({categoryVehicles.length})
-                            </div>
-                          }
-                          className="p-0"
-                        >
+                      {groupedVehicles.map(({ category: cat, vehicles: catVehicles }) => (
+                        <CommandGroup key={cat} heading={
+                          <div className="flex items-center gap-2 px-2 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground bg-muted/30 border-b border-border">
+                            <span className="w-2 h-2 rounded-full bg-primary/50" />
+                            {cat} ({catVehicles.length})
+                          </div>
+                        } className="p-0">
                           <div className="p-2">
-                            {categoryVehicles.map((vehicle) => {
+                            {catVehicles.map((vehicle) => {
                               const isSelected = vehicleCode === vehicle.code;
-                              
+                              const searchValue = `${vehicle.code} ${vehicle.description || ''} ${cat}`.toLowerCase();
                               return (
                                 <CommandItem
                                   key={vehicle.code}
-                                  value={`${vehicle.code} ${vehicle.description} ${cat}`.toLowerCase()}
+                                  value={searchValue}
                                   onSelect={() => {
                                     handleVehicleSelect(vehicle.code);
                                     setVehicleSearchOpen(false);
                                   }}
                                   className={cn(
                                     "cursor-pointer py-3 px-3 rounded-lg mb-1 transition-colors",
-                                    isSelected && "bg-slate-800 text-white"
+                                    "hover:bg-accent hover:text-accent-foreground",
+                                    isSelected && "bg-primary/10 border border-primary/30"
                                   )}
                                 >
-                                  <Check
-                                    className={cn(
-                                      "mr-3 h-5 w-5",
-                                      isSelected ? "opacity-100 text-white" : "opacity-0 text-primary"
-                                    )}
-                                  />
+                                  <Check className={cn('mr-3 h-5 w-5 text-primary', isSelected ? 'opacity-100' : 'opacity-0')} />
                                   <div className="flex flex-col flex-1 min-w-0">
-                                    <span className={cn(
-                                      "font-bold text-base truncate",
-                                      isSelected ? "text-white" : "text-foreground"
-                                    )}>
+                                    <span className={cn("font-bold text-base truncate", isSelected && "text-primary")}>
                                       {vehicle.code}
                                     </span>
                                     {vehicle.description && (
-                                      <span className={cn(
-                                        "text-xs truncate",
-                                        isSelected ? "text-white/80" : "text-muted-foreground"
-                                      )}>
-                                        {vehicle.description}
-                                      </span>
+                                      <span className="text-xs text-muted-foreground truncate">{vehicle.description}</span>
                                     )}
                                   </div>
                                 </CommandItem>
@@ -2599,187 +2553,51 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                   </Command>
                 </PopoverContent>
               </Popover>
-          
-              {vehicleDescription && (
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  <div className="bg-muted/50 p-2 rounded border">
-                    <span className="text-muted-foreground text-xs">Categoria:</span>
-                    <p className="font-medium">{category || '-'}</p>
-                  </div>
-                  <div className="bg-muted/50 p-2 rounded border">
-                    <span className="text-muted-foreground text-xs">Empresa:</span>
-                    <p className="font-medium">{company || '-'}</p>
-                  </div>
-                </div>
-              )}
-              </>)}
-              {/* Comboio Fuel Type Choice Dialog */}
-              {showComboioChoice && vehicleCode && isComboioVehicle(vehicleCode, vehicleDescription) && (
-                <div className="bg-orange-50 dark:bg-orange-950/30 border-2 border-orange-400 dark:border-orange-700 p-4 rounded-xl space-y-4 animate-in slide-in-from-top duration-300">
-                  <div className="flex items-center gap-2 text-orange-700 dark:text-orange-400">
-                    <Truck className="w-5 h-5" />
-                    <span className="font-bold">Caminhão Comboio Detectado</span>
-                  </div>
-                  <p className="text-sm text-orange-600 dark:text-orange-400">
-                    Selecione o tipo de abastecimento:
-                  </p>
-                  <div className="grid grid-cols-1 gap-3">
-                    <Button
-                      type="button"
-                      onClick={() => handleComboioFuelTypeSelect('tank_refuel')}
-                      className="h-16 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white flex flex-col items-center justify-center gap-1 shadow-lg"
-                    >
-                      <span className="font-bold text-lg">Abastecer o Tanque</span>
-                      <span className="text-xs opacity-90">Apenas quantidade + foto da bomba</span>
-                    </Button>
-                    <Button
-                      type="button"
-                      onClick={() => handleComboioFuelTypeSelect('own_refuel')}
-                      className="h-16 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white flex flex-col items-center justify-center gap-1 shadow-lg"
-                    >
-                      <span className="font-bold text-lg">Abastecimento Próprio</span>
-                      <span className="text-xs opacity-90">Todos os dados (horímetro, etc.)</span>
-                    </Button>
-                  </div>
-                </div>
-              )}
 
-              {/* Active Comboio Tank Refuel Mode Indicator */}
-              {quickEntryMode === 'comboio_tank_refuel' && (
-                <div className="bg-blue-100 dark:bg-blue-900/50 border border-blue-300 dark:border-blue-700 p-3 rounded-lg">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Fuel className="w-4 h-4 text-blue-600" />
-                      <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
-                        Modo: Abastecimento do Tanque
+              {/* Vehicle info card */}
+              {vehicleCode && (
+                <div className="bg-sky-100/80 dark:bg-sky-900/40 rounded-xl p-3 border border-sky-200 dark:border-sky-700 space-y-2">
+                  <div className="flex items-center gap-2 text-sky-800 dark:text-sky-200">
+                    <Truck className="w-4 h-4" />
+                    <span className="font-bold">{vehicleCode}</span>
+                    {vehicleDescription && <span className="text-sm">- {vehicleDescription}</span>}
+                  </div>
+                  {category && <span className="text-xs bg-sky-200 dark:bg-sky-800 px-2 py-1 rounded text-sky-700 dark:text-sky-300">{category}</span>}
+                  {horimeterPrevious && (
+                    <div className="bg-white/50 dark:bg-blue-950/50 rounded p-2 border border-blue-100 dark:border-blue-800">
+                      <span className="text-xs text-muted-foreground block">{isVehicleCategory ? 'KM Atual' : 'Horímetro Atual'}</span>
+                      <span className="font-bold text-blue-700 dark:text-blue-200">
+                        {horimeterPrevious}
                       </span>
                     </div>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      className="h-6 px-2 text-blue-600 hover:text-blue-800"
-                      onClick={() => {
-                        setQuickEntryMode('normal');
-                        setComboioFuelType(null);
-                        setShowComboioChoice(true);
-                      }}
-                    >
-                      <X className="w-4 h-4" />
-                    </Button>
-                  </div>
-                  <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                    Sem horímetro - apenas quantidade e foto da bomba são obrigatórios
-                  </p>
-                </div>
-              )}
-          
-              {/* Previous horimeter/km display with refresh button - hide for comboio tank refuel */}
-              {vehicleCode && quickEntryMode !== 'comboio_tank_refuel' && (
-                <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700/50 p-2 rounded-lg space-y-1">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-blue-700 dark:text-blue-300">
-                      <Clock className="w-4 h-4" />
-                      <span className="text-sm font-semibold">Último Abastecimento</span>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 px-2 text-blue-600 hover:text-blue-800 hover:bg-blue-100 dark:text-blue-400 dark:hover:bg-blue-900/50"
-                      onClick={handleForceRefreshHorimeter}
-                      disabled={isRefreshingHorimeter || isLoadingSheetData}
-                      title="Atualizar dados da planilha"
-                    >
-                      {isRefreshingHorimeter ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <RefreshCw className="w-4 h-4" />
-                      )}
-                    </Button>
-                  </div>
-                  {horimeterPrevious ? (
-                    <div className="space-y-2">
-                      <div className="grid grid-cols-2 gap-2">
-                        <div className="bg-white/50 dark:bg-blue-950/50 rounded p-2 border border-blue-100 dark:border-blue-800">
-                          <span className="text-xs text-muted-foreground block">Data/Hora</span>
-                          <span className="font-bold text-blue-700 dark:text-blue-200">
-                            {horimeterPreviousDate || '-'}
-                          </span>
-                        </div>
-                        <div className="bg-white/50 dark:bg-blue-950/50 rounded p-2 border border-blue-100 dark:border-blue-800">
-                          <span className="text-xs text-muted-foreground block">{isVehicleCategory ? 'KM Atual' : 'Horímetro Atual'}</span>
-                          <span className="font-bold text-blue-700 dark:text-blue-200">
-                            {horimeterPrevious}
-                          </span>
-                        </div>
-                      </div>
+                  )}
 
-                      {lastHorimeterHistory.length > 0 && (
-                        <div className="bg-white/30 dark:bg-blue-950/30 rounded p-2 border border-blue-100/60 dark:border-blue-800/60">
-                          <div className="flex items-center justify-between text-xs">
-                            <span className="text-muted-foreground">
-                              Último registro: {lastHorimeterHistory[0].dateTime}
-                            </span>
-                            <span className="font-semibold text-blue-700 dark:text-blue-200">
-                              {lastHorimeterHistory[0].horimeterAtual}{lastHorimeterHistory[0].isKm ? ' km' : 'h'}
-                            </span>
-                          </div>
-                        </div>
-                      )}
+                  {lastHorimeterHistory.length > 0 && (
+                    <div className="bg-white/30 dark:bg-blue-950/30 rounded p-2 border border-blue-100/60 dark:border-blue-800/60">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground">
+                          Último registro: {lastHorimeterHistory[0].dateTime}
+                        </span>
+                        <span className="font-semibold text-blue-700 dark:text-blue-200">
+                          {lastHorimeterHistory[0].horimeterAtual}{lastHorimeterHistory[0].isKm ? ' km' : 'h'}
+                        </span>
+                      </div>
                     </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">Sem abastecimento anterior encontrado</p>
                   )}
                 </div>
               )}
-              
+
               {/* Last 5 fuel records - Admin only */}
               {user.role === 'admin' && lastFuelRecords.length > 0 && (
                 <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50 p-3 rounded-lg">
-                  <div className="flex items-center gap-2 text-amber-700 dark:text-amber-300 mb-2">
-                    <Fuel className="w-4 h-4" />
-                    <span className="text-sm font-semibold">Últimos 5 abastecimentos</span>
-                  </div>
-                  <div className="space-y-1.5">
-                    {lastFuelRecords.map((record, index) => {
-                      const dateFormatted = record.record_date ? 
-                        new Date(record.record_date + 'T12:00:00').toLocaleDateString('pt-BR') : '-';
-                      const timeFormatted = record.record_time ? 
-                        record.record_time.substring(0, 5) : '';
-                      const quantity = record.fuel_quantity?.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) || '0';
-                      const horimeter = record.horimeter_current ? 
-                        record.horimeter_current.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : null;
-                      const km = record.km_current ? 
-                        record.km_current.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : null;
-                      
-                      return (
-                        <div 
-                          key={index} 
-                          className="flex items-center justify-between text-xs bg-white/50 dark:bg-slate-800/50 rounded px-2 py-1.5"
-                        >
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium text-amber-600 dark:text-amber-400">
-                              {dateFormatted} {timeFormatted && `às ${timeFormatted}`}
-                            </span>
-                            {record.location && (
-                              <span className="text-amber-500 dark:text-amber-500 text-[10px] truncate max-w-[80px]">
-                                ({record.location})
-                              </span>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2 text-right">
-                            <span className="font-bold text-green-600 dark:text-green-400">{quantity}L</span>
-                            {horimeter && (
-                              <span className="text-slate-500 dark:text-slate-400">H: {horimeter}</span>
-                            )}
-                            {km && (
-                              <span className="text-blue-500 dark:text-blue-400">KM: {km}</span>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
+                  <p className="text-xs font-semibold text-amber-700 dark:text-amber-300 mb-2">Últimos abastecimentos:</p>
+                  <div className="space-y-1">
+                    {lastFuelRecords.map((r, i) => (
+                      <div key={i} className="flex justify-between text-xs text-amber-600 dark:text-amber-400">
+                        <span>{r.record_date} {r.record_time}</span>
+                        <span>{r.fuel_quantity}L {r.horimeter_current ? `H:${r.horimeter_current}` : ''} {r.km_current ? `KM:${r.km_current}` : ''}</span>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
@@ -2794,10 +2612,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                 Quantidade (Litros)
               </span>
             </div>
-            
           </div>
-          
-          
           
           <input
             type="number"
@@ -2818,7 +2633,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
           />
         </div>
 
-        {/* Horimeter with OCR */}
+        {/* Horimeter / KM with OCR */}
         {quickEntryMode !== 'comboio_tank_refuel' && (
         <div className="bg-emerald-50 dark:bg-emerald-950/40 rounded-2xl border-2 border-emerald-400 dark:border-emerald-600 p-4 space-y-3 shadow-lg">
           <div className="flex items-center justify-between">
@@ -2831,9 +2646,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                 <span className="text-red-500 text-2xl font-bold">*</span>
               )}
             </div>
-            
           </div>
-          
           
           <CurrencyInput
             placeholder="0,00"
@@ -2859,169 +2672,153 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         {isEquipment && recordType === 'saida' && quickEntryMode !== 'comboio_tank_refuel' && (
           <Collapsible>
             <div className="bg-blue-50 dark:bg-blue-950/30 backdrop-blur-sm rounded-xl border border-blue-200 dark:border-blue-800 shadow-sm">
-              <CollapsibleTrigger asChild>
-                <button type="button" className="flex items-center justify-between w-full p-4">
-                  <div className="flex items-center gap-2 text-blue-700 dark:text-blue-400">
-                    <Wrench className="w-5 h-5" />
-                    <Label className="text-base font-medium cursor-pointer">Dados do Equipamento (Opcional)</Label>
-                  </div>
-                  <ChevronDown className="w-5 h-5 text-blue-500 transition-transform duration-200 [[data-state=open]_&]:rotate-180" />
-                </button>
+              <CollapsibleTrigger className="flex items-center justify-between w-full p-4">
+                <div className="flex items-center gap-2 text-blue-700 dark:text-blue-400">
+                  <Wrench className="w-5 h-5" />
+                  <span className="text-base font-semibold">Equipamento (Opcionais)</span>
+                </div>
+                <ChevronDown className="w-5 h-5 text-muted-foreground" />
               </CollapsibleTrigger>
-              <CollapsibleContent className="px-4 pb-4 space-y-4">
+              <CollapsibleContent className="px-4 pb-4 space-y-3">
                 {/* Oil Type */}
                 <div className="space-y-2">
                   <Label className="text-sm">Tipo de Óleo</Label>
                   <Select value={oilType} onValueChange={setOilType}>
-                    <SelectTrigger className="h-10">
-                      <SelectValue placeholder="Selecione (opcional)" />
+                    <SelectTrigger className="h-12">
+                      <SelectValue placeholder="Selecione o tipo de óleo" />
                     </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="nenhum">Nenhum</SelectItem>
-                      {oilTypes.map((oil) => (
-                        <SelectItem key={oil.id} value={oil.name}>
-                          {oil.name}
-                        </SelectItem>
+                    <SelectContent className="z-50 bg-popover">
+                      {oilTypes.map(oil => (
+                        <SelectItem key={oil.id} value={oil.name}>{oil.name}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
-                
+
                 {/* Oil Quantity */}
-                <div className="space-y-2">
-                  <Label className="text-sm">Quantidade de Óleo (Litros)</Label>
-                  <input
-                    type="number"
-                    inputMode="numeric"
-                    placeholder="Ex: 5"
-                    value={oilQuantity ?? ''}
-                    onChange={(e) => setOilQuantity(e.target.value ? Number(e.target.value) : null)}
-                    className="flex h-10 w-full rounded-md border px-3 py-2 ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 bg-background border-input"
-                  />
-                </div>
-                
-                {/* Filter Blow */}
-                <div className="space-y-2">
-                  <Label className="text-sm">Sopra Filtro (Quantidade)</Label>
-                  <input
-                    type="number"
-                    inputMode="numeric"
-                    placeholder="Ex: 2"
-                    value={filterBlowQuantity ?? ''}
-                    onChange={(e) => setFilterBlowQuantity(e.target.value ? Number(e.target.value) : null)}
-                    className="flex h-10 w-full rounded-md border px-3 py-2 ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 bg-background border-input"
-                  />
-                </div>
-                
+                {oilType && (
+                  <div className="space-y-2">
+                    <Label className="text-sm">Quantidade Óleo (Litros)</Label>
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      placeholder="Ex: 5"
+                      value={oilQuantity ?? ''}
+                      onChange={(e) => setOilQuantity(e.target.value ? Number(e.target.value) : null)}
+                      className="flex h-12 w-full rounded-md border px-3 py-2 text-xl text-center font-bold ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring bg-background border-input"
+                    />
+                  </div>
+                )}
+
                 {/* Lubricant */}
                 <div className="space-y-2">
                   <Label className="text-sm">Lubrificante</Label>
                   <Select value={lubricant} onValueChange={setLubricant}>
-                    <SelectTrigger className="h-10">
-                      <SelectValue placeholder="Selecione (opcional)" />
+                    <SelectTrigger className="h-12">
+                      <SelectValue placeholder="Selecione o lubrificante" />
                     </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="nenhum">Nenhum</SelectItem>
-                      {lubricants.map((lub) => (
-                        <SelectItem key={lub.id} value={lub.name}>
-                          {lub.name}
-                        </SelectItem>
+                    <SelectContent className="z-50 bg-popover">
+                      {lubricants.map(lub => (
+                        <SelectItem key={lub.id} value={lub.name}>{lub.name}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+
+                {/* Filter Blow */}
+                <div className="space-y-2">
+                  <Label className="text-sm">Sopra Filtro (quantidade)</Label>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    placeholder="0"
+                    value={filterBlowQuantity ?? ''}
+                    onChange={(e) => {
+                      setFilterBlowQuantity(e.target.value ? Number(e.target.value) : null);
+                      setFilterBlow(!!e.target.value);
+                    }}
+                    className="flex h-12 w-full rounded-md border px-3 py-2 text-xl text-center font-bold ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring bg-background border-input"
+                  />
                 </div>
               </CollapsibleContent>
             </div>
           </Collapsible>
         )}
-        </>
-        )}
 
-        {/* ARLA - only for Tanque users in normal Saida mode */}
-        {recordType === 'saida' && quickEntryMode === 'normal' && userLocationInfo.isTanqueUser && (
-          <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-xl border border-slate-200 dark:border-slate-700 p-4 space-y-3 shadow-sm">
-            <div className="flex items-center justify-between">
-              <Label className="flex items-center gap-2 text-base">
-                <Droplet className="w-4 h-4" />
-                ARLA (Litros)
-              </Label>
-              
-            </div>
-            <input
-              type="number"
-              inputMode="numeric"
-              placeholder="Ex: 50"
-              value={arlaQuantity ?? ''}
-              onChange={(e) => setArlaQuantity(e.target.value ? Number(e.target.value) : null)}
-              className="flex h-12 w-full rounded-md border px-3 py-2 text-lg text-center ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 bg-background border-input"
-            />
+        {/* ARLA */}
+        <div className="bg-cyan-50 dark:bg-cyan-950/40 rounded-2xl border-2 border-cyan-400 dark:border-cyan-600 p-4 space-y-3 shadow-lg">
+          <div className="flex items-center gap-3 bg-cyan-100 dark:bg-cyan-900/60 px-4 py-2.5 rounded-xl -ml-1">
+            <Droplet className="w-6 h-6 text-cyan-600 dark:text-cyan-400" />
+            <span className="text-lg font-bold text-cyan-800 dark:text-cyan-200">
+              ARLA (Litros)
+            </span>
           </div>
+          <input
+            type="number"
+            inputMode="numeric"
+            placeholder="0"
+            value={arlaQuantity ?? ''}
+            onChange={(e) => setArlaQuantity(e.target.value ? Number(e.target.value) : null)}
+            className="flex h-14 w-full rounded-md border-2 border-cyan-300 dark:border-cyan-600 bg-white dark:bg-slate-900 px-3 py-2 text-2xl text-center font-bold ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200 dark:focus:ring-cyan-800 shadow-md"
+          />
+        </div>
+
+        {/* Observations */}
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 space-y-3 shadow-sm">
+          <Label className="text-base text-foreground">Observações</Label>
+          <Textarea
+            placeholder="Observações opcionais..."
+            value={observations}
+            onChange={(e) => setObservations(e.target.value)}
+            rows={2}
+            className="bg-slate-100 dark:bg-slate-700/50 border-slate-300 dark:border-slate-600 text-foreground placeholder:text-muted-foreground"
+          />
+        </div>
+          </>
         )}
 
         {/* ENTRADA FORM */}
-        {recordType === 'entrada' && (
+        {recordType === 'entrada' && quickEntryMode === 'normal' && (
           <>
-            {/* Logic: Tanque users see suppliers + invoice, Comboio users ONLY see entry location */}
             {(() => {
               const userLocations = user.assigned_locations || [];
-              
-              // Check if user is exclusively a Comboio user (no Tanque locations)
               const isComboioUser = userLocations.some(loc => 
                 loc.toLowerCase().includes('comboio') || loc.toLowerCase().startsWith('cb')
               );
               const isTanqueUser = userLocations.some(loc => 
                 loc.toLowerCase().includes('tanque') || loc.toLowerCase().includes('canteiro')
               );
-              
-              // If user has ONLY Comboio locations (not Tanque), show simplified form
               const isOnlyComboio = isComboioUser && !isTanqueUser;
-
+              
               return (
                 <>
-                  {/* For Tanque users - Show Supplier Selection */}
-                  {isTanqueUser && (
-                    <div className="bg-green-50/80 dark:bg-green-950/30 backdrop-blur-sm rounded-xl border border-green-200 dark:border-green-800 p-4 space-y-3 shadow-sm">
-                      <Label className="flex items-center gap-2 text-base text-green-700 dark:text-green-400">
-                        <Building2 className="w-4 h-4" />
-                        Fornecedor
-                        <span className="text-red-500">*</span>
-                      </Label>
-                      <Select value={supplier} onValueChange={setSupplier}>
-                        <SelectTrigger className="h-12 text-lg border-green-300 dark:border-green-700">
-                          <SelectValue placeholder="Selecione o fornecedor" />
-                        </SelectTrigger>
-                        <SelectContent className="max-h-60 z-50 bg-popover">
-                          {suppliers.length === 0 ? (
-                            <div className="p-3 text-center text-muted-foreground text-sm">
-                              Nenhum fornecedor cadastrado
-                            </div>
-                          ) : (
-                            suppliers.map(s => (
-                              <SelectItem key={s.id} value={s.name}>
-                                {s.name}
-                              </SelectItem>
-                            ))
-                          )}
-                        </SelectContent>
-                      </Select>
-                      {suppliers.length === 0 && (
-                        <p className="text-xs text-muted-foreground">
-                          Cadastre fornecedores em Cadastros → Fornecedores
-                        </p>
-                      )}
+                  {/* Fuel Quantity */}
+                  <div className="bg-amber-50 dark:bg-amber-950/40 rounded-2xl border-2 border-amber-400 dark:border-amber-600 p-4 space-y-3 shadow-lg">
+                    <div className="flex items-center gap-3 bg-amber-100 dark:bg-amber-900/60 px-4 py-2.5 rounded-xl -ml-1">
+                      <Fuel className="w-6 h-6 text-amber-600 dark:text-amber-400" />
+                      <span className="text-lg font-bold text-amber-800 dark:text-amber-200">
+                        Quantidade (Litros) <span className="text-red-500">*</span>
+                      </span>
                     </div>
-                  )}
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      placeholder="Ex: 5000"
+                      value={fuelQuantity ?? ''}
+                      onChange={(e) => setFuelQuantity(e.target.value ? Number(e.target.value) : null)}
+                      className="flex h-16 w-full rounded-md border-2 border-amber-300 dark:border-amber-600 bg-white dark:bg-slate-900 px-3 py-2 text-3xl text-center font-black shadow-md"
+                    />
+                  </div>
 
                   {/* For Comboio users ONLY - Show Entry Location (Tanque) Selection */}
                   {isOnlyComboio && (
                     <div className="bg-green-50/80 dark:bg-green-950/30 backdrop-blur-sm rounded-xl border border-green-200 dark:border-green-800 p-4 space-y-3 shadow-sm">
                       <Label className="flex items-center gap-2 text-base text-green-700 dark:text-green-400">
-                        <MapPin className="w-4 h-4" />
-                        Local de Origem (Abastecendo de)
-                        <span className="text-red-500">*</span>
+                        <MapPin className="w-5 h-5" />
+                        Local de Entrada <span className="text-red-500">*</span>
                       </Label>
                       <Select value={entryLocation} onValueChange={setEntryLocation}>
-                        <SelectTrigger className="h-12 text-lg border-green-300 dark:border-green-700">
+                        <SelectTrigger className="h-12 text-base border-green-300 dark:border-green-700">
                           <SelectValue placeholder="Selecione o tanque de origem" />
                         </SelectTrigger>
                         <SelectContent className="z-50 bg-popover">
@@ -3029,155 +2826,90 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                           <SelectItem value="Tanque Canteiro 02">Tanque Canteiro 02</SelectItem>
                         </SelectContent>
                       </Select>
-                      <p className="text-xs text-green-600 dark:text-green-500">
-                        Selecione de qual tanque você está carregando
-                      </p>
                     </div>
                   )}
-                </>
-              );
-            })()}
 
-            {/* Fuel Quantity with number in words - Always visible */}
-            <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-xl border border-slate-200 dark:border-slate-700 p-4 space-y-3 shadow-sm">
-              <div className="flex items-center justify-between">
-                <Label className="flex items-center gap-2 text-base">
-                  <Fuel className="w-4 h-4" />
-                  Quantidade (Litros)
-                </Label>
-              </div>
-              <input
-                type="number"
-                inputMode="numeric"
-                placeholder="Ex: 250"
-                value={fuelQuantity ?? ''}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setFuelQuantity(val ? Number(val) : null);
-                  if (val) {
-                    const result = formatQuantityInput(val);
-                    setQuantityInWords(result.inWords);
-                  } else {
-                    setQuantityInWords('');
-                  }
-                }}
-                className="flex h-14 w-full rounded-md border px-3 py-2 text-2xl text-center font-bold ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 bg-background border-input"
-              />
-              {quantityInWords && (
-                <div className="bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 p-3 rounded-lg">
-                  <p className="text-green-700 dark:text-green-300 text-sm font-medium text-center">
-                    {quantityInWords}
-                  </p>
-                </div>
-              )}
-            </div>
-
-            {/* Invoice, Unit Price, Entry Location, Photo - ONLY for Tanque users */}
-            {(() => {
-              const userLocations = user.assigned_locations || [];
-              const isTanqueUser = userLocations.some(loc => 
-                loc.toLowerCase().includes('tanque') || loc.toLowerCase().includes('canteiro')
-              );
-              
-              if (!isTanqueUser) return null;
-              
-              return (
-                <>
-                  <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-xl border border-slate-200 dark:border-slate-700 p-4 space-y-3 shadow-sm">
-                    <Label className="flex items-center gap-2 text-base">
-                      <Receipt className="w-4 h-4" />
-                      Nota Fiscal
-                    </Label>
-                    <Input
-                      type="text"
-                      placeholder="Número da NF"
-                      value={invoiceNumber}
-                      onChange={(e) => setInvoiceNumber(e.target.value)}
-                      className="h-12 text-lg"
-                    />
-                  </div>
-
-                  {/* Unit Price - currency auto-format */}
-                  <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-xl border border-slate-200 dark:border-slate-700 p-4 space-y-3 shadow-sm">
-                    <Label className="flex items-center gap-2 text-base">
-                      Valor Unitário (R$)
-                    </Label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-medium z-10">
-                        R$
-                      </span>
-                      <CurrencyInput
-                        placeholder="0,00"
-                        value={unitPrice}
-                        onChange={setUnitPrice}
-                        decimals={4}
-                        className="h-12 text-lg pl-10"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Entry Location for Tanque Users */}
-                  <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-xl border border-slate-200 dark:border-slate-700 p-4 space-y-3 shadow-sm">
-                    <Label className="flex items-center gap-2 text-base">
-                      <MapPin className="w-4 h-4" />
-                      Local de Entrada
-                    </Label>
-                    <Select value={entryLocation} onValueChange={setEntryLocation}>
-                      <SelectTrigger className="h-12">
-                        <SelectValue placeholder="Selecione o local" />
-                      </SelectTrigger>
-                      <SelectContent className="z-50 bg-popover">
-                        {(userLocations.filter(loc => 
-                          loc.toLowerCase().includes('tanque') || loc.toLowerCase().includes('canteiro')
-                        )).map(loc => (
-                          <SelectItem key={loc} value={loc}>{loc}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  {/* Invoice Photo */}
-                  <div className="bg-green-50/80 dark:bg-green-950/30 backdrop-blur-sm rounded-xl border border-green-200 dark:border-green-800 p-4 space-y-3 shadow-sm">
-                    <Label className="flex items-center gap-2 text-base text-green-600 dark:text-green-400">
-                      <Camera className="w-4 h-4" />
-                      Foto da Nota Fiscal (Opcional)
-                    </Label>
-                    <input
-                      ref={photoInvoiceInputRef}
-                      type="file"
-                      accept="image/*"
-                      capture="environment"
-                      onChange={handleInvoicePhotoCapture}
-                      className="hidden"
-                    />
-                    {photoInvoicePreview ? (
-                      <div className="relative">
-                        <img 
-                          src={photoInvoicePreview} 
-                          alt="Nota Fiscal" 
-                          className="w-full h-40 object-cover rounded-lg border border-green-200"
-                        />
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="destructive"
-                          className="absolute -top-2 -right-2 h-6 w-6"
-                          onClick={() => removePhoto('invoice')}
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </Button>
+                  {/* For Tanque users - Show Supplier and Invoice */}
+                  {isTanqueUser && (
+                    <>
+                      <div className="bg-purple-50/80 dark:bg-purple-950/30 backdrop-blur-sm rounded-xl border border-purple-200 dark:border-purple-800 p-4 space-y-3 shadow-sm">
+                        <Label className="flex items-center gap-2 text-base text-purple-700 dark:text-purple-400">
+                          <Building2 className="w-5 h-5" />
+                          Fornecedor <span className="text-red-500">*</span>
+                        </Label>
+                        <Select value={supplier} onValueChange={setSupplier}>
+                          <SelectTrigger className="h-12 text-base border-purple-300 dark:border-purple-700">
+                            <SelectValue placeholder="Selecione o fornecedor" />
+                          </SelectTrigger>
+                          <SelectContent className="z-50 bg-popover">
+                            {suppliers.map(s => (
+                              <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
-                    ) : (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="w-full h-32 flex flex-col gap-2 border-green-200 hover:bg-green-50 dark:hover:bg-green-950"
-                        onClick={() => photoInvoiceInputRef.current?.click()}
-                      >
-                        <Receipt className="w-8 h-8 text-green-500" />
-                        <span className="text-xs text-muted-foreground">Tirar Foto da NF</span>
-                      </Button>
-                    )}
+
+                      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 space-y-3 shadow-sm">
+                        <Label className="flex items-center gap-2 text-base">
+                          <Receipt className="w-5 h-5" />
+                          Nota Fiscal
+                        </Label>
+                        <Input
+                          placeholder="Número da nota fiscal"
+                          value={invoiceNumber}
+                          onChange={(e) => setInvoiceNumber(e.target.value)}
+                          className="h-12 text-base"
+                        />
+                      </div>
+
+                      {/* Unit Price */}
+                      <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 space-y-3 shadow-sm">
+                        <Label className="flex items-center gap-2 text-base">
+                          Valor Unitário (R$/L)
+                        </Label>
+                        <CurrencyInput
+                          placeholder="0,00"
+                          value={unitPrice}
+                          onChange={setUnitPrice}
+                          decimals={4}
+                          className="h-12 text-lg"
+                        />
+                      </div>
+
+                      {/* Location for tanque users */}
+                      <div className="bg-indigo-50 dark:bg-indigo-950/40 rounded-2xl border-2 border-indigo-400 dark:border-indigo-600 p-4 space-y-3 shadow-lg">
+                        <div className="flex items-center gap-3 bg-indigo-100 dark:bg-indigo-900/60 px-4 py-2.5 rounded-xl -ml-1">
+                          <MapPin className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
+                          <span className="text-lg font-bold text-indigo-800 dark:text-indigo-200">
+                            Local
+                          </span>
+                        </div>
+                        <Select value={location} onValueChange={setLocation}>
+                          <SelectTrigger className="h-14 text-lg font-bold border-2 border-indigo-300 dark:border-indigo-600 bg-white dark:bg-slate-900 shadow-md">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="z-50 bg-popover">
+                            {(userLocations.filter(loc => 
+                              loc.toLowerCase().includes('tanque') || loc.toLowerCase().includes('canteiro')
+                            )).map(loc => (
+                              <SelectItem key={loc} value={loc} className="text-base py-3 font-medium">{loc}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </>
+                  )}
+
+                  {/* Observations */}
+                  <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 space-y-3 shadow-sm">
+                    <Label className="text-base text-foreground">Observações</Label>
+                    <Textarea
+                      placeholder="Observações opcionais..."
+                      value={observations}
+                      onChange={(e) => setObservations(e.target.value)}
+                      rows={2}
+                      className="bg-slate-100 dark:bg-slate-700/50 border-slate-300 dark:border-slate-600 text-foreground placeholder:text-muted-foreground"
+                    />
                   </div>
                 </>
               );
@@ -3185,20 +2917,22 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
           </>
         )}
 
-        {/* Location - for Saida only (only show selector if user has multiple locations) */}
+        {/* Location - for Saida only */}
         {recordType === 'saida' && user.assigned_locations && user.assigned_locations.length > 1 ? (
-          <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-xl border border-slate-200 dark:border-slate-700 p-4 space-y-3 shadow-sm">
-            <Label className="flex items-center gap-2 text-base">
-              <MapPin className="w-4 h-4" />
-              Local
-            </Label>
+          <div className="bg-indigo-50 dark:bg-indigo-950/40 rounded-2xl border-2 border-indigo-400 dark:border-indigo-600 p-4 space-y-3 shadow-lg">
+            <div className="flex items-center gap-3 bg-indigo-100 dark:bg-indigo-900/60 px-4 py-2.5 rounded-xl -ml-1">
+              <MapPin className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
+              <span className="text-lg font-bold text-indigo-800 dark:text-indigo-200">
+                Local
+              </span>
+            </div>
             <Select value={location} onValueChange={setLocation}>
-              <SelectTrigger className="h-12">
+              <SelectTrigger className="h-14 text-lg font-bold border-2 border-indigo-300 dark:border-indigo-600 bg-white dark:bg-slate-900 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 dark:focus:ring-indigo-800 shadow-md">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="z-50 bg-popover">
                 {user.assigned_locations.map((loc) => (
-                  <SelectItem key={loc} value={loc}>
+                  <SelectItem key={loc} value={loc} className="text-base py-3 font-medium">
                     {loc}
                   </SelectItem>
                 ))}
@@ -3206,10 +2940,12 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
             </Select>
           </div>
         ) : recordType === 'saida' && user.assigned_locations?.length === 1 && (
-          <div className="flex items-center gap-2 px-3 py-2 bg-slate-100 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
-            <MapPin className="w-4 h-4 text-primary" />
-            <span className="text-sm text-muted-foreground">Local:</span>
-            <span className="text-sm font-medium text-foreground">{location}</span>
+          <div className="bg-indigo-50 dark:bg-indigo-950/40 rounded-2xl border-2 border-indigo-400 dark:border-indigo-600 p-4 shadow-lg">
+            <div className="flex items-center gap-3">
+              <MapPin className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
+              <span className="text-lg font-bold text-indigo-800 dark:text-indigo-200">Local:</span>
+              <span className="text-lg font-bold text-foreground">{location}</span>
+            </div>
           </div>
         )}
 
@@ -3229,135 +2965,114 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
           )}>
             {/* Pump Photo - Always visible */}
             <div className="space-y-2">
-              <p className="text-sm font-bold text-rose-700 dark:text-rose-300">📷 Bomba *</p>
-              <input
-                ref={photoPumpInputRef}
-                type="file"
-                accept="image/*"
-                capture="environment"
-                onChange={handlePhotoCapture('pump')}
-                className="hidden"
-              />
-              {photoPumpPreview ? (
-                <div className="relative">
-                  <img 
-                    src={photoPumpPreview} 
-                    alt="Bomba" 
-                    className="w-full h-32 object-cover rounded-lg border-2 border-green-500 shadow-md"
-                  />
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="destructive"
-                    className="absolute -top-2 -right-2 h-8 w-8 shadow-md"
-                    onClick={() => removePhoto('pump')}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                  <div className="absolute bottom-1 left-1 bg-green-500 text-white px-2 py-0.5 rounded-full text-xs font-bold">
-                    ✓ OK
-                  </div>
-                </div>
-              ) : (
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full h-32 flex flex-col gap-2 border-2 border-dashed border-rose-300 hover:border-rose-500 hover:bg-rose-100 dark:hover:bg-rose-950 rounded-lg transition-all"
-                  onClick={() => photoPumpInputRef.current?.click()}
+              <Label className="text-sm text-rose-600 dark:text-rose-400">Foto Bomba</Label>
+              <div className="relative">
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) setPhotoPump(file);
+                  }}
+                  className="hidden"
+                  id="photo-pump"
+                />
+                <label
+                  htmlFor="photo-pump"
+                  className={cn(
+                    "flex flex-col items-center justify-center w-full h-24 rounded-xl border-2 border-dashed cursor-pointer transition-all",
+                    photoPump
+                      ? "border-green-400 bg-green-50 dark:bg-green-950/30"
+                      : "border-rose-300 dark:border-rose-700 bg-white dark:bg-slate-900 hover:border-rose-400"
+                  )}
                 >
-                  <Camera className="w-10 h-10 text-rose-500" />
-                  <span className="text-sm font-bold text-rose-600">TIRAR FOTO</span>
-                </Button>
-              )}
+                  {photoPump ? (
+                    <div className="flex items-center gap-2 text-green-600">
+                      <CheckCircle className="w-5 h-5" />
+                      <span className="text-sm font-medium">Foto OK</span>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center gap-1">
+                      <Camera className="w-6 h-6 text-rose-400" />
+                      <span className="text-xs text-muted-foreground">Tirar foto</span>
+                    </div>
+                  )}
+                </label>
+                {photoPump && (
+                  <button
+                    type="button"
+                    onClick={() => setPhotoPump(null)}
+                    className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center shadow-md"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
             </div>
 
-            {/* Horimeter Photo - Hide for comboio tank refuel */}
+            {/* Horimeter Photo - Hidden for comboio tank refuel */}
             {quickEntryMode !== 'comboio_tank_refuel' && (
-            <div className="space-y-2">
-              <p className="text-sm font-bold text-rose-700 dark:text-rose-300">📷 Horímetro *</p>
-              <input
-                ref={photoHorimeterInputRef}
-                type="file"
-                accept="image/*"
-                capture="environment"
-                onChange={handlePhotoCapture('horimeter')}
-                className="hidden"
-              />
-              {photoHorimeterPreview ? (
+              <div className="space-y-2">
+                <Label className="text-sm text-rose-600 dark:text-rose-400">{isVehicleCategory ? 'Foto KM' : 'Foto Horímetro'}</Label>
                 <div className="relative">
-                  <img 
-                    src={photoHorimeterPreview} 
-                    alt="Horímetro" 
-                    className="w-full h-32 object-cover rounded-lg border-2 border-green-500 shadow-md"
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) setPhotoHorimeter(file);
+                    }}
+                    className="hidden"
+                    id="photo-horimeter"
                   />
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="destructive"
-                    className="absolute -top-2 -right-2 h-8 w-8 shadow-md"
-                    onClick={() => removePhoto('horimeter')}
+                  <label
+                    htmlFor="photo-horimeter"
+                    className={cn(
+                      "flex flex-col items-center justify-center w-full h-24 rounded-xl border-2 border-dashed cursor-pointer transition-all",
+                      photoHorimeter
+                        ? "border-green-400 bg-green-50 dark:bg-green-950/30"
+                        : "border-rose-300 dark:border-rose-700 bg-white dark:bg-slate-900 hover:border-rose-400"
+                    )}
                   >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                  <div className="absolute bottom-1 left-1 bg-green-500 text-white px-2 py-0.5 rounded-full text-xs font-bold">
-                    ✓ OK
-                  </div>
+                    {photoHorimeter ? (
+                      <div className="flex items-center gap-2 text-green-600">
+                        <CheckCircle className="w-5 h-5" />
+                        <span className="text-sm font-medium">Foto OK</span>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center gap-1">
+                        <Image className="w-6 h-6 text-rose-400" />
+                        <span className="text-xs text-muted-foreground">Tirar foto</span>
+                      </div>
+                    )}
+                  </label>
+                  {photoHorimeter && (
+                    <button
+                      type="button"
+                      onClick={() => setPhotoHorimeter(null)}
+                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center shadow-md"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
-              ) : (
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full h-32 flex flex-col gap-2 border-2 border-dashed border-rose-300 hover:border-rose-500 hover:bg-rose-100 dark:hover:bg-rose-950 rounded-lg transition-all"
-                  onClick={() => photoHorimeterInputRef.current?.click()}
-                >
-                  <Gauge className="w-10 h-10 text-rose-500" />
-                  <span className="text-sm font-bold text-rose-600">TIRAR FOTO</span>
-                </Button>
-              )}
-            </div>
+              </div>
             )}
           </div>
         </div>
         )}
 
-        {/* Observations */}
-        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-3 space-y-2 shadow-sm">
-          <div className="flex items-center justify-between">
-            <Label className="text-sm text-muted-foreground">Observações</Label>
-            
-          </div>
-          <Textarea
-            placeholder="Observações opcionais..."
-            value={observations}
-            onChange={(e) => setObservations(e.target.value)}
-            rows={2}
-            className="bg-slate-50 dark:bg-slate-700/50 border-slate-200 dark:border-slate-600 text-foreground placeholder:text-muted-foreground text-sm"
-          />
-        </div>
-
-        {/* Save Button - Sticky at bottom */}
-        <div className="sticky bottom-0 pt-2 pb-6 bg-gradient-to-t from-slate-100 dark:from-slate-900 via-slate-100/95 dark:via-slate-900/95 to-transparent -mx-3 px-3">
-        <Button 
-          onClick={handleSave} 
-          disabled={
-            isSaving ||
-            isUploadingPhotos ||
-            (quickEntryMode !== 'normal'
-              ? !vehicleCode
-              : recordType === 'saida'
-                ? (!vehicleCode || !fuelQuantity)
-                : (userLocationInfo.isOnlyComboio
-                    ? (!entryLocation || !fuelQuantity)
-                    : userLocationInfo.isTanqueUser
-                      ? (!supplier || !fuelQuantity)
-                      : !fuelQuantity)
-            )
-          }
+        {/* Save Button */}
+        <div className="sticky bottom-0 bg-background/95 backdrop-blur-sm p-3 -mx-3 border-t border-border shadow-[0_-4px_6px_-1px_rgb(0,0,0,0.1)]">
+        <Button
+          type="button"
+          onClick={handleSave}
+          disabled={isSaving}
           className={cn(
             "w-full h-14 text-lg gap-2 shadow-lg text-white",
-            recordType === 'entrada' 
-              ? "bg-green-600 hover:bg-green-700" 
-              : "bg-gradient-to-r from-blue-800 to-blue-900 hover:from-blue-900 hover:to-blue-950"
+            "bg-gradient-to-r from-blue-800 to-blue-900 hover:from-blue-900 hover:to-blue-950"
           )}
         >
           {isUploadingPhotos ? (
@@ -3373,7 +3088,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
           ) : (
             <>
               <Save className="w-5 h-5" />
-              {recordType === 'entrada' ? 'Registrar Entrada' : 'Registrar Abastecimento'}
+              Registrar Abastecimento
             </>
           )}
         </Button>
