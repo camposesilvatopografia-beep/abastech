@@ -36,6 +36,17 @@ interface VehicleComboboxProps {
   useIdAsValue?: boolean;
 }
 
+/** Remove accents and normalize for search */
+function normalize(str: string): string {
+  return str
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[–—]/g, '-')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 export function VehicleCombobox({
   vehicles,
   value,
@@ -47,6 +58,12 @@ export function VehicleCombobox({
   useIdAsValue = false,
 }: VehicleComboboxProps) {
   const [open, setOpen] = React.useState(false);
+  const [search, setSearch] = React.useState('');
+
+  // Reset search when popover opens
+  React.useEffect(() => {
+    if (open) setSearch('');
+  }, [open]);
 
   const selectedVehicle = React.useMemo(() => {
     if (!value) return null;
@@ -57,23 +74,36 @@ export function VehicleCombobox({
 
   const displayText = React.useMemo(() => {
     if (!selectedVehicle) return placeholder;
-    // Only show the code (prefix) as requested
-    return selectedVehicle.code;
+    const desc = selectedVehicle.name || selectedVehicle.description || '';
+    return desc ? `${selectedVehicle.code} - ${desc}` : selectedVehicle.code;
   }, [selectedVehicle, placeholder]);
 
-  // Group vehicles by category
-  const groupedVehicles = React.useMemo(() => {
-    const groups: Record<string, VehicleOption[]> = {};
-    
-    vehicles.forEach(vehicle => {
-      const category = vehicle.category?.trim() || 'Outros';
-      if (!groups[category]) {
-        groups[category] = [];
-      }
-      groups[category].push(vehicle);
+  // Custom filtering: normalize search terms, split into words, all must match
+  const filteredGrouped = React.useMemo(() => {
+    const normalizedSearch = normalize(search);
+    const searchTerms = normalizedSearch.split(/\s+/).filter(Boolean);
+
+    const filtered = vehicles.filter(vehicle => {
+      if (searchTerms.length === 0) return true;
+      const name = vehicle.name || vehicle.description || '';
+      const category = vehicle.category || '';
+      const haystack = normalize(`${vehicle.code} ${name} ${category}`);
+      // Also try matching code without separators (e.g. "mn20" matches "MN-20")
+      const haystackCompact = haystack.replace(/[-\s]/g, '');
+      return searchTerms.every(term => {
+        const termCompact = term.replace(/[-\s]/g, '');
+        return haystack.includes(term) || haystackCompact.includes(termCompact);
+      });
     });
 
-    // Sort categories alphabetically, but keep "Outros" at the end
+    // Group by category
+    const groups: Record<string, VehicleOption[]> = {};
+    filtered.forEach(vehicle => {
+      const cat = vehicle.category?.trim() || 'Outros';
+      if (!groups[cat]) groups[cat] = [];
+      groups[cat].push(vehicle);
+    });
+
     const sortedCategories = Object.keys(groups).sort((a, b) => {
       if (a === 'Outros') return 1;
       if (b === 'Outros') return -1;
@@ -82,9 +112,14 @@ export function VehicleCombobox({
 
     return sortedCategories.map(category => ({
       category,
-      vehicles: groups[category].sort((a, b) => a.code.localeCompare(b.code))
+      vehicles: groups[category].sort((a, b) => a.code.localeCompare(b.code)),
     }));
-  }, [vehicles]);
+  }, [vehicles, search]);
+
+  const totalFiltered = filteredGrouped.reduce((sum, g) => sum + g.vehicles.length, 0);
+
+  // Custom filter that always returns 1 (we handle filtering ourselves)
+  const commandFilter = React.useCallback(() => 1, []);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -118,23 +153,30 @@ export function VehicleCombobox({
         align="start"
         sideOffset={4}
       >
-        <Command className="bg-popover">
+        <Command className="bg-popover" filter={commandFilter} shouldFilter={false}>
           <div className="flex items-center border-b-2 border-border px-3 bg-muted/50">
             <Search className="h-5 w-5 shrink-0 text-primary mr-2" />
             <CommandInput 
-              placeholder="Digite para pesquisar..." 
+              placeholder="Digite código ou descrição..." 
               className="h-12 text-base border-0 focus:ring-0 bg-transparent placeholder:text-muted-foreground"
+              value={search}
+              onValueChange={setSearch}
             />
           </div>
           <CommandList className="max-h-[400px] overflow-auto">
-            <CommandEmpty className="py-6 text-center">
-              <div className="flex flex-col items-center gap-2 text-muted-foreground">
-                <Truck className="h-8 w-8 opacity-50" />
-                <span className="text-sm">{emptyMessage}</span>
-              </div>
-            </CommandEmpty>
+            {totalFiltered === 0 && (
+              <CommandEmpty className="py-6 text-center">
+                <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                  <Truck className="h-8 w-8 opacity-50" />
+                  <span className="text-sm">{emptyMessage}</span>
+                  {search && (
+                    <span className="text-xs">Busca: "{search}"</span>
+                  )}
+                </div>
+              </CommandEmpty>
+            )}
             
-            {groupedVehicles.map(({ category, vehicles: categoryVehicles }) => (
+            {filteredGrouped.map(({ category, vehicles: categoryVehicles }) => (
               <CommandGroup 
                 key={category} 
                 heading={
@@ -145,40 +187,44 @@ export function VehicleCombobox({
                 }
                 className="p-0"
               >
-                <div className="p-2">
+                <div className="p-1">
                   {categoryVehicles.map((vehicle) => {
                     const itemValue = useIdAsValue ? vehicle.id! : vehicle.code;
-                    const name = vehicle.name || vehicle.description || '';
-                    const searchValue = `${vehicle.code} ${name} ${category}`.toLowerCase();
+                    const desc = vehicle.name || vehicle.description || '';
                     const isSelected = value === itemValue;
                     
                     return (
                       <CommandItem
                         key={itemValue}
-                        value={searchValue}
+                        value={itemValue}
                         onSelect={() => {
                           onValueChange(itemValue);
                           setOpen(false);
                         }}
                         className={cn(
-                          "cursor-pointer py-3 px-3 rounded-lg mb-1 transition-colors",
+                          "cursor-pointer py-2.5 px-3 rounded-lg mb-0.5 transition-colors",
                           "hover:bg-accent hover:text-accent-foreground",
                           isSelected && "bg-primary/10 border border-primary/30"
                         )}
                       >
                         <Check
                           className={cn(
-                            'mr-3 h-5 w-5 text-primary',
+                            'mr-2 h-4 w-4 text-primary shrink-0',
                             isSelected ? 'opacity-100' : 'opacity-0'
                           )}
                         />
                         <div className="flex flex-col flex-1 min-w-0">
                           <span className={cn(
-                            "font-bold text-base truncate",
+                            "font-bold text-sm truncate",
                             isSelected && "text-primary"
                           )}>
                             {vehicle.code}
                           </span>
+                          {desc && (
+                            <span className="text-xs text-muted-foreground truncate">
+                              {desc}
+                            </span>
+                          )}
                         </div>
                       </CommandItem>
                     );
