@@ -19,16 +19,7 @@ interface FieldFuelMenuProps {
 export function FieldFuelMenu({ onNavigate, user }: FieldFuelMenuProps) {
   const { theme } = useTheme();
 
-  // Only show "Carregar Comboio" for tanque/canteiro users (not comboio-only users)
-  const showCarregarComboio = useMemo(() => {
-    if (!user?.assigned_locations?.length) return true; // fallback: show
-    const locs = user.assigned_locations;
-    const hasTanque = locs.some(loc => {
-      const l = loc.toLowerCase();
-      return l.includes('tanque') || l.includes('canteiro');
-    });
-    return hasTanque;
-  }, [user?.assigned_locations]);
+  const showCarregarComboio = true;
 
   const menuItems = [
     {
