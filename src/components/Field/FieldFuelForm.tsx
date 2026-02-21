@@ -2801,67 +2801,10 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                 Quantidade (Litros)
               </span>
             </div>
-            <div className="flex items-center gap-2">
-              {/* OCR Button for quantity */}
-              <input
-                ref={quantityOcrInputRef}
-                type="file"
-                accept="image/*"
-                capture="environment"
-                onChange={handleQuantityOCRCapture}
-                className="hidden"
-              />
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => quantityOcrInputRef.current?.click()}
-                disabled={isProcessingQuantityOCR}
-                className="h-10 px-3 gap-1.5 border-2 border-amber-400 hover:bg-amber-100"
-                title="Tirar foto da bomba para reconhecer valor"
-              >
-                {isProcessingQuantityOCR ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                ) : (
-                  <>
-                    <ScanLine className="w-5 h-5" />
-                    <span className="text-sm font-semibold">OCR</span>
-                  </>
-                )}
-              </Button>
-              {voice.isSupported && (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => startVoiceForField('quantity')}
-                  className={cn(
-                    "h-10 w-10 border-2 border-amber-400",
-                    activeVoiceField === 'quantity' && voice.isListening && "bg-red-100 border-red-400"
-                  )}
-                >
-                  <Mic className="w-5 h-5" />
-                </Button>
-              )}
-            </div>
+            
           </div>
           
-          {/* OCR Preview for quantity */}
-          {quantityOcrPhotoPreview && isProcessingQuantityOCR && (
-            <div className="relative">
-              <img 
-                src={quantityOcrPhotoPreview} 
-                alt="Analisando" 
-                className="w-full h-28 object-cover rounded-xl opacity-50 border-2 border-amber-300"
-              />
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="bg-white/95 dark:bg-slate-900/95 px-4 py-3 rounded-xl flex items-center gap-3 shadow-lg">
-                  <Loader2 className="w-5 h-5 animate-spin text-amber-600" />
-                  <span className="text-base font-semibold">Reconhecendo valor...</span>
-                </div>
-              </div>
-            </div>
-          )}
+          
           
           <CurrencyInput
             placeholder="0,00"
@@ -2885,67 +2828,9 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                 <span className="text-red-500 text-2xl font-bold">*</span>
               )}
             </div>
-            <div className="flex items-center gap-2">
-              {/* OCR Button */}
-              <input
-                ref={ocrInputRef}
-                type="file"
-                accept="image/*"
-                capture="environment"
-                onChange={handleOCRCapture}
-                className="hidden"
-              />
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => ocrInputRef.current?.click()}
-                disabled={isProcessingOCR}
-                className="h-10 px-3 gap-1.5 border-2 border-emerald-400 hover:bg-emerald-100"
-                title="Tirar foto para reconhecer valor"
-              >
-                {isProcessingOCR ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                ) : (
-                  <>
-                    <ScanLine className="w-5 h-5" />
-                    <span className="text-sm font-semibold">OCR</span>
-                  </>
-                )}
-              </Button>
-              {voice.isSupported && (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => startVoiceForField('horimeter')}
-                  className={cn(
-                    "h-10 w-10 border-2 border-emerald-400",
-                    activeVoiceField === 'horimeter' && voice.isListening && "bg-red-100 border-red-400"
-                  )}
-                >
-                  <Mic className="w-5 h-5" />
-                </Button>
-              )}
-            </div>
+            
           </div>
           
-          {/* OCR Preview */}
-          {ocrPhotoPreview && isProcessingOCR && (
-            <div className="relative">
-              <img 
-                src={ocrPhotoPreview} 
-                alt="Analisando" 
-                className="w-full h-28 object-cover rounded-xl opacity-50 border-2 border-emerald-300"
-              />
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="bg-white/95 dark:bg-slate-900/95 px-4 py-3 rounded-xl flex items-center gap-3 shadow-lg">
-                  <Loader2 className="w-5 h-5 animate-spin text-emerald-600" />
-                  <span className="text-base font-semibold">Reconhecendo valor...</span>
-                </div>
-              </div>
-            </div>
-          )}
           
           <CurrencyInput
             placeholder="0,00"
@@ -3047,17 +2932,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                 <Droplet className="w-4 h-4" />
                 ARLA (Litros)
               </Label>
-              {voice.isSupported && (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => startVoiceForField('arla')}
-                  className={cn(activeVoiceField === 'arla' && voice.isListening && "bg-red-100")}
-                >
-                  <Mic className="w-4 h-4" />
-                </Button>
-              )}
+              
             </div>
             <CurrencyInput
               placeholder="0,00"
@@ -3434,20 +3309,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-3 space-y-2 shadow-sm">
           <div className="flex items-center justify-between">
             <Label className="text-sm text-muted-foreground">Observações</Label>
-            {voice.isSupported && (
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                onClick={() => startVoiceForField('observations')}
-                className={cn(
-                  "h-7 w-7 p-0",
-                  activeVoiceField === 'observations' && voice.isListening && "bg-blue-200 dark:bg-blue-800"
-                )}
-              >
-                <Mic className="w-3.5 h-3.5" />
-              </Button>
-            )}
+            
           </div>
           <Textarea
             placeholder="Observações opcionais..."
