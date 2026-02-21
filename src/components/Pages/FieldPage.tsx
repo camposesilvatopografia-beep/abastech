@@ -65,13 +65,9 @@ interface FieldUser {
 const ALL_FIELD_LOCATIONS = [
   'Tanque Canteiro 01',
   'Tanque Canteiro 02',
-  'Tanque Canteiro 03',
   'Comboio 01',
   'Comboio 02',
   'Comboio 03',
-  'Comboio 04',
-  'Comboio 05',
-  'Tanque Arla',
 ];
 
 const STORAGE_KEY = 'abastech_field_user';
