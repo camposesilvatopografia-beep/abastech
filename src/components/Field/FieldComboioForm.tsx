@@ -334,6 +334,14 @@ export function FieldComboioForm({ user, onBack }: FieldComboioFormProps) {
           }
         } catch (sheetErr) {
           console.error('Sheet sync error (will retry later):', sheetErr);
+          // Background retry via edge function
+          setTimeout(async () => {
+            try {
+              await supabase.functions.invoke('sync-pending-fuel', {});
+            } catch (retryErr) {
+              console.error('Background retry failed:', retryErr);
+            }
+          }, 5000);
         }
       } else {
         console.log('Offline: record saved locally, will sync when online');

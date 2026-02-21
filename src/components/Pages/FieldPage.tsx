@@ -374,8 +374,19 @@ export function FieldPage() {
 
     checkPending();
     const interval = setInterval(checkPending, 15000);
-    return () => clearInterval(interval);
-  }, [user, offlineStorage.pendingCount, isOnline, notifyPendingSync]);
+
+    // Auto-sync pending records periodically when online (every 30s)
+    const autoSyncInterval = setInterval(() => {
+      if (navigator.onLine && !isSyncing) {
+        syncPendingRecords();
+      }
+    }, 30000);
+
+    return () => {
+      clearInterval(interval);
+      clearInterval(autoSyncInterval);
+    };
+  }, [user, offlineStorage.pendingCount, isOnline, notifyPendingSync, syncPendingRecords, isSyncing]);
 
   const handleLogin = async (loggedUser: FieldUser) => {
     setUser(loggedUser);
