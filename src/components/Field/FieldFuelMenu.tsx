@@ -1,7 +1,7 @@
-import { Fuel, Truck, FileText, ArrowRight, Package2, User } from 'lucide-react';
+import { Fuel, Truck, FileText, ArrowLeft, ArrowRight, Package2, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTheme } from '@/hooks/useTheme';
-import { useMemo } from 'react';
+import { Button } from '@/components/ui/button';
 
 interface FieldUser {
   id: string;
@@ -14,12 +14,11 @@ interface FieldUser {
 interface FieldFuelMenuProps {
   onNavigate: (view: 'fuel-abastecer' | 'fuel-comboio' | 'fuel-registros' | 'fuel-estoques') => void;
   user?: FieldUser;
+  onBack?: () => void;
 }
 
-export function FieldFuelMenu({ onNavigate, user }: FieldFuelMenuProps) {
+export function FieldFuelMenu({ onNavigate, user, onBack }: FieldFuelMenuProps) {
   const { theme } = useTheme();
-
-  const showCarregarComboio = true;
 
   const menuItems = [
     {
@@ -27,93 +26,78 @@ export function FieldFuelMenu({ onNavigate, user }: FieldFuelMenuProps) {
       label: 'Abastecer',
       description: 'Veículos e Equipamentos',
       icon: Fuel,
-      gradient: 'from-emerald-500 to-teal-600',
-      shadow: 'shadow-emerald-500/25',
-      iconBg: 'bg-emerald-400/30',
-      show: true,
+      gradient: 'from-emerald-500 to-emerald-700',
+      shadow: 'shadow-emerald-500/30',
     },
     {
       key: 'fuel-comboio' as const,
       label: 'Carregar Comboio',
       description: 'Abastecimento do tanque do Comboio',
       icon: Truck,
-      gradient: 'from-orange-500 to-amber-600',
-      shadow: 'shadow-orange-500/25',
-      iconBg: 'bg-orange-400/30',
-      show: showCarregarComboio,
+      gradient: 'from-orange-500 to-orange-700',
+      shadow: 'shadow-orange-500/30',
     },
     {
       key: 'fuel-registros' as const,
       label: 'Registros',
       description: 'Consultar registros por data',
       icon: FileText,
-      gradient: 'from-blue-500 to-indigo-600',
-      shadow: 'shadow-blue-500/25',
-      iconBg: 'bg-blue-400/30',
-      show: true,
+      gradient: 'from-blue-500 to-blue-700',
+      shadow: 'shadow-blue-500/30',
     },
     {
       key: 'fuel-estoques' as const,
       label: 'Estoques',
       description: 'Painel de estoque por local',
       icon: Package2,
-      gradient: 'from-purple-500 to-violet-600',
-      shadow: 'shadow-purple-500/25',
-      iconBg: 'bg-purple-400/30',
-      show: true,
+      gradient: 'from-purple-500 to-purple-700',
+      shadow: 'shadow-purple-500/30',
     },
   ];
 
-  const visibleItems = menuItems.filter(item => item.show);
-
   return (
-    <div className="p-4 space-y-5">
-      {/* User welcome area */}
-      <div className={cn(
-        "rounded-2xl p-5 text-center",
-        theme === 'dark'
-          ? "bg-gradient-to-br from-slate-800 to-slate-700 border border-slate-600"
-          : "bg-gradient-to-br from-white to-slate-50 border border-slate-200 shadow-sm"
-      )}>
-        <div className={cn(
-          "w-14 h-14 rounded-full mx-auto mb-3 flex items-center justify-center",
-          theme === 'dark' ? "bg-blue-600/30" : "bg-blue-100"
-        )}>
-          <User className={cn("w-7 h-7", theme === 'dark' ? "text-blue-400" : "text-blue-600")} />
-        </div>
-        {user && (
-          <h2 className={cn(
-            "text-xl font-bold mb-0.5",
-            theme === 'dark' ? "text-white" : "text-slate-800"
-          )}>
-            {user.name}
-          </h2>
+    <div className="p-4 space-y-4">
+      {/* Header with back button and user name */}
+      <div className="flex items-center gap-3">
+        {onBack && (
+          <Button variant="ghost" size="icon" onClick={onBack} className="shrink-0">
+            <ArrowLeft className="w-5 h-5" />
+          </Button>
         )}
-        <p className="text-sm text-muted-foreground">Abastecimento • Selecione uma opção</p>
+        <div className="flex-1 min-w-0">
+          {user && (
+            <h2 className={cn(
+              "text-xl font-bold truncate",
+              theme === 'dark' ? "text-white" : "text-slate-800"
+            )}>
+              {user.name}
+            </h2>
+          )}
+          <p className="text-sm text-muted-foreground">Abastecimento • Selecione uma opção</p>
+        </div>
       </div>
 
-      {/* Menu Grid - 2 columns for KPI-like layout */}
-      <div className={cn(
-        "grid gap-3",
-        visibleItems.length <= 2 ? "grid-cols-2" : "grid-cols-2"
-      )}>
-        {visibleItems.map((item) => {
+      {/* Menu items - full width list */}
+      <div className="grid grid-cols-1 gap-3">
+        {menuItems.map((item) => {
           const Icon = item.icon;
           return (
             <button
               key={item.key}
               onClick={() => onNavigate(item.key)}
               className={cn(
-                "relative flex flex-col items-center gap-2 p-5 rounded-2xl text-white active:scale-[0.97] transition-all duration-200 text-center",
-                `bg-gradient-to-br ${item.gradient} shadow-lg ${item.shadow}`
+                "flex items-center gap-4 p-4 rounded-2xl text-white shadow-lg active:scale-[0.98] transition-transform text-left",
+                `bg-gradient-to-r ${item.gradient} ${item.shadow}`
               )}
             >
-              <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center", item.iconBg)}>
-                <Icon className="w-6 h-6" />
+              <div className="w-14 h-14 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center shrink-0">
+                <Icon className="w-7 h-7" />
               </div>
-              <span className="text-sm font-bold leading-tight">{item.label}</span>
-              <span className="text-[10px] opacity-75 leading-tight">{item.description}</span>
-              <ArrowRight className="w-4 h-4 opacity-50 absolute top-3 right-3" />
+              <div className="flex-1 min-w-0">
+                <span className="text-base font-bold block">{item.label}</span>
+                <span className="text-xs opacity-80">{item.description}</span>
+              </div>
+              <ArrowRight className="w-5 h-5 opacity-60 shrink-0" />
             </button>
           );
         })}
