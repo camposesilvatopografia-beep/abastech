@@ -65,9 +65,13 @@ interface FieldUser {
 const ALL_FIELD_LOCATIONS = [
   'Tanque Canteiro 01',
   'Tanque Canteiro 02',
+  'Tanque Canteiro 03',
   'Comboio 01',
   'Comboio 02',
   'Comboio 03',
+  'Comboio 04',
+  'Comboio 05',
+  'Tanque Arla',
 ];
 
 const STORAGE_KEY = 'abastech_field_user';
@@ -180,21 +184,41 @@ export function FieldPage() {
 
   const refreshUserData = useCallback(async (userId: string) => {
     try {
+      // Try field_users first
       const { data, error } = await supabase
         .from('field_users')
         .select('id, name, username, role, assigned_locations')
         .eq('id', userId)
         .single();
       
-      if (error) throw error;
-      
-      if (data) {
+      if (!error && data) {
         const updatedUser: FieldUser = {
           id: data.id,
           name: data.name,
           username: data.username,
           role: data.role || 'operador',
           assigned_locations: data.assigned_locations || [],
+        };
+        
+        setUser(updatedUser);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedUser));
+        return updatedUser;
+      }
+
+      // If not in field_users, try system_users (admin logged into mobile)
+      const { data: sysData, error: sysError } = await supabase
+        .from('system_users')
+        .select('id, name, username, role, active')
+        .eq('id', userId)
+        .single();
+
+      if (!sysError && sysData) {
+        const updatedUser: FieldUser = {
+          id: sysData.id,
+          name: sysData.name,
+          username: sysData.username,
+          role: sysData.role === 'admin' ? 'admin' : (sysData.role === 'supervisor' ? 'supervisor' : 'operador'),
+          assigned_locations: ALL_FIELD_LOCATIONS,
         };
         
         setUser(updatedUser);
