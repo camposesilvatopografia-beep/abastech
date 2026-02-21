@@ -92,6 +92,23 @@ export function FieldPage() {
   // Derive user role for permission checks
   const userRole = user?.role || 'operador';
 
+  // Determine the first allowed view for this user
+  const getFirstAllowedView = useCallback((): FieldView => {
+    const viewModuleMap: { view: FieldView; module: string }[] = [
+      { view: 'dashboard', module: 'field_dashboard' },
+      { view: 'fuel-menu', module: 'field_abastecimento' },
+      { view: 'horimeter', module: 'field_horimetros' },
+      { view: 'os', module: 'field_os' },
+    ];
+    const first = viewModuleMap.find(v => canViewModule(userRole, v.module, user?.id));
+    return first?.view || 'dashboard';
+  }, [canViewModule, userRole, user?.id]);
+
+  // Navigate to "home" = first allowed view
+  const navigateHome = useCallback(() => {
+    setCurrentView(getFirstAllowedView());
+  }, [getFirstAllowedView]);
+
   // Auto-redirect to first allowed view when permissions load
   useEffect(() => {
     if (permLoading || !user) return;
@@ -103,12 +120,9 @@ export function FieldPage() {
     ];
     const canSeeCurrentView = viewModuleMap.find(v => v.view === currentView);
     if (canSeeCurrentView && !canViewModule(userRole, canSeeCurrentView.module, user.id)) {
-      const firstAllowed = viewModuleMap.find(v => canViewModule(userRole, v.module, user.id));
-      if (firstAllowed) {
-        setCurrentView(firstAllowed.view);
-      }
+      setCurrentView(getFirstAllowedView());
     }
-  }, [permLoading, user, userRole, canViewModule]);
+  }, [permLoading, user, userRole, canViewModule, getFirstAllowedView]);
 
   const refreshUserData = useCallback(async (userId: string) => {
     try {
@@ -565,7 +579,7 @@ export function FieldPage() {
           ? "bg-slate-800/90 border-slate-700" 
           : "bg-white/90 border-slate-200"
       )}>
-        {currentView !== 'dashboard' && (
+        {currentView !== getFirstAllowedView() && (
           <Button
             variant="ghost"
             size="icon"
@@ -575,7 +589,7 @@ export function FieldPage() {
                 ? "text-white bg-slate-600 hover:bg-slate-500"
                 : "text-slate-700 bg-slate-200 hover:bg-slate-300"
             )}
-            onClick={() => setCurrentView('dashboard')}
+            onClick={navigateHome}
             title="Voltar ao Menu"
           >
             <Home className="w-5 h-5" />
