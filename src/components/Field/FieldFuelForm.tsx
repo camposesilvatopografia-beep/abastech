@@ -32,6 +32,7 @@ import {
   ChevronsUpDown,
   Check,
   QrCode,
+  ChevronDown,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -57,6 +58,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { supabase } from '@/integrations/supabase/client';
 import { useSheetData } from '@/hooks/useGoogleSheets';
 import { getSheetData } from '@/lib/googleSheets';
@@ -2865,74 +2867,82 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
 
         {/* Equipment-specific fields (optional) - Hide for comboio tank refuel mode */}
         {isEquipment && recordType === 'saida' && quickEntryMode !== 'comboio_tank_refuel' && (
-          <div className="bg-blue-50 dark:bg-blue-950/30 backdrop-blur-sm rounded-xl border border-blue-200 dark:border-blue-800 p-4 space-y-4 shadow-sm">
-            <div className="flex items-center gap-2 text-blue-700 dark:text-blue-400">
-              <Wrench className="w-5 h-5" />
-              <Label className="text-base font-medium">Dados do Equipamento (Opcional)</Label>
+          <Collapsible>
+            <div className="bg-blue-50 dark:bg-blue-950/30 backdrop-blur-sm rounded-xl border border-blue-200 dark:border-blue-800 shadow-sm">
+              <CollapsibleTrigger asChild>
+                <button type="button" className="flex items-center justify-between w-full p-4">
+                  <div className="flex items-center gap-2 text-blue-700 dark:text-blue-400">
+                    <Wrench className="w-5 h-5" />
+                    <Label className="text-base font-medium cursor-pointer">Dados do Equipamento (Opcional)</Label>
+                  </div>
+                  <ChevronDown className="w-5 h-5 text-blue-500 transition-transform duration-200 [[data-state=open]_&]:rotate-180" />
+                </button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="px-4 pb-4 space-y-4">
+                {/* Oil Type */}
+                <div className="space-y-2">
+                  <Label className="text-sm">Tipo de Óleo</Label>
+                  <Select value={oilType} onValueChange={setOilType}>
+                    <SelectTrigger className="h-10">
+                      <SelectValue placeholder="Selecione (opcional)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="nenhum">Nenhum</SelectItem>
+                      {oilTypes.map((oil) => (
+                        <SelectItem key={oil.id} value={oil.name}>
+                          {oil.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                {/* Oil Quantity */}
+                <div className="space-y-2">
+                  <Label className="text-sm">Quantidade de Óleo (Litros)</Label>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    placeholder="Ex: 5"
+                    value={oilQuantity ?? ''}
+                    onChange={(e) => setOilQuantity(e.target.value ? Number(e.target.value) : null)}
+                    className="flex h-10 w-full rounded-md border px-3 py-2 ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 bg-background border-input"
+                  />
+                </div>
+                
+                {/* Filter Blow */}
+                <div className="space-y-2">
+                  <Label className="text-sm">Sopra Filtro (Quantidade)</Label>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    placeholder="Ex: 2"
+                    value={filterBlowQuantity ?? ''}
+                    onChange={(e) => setFilterBlowQuantity(e.target.value ? Number(e.target.value) : null)}
+                    className="flex h-10 w-full rounded-md border px-3 py-2 ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 bg-background border-input"
+                  />
+                </div>
+                
+                {/* Lubricant */}
+                <div className="space-y-2">
+                  <Label className="text-sm">Lubrificante</Label>
+                  <Select value={lubricant} onValueChange={setLubricant}>
+                    <SelectTrigger className="h-10">
+                      <SelectValue placeholder="Selecione (opcional)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="nenhum">Nenhum</SelectItem>
+                      {lubricants.map((lub) => (
+                        <SelectItem key={lub.id} value={lub.name}>
+                          {lub.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </CollapsibleContent>
             </div>
-            
-            {/* Oil Type */}
-            <div className="space-y-2">
-              <Label className="text-sm">Tipo de Óleo</Label>
-              <Select value={oilType} onValueChange={setOilType}>
-                <SelectTrigger className="h-10">
-                  <SelectValue placeholder="Selecione (opcional)" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="nenhum">Nenhum</SelectItem>
-                  {oilTypes.map((oil) => (
-                    <SelectItem key={oil.id} value={oil.name}>
-                      {oil.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            
-            {/* Oil Quantity */}
-            <div className="space-y-2">
-              <Label className="text-sm">Quantidade de Óleo (Litros)</Label>
-              <input
-                type="number"
-                inputMode="numeric"
-                placeholder="Ex: 5"
-                value={oilQuantity ?? ''}
-                onChange={(e) => setOilQuantity(e.target.value ? Number(e.target.value) : null)}
-                className="flex h-10 w-full rounded-md border px-3 py-2 ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 bg-background border-input"
-              />
-            </div>
-            
-            {/* Filter Blow - just quantity input */}
-            <div className="space-y-2">
-              <Label className="text-sm">Sopra Filtro (Quantidade)</Label>
-              <input
-                type="number"
-                inputMode="numeric"
-                placeholder="Ex: 2"
-                value={filterBlowQuantity ?? ''}
-                onChange={(e) => setFilterBlowQuantity(e.target.value ? Number(e.target.value) : null)}
-                className="flex h-10 w-full rounded-md border px-3 py-2 ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 bg-background border-input"
-              />
-            </div>
-            
-            {/* Lubricant */}
-            <div className="space-y-2">
-              <Label className="text-sm">Lubrificante</Label>
-              <Select value={lubricant} onValueChange={setLubricant}>
-                <SelectTrigger className="h-10">
-                  <SelectValue placeholder="Selecione (opcional)" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="nenhum">Nenhum</SelectItem>
-                  {lubricants.map((lub) => (
-                    <SelectItem key={lub.id} value={lub.name}>
-                      {lub.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+          </Collapsible>
         )}
         </>
         )}
