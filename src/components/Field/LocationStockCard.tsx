@@ -115,9 +115,10 @@ export const LocationStockCard = forwardRef<LocationStockCardRef, LocationStockC
       // Build OR filter for location matches
       const orFilter = locationMatches.map(l => `location.eq.${l}`).join(',');
       
+      // Only count records NOT yet synced to sheet — these are the "extra" ones
       const { data, error } = await supabase
         .from('field_fuel_records')
-        .select('fuel_quantity, record_type, location')
+        .select('fuel_quantity, record_type, location, synced_to_sheet')
         .eq('record_date', todayISO)
         .or(orFilter);
 
@@ -126,20 +127,22 @@ export const LocationStockCard = forwardRef<LocationStockCardRef, LocationStockC
         return;
       }
 
-      let entradas = 0;
-      let saidas = 0;
+      let unsyncedEntradas = 0;
+      let unsyncedSaidas = 0;
       
       (data || []).forEach(r => {
-        const qty = Number(r.fuel_quantity) || 0;
+        // Only count unsynced records as supplement to sheet data
+        if (r.synced_to_sheet) return;
+        const qty = Math.abs(Number(r.fuel_quantity) || 0);
         if (r.record_type === 'entrada') {
-          entradas += qty;
+          unsyncedEntradas += qty;
         } else {
-          saidas += qty;
+          unsyncedSaidas += qty;
         }
       });
 
-      setDbEntradas(entradas);
-      setDbSaidas(saidas);
+      setDbEntradas(unsyncedEntradas);
+      setDbSaidas(unsyncedSaidas);
     } catch (err) {
       console.error('Error in fetchDbRecords:', err);
     }
@@ -256,16 +259,13 @@ export const LocationStockCard = forwardRef<LocationStockCardRef, LocationStockC
         }
       }
 
-      // Use sheet values as the source of truth
-      // Only use DB/local values if they are HIGHER (meaning new records not yet synced to sheet)
-      const finalEntradas = Math.max(sheetEntradas, dbEntradas, localRecordKPIs?.entradas ?? 0);
-      const finalSaidas = Math.max(sheetSaidas, dbSaidas, localRecordKPIs?.saidas ?? 0);
+      // Sheet is the source of truth. ADD unsynced DB/local records on top.
+      const finalEntradas = sheetEntradas + dbEntradas + (localRecordKPIs?.entradas ?? 0);
+      const finalSaidas = sheetSaidas + dbSaidas + (localRecordKPIs?.saidas ?? 0);
       
-      // Use the sheet's EstoqueAtual directly as the authoritative value
-      // Only recalculate if DB has newer data than the sheet
+      // Recalculate EstoqueAtual only if there are unsynced records
       let finalEstoqueAtual = estoqueAtual;
-      if (finalEntradas > sheetEntradas || finalSaidas > sheetSaidas) {
-        // DB has newer records - recalculate from estoqueAnterior
+      if (dbEntradas > 0 || dbSaidas > 0 || localRecordKPIs) {
         if (estoqueAnterior > 0) {
           finalEstoqueAtual = Math.max(0, estoqueAnterior + finalEntradas - finalSaidas);
         }
@@ -274,7 +274,7 @@ export const LocationStockCard = forwardRef<LocationStockCardRef, LocationStockC
       return {
         estoqueAnterior,
         entradas: finalEntradas,
-        saidas: finalSaidas,
+        saidas: Math.abs(finalSaidas),
         estoqueAtual: finalEstoqueAtual,
         hasData: hasData || dbEntradas > 0 || dbSaidas > 0 || !!localRecordKPIs,
       };
