@@ -2461,6 +2461,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         {recordType === 'saida' && (quickEntryMode === 'normal' || quickEntryMode === 'comboio_tank_refuel') && (
           <>
             <div className="bg-blue-50 dark:bg-blue-950/40 rounded-2xl border-2 border-blue-400 dark:border-blue-600 p-4 space-y-3 shadow-lg">
+            {quickEntryMode !== 'comboio_tank_refuel' && (<>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3 bg-blue-100 dark:bg-blue-900/60 px-4 py-2.5 rounded-xl -ml-1">
                   <Truck className="w-6 h-6 text-blue-600 dark:text-blue-400" />
@@ -2619,7 +2620,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                   </div>
                 </div>
               )}
-
+              </>)}
               {/* Comboio Fuel Type Choice Dialog */}
               {showComboioChoice && vehicleCode && isComboioVehicle(vehicleCode, vehicleDescription) && (
                 <div className="bg-orange-50 dark:bg-orange-950/30 border-2 border-orange-400 dark:border-orange-700 p-4 rounded-xl space-y-4 animate-in slide-in-from-top duration-300">
