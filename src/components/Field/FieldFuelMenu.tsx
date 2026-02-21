@@ -1,9 +1,9 @@
-import { Fuel, Truck, FileText, ArrowRight } from 'lucide-react';
+import { Fuel, Truck, FileText, ArrowRight, Package2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTheme } from '@/hooks/useTheme';
 
 interface FieldFuelMenuProps {
-  onNavigate: (view: 'fuel-abastecer' | 'fuel-comboio' | 'fuel-registros') => void;
+  onNavigate: (view: 'fuel-abastecer' | 'fuel-comboio' | 'fuel-registros' | 'fuel-estoques') => void;
 }
 
 export function FieldFuelMenu({ onNavigate }: FieldFuelMenuProps) {
@@ -61,6 +61,21 @@ export function FieldFuelMenu({ onNavigate }: FieldFuelMenuProps) {
           <div className="flex-1 min-w-0">
             <span className="text-base font-bold block">Registros</span>
             <span className="text-xs opacity-80">Consultar registros por data</span>
+          </div>
+          <ArrowRight className="w-5 h-5 opacity-60 shrink-0" />
+        </button>
+
+        {/* Estoques */}
+        <button
+          onClick={() => onNavigate('fuel-estoques')}
+          className="flex items-center gap-4 p-4 rounded-2xl bg-gradient-to-r from-purple-500 to-purple-700 text-white shadow-lg shadow-purple-500/30 active:scale-[0.98] transition-transform text-left"
+        >
+          <div className="w-14 h-14 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center shrink-0">
+            <Package2 className="w-7 h-7" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <span className="text-base font-bold block">Estoques</span>
+            <span className="text-xs opacity-80">Painel de estoque por local</span>
           </div>
           <ArrowRight className="w-5 h-5 opacity-60 shrink-0" />
         </button>

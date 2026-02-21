@@ -7,6 +7,7 @@ import { FieldServiceOrderForm } from '@/components/Field/FieldServiceOrderForm'
 import { FieldFuelMenu } from '@/components/Field/FieldFuelMenu';
 import { FieldComboioForm } from '@/components/Field/FieldComboioForm';
 import { FieldFuelRecords } from '@/components/Field/FieldFuelRecords';
+import { FieldStockView } from '@/components/Field/FieldStockView';
 import { useRolePermissions } from '@/hooks/useRolePermissions';
 import { 
   LayoutDashboard, 
@@ -58,7 +59,7 @@ interface FieldUser {
 
 const STORAGE_KEY = 'abastech_field_user';
 
-type FieldView = 'dashboard' | 'form' | 'fuel-menu' | 'fuel-abastecer' | 'fuel-comboio' | 'fuel-registros' | 'horimeter' | 'os';
+type FieldView = 'dashboard' | 'form' | 'fuel-menu' | 'fuel-abastecer' | 'fuel-comboio' | 'fuel-registros' | 'fuel-estoques' | 'horimeter' | 'os';
 
 export function FieldPage() {
   const [user, setUser] = useState<FieldUser | null>(null);
@@ -653,6 +654,11 @@ export function FieldPage() {
           <FieldFuelRecords
             user={user}
             onBack={() => setCurrentView('fuel-menu')}
+          />
+        ) : currentView === 'fuel-estoques' ? (
+          <FieldStockView
+            onBack={() => setCurrentView('fuel-menu')}
+            assignedLocations={user.assigned_locations}
           />
         ) : currentView === 'horimeter' ? (
           <FieldHorimeterForm
