@@ -1390,7 +1390,7 @@ export function FrotaPage() {
                   className="w-full gap-2"
                   variant="outline"
                   onClick={() => {
-                    const allVehicles = data.rows.map(row => ({
+                    const allVehicles = filteredRows.map(row => ({
                       codigo: getRowValue(row as any, ['CODIGO', 'Codigo', 'codigo', 'VEICULO', 'Veiculo', 'veiculo']),
                       descricao: getRowValue(row as any, ['DESCRICAO', 'DESCRIÇÃO', 'Descricao', 'descrição', 'descricao']),
                       empresa: getRowValue(row as any, ['EMPRESA', 'Empresa', 'empresa']),
@@ -1422,7 +1422,7 @@ export function FrotaPage() {
                   className="w-full gap-2"
                   variant="outline"
                   onClick={() => {
-                    const allVehicles = data.rows.map(row => ({
+                    const allVehicles = filteredRows.map(row => ({
                       codigo: getRowValue(row as any, ['CODIGO', 'Codigo', 'codigo', 'VEICULO', 'Veiculo', 'veiculo']),
                       descricao: getRowValue(row as any, ['DESCRICAO', 'DESCRIÇÃO', 'Descricao', 'descrição', 'descricao']),
                       empresa: getRowValue(row as any, ['EMPRESA', 'Empresa', 'empresa']),
