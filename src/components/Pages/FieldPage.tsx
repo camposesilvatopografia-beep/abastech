@@ -62,7 +62,16 @@ interface FieldUser {
   avatar_url?: string | null;
 }
 
+const ALL_FIELD_LOCATIONS = [
+  'Tanque Canteiro 01',
+  'Tanque Canteiro 02',
+  'Comboio 01',
+  'Comboio 02',
+  'Comboio 03',
+];
+
 const STORAGE_KEY = 'abastech_field_user';
+const ADMIN_LOCATION_KEY = 'abastech_admin_active_location';
 
 type FieldView = 'dashboard' | 'form' | 'fuel-menu' | 'fuel-abastecer' | 'fuel-comboio' | 'fuel-tanque' | 'fuel-arla' | 'fuel-registros' | 'fuel-estoques' | 'horimeter' | 'os';
 
@@ -73,6 +82,9 @@ export function FieldPage() {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [pendingCount, setPendingCount] = useState(0);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [adminActiveLocation, setAdminActiveLocation] = useState<string>(() => {
+    return localStorage.getItem(ADMIN_LOCATION_KEY) || '';
+  });
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const { theme, toggleTheme } = useTheme();
   const { settings, toggleSound, toggleVibration } = useFieldSettings();
@@ -93,9 +105,49 @@ export function FieldPage() {
   
   // Derive user role for permission checks
   const userRole = user?.role || 'operador';
+  const isAdmin = userRole === 'admin' || userRole === 'supervisor';
+
+  // For admins: build effective user with chosen location
+  const effectiveUser = useMemo((): FieldUser | null => {
+    if (!user) return null;
+    if (!isAdmin) return user;
+    
+    // Admin with active location selected
+    if (adminActiveLocation) {
+      return {
+        ...user,
+        assigned_locations: [adminActiveLocation],
+      };
+    }
+    // Admin without selection: show all locations
+    return {
+      ...user,
+      assigned_locations: ALL_FIELD_LOCATIONS,
+    };
+  }, [user, isAdmin, adminActiveLocation]);
+
+  // Admin location selection handler
+  const handleAdminLocationChange = useCallback((location: string) => {
+    setAdminActiveLocation(location);
+    localStorage.setItem(ADMIN_LOCATION_KEY, location);
+    toast.success(`Operando como: ${location}`);
+  }, []);
+
+  const clearAdminLocation = useCallback(() => {
+    setAdminActiveLocation('');
+    localStorage.removeItem(ADMIN_LOCATION_KEY);
+    toast.info('Visualizando todos os locais');
+  }, []);
+
+  // Admin can view all modules
+  const canViewModuleEffective = useCallback((role: string, moduleId: string, userId?: string) => {
+    if (isAdmin) return true;
+    return canViewModule(role, moduleId, userId);
+  }, [isAdmin, canViewModule]);
 
   // Determine the first allowed view for this user
   const getFirstAllowedView = useCallback((): FieldView => {
+    if (isAdmin) return 'dashboard';
     const viewModuleMap: { view: FieldView; module: string }[] = [
       { view: 'dashboard', module: 'field_dashboard' },
       { view: 'fuel-menu', module: 'field_abastecimento' },
@@ -104,7 +156,7 @@ export function FieldPage() {
     ];
     const first = viewModuleMap.find(v => canViewModule(userRole, v.module, user?.id));
     return first?.view || 'dashboard';
-  }, [canViewModule, userRole, user?.id]);
+  }, [canViewModule, userRole, user?.id, isAdmin]);
 
   // Navigate to "home" = first allowed view
   const navigateHome = useCallback(() => {
@@ -121,10 +173,10 @@ export function FieldPage() {
       { view: 'os', module: 'field_os' },
     ];
     const canSeeCurrentView = viewModuleMap.find(v => v.view === currentView);
-    if (canSeeCurrentView && !canViewModule(userRole, canSeeCurrentView.module, user.id)) {
+    if (canSeeCurrentView && !canViewModuleEffective(userRole, canSeeCurrentView.module, user.id)) {
       setCurrentView(getFirstAllowedView());
     }
-  }, [permLoading, user, userRole, canViewModule, getFirstAllowedView]);
+  }, [permLoading, user, userRole, canViewModuleEffective, getFirstAllowedView]);
 
   const refreshUserData = useCallback(async (userId: string) => {
     try {
@@ -463,7 +515,13 @@ export function FieldPage() {
             </button>
             <div>
               <h1 className="text-base font-bold">Olá, {user.name.split(' ')[0]}</h1>
-              <p className="text-xs opacity-90">Apontamento Campo</p>
+              <p className="text-xs opacity-90">
+                {isAdmin && adminActiveLocation 
+                  ? `🔑 Admin → ${adminActiveLocation}` 
+                  : isAdmin 
+                    ? '🔑 Administrador' 
+                    : 'Apontamento Campo'}
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -608,7 +666,7 @@ export function FieldPage() {
             <Home className="w-5 h-5" />
           </Button>
         )}
-        {canViewModule(userRole, 'field_dashboard', user?.id) && (
+        {canViewModuleEffective(userRole, 'field_dashboard', user?.id) && (
           <Button
             variant="ghost"
             size="icon"
@@ -625,7 +683,7 @@ export function FieldPage() {
             <LayoutDashboard className="w-5 h-5" />
           </Button>
         )}
-        {canViewModule(userRole, 'field_abastecimento', user?.id) && (
+        {canViewModuleEffective(userRole, 'field_abastecimento', user?.id) && (
           <Button
             variant="ghost"
             size="icon"
@@ -642,7 +700,7 @@ export function FieldPage() {
             <Fuel className="w-5 h-5" />
           </Button>
         )}
-        {canViewModule(userRole, 'field_horimetros', user?.id) && (
+        {canViewModuleEffective(userRole, 'field_horimetros', user?.id) && (
           <Button
             variant="ghost"
             size="icon"
@@ -659,7 +717,7 @@ export function FieldPage() {
             <Clock className="w-5 h-5" />
           </Button>
         )}
-        {canViewModule(userRole, 'field_os', user?.id) && (
+        {canViewModuleEffective(userRole, 'field_os', user?.id) && (
           <Button
             variant="ghost"
             size="icon"
@@ -713,64 +771,111 @@ export function FieldPage() {
         </div>
       )}
 
+      {/* Admin Location Selector */}
+      {isAdmin && (
+        <div className={cn(
+          "px-3 py-2 border-b flex items-center gap-2 overflow-x-auto",
+          theme === 'dark' 
+            ? "bg-indigo-900/40 border-indigo-700/50" 
+            : "bg-indigo-50 border-indigo-200"
+        )}>
+          <span className={cn(
+            "text-xs font-semibold whitespace-nowrap",
+            theme === 'dark' ? "text-indigo-300" : "text-indigo-700"
+          )}>
+            Operar como:
+          </span>
+          <Button
+            variant={!adminActiveLocation ? 'default' : 'outline'}
+            size="sm"
+            onClick={clearAdminLocation}
+            className={cn(
+              "h-7 text-xs shrink-0",
+              !adminActiveLocation 
+                ? "bg-indigo-600 hover:bg-indigo-700 text-white" 
+                : theme === 'dark' ? "border-indigo-600 text-indigo-300" : "border-indigo-300 text-indigo-700"
+            )}
+          >
+            Todos
+          </Button>
+          {ALL_FIELD_LOCATIONS.map(loc => (
+            <Button
+              key={loc}
+              variant={adminActiveLocation === loc ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => handleAdminLocationChange(loc)}
+              className={cn(
+                "h-7 text-xs shrink-0",
+                adminActiveLocation === loc 
+                  ? "bg-indigo-600 hover:bg-indigo-700 text-white" 
+                  : theme === 'dark' ? "border-indigo-600 text-indigo-300" : "border-indigo-300 text-indigo-700"
+              )}
+            >
+              {loc.replace('Tanque ', '')}
+            </Button>
+          ))}
+        </div>
+      )}
+
       {/* Content */}
       <main className="flex-1 overflow-auto">
-        {currentView === 'dashboard' ? (
+        {currentView === 'dashboard' && effectiveUser ? (
           <FieldDashboard 
-            user={user} 
+            user={effectiveUser} 
             onNavigateToForm={() => setCurrentView('fuel-menu')}
             onNavigateToHorimeter={() => setCurrentView('horimeter')}
             onNavigateToOS={() => setCurrentView('os')}
             pendingSyncCount={pendingCount + offlineStorage.pendingCount}
             isSyncing={isSyncing}
             onSync={syncPendingRecords}
-            canViewModule={canViewModule}
+            canViewModule={canViewModuleEffective}
           />
-        ) : currentView === 'fuel-menu' ? (
+        ) : currentView === 'fuel-menu' && effectiveUser ? (
           <FieldFuelMenu
             onNavigate={(view) => setCurrentView(view)}
-            user={user}
+            user={effectiveUser}
             onBack={() => setCurrentView('dashboard')}
+            isAdmin={isAdmin}
           />
-        ) : currentView === 'fuel-abastecer' || currentView === 'form' ? (
+        ) : (currentView === 'fuel-abastecer' || currentView === 'form') && effectiveUser ? (
           <FieldFuelForm 
-            user={user} 
+            user={effectiveUser} 
             onLogout={handleLogout}
             onBack={() => setCurrentView('fuel-menu')}
           />
-        ) : currentView === 'fuel-comboio' ? (
+        ) : currentView === 'fuel-comboio' && effectiveUser ? (
           <FieldComboioForm
-            user={user}
+            user={effectiveUser}
             onBack={() => setCurrentView('fuel-menu')}
           />
-        ) : currentView === 'fuel-tanque' ? (
+        ) : currentView === 'fuel-tanque' && effectiveUser ? (
           <FieldTanqueForm
-            user={user}
+            user={effectiveUser}
             onBack={() => setCurrentView('fuel-menu')}
           />
-        ) : currentView === 'fuel-arla' ? (
+        ) : currentView === 'fuel-arla' && effectiveUser ? (
           <FieldArlaForm
-            user={user}
+            user={effectiveUser}
             onBack={() => setCurrentView('fuel-menu')}
           />
-        ) : currentView === 'fuel-registros' ? (
+        ) : currentView === 'fuel-registros' && effectiveUser ? (
           <FieldFuelRecords
-            user={user}
+            user={effectiveUser}
             onBack={() => setCurrentView('fuel-menu')}
           />
-        ) : currentView === 'fuel-estoques' ? (
+        ) : currentView === 'fuel-estoques' && effectiveUser ? (
           <FieldStockView
             onBack={() => setCurrentView('fuel-menu')}
-            assignedLocations={user.assigned_locations}
+            assignedLocations={effectiveUser.assigned_locations}
           />
-        ) : currentView === 'horimeter' ? (
+        ) : currentView === 'horimeter' && effectiveUser ? (
           <FieldHorimeterForm
-            user={user}
+            user={effectiveUser}
             onBack={() => setCurrentView('dashboard')}
           />
-        ) : currentView === 'os' ? (
+        ) : currentView === 'os' && effectiveUser ? (
           <FieldServiceOrderForm
-            user={user}
+            user={effectiveUser}
             onBack={() => setCurrentView('dashboard')}
           />
         ) : null}
