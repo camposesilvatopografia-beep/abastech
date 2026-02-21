@@ -254,6 +254,7 @@ export type Database = {
         Row: {
           active: boolean | null
           assigned_locations: string[] | null
+          avatar_url: string | null
           created_at: string | null
           id: string
           name: string
@@ -266,6 +267,7 @@ export type Database = {
         Insert: {
           active?: boolean | null
           assigned_locations?: string[] | null
+          avatar_url?: string | null
           created_at?: string | null
           id?: string
           name: string
@@ -278,6 +280,7 @@ export type Database = {
         Update: {
           active?: boolean | null
           assigned_locations?: string[] | null
+          avatar_url?: string | null
           created_at?: string | null
           id?: string
           name?: string

@@ -1,0 +1,1 @@
+ALTER TABLE public.field_users ADD COLUMN IF NOT EXISTS avatar_url text;

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { FieldLoginPage } from '@/components/Field/FieldLoginPage';
 import { FieldFuelForm } from '@/components/Field/FieldFuelForm';
 import { FieldDashboard } from '@/components/Field/FieldDashboard';
@@ -13,6 +13,7 @@ import {
   Home,
   LayoutDashboard, 
   Fuel, 
+  Camera,
   LogOut,
   Cloud,
   CloudOff,
@@ -56,6 +57,7 @@ interface FieldUser {
   username: string;
   role: string;
   assigned_locations?: string[];
+  avatar_url?: string | null;
 }
 
 const STORAGE_KEY = 'abastech_field_user';
@@ -69,6 +71,7 @@ export function FieldPage() {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [pendingCount, setPendingCount] = useState(0);
   const [isSyncing, setIsSyncing] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
   const { theme, toggleTheme } = useTheme();
   const { settings, toggleSound, toggleVibration } = useFieldSettings();
   const { canView: canViewModule, loading: permLoading } = useRolePermissions();
@@ -366,6 +369,30 @@ export function FieldPage() {
     await refreshUserData(loggedUser.id);
   };
 
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+    try {
+      const fileName = `avatars/${user.id}_${Date.now()}.jpg`;
+      const { error: uploadError } = await supabase.storage.from('field-photos').upload(fileName, file, { upsert: true });
+      if (uploadError) throw uploadError;
+      const { data } = supabase.storage.from('field-photos').getPublicUrl(fileName);
+      const avatarUrl = data.publicUrl;
+      await supabase.from('field_users').update({ avatar_url: avatarUrl }).eq('id', user.id);
+      setUser({ ...user, avatar_url: avatarUrl });
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        parsed.avatar_url = avatarUrl;
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
+      }
+      toast.success('Foto de perfil atualizada!');
+    } catch (err) {
+      console.error('Avatar upload error:', err);
+      toast.error('Erro ao enviar foto');
+    }
+  };
+
   const handleLogout = () => {
     setUser(null);
     setCurrentView('dashboard');
@@ -387,10 +414,29 @@ export function FieldPage() {
       <header className="sticky top-0 z-10 bg-gradient-to-r from-blue-800 to-blue-900 text-white p-3 shadow-lg">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img src={logoAbastech} alt="Abastech" className="h-8 w-auto" />
+            {/* Avatar */}
+            <input
+              ref={avatarInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={handleAvatarUpload}
+              className="hidden"
+            />
+            <button
+              type="button"
+              onClick={() => avatarInputRef.current?.click()}
+              className="relative h-10 w-10 rounded-full bg-white/20 flex items-center justify-center overflow-hidden border-2 border-white/40 hover:border-white/70 transition-colors shrink-0"
+            >
+              {user.avatar_url ? (
+                <img src={user.avatar_url} alt={user.name} className="h-full w-full object-cover" />
+              ) : (
+                <Camera className="w-5 h-5 text-white/70" />
+              )}
+            </button>
             <div>
-              <h1 className="text-base font-bold">Apontamento Campo</h1>
-              <p className="text-xs opacity-90">{user.name}</p>
+              <h1 className="text-base font-bold">Olá, {user.name.split(' ')[0]}</h1>
+              <p className="text-xs opacity-90">Apontamento Campo</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
