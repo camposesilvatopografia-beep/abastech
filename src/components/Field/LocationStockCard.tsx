@@ -364,7 +364,7 @@ export const LocationStockCard = forwardRef<LocationStockCardRef, LocationStockC
             )}>
               <TrendingDown className="w-3 h-3 mx-auto mb-1 text-red-500" />
               <p className="text-lg font-bold text-red-500">
-                -{stockKPIs.saidas.toLocaleString('pt-BR')}
+                {stockKPIs.saidas.toLocaleString('pt-BR')}
               </p>
               <p className={cn(
                 "text-[10px]",

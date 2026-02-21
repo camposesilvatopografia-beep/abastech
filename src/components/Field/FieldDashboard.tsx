@@ -1082,7 +1082,7 @@ export function FieldDashboard({ user, onNavigateToForm, onNavigateToFuelMenu, o
                               "text-sm font-bold",
                               record.record_type === 'entrada' ? "text-green-500" : "text-red-500"
                             )}>
-                              {record.record_type === 'entrada' ? '+' : '-'}{record.fuel_quantity}L
+                              {record.record_type === 'entrada' ? '+' : ''}{record.fuel_quantity}L
                             </p>
                           </div>
                           <div className="flex gap-1">

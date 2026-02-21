@@ -279,7 +279,7 @@ export function StockHistoryModal({ open, onClose, title, sheetData }: StockHist
               <span className="text-xs text-slate-500">Saídas:</span>
               <span className={cn("text-sm font-bold flex items-center gap-0.5", totals.saidas > 0 ? "text-rose-400" : "text-slate-400")}>
                 {totals.saidas > 0 && <TrendingDown className="h-3 w-3" />}
-                -{formatNumber(totals.saidas)} L
+                {formatNumber(totals.saidas)} L
               </span>
             </div>
             <div className="flex items-center gap-1.5">
