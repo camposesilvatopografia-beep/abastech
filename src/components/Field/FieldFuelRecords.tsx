@@ -80,14 +80,25 @@ export function FieldFuelRecords({ user, onBack }: FieldFuelRecordsProps) {
   const fetchRecords = useCallback(async () => {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
+      // Fetch records by user OR by assigned locations so all saida/entrada records show
+      const userLocations = user.assigned_locations || [];
+      
+      let query = supabase
         .from('field_fuel_records')
         .select('id, record_date, record_time, vehicle_code, vehicle_description, fuel_quantity, location, record_type, operator_name, horimeter_current, km_current, arla_quantity, observations, category')
-        .eq('user_id', user.id)
         .gte('record_date', startDate)
         .lte('record_date', endDate)
         .order('record_date', { ascending: false })
         .order('record_time', { ascending: false });
+
+      if (userLocations.length > 0) {
+        // Show records from this user OR from their assigned locations
+        query = query.or(`user_id.eq.${user.id},location.in.(${userLocations.map(l => `"${l}"`).join(',')})`);
+      } else {
+        query = query.eq('user_id', user.id);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
       setRecords(data || []);
@@ -96,7 +107,7 @@ export function FieldFuelRecords({ user, onBack }: FieldFuelRecordsProps) {
     } finally {
       setIsLoading(false);
     }
-  }, [user.id, startDate, endDate]);
+  }, [user.id, user.assigned_locations, startDate, endDate]);
 
   useEffect(() => {
     fetchRecords();
