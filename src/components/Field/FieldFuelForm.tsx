@@ -2941,8 +2941,8 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         </>
         )}
 
-        {/* ARLA - only for normal Saida mode */}
-        {recordType === 'saida' && quickEntryMode === 'normal' && (
+        {/* ARLA - only for Tanque users in normal Saida mode */}
+        {recordType === 'saida' && quickEntryMode === 'normal' && userLocationInfo.isTanqueUser && (
           <div className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-xl border border-slate-200 dark:border-slate-700 p-4 space-y-3 shadow-sm">
             <div className="flex items-center justify-between">
               <Label className="flex items-center gap-2 text-base">
