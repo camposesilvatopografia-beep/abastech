@@ -1,7 +1,8 @@
-import { Fuel, Truck, ArrowLeft, ArrowRight } from 'lucide-react';
+import { Fuel, Truck, ArrowLeft, ArrowRight, Package2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTheme } from '@/hooks/useTheme';
 import { Button } from '@/components/ui/button';
+import { useMemo } from 'react';
 
 interface FieldUser {
   id: string;
@@ -12,13 +13,18 @@ interface FieldUser {
 }
 
 interface FieldFuelMenuProps {
-  onNavigate: (view: 'fuel-abastecer' | 'fuel-comboio') => void;
+  onNavigate: (view: 'fuel-abastecer' | 'fuel-comboio' | 'fuel-tanque') => void;
   user?: FieldUser;
   onBack?: () => void;
 }
 
 export function FieldFuelMenu({ onNavigate, user, onBack }: FieldFuelMenuProps) {
   const { theme } = useTheme();
+
+  const isTanqueUser = useMemo(() => {
+    const locs = user?.assigned_locations || [];
+    return locs.some(loc => loc.toLowerCase().includes('tanque'));
+  }, [user?.assigned_locations]);
 
   const menuItems = [
     {
@@ -28,6 +34,7 @@ export function FieldFuelMenu({ onNavigate, user, onBack }: FieldFuelMenuProps) 
       icon: Fuel,
       gradient: 'from-emerald-500 to-emerald-700',
       shadow: 'shadow-emerald-500/30',
+      show: true,
     },
     {
       key: 'fuel-comboio' as const,
@@ -36,8 +43,18 @@ export function FieldFuelMenu({ onNavigate, user, onBack }: FieldFuelMenuProps) 
       icon: Truck,
       gradient: 'from-orange-500 to-orange-700',
       shadow: 'shadow-orange-500/30',
+      show: true,
     },
-  ];
+    {
+      key: 'fuel-tanque' as const,
+      label: 'Carregar Tanque',
+      description: 'Entrada de combustível de fornecedor externo',
+      icon: Package2,
+      gradient: 'from-blue-500 to-blue-700',
+      shadow: 'shadow-blue-500/30',
+      show: isTanqueUser,
+    },
+  ].filter(item => item.show);
 
   return (
     <div className="p-4 space-y-4">
