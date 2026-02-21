@@ -111,7 +111,7 @@ const TABS = [
   { id: 'consumo', label: 'Consumo', icon: BarChart },
   { id: 'saneamento', label: 'Saneamento', icon: Droplet },
   { id: 'entradas', label: 'Entradas', icon: ArrowDownUp },
-  { id: 'correcoes', label: 'Correções', icon: Wrench },
+  
   { id: 'relatorios', label: 'Relatórios', icon: FileSpreadsheet },
 ];
 
@@ -2823,13 +2823,6 @@ export function AbastecimentoPage() {
           />
         )}
 
-        {activeTab === 'correcoes' && (
-          <HorimeterCorrectionsTab
-            data={data}
-            refetch={refetch}
-            loading={loading}
-          />
-        )}
 
         {activeTab === 'relatorios' && (() => {
           const availableCategories = Array.from(new Set(
