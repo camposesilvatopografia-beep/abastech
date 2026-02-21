@@ -10,6 +10,7 @@ import { FieldFuelRecords } from '@/components/Field/FieldFuelRecords';
 import { FieldStockView } from '@/components/Field/FieldStockView';
 import { useRolePermissions } from '@/hooks/useRolePermissions';
 import { 
+  Home,
   LayoutDashboard, 
   Fuel, 
   LogOut,
@@ -518,6 +519,22 @@ export function FieldPage() {
           ? "bg-slate-800/90 border-slate-700" 
           : "bg-white/90 border-slate-200"
       )}>
+        {currentView !== 'dashboard' && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className={cn(
+              "h-11 w-11 rounded-xl",
+              theme === 'dark'
+                ? "text-white bg-slate-600 hover:bg-slate-500"
+                : "text-slate-700 bg-slate-200 hover:bg-slate-300"
+            )}
+            onClick={() => setCurrentView('dashboard')}
+            title="Voltar ao Menu"
+          >
+            <Home className="w-5 h-5" />
+          </Button>
+        )}
         {canViewModule(userRole, 'field_dashboard', user?.id) && (
           <Button
             variant="ghost"
