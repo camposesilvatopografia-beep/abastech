@@ -146,7 +146,7 @@ export function FrotaPage() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [groupBy, setGroupBy] = useState<'categoria' | 'empresa' | 'descricao'>('categoria');
   const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
-  const [viewMode, setViewMode] = useState<'list' | 'mobilized' | 'historico'>('list');
+  const [viewMode, setViewMode] = useState<'list' | 'mobilized' | 'historico' | 'relatorios'>('list');
   const { settings: obraSettings } = useObraSettings();
   
   // Layout preferences
@@ -743,6 +743,15 @@ export function FrotaPage() {
                 <History className="w-4 h-4 sm:mr-1" />
                 <span className="hidden sm:inline">Histórico</span>
               </Button>
+              <Button 
+                variant={viewMode === 'relatorios' ? 'default' : 'ghost'} 
+                size="sm"
+                className="rounded-none"
+                onClick={() => setViewMode('relatorios')}
+              >
+                <FileText className="w-4 h-4 sm:mr-1" />
+                <span className="hidden sm:inline">Relatórios</span>
+              </Button>
             </div>
             
             <Button onClick={openCreateVehicle} size="sm" className="gap-2 bg-emerald-600 hover:bg-emerald-700">
@@ -779,76 +788,6 @@ export function FrotaPage() {
                 </Button>
               </>
             )}
-            {/* Mobilização / Efetivo PDFs */}
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => {
-                const allVehicles = filteredRows.map(row => ({
-                  codigo: getRowValue(row as any, ['CODIGO', 'Codigo', 'codigo', 'VEICULO', 'Veiculo', 'veiculo']),
-                  descricao: getRowValue(row as any, ['DESCRICAO', 'DESCRIÇÃO', 'Descricao', 'descrição', 'descricao']),
-                  empresa: getRowValue(row as any, ['EMPRESA', 'Empresa', 'empresa']),
-                  categoria: getRowValue(row as any, ['CATEGORIA', 'Categoria', 'categoria', 'TIPO', 'Tipo', 'tipo']),
-                  status: getRowValue(row as any, ['STATUS', 'Status', 'status']) || 'ativo',
-                }));
-                exportMobilizacaoPDF(allVehicles, selectedDate, obraSettings);
-              }}
-              className="bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200"
-            >
-              <FileText className="w-4 h-4 sm:mr-2" />
-              <span className="hidden sm:inline">Mobilização</span>
-            </Button>
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => setEfetivoColumnModalOpen(true)}
-              className="bg-teal-50 hover:bg-teal-100 text-teal-700 border-teal-200"
-            >
-              <FileText className="w-4 h-4 sm:mr-2" />
-              <span className="hidden sm:inline">Efetivo</span>
-            </Button>
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => {
-                const allVehicles = data.rows.map(row => ({
-                  codigo: getRowValue(row as any, ['CODIGO', 'Codigo', 'codigo', 'VEICULO', 'Veiculo', 'veiculo']),
-                  descricao: getRowValue(row as any, ['DESCRICAO', 'DESCRIÇÃO', 'Descricao', 'descrição', 'descricao']),
-                  empresa: getRowValue(row as any, ['EMPRESA', 'Empresa', 'empresa']),
-                  categoria: getRowValue(row as any, ['CATEGORIA', 'Categoria', 'categoria', 'TIPO', 'Tipo', 'tipo']),
-                  status: getRowValue(row as any, ['STATUS', 'Status', 'status']) || 'ativo',
-                }));
-                exportMobilizadosPDF(allVehicles, selectedDate, obraSettings);
-                toast.success('PDF de Mobilizados gerado!');
-              }}
-              className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200"
-            >
-              <FileText className="w-4 h-4 sm:mr-2" />
-              <span className="hidden sm:inline">Mobilizados</span>
-            </Button>
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => {
-                const allVehicles = data.rows.map(row => ({
-                  codigo: getRowValue(row as any, ['CODIGO', 'Codigo', 'codigo', 'VEICULO', 'Veiculo', 'veiculo']),
-                  descricao: getRowValue(row as any, ['DESCRICAO', 'DESCRIÇÃO', 'Descricao', 'descrição', 'descricao']),
-                  empresa: getRowValue(row as any, ['EMPRESA', 'Empresa', 'empresa']),
-                  categoria: getRowValue(row as any, ['CATEGORIA', 'Categoria', 'categoria', 'TIPO', 'Tipo', 'tipo']),
-                  status: getRowValue(row as any, ['STATUS', 'Status', 'status']) || 'ativo',
-                }));
-                const result = exportDesmobilizadosPDF(allVehicles, selectedDate, obraSettings);
-                if (result === false) {
-                  toast.info('Nenhum equipamento desmobilizado encontrado.');
-                } else {
-                  toast.success('PDF de Desmobilizados gerado!');
-                }
-              }}
-              className="bg-red-50 hover:bg-red-100 text-red-700 border-red-200"
-            >
-              <FileText className="w-4 h-4 sm:mr-2" />
-              <span className="hidden sm:inline">Desmobilizados</span>
-            </Button>
           </div>
         </div>
 
@@ -1357,6 +1296,189 @@ export function FrotaPage() {
                 Nenhum veículo encontrado
               </div>
             )}
+          </div>
+        )}
+
+        {/* Relatórios View Mode */}
+        {viewMode === 'relatorios' && (
+          <div className="space-y-6">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center">
+                <FileText className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold">Relatórios de Frota</h2>
+                <p className="text-sm text-muted-foreground">Exporte relatórios detalhados da frota</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {/* Mobilização */}
+              <div className="bg-card rounded-lg border border-border p-5 space-y-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
+                    <Truck className="w-4 h-4 text-blue-700" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold">Mobilização</h3>
+                    <p className="text-xs text-muted-foreground">Resumo geral + detalhamento por tipo</p>
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  className="w-full gap-2"
+                  variant="outline"
+                  onClick={() => {
+                    const allVehicles = filteredRows.map(row => ({
+                      codigo: getRowValue(row as any, ['CODIGO', 'Codigo', 'codigo', 'VEICULO', 'Veiculo', 'veiculo']),
+                      descricao: getRowValue(row as any, ['DESCRICAO', 'DESCRIÇÃO', 'Descricao', 'descrição', 'descricao']),
+                      empresa: getRowValue(row as any, ['EMPRESA', 'Empresa', 'empresa']),
+                      categoria: getRowValue(row as any, ['CATEGORIA', 'Categoria', 'categoria', 'TIPO', 'Tipo', 'tipo']),
+                      status: getRowValue(row as any, ['STATUS', 'Status', 'status']) || 'ativo',
+                    }));
+                    exportMobilizacaoPDF(allVehicles, selectedDate, obraSettings);
+                    toast.success('PDF de Mobilização gerado!');
+                  }}
+                >
+                  <FileText className="w-4 h-4" />
+                  Exportar PDF
+                </Button>
+              </div>
+
+              {/* Efetivo / Apontamento Diário */}
+              <div className="bg-card rounded-lg border border-border p-5 space-y-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-teal-100 flex items-center justify-center">
+                    <Activity className="w-4 h-4 text-teal-700" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold">Efetivo Diário</h3>
+                    <p className="text-xs text-muted-foreground">Apontamento diário de equipamentos</p>
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  className="w-full gap-2"
+                  variant="outline"
+                  onClick={() => setEfetivoColumnModalOpen(true)}
+                >
+                  <FileText className="w-4 h-4" />
+                  Configurar e Exportar PDF
+                </Button>
+              </div>
+
+              {/* Mobilizados */}
+              <div className="bg-card rounded-lg border border-border p-5 space-y-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center">
+                    <CheckSquare className="w-4 h-4 text-emerald-700" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold">Mobilizados</h3>
+                    <p className="text-xs text-muted-foreground">Lista de equipamentos em campo</p>
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  className="w-full gap-2"
+                  variant="outline"
+                  onClick={() => {
+                    const allVehicles = data.rows.map(row => ({
+                      codigo: getRowValue(row as any, ['CODIGO', 'Codigo', 'codigo', 'VEICULO', 'Veiculo', 'veiculo']),
+                      descricao: getRowValue(row as any, ['DESCRICAO', 'DESCRIÇÃO', 'Descricao', 'descrição', 'descricao']),
+                      empresa: getRowValue(row as any, ['EMPRESA', 'Empresa', 'empresa']),
+                      categoria: getRowValue(row as any, ['CATEGORIA', 'Categoria', 'categoria', 'TIPO', 'Tipo', 'tipo']),
+                      status: getRowValue(row as any, ['STATUS', 'Status', 'status']) || 'ativo',
+                    }));
+                    exportMobilizadosPDF(allVehicles, selectedDate, obraSettings);
+                    toast.success('PDF de Mobilizados gerado!');
+                  }}
+                >
+                  <FileText className="w-4 h-4" />
+                  Exportar PDF
+                </Button>
+              </div>
+
+              {/* Desmobilizados */}
+              <div className="bg-card rounded-lg border border-border p-5 space-y-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-red-100 flex items-center justify-center">
+                    <X className="w-4 h-4 text-red-700" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold">Desmobilizados</h3>
+                    <p className="text-xs text-muted-foreground">Equipamentos retirados do campo</p>
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  className="w-full gap-2"
+                  variant="outline"
+                  onClick={() => {
+                    const allVehicles = data.rows.map(row => ({
+                      codigo: getRowValue(row as any, ['CODIGO', 'Codigo', 'codigo', 'VEICULO', 'Veiculo', 'veiculo']),
+                      descricao: getRowValue(row as any, ['DESCRICAO', 'DESCRIÇÃO', 'Descricao', 'descrição', 'descricao']),
+                      empresa: getRowValue(row as any, ['EMPRESA', 'Empresa', 'empresa']),
+                      categoria: getRowValue(row as any, ['CATEGORIA', 'Categoria', 'categoria', 'TIPO', 'Tipo', 'tipo']),
+                      status: getRowValue(row as any, ['STATUS', 'Status', 'status']) || 'ativo',
+                    }));
+                    const result = exportDesmobilizadosPDF(allVehicles, selectedDate, obraSettings);
+                    if (result === false) {
+                      toast.info('Nenhum equipamento desmobilizado encontrado.');
+                    } else {
+                      toast.success('PDF de Desmobilizados gerado!');
+                    }
+                  }}
+                >
+                  <FileText className="w-4 h-4" />
+                  Exportar PDF
+                </Button>
+              </div>
+
+              {/* Lista Geral - PDF */}
+              <div className="bg-card rounded-lg border border-border p-5 space-y-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-red-100 flex items-center justify-center">
+                    <FileText className="w-4 h-4 text-red-700" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold">Lista Geral (PDF)</h3>
+                    <p className="text-xs text-muted-foreground">Todos os veículos/equipamentos</p>
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  className="w-full gap-2"
+                  variant="outline"
+                  onClick={exportToPDF}
+                >
+                  <FileText className="w-4 h-4" />
+                  Exportar PDF
+                </Button>
+              </div>
+
+              {/* Lista Geral - Excel */}
+              <div className="bg-card rounded-lg border border-border p-5 space-y-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center">
+                    <FileSpreadsheet className="w-4 h-4 text-green-700" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold">Lista Geral (Excel)</h3>
+                    <p className="text-xs text-muted-foreground">Exportar planilha com filtros aplicados</p>
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  className="w-full gap-2"
+                  variant="outline"
+                  onClick={exportToExcel}
+                >
+                  <FileSpreadsheet className="w-4 h-4" />
+                  Exportar Excel
+                </Button>
+              </div>
+            </div>
           </div>
         )}
       </div>
