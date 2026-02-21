@@ -128,6 +128,37 @@ export function FieldFuelRecords({ user, onBack }: FieldFuelRecordsProps) {
     if (!deletingRecord) return;
     setIsDeleting(true);
     try {
+      // First try to delete from the Google Sheet
+      try {
+        const recordDate = new Date(`${deletingRecord.record_date}T00:00:00`);
+        const dateBR = recordDate.toLocaleDateString('pt-BR');
+        const timeShort = deletingRecord.record_time?.substring(0, 5) || '';
+        
+        // Fetch sheet data to find matching row
+        const { data: sheetData } = await supabase.functions.invoke('google-sheets', {
+          body: { action: 'getData', sheetName: 'AbastecimentoCanteiro01' },
+        });
+        
+        if (sheetData?.rows) {
+          const matchIdx = sheetData.rows.findIndex((row: any) => {
+            const rowDate = String(row['DATA'] || row['Data'] || '');
+            const rowTime = String(row['HORA'] || row['Hora'] || '');
+            const rowVehicle = String(row['CODIGO'] || row['Codigo'] || row['Código'] || '').toUpperCase().replace(/\s/g, '');
+            const recordVehicle = deletingRecord.vehicle_code.toUpperCase().replace(/\s/g, '');
+            return rowDate === dateBR && rowTime === timeShort && rowVehicle === recordVehicle;
+          });
+          
+          if (matchIdx >= 0) {
+            const rowIndex = (sheetData.rows[matchIdx] as any)._rowIndex ?? matchIdx + 2;
+            await supabase.functions.invoke('google-sheets', {
+              body: { action: 'delete', sheetName: 'AbastecimentoCanteiro01', rowIndex },
+            });
+          }
+        }
+      } catch (sheetErr) {
+        console.error('Sheet delete error (continuing with DB delete):', sheetErr);
+      }
+
       const { error } = await supabase
         .from('field_fuel_records')
         .delete()
