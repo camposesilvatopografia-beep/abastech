@@ -246,40 +246,57 @@ export function FieldComboioForm({ user, onBack }: FieldComboioFormProps) {
         synced_to_sheet: false,
       };
 
-      const { error } = await supabase
+      const { data: insertedData, error } = await supabase
         .from('field_fuel_records')
-        .insert(recordData as any);
+        .insert(recordData as any)
+        .select('id')
+        .single();
 
       if (error) throw error;
 
-      // Sync to Google Sheets
-      try {
-        const dateBR = now.toLocaleDateString('pt-BR');
-        await supabase.functions.invoke('google-sheets', {
-          body: {
-            action: 'append',
-            sheetName: 'AbastecimentoCanteiro01',
-            values: [[
-              dateBR,
-              recordTime.substring(0, 5),
-              recordType === 'entrada' ? 'ENTRADA' : 'SAIDA',
-              vehicleCode,
-              removeAccents(vehicleDescription),
-              'Tanque Comboio',
-              removeAccents(user.name),
-              company,
-              '',
-              '', '', '', '',
-              fuelQuantity,
-              'Diesel',
-              '',
-              location,
-              `[CARREGAR COMBOIO] Local: ${entryLocation}`,
-            ]],
-          },
-        });
-      } catch (sheetErr) {
-        console.error('Sheet sync error:', sheetErr);
+      const recordId = insertedData?.id;
+
+      // Sync to Google Sheets immediately if online
+      const isOnline = navigator.onLine;
+      if (isOnline) {
+        try {
+          const dateBR = now.toLocaleDateString('pt-BR');
+          const { error: sheetError } = await supabase.functions.invoke('google-sheets', {
+            body: {
+              action: 'append',
+              sheetName: 'AbastecimentoCanteiro01',
+              values: [[
+                dateBR,
+                recordTime.substring(0, 5),
+                recordType === 'entrada' ? 'ENTRADA' : 'SAIDA',
+                vehicleCode,
+                removeAccents(vehicleDescription),
+                'Tanque Comboio',
+                removeAccents(user.name),
+                company,
+                '',
+                '', '', '', '',
+                fuelQuantity,
+                'Diesel',
+                '',
+                location,
+                `[CARREGAR COMBOIO] Local: ${entryLocation}`,
+              ]],
+            },
+          });
+
+          if (!sheetError && recordId) {
+            await supabase
+              .from('field_fuel_records')
+              .update({ synced_to_sheet: true } as any)
+              .eq('id', recordId);
+          }
+        } catch (sheetErr) {
+          console.error('Sheet sync error (will retry later):', sheetErr);
+        }
+      } else {
+        console.log('Offline: record saved locally, will sync when online');
+        toast.info('Sem conexão. O registro será sincronizado quando voltar online.');
       }
 
       broadcast('fuel_record_created', { vehicleCode });
