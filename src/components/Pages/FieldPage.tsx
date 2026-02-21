@@ -73,7 +73,7 @@ const ALL_FIELD_LOCATIONS = [
 const STORAGE_KEY = 'abastech_field_user';
 const ADMIN_LOCATION_KEY = 'abastech_admin_active_location';
 
-type FieldView = 'dashboard' | 'form' | 'fuel-menu' | 'fuel-abastecer' | 'fuel-comboio' | 'fuel-tanque' | 'fuel-arla' | 'fuel-registros' | 'fuel-estoques' | 'horimeter' | 'os';
+type FieldView = 'dashboard' | 'form' | 'fuel-abastecer' | 'fuel-comboio' | 'fuel-tanque' | 'fuel-arla' | 'fuel-registros' | 'fuel-estoques' | 'horimeter' | 'os';
 
 export function FieldPage() {
   const [user, setUser] = useState<FieldUser | null>(null);
@@ -150,7 +150,7 @@ export function FieldPage() {
     if (isAdmin) return 'dashboard';
     const viewModuleMap: { view: FieldView; module: string }[] = [
       { view: 'dashboard', module: 'field_dashboard' },
-      { view: 'fuel-menu', module: 'field_abastecimento' },
+      { view: 'fuel-abastecer', module: 'field_abastecimento' },
       { view: 'horimeter', module: 'field_horimetros' },
       { view: 'os', module: 'field_os' },
     ];
@@ -168,7 +168,7 @@ export function FieldPage() {
     if (permLoading || !user) return;
     const viewModuleMap: { view: FieldView; module: string }[] = [
       { view: 'dashboard', module: 'field_dashboard' },
-      { view: 'fuel-menu', module: 'field_abastecimento' },
+      { view: 'fuel-abastecer', module: 'field_abastecimento' },
       { view: 'horimeter', module: 'field_horimetros' },
       { view: 'os', module: 'field_os' },
     ];
@@ -806,7 +806,7 @@ export function FieldPage() {
         {currentView === 'dashboard' && effectiveUser ? (
           <FieldDashboard 
             user={effectiveUser} 
-            onNavigateToForm={() => setCurrentView('fuel-menu')}
+            onNavigateToForm={() => setCurrentView('fuel-abastecer')}
             onNavigateToHorimeter={() => setCurrentView('horimeter')}
             onNavigateToOS={() => setCurrentView('os')}
             onNavigateToFuelView={(view) => setCurrentView(view)}
