@@ -827,16 +827,16 @@ export function FieldDashboard({ user, onNavigateToForm, onNavigateToFuelMenu, o
                     key={item.key}
                     onClick={() => onNavigateToFuelView(item.key)}
                     className={cn(
-                      "flex items-center gap-3 p-4 rounded-2xl text-white shadow-lg active:scale-[0.97] transition-transform text-left",
+                      "flex items-center gap-3 p-5 rounded-2xl text-white shadow-lg active:scale-[0.97] transition-transform text-left",
                       `bg-gradient-to-r ${item.gradient} ${item.shadow}`
                     )}
                   >
-                    <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center shrink-0">
-                      <Icon className="w-6 h-6" />
+                    <div className="w-14 h-14 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center shrink-0">
+                      <Icon className="w-7 h-7" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <span className="text-sm font-bold block truncate">{item.label}</span>
-                      <span className="text-[11px] opacity-80 truncate block">{item.desc}</span>
+                      <span className="text-base font-bold block truncate">{item.label}</span>
+                      <span className="text-xs opacity-80 truncate block">{item.desc}</span>
                     </div>
                   </button>
                 );
@@ -1135,25 +1135,6 @@ export function FieldDashboard({ user, onNavigateToForm, onNavigateToFuelMenu, o
                               title="Solicitar edição"
                             >
                               <Edit2 className="w-3.5 h-3.5" />
-                            </Button>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className={cn(
-                                "h-7 w-7",
-                                theme === 'dark' 
-                                  ? "text-slate-400 hover:text-red-400 hover:bg-red-900/30"
-                                  : "text-slate-500 hover:text-red-500 hover:bg-red-50"
-                              )}
-                              onClick={() => setDeleteConfirmation({
-                                recordId: record.id,
-                                vehicleCode: record.vehicle_code,
-                                quantity: record.fuel_quantity,
-                                reason: '',
-                              })}
-                              title="Excluir registro"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
                             </Button>
                           </div>
                         </div>
