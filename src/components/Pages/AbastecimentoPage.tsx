@@ -45,7 +45,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
-import { AdminFuelRecordModal } from '@/components/Dashboard/AdminFuelRecordModal';
+import { AdminFuelRecordModal, type AdminPresetMode } from '@/components/Dashboard/AdminFuelRecordModal';
 import { StockPanelTab } from '@/components/Dashboard/StockPanelTab';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -204,6 +204,7 @@ export function AbastecimentoPage() {
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
   const [showAdminRecordModal, setShowAdminRecordModal] = useState(false);
+  const [adminPresetMode, setAdminPresetMode] = useState<AdminPresetMode>('normal');
   const [editingRecord, setEditingRecord] = useState<any>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
@@ -321,6 +322,11 @@ export function AbastecimentoPage() {
            username === 'samarakelle' || 
            user.role === 'admin';
   }, [user]);
+
+  const openAdminModal = useCallback((mode: AdminPresetMode = 'normal') => {
+    setAdminPresetMode(mode);
+    setShowAdminRecordModal(true);
+  }, []);
 
   // Handle inline edit save
   const handleSaveInlineEdit = useCallback(async () => {
@@ -2129,14 +2135,24 @@ export function AbastecimentoPage() {
           
           <div className="flex flex-wrap items-center gap-2">
             {canCreateRecords && (
-              <Button 
-                size="sm" 
-                onClick={() => setShowAdminRecordModal(true)}
-                className="bg-green-600 hover:bg-green-700"
-              >
-                <Plus className="w-4 h-4 sm:mr-2" />
-                <span className="hidden sm:inline">Novo Apontamento</span>
-              </Button>
+              <>
+                <Button size="sm" onClick={() => openAdminModal('comboio')} className="gap-1 bg-orange-600 hover:bg-orange-700">
+                  <Truck className="w-4 h-4" />
+                  <span className="hidden lg:inline">Carregar Comboio</span>
+                </Button>
+                <Button size="sm" onClick={() => openAdminModal('tanque_diesel')} className="gap-1 bg-blue-600 hover:bg-blue-700">
+                  <Package2 className="w-4 h-4" />
+                  <span className="hidden lg:inline">Carregar Tanque Diesel</span>
+                </Button>
+                <Button size="sm" onClick={() => openAdminModal('tanque_arla')} className="gap-1 bg-cyan-600 hover:bg-cyan-700">
+                  <Droplet className="w-4 h-4" />
+                  <span className="hidden lg:inline">Carregar Tanque Arla</span>
+                </Button>
+                <Button size="sm" onClick={() => openAdminModal('normal')} className="bg-green-600 hover:bg-green-700">
+                  <Plus className="w-4 h-4 sm:mr-1" />
+                  <span className="hidden sm:inline">Novo</span>
+                </Button>
+              </>
             )}
             {pendingSyncCount > 0 && (
               <Button
@@ -2806,7 +2822,7 @@ export function AbastecimentoPage() {
               <h2 className="text-lg font-semibold">Detalhamento de Abastecimentos</h2>
               <div className="flex items-center gap-2">
                 {canCreateRecords && (
-                  <Button size="sm" onClick={() => setShowAdminRecordModal(true)} className="gap-2 bg-green-600 hover:bg-green-700">
+                  <Button size="sm" onClick={() => openAdminModal('normal')} className="gap-2 bg-green-600 hover:bg-green-700">
                     <Plus className="w-4 h-4" />
                     Novo
                   </Button>
@@ -2929,7 +2945,7 @@ export function AbastecimentoPage() {
                 <Badge variant="outline">{saneamentoFilteredData.length} registros</Badge>
               </div>
               {canCreateRecords && (
-                <Button size="sm" onClick={() => setShowAdminRecordModal(true)} className="gap-2 bg-green-600 hover:bg-green-700">
+                <Button size="sm" onClick={() => openAdminModal('normal')} className="gap-2 bg-green-600 hover:bg-green-700">
                   <Plus className="w-4 h-4" />
                   Novo
                 </Button>
@@ -2992,17 +3008,31 @@ export function AbastecimentoPage() {
 
         {activeTab === 'entradas' && (
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-2">
               <div className="flex items-center gap-2">
                 <TrendingUp className="w-5 h-5 text-success" />
                 <h2 className="text-lg font-semibold">Entradas de Combustível</h2>
                 <Badge variant="outline">{entradasData.entries.length} registros</Badge>
               </div>
               {canCreateRecords && (
-                <Button size="sm" onClick={() => setShowAdminRecordModal(true)} className="gap-2 bg-green-600 hover:bg-green-700">
-                  <Plus className="w-4 h-4" />
-                  Nova Entrada
-                </Button>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Button size="sm" onClick={() => openAdminModal('comboio')} className="gap-2 bg-orange-600 hover:bg-orange-700">
+                    <Truck className="w-4 h-4" />
+                    Carregar Comboio
+                  </Button>
+                  <Button size="sm" onClick={() => openAdminModal('tanque_diesel')} className="gap-2 bg-blue-600 hover:bg-blue-700">
+                    <Package2 className="w-4 h-4" />
+                    Carregar Tanque Diesel
+                  </Button>
+                  <Button size="sm" onClick={() => openAdminModal('tanque_arla')} className="gap-2 bg-cyan-600 hover:bg-cyan-700">
+                    <Droplet className="w-4 h-4" />
+                    Carregar Tanque Arla
+                  </Button>
+                  <Button size="sm" onClick={() => openAdminModal('normal')} variant="outline" className="gap-2">
+                    <Plus className="w-4 h-4" />
+                    Nova Entrada
+                  </Button>
+                </div>
               )}
             </div>
 
@@ -3456,6 +3486,7 @@ export function AbastecimentoPage() {
           open={showAdminRecordModal}
           onOpenChange={setShowAdminRecordModal}
           onSuccess={() => refetch()}
+          presetMode={adminPresetMode}
         />
       )}
 
