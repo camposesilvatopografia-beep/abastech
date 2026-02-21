@@ -47,8 +47,8 @@ export function FieldFuelMenu({ onNavigate, user, onBack }: FieldFuelMenuProps) 
     },
     {
       key: 'fuel-tanque' as const,
-      label: 'Carregar Tanque',
-      description: 'Entrada de combustível de fornecedor externo',
+      label: 'Carregar Tanque de Diesel',
+      description: 'Entrada de diesel de fornecedor externo',
       icon: Package2,
       gradient: 'from-blue-500 to-blue-700',
       shadow: 'shadow-blue-500/30',
