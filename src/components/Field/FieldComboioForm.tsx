@@ -106,41 +106,34 @@ export function FieldComboioForm({ user, onBack }: FieldComboioFormProps) {
     if (vehicleCode || comboioVehicles.length === 0) return;
     
     const userLocations = user.assigned_locations || [];
-    // Find a comboio that matches the user's assigned location
+    
     for (const loc of userLocations) {
-      const normalized = loc.toLowerCase();
+      const normalized = loc.toLowerCase().trim();
+      
+      // Extract number from location like "Comboio 02", "Comboio 03"
+      const numMatch = normalized.match(/(\d+)/);
+      const locNumber = numMatch ? numMatch[1].replace(/^0+/, '') : null;
+      
       const match = comboioVehicles.find((v: any) => {
-        const code = String(v['Codigo'] || v['CODIGO'] || v['Código'] || '').toLowerCase();
-        const desc = String(v['Descricao'] || v['DESCRICAO'] || v['Descrição'] || v['Nome'] || '').toLowerCase();
-        // Match "comboio 01" in location with vehicle code/desc
-        return normalized.includes(code) || code.includes(normalized.replace('tanque ', '').replace('canteiro ', '')) ||
-               desc.includes(normalized) || normalized.includes(desc.split(' ').slice(-1)[0]);
+        const code = String(v['Codigo'] || v['CODIGO'] || v['Código'] || '').toLowerCase().trim();
+        const desc = String(v['Descricao'] || v['DESCRICAO'] || v['Descrição'] || v['Nome'] || '').toLowerCase().trim();
+        
+        // Direct match by number (e.g., location "Comboio 02" matches vehicle with "02" or "2" in code/desc)
+        if (locNumber) {
+          const codeNum = code.match(/(\d+)/);
+          const descNum = desc.match(/(\d+)/);
+          if (codeNum && codeNum[1].replace(/^0+/, '') === locNumber) return true;
+          if (descNum && descNum[1].replace(/^0+/, '') === locNumber) return true;
+        }
+        
+        // Fallback: substring matching
+        return normalized.includes(code) || code.includes(normalized) ||
+               desc.includes(normalized) || normalized.includes(desc);
       });
+      
       if (match) {
         handleVehicleSelect(match);
-        break;
-      }
-    }
-
-    // If user location contains "comboio", try direct match
-    if (!vehicleCode) {
-      for (const loc of userLocations) {
-        const normalized = loc.toLowerCase();
-        if (normalized.includes('comboio')) {
-          // Extract number from location like "Comboio 01"
-          const numMatch = normalized.match(/\d+/);
-          if (numMatch) {
-            const match = comboioVehicles.find((v: any) => {
-              const code = String(v['Codigo'] || v['CODIGO'] || v['Código'] || '').toLowerCase();
-              const desc = String(v['Descricao'] || v['DESCRICAO'] || v['Descrição'] || v['Nome'] || '').toLowerCase();
-              return code.includes(numMatch[0]) || desc.includes(numMatch[0]);
-            });
-            if (match) {
-              handleVehicleSelect(match);
-              break;
-            }
-          }
-        }
+        return;
       }
     }
   }, [comboioVehicles, user.assigned_locations]);
