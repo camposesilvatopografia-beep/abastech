@@ -171,9 +171,8 @@ export function FieldLoginPage({ onLogin }: FieldLoginPageProps) {
 
       // System admin/supervisor gets admin role with all locations
       const allLocations = [
-        'Tanque Canteiro 01', 'Tanque Canteiro 02', 'Tanque Canteiro 03',
-        'Comboio 01', 'Comboio 02', 'Comboio 03', 'Comboio 04', 'Comboio 05',
-        'Tanque Arla'
+        'Tanque Canteiro 01', 'Tanque Canteiro 02',
+        'Comboio 01', 'Comboio 02', 'Comboio 03',
       ];
 
       const systemUserData = {
