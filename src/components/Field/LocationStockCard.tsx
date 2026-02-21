@@ -209,12 +209,12 @@ export const LocationStockCard = forwardRef<LocationStockCardRef, LocationStockC
         hasData = true;
         
         estoqueAtual = parseFloat(String(
-          row['ESTOQUE ATUAL'] || row['Estoque Atual'] || row['EST_ATUAL'] || 
+          row['EstoqueAtual'] || row['ESTOQUE ATUAL'] || row['Estoque Atual'] || row['EST_ATUAL'] || 
           row['ESTOQUE'] || row['Estoque'] || 0
         ).replace(/\./g, '').replace(',', '.')) || 0;
         
         estoqueAnterior = parseFloat(String(
-          row['ESTOQUE ANTERIOR'] || row['Estoque Anterior'] || row['EST_ANTERIOR'] || 
+          row['EstoqueAnterior'] || row['ESTOQUE ANTERIOR'] || row['Estoque Anterior'] || row['EST_ANTERIOR'] || 
           row['ANTERIOR'] || 0
         ).replace(/\./g, '').replace(',', '.')) || 0;
         
@@ -224,6 +224,7 @@ export const LocationStockCard = forwardRef<LocationStockCardRef, LocationStockC
         
         sheetSaidas = parseFloat(String(
           row['SAÍDA'] || row['Saída'] || row['SAIDA'] || row['Saida'] || 
+          row['Saida_para_Comboios'] || row['Saida_Para_Comboio'] || row['Saida_para_Equipamentos'] || row['Saida_Equipamentos'] ||
           row['SAIDAS'] || row['SAÍDAS'] || 0
         ).replace(/\./g, '').replace(',', '.')) || 0;
         
@@ -236,12 +237,12 @@ export const LocationStockCard = forwardRef<LocationStockCardRef, LocationStockC
       const sortedRows = [...stockSheetData.rows].reverse();
       for (const row of sortedRows) {
         estoqueAtual = parseFloat(String(
-          row['ESTOQUE ATUAL'] || row['Estoque Atual'] || row['EST_ATUAL'] || 
+          row['EstoqueAtual'] || row['ESTOQUE ATUAL'] || row['Estoque Atual'] || row['EST_ATUAL'] || 
           row['ESTOQUE'] || row['Estoque'] || 0
         ).replace(/\./g, '').replace(',', '.')) || 0;
         
         estoqueAnterior = parseFloat(String(
-          row['ESTOQUE ANTERIOR'] || row['Estoque Anterior'] || row['EST_ANTERIOR'] || 
+          row['EstoqueAnterior'] || row['ESTOQUE ANTERIOR'] || row['Estoque Anterior'] || row['EST_ANTERIOR'] || 
           row['ANTERIOR'] || 0
         ).replace(/\./g, '').replace(',', '.')) || 0;
         
@@ -251,6 +252,7 @@ export const LocationStockCard = forwardRef<LocationStockCardRef, LocationStockC
         
         sheetSaidas = parseFloat(String(
           row['SAÍDA'] || row['Saída'] || row['SAIDA'] || row['Saida'] || 
+          row['Saida_para_Comboios'] || row['Saida_Para_Comboio'] || row['Saida_para_Equipamentos'] || row['Saida_Equipamentos'] ||
           row['SAIDAS'] || row['SAÍDAS'] || 0
         ).replace(/\./g, '').replace(',', '.')) || 0;
 
