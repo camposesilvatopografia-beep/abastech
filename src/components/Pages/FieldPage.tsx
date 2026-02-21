@@ -697,6 +697,7 @@ export function FieldPage() {
             pendingSyncCount={pendingCount + offlineStorage.pendingCount}
             isSyncing={isSyncing}
             onSync={syncPendingRecords}
+            canViewModule={canViewModule}
           />
         ) : currentView === 'fuel-menu' ? (
           <FieldFuelMenu
