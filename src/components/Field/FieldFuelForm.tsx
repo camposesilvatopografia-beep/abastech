@@ -1926,29 +1926,31 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
     }));
   }, [vehicles]);
 
-  // Custom filter function for vehicle search - prioritizes prefix matches
+  // Normalize: remove accents, lowercase, strip separators
+  const normalizeSearch = (str: string): string =>
+    str.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[–—]/g, '-').replace(/\s+/g, ' ').trim();
+
+  // Custom filter function for vehicle search - accent/separator insensitive, prefix priority
   const vehicleSearchFilter = React.useCallback((value: string, search: string) => {
     if (!search) return 1;
-    const searchLower = search.toLowerCase().trim();
-    const valueLower = value.toLowerCase();
+    const searchNorm = normalizeSearch(search);
+    const searchCompact = searchNorm.replace(/[-\s]/g, '');
+    const valueNorm = normalizeSearch(value);
+    const valueCompact = valueNorm.replace(/[-\s]/g, '');
     
-    // Extract vehicle code from the value (it's the first part before space)
-    const vehicleCode = valueLower.split(' ')[0];
+    // Extract vehicle code (first token)
+    const codeCompact = valueCompact.split(/\s/)[0] || valueCompact;
     
-    // Highest priority: code starts with search term
-    if (vehicleCode.startsWith(searchLower)) {
-      return 1;
-    }
+    // Highest: code starts with search
+    if (codeCompact.startsWith(searchCompact)) return 1;
+    // Code contains search
+    if (codeCompact.includes(searchCompact)) return 0.8;
+    // Full value contains search
+    if (valueNorm.includes(searchNorm) || valueCompact.includes(searchCompact)) return 0.5;
     
-    // Second priority: code contains search term
-    if (vehicleCode.includes(searchLower)) {
-      return 0.8;
-    }
-    
-    // Third priority: description or category contains search term
-    if (valueLower.includes(searchLower)) {
-      return 0.5;
-    }
+    // Multi-word: all terms must match
+    const terms = searchNorm.split(/\s+/).filter(Boolean);
+    if (terms.length > 1 && terms.every(t => valueNorm.includes(t) || valueCompact.includes(t.replace(/[-\s]/g, '')))) return 0.4;
     
     return 0;
   }, []);
@@ -2222,7 +2224,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                   align="start"
                   sideOffset={4}
                 >
-                  <Command className="bg-popover">
+                  <Command className="bg-popover" filter={vehicleSearchFilter}>
                     <div className="flex items-center border-b-2 px-3 bg-muted/50">
                       <Search className="h-5 w-5 shrink-0 text-primary mr-2" />
                       <CommandInput 
@@ -2544,7 +2546,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-[--radix-popover-trigger-width] min-w-[320px] p-0 bg-popover border-2 border-border shadow-xl z-[100]" align="start" sideOffset={4}>
-                  <Command className="bg-popover">
+                  <Command className="bg-popover" filter={vehicleSearchFilter}>
                     <div className="flex items-center border-b-2 border-border px-3 bg-muted/50">
                       <Search className="h-5 w-5 shrink-0 text-primary mr-2" />
                       <CommandInput placeholder="Digite para pesquisar..." className="h-12 text-base border-0 focus:ring-0 bg-transparent placeholder:text-muted-foreground" />

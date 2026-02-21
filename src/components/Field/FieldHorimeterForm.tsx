@@ -441,21 +441,28 @@ export function FieldHorimeterForm({ user, onBack }: FieldHorimeterFormProps) {
     return () => { cancelled = true; };
   }, [selectedVehicleId, vehicles, user.name]);
 
-  // Filtered vehicles for search
+  // Normalize: remove accents, lowercase, strip separators
+  const normalizeSearchStr = (str: string): string =>
+    str.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[–—]/g, '-').replace(/\s+/g, ' ').trim();
+
+  // Filtered vehicles for search with accent/separator-insensitive matching
   const filteredVehicles = useMemo(() => {
     if (!vehicleSearch) return vehicles;
-    const search = vehicleSearch.toLowerCase();
+    const searchNorm = normalizeSearchStr(vehicleSearch);
+    const searchCompact = searchNorm.replace(/[-\s]/g, '');
+    
     return vehicles
-      .filter(v =>
-        v.code.toLowerCase().includes(search) ||
-        v.name.toLowerCase().includes(search) ||
-        (v.description || '').toLowerCase().includes(search) ||
-        (v.category || '').toLowerCase().includes(search)
-      )
+      .filter(v => {
+        const haystack = normalizeSearchStr(`${v.code} ${v.name} ${v.description || ''} ${v.category || ''}`);
+        const haystackCompact = haystack.replace(/[-\s]/g, '');
+        return haystack.includes(searchNorm) || haystackCompact.includes(searchCompact);
+      })
       .sort((a, b) => {
-        const aStarts = a.code.toLowerCase().startsWith(search) ? -1 : 0;
-        const bStarts = b.code.toLowerCase().startsWith(search) ? -1 : 0;
-        return aStarts - bStarts;
+        const aCode = normalizeSearchStr(a.code).replace(/[-\s]/g, '');
+        const bCode = normalizeSearchStr(b.code).replace(/[-\s]/g, '');
+        const aPrefix = aCode.startsWith(searchCompact) ? -2 : aCode.includes(searchCompact) ? -1 : 0;
+        const bPrefix = bCode.startsWith(searchCompact) ? -2 : bCode.includes(searchCompact) ? -1 : 0;
+        return aPrefix - bPrefix;
       });
   }, [vehicles, vehicleSearch]);
 
@@ -946,7 +953,7 @@ export function FieldHorimeterForm({ user, onBack }: FieldHorimeterFormProps) {
             sideOffset={4}
             avoidCollisions={false}
           >
-            <Command className={isDark ? "bg-slate-800" : ""}>
+            <Command className={isDark ? "bg-slate-800" : ""} shouldFilter={false}>
               <CommandInput
                 placeholder="Buscar por código ou nome..."
                 value={vehicleSearch}

@@ -187,11 +187,12 @@ export function FieldComboioForm({ user, onBack }: FieldComboioFormProps) {
 
   const filteredVehicles = useMemo(() => {
     if (!vehicleSearch) return comboioVehicles;
-    const search = vehicleSearch.toLowerCase();
+    const normalize = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[-\s]/g, '');
+    const searchNorm = normalize(vehicleSearch);
     return comboioVehicles.filter((v: any) => {
-      const code = String(v['Codigo'] || v['CODIGO'] || v['Código'] || '').toLowerCase();
-      const desc = String(v['Descricao'] || v['DESCRICAO'] || v['Descrição'] || v['Nome'] || '').toLowerCase();
-      return code.includes(search) || desc.includes(search);
+      const code = normalize(String(v['Codigo'] || v['CODIGO'] || v['Código'] || ''));
+      const desc = normalize(String(v['Descricao'] || v['DESCRICAO'] || v['Descrição'] || v['Nome'] || ''));
+      return code.includes(searchNorm) || desc.includes(searchNorm);
     });
   }, [comboioVehicles, vehicleSearch]);
 
@@ -491,7 +492,7 @@ export function FieldComboioForm({ user, onBack }: FieldComboioFormProps) {
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-[--radix-popover-trigger-width] min-w-[320px] p-0 bg-popover border-2 border-border shadow-xl z-[100]" align="start" sideOffset={4}>
-                <Command className="bg-popover">
+                <Command className="bg-popover" shouldFilter={false}>
                   <div className="flex items-center border-b-2 border-border px-3 bg-muted/50">
                     <Search className="h-5 w-5 shrink-0 text-primary mr-2" />
                     <CommandInput
