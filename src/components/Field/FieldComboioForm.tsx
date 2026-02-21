@@ -12,7 +12,13 @@ import {
   Check,
   TrendingUp,
   TrendingDown,
+  CheckCircle,
+  Clock,
+  MapPin,
+  Droplet,
+  Cloud,
 } from 'lucide-react';
+import logoAbastech from '@/assets/logo-abastech.png';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import {
@@ -370,253 +376,260 @@ export function FieldComboioForm({ user, onBack }: FieldComboioFormProps) {
 
   if (showSuccess) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="text-center space-y-4">
-          <div className="w-20 h-20 rounded-full bg-green-500 flex items-center justify-center mx-auto animate-bounce">
-            <Check className="w-10 h-10 text-white" />
+      <div className="fixed inset-0 bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center z-50 animate-in fade-in duration-300">
+        <div className="text-center text-white space-y-4">
+          <div className="relative">
+            <div className="absolute inset-0 bg-white/20 rounded-full animate-ping" style={{ animationDuration: '1s' }} />
+            <CheckCircle className="w-28 h-28 mx-auto relative z-10 animate-in zoom-in duration-500" />
           </div>
-          <h2 className={cn("text-xl font-bold", theme === 'dark' ? "text-white" : "text-slate-800")}>
-            Registro Salvo!
+          <h2 className="text-3xl font-bold animate-in slide-in-from-bottom duration-500">
+            {recordType === 'entrada' ? 'Entrada Registrada!' : 'Saída Registrada!'}
           </h2>
+          <p className="text-lg opacity-90 animate-in slide-in-from-bottom duration-700">
+            Dados salvos com sucesso
+          </p>
+          <div className="flex items-center justify-center gap-2 mt-4 animate-in slide-in-from-bottom duration-900">
+            <Cloud className="w-5 h-5" />
+            <span className="text-sm">Sincronizando com planilha...</span>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-4 p-4">
+    <div className="min-h-screen bg-gradient-to-br from-slate-100 via-slate-50 to-white dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 pb-4">
       {/* Header */}
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={onBack} className="shrink-0">
-          <ArrowLeft className="w-5 h-5" />
-        </Button>
-        <div>
-          <h2 className={cn("text-lg font-bold", theme === 'dark' ? "text-white" : "text-slate-800")}>
-            Carregar Comboio
-          </h2>
-          <p className="text-xs text-muted-foreground">Abastecimento do tanque do Comboio</p>
+      <div className="bg-gradient-to-r from-orange-800 to-orange-700 px-4 py-3">
+        <div className="flex items-center justify-between max-w-2xl mx-auto">
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="icon" onClick={onBack} className="shrink-0 text-white hover:bg-white/10">
+              <ArrowLeft className="w-5 h-5" />
+            </Button>
+            <img src={logoAbastech} alt="Abastech" className="h-8 w-auto" />
+            <span className="text-white font-bold text-base">Carregar Comboio</span>
+          </div>
+          <div className="flex items-center gap-2 text-white/80 text-xs">
+            <Clock className="w-3.5 h-3.5" />
+            <span>{new Date().toLocaleDateString('pt-BR')} {new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+          </div>
         </div>
       </div>
 
-      {/* Type Selection - Comboio users: Entrada fixed, Tanque users: Saída fixed */}
-      <div className={cn(
-        "rounded-xl p-4 border",
-        theme === 'dark' ? "bg-slate-800/80 border-slate-700" : "bg-white border-slate-200 shadow-sm"
-      )}>
-        <Label className="text-sm font-medium mb-2 block">Tipo</Label>
-        {isComboioUser ? (
-          <div className="flex items-center gap-2 p-3 rounded-xl border-2 border-green-500 bg-green-500/20 font-semibold text-green-600 dark:text-green-400">
-            <TrendingUp className="w-5 h-5" />
-            Entrada
-          </div>
-        ) : (
-          <div className="flex items-center gap-2 p-3 rounded-xl border-2 border-red-500 bg-red-500/20 font-semibold text-red-600 dark:text-red-400">
-            <TrendingDown className="w-5 h-5" />
-            Saída
-          </div>
-        )}
-      </div>
+      <div className="px-3 py-3 space-y-3 max-w-2xl mx-auto">
 
-      {/* Vehicle Selection - hidden for comboio users (auto-filled) */}
-      {!isComboioUser && (
-        <div className={cn(
-          "rounded-xl p-4 border",
-          theme === 'dark' ? "bg-slate-800/80 border-slate-700" : "bg-white border-slate-200 shadow-sm"
-        )}>
-          <Label className="text-sm font-medium mb-2 block">Comboio de Destino</Label>
-          <Popover open={vehicleOpen} onOpenChange={setVehicleOpen}>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                role="combobox"
-                className={cn(
-                  "w-full justify-between h-12 text-left",
-                  !vehicleCode && "text-muted-foreground"
-                )}
-              >
-                {vehicleCode ? (
-                  <div className="flex items-center gap-2">
-                    <Truck className="w-4 h-4 text-orange-500" />
-                    <span className="font-bold">{vehicleCode}</span>
-                    {(() => {
-                      const driverName = getDriverForVehicle(vehicleCode);
-                      return driverName ? (
-                        <span className="text-xs text-muted-foreground">- {driverName}</span>
-                      ) : null;
-                    })()}
-                  </div>
-                ) : (
-                  "Selecione o Comboio..."
-                )}
-                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-[calc(100vw-3rem)] p-0" align="start">
-              <Command>
-                <CommandInput
-                  placeholder="Buscar comboio..."
-                  value={vehicleSearch}
-                  onValueChange={setVehicleSearch}
-                />
-                <CommandList className="max-h-[300px]">
-                  <CommandEmpty>Nenhum comboio encontrado</CommandEmpty>
-                  <CommandGroup>
-                    {filteredVehicles.map((v: any, idx: number) => {
-                      const code = String(v['Codigo'] || v['CODIGO'] || v['Código'] || '');
-                      const driverName = getDriverForVehicle(code);
-                      return (
-                        <CommandItem
-                          key={`${code}-${idx}`}
-                          value={`${code} ${driverName || ''}`}
-                          onSelect={() => handleVehicleSelect(v)}
-                          className="py-3"
-                        >
-                          <div className="flex items-center gap-3 w-full">
-                            <div className="w-10 h-10 rounded-lg bg-orange-500/10 flex items-center justify-center shrink-0">
-                              <Truck className="w-5 h-5 text-orange-500" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <span className="font-bold text-sm block">{code}</span>
-                              {driverName && (
-                                <span className="text-xs text-muted-foreground block truncate">{driverName}</span>
-                              )}
-                            </div>
-                            {vehicleCode === code && (
-                              <Check className="w-4 h-4 text-primary shrink-0" />
-                            )}
-                          </div>
-                        </CommandItem>
-                      );
-                    })}
-                  </CommandGroup>
-                </CommandList>
-              </Command>
-            </PopoverContent>
-          </Popover>
+        {/* Type Selection */}
+        <div className="bg-white dark:bg-slate-800 rounded-2xl border-2 border-slate-200 dark:border-slate-700 p-3 shadow-lg">
+          {isComboioUser ? (
+            <Button type="button" variant="default" disabled className="w-full h-12 text-base font-bold bg-gradient-to-r from-green-500 to-green-600 text-white border-0 shadow-lg shadow-green-500/30 cursor-default">
+              <TrendingUp className="w-5 h-5 mr-2" />
+              Entrada
+            </Button>
+          ) : (
+            <Button type="button" variant="default" disabled className="w-full h-12 text-base font-bold bg-gradient-to-r from-red-500 to-red-600 text-white border-0 shadow-lg shadow-red-500/30 cursor-default">
+              <TrendingDown className="w-5 h-5 mr-2" />
+              Saída
+            </Button>
+          )}
         </div>
-      )}
 
-      {/* Local - for tanque users show their tanque location; for comboio users show entry location */}
-      {isComboioUser ? (
-        <div className={cn(
-          "rounded-xl p-4 border",
-          theme === 'dark' ? "bg-slate-800/80 border-slate-700" : "bg-white border-slate-200 shadow-sm"
-        )}>
-          <Label className="text-sm font-medium mb-2 block">Local de Entrada</Label>
+        {/* Local */}
+        <div className="bg-indigo-50 dark:bg-indigo-950/40 rounded-2xl border-2 border-indigo-400 dark:border-indigo-600 p-4 space-y-3 shadow-lg">
+          <div className="flex items-center gap-3 bg-indigo-100 dark:bg-indigo-900/60 px-4 py-2.5 rounded-xl -ml-1">
+            <MapPin className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
+            <span className="text-lg font-bold text-indigo-800 dark:text-indigo-200">
+              {isComboioUser ? 'Local de Entrada' : 'Local (Tanque de Saída)'}
+            </span>
+          </div>
           <Select value={entryLocation} onValueChange={setEntryLocation}>
-            <SelectTrigger className="h-12 text-base font-semibold">
-              <SelectValue placeholder="Selecione o tanque..." />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="Tanque Canteiro 01">Tanque Canteiro 01</SelectItem>
-              <SelectItem value="Tanque Canteiro 02">Tanque Canteiro 02</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      ) : (
-        <div className={cn(
-          "rounded-xl p-4 border",
-          theme === 'dark' ? "bg-slate-800/80 border-slate-700" : "bg-white border-slate-200 shadow-sm"
-        )}>
-          <Label className="text-sm font-medium mb-2 block">Local (Tanque de Saída)</Label>
-          <Select value={entryLocation} onValueChange={setEntryLocation}>
-            <SelectTrigger className="h-12 text-base font-semibold">
+            <SelectTrigger className="h-14 text-lg font-bold border-2 border-indigo-300 dark:border-indigo-600 bg-white dark:bg-slate-900 shadow-md">
               <SelectValue placeholder="Selecione o tanque..." />
             </SelectTrigger>
             <SelectContent className="z-50 bg-popover">
-              <SelectItem value="Tanque Canteiro 01">Tanque Canteiro 01</SelectItem>
-              <SelectItem value="Tanque Canteiro 02">Tanque Canteiro 02</SelectItem>
+              <SelectItem value="Tanque Canteiro 01" className="text-base py-3 font-medium">Tanque Canteiro 01</SelectItem>
+              <SelectItem value="Tanque Canteiro 02" className="text-base py-3 font-medium">Tanque Canteiro 02</SelectItem>
             </SelectContent>
           </Select>
         </div>
-      )}
 
-      {/* Quantity */}
-      <div className={cn(
-        "rounded-xl p-4 border",
-        theme === 'dark' ? "bg-slate-800/80 border-slate-700" : "bg-white border-slate-200 shadow-sm"
-      )}>
-        <Label className="text-sm font-medium mb-2 block">Quantidade (Litros)</Label>
-        <input
-          type="number"
-          inputMode="numeric"
-          value={fuelQuantity}
-          onChange={(e) => setFuelQuantity(e.target.value)}
-          placeholder="Ex: 250"
-          className={cn(
-            "flex h-12 w-full rounded-md border px-3 py-2 text-lg font-bold ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-            theme === 'dark' 
-              ? "bg-slate-700 border-slate-600 text-white" 
-              : "bg-background border-input"
-          )}
-        />
-      </div>
-
-      {/* Photo */}
-      <div className={cn(
-        "rounded-xl p-4 border",
-        theme === 'dark' ? "bg-slate-800/80 border-slate-700" : "bg-white border-slate-200 shadow-sm"
-      )}>
-        <Label className="text-sm font-medium mb-2 block">Foto da Bomba</Label>
-        <input
-          ref={photoPumpInputRef}
-          type="file"
-          accept="image/*"
-          capture="environment"
-          onChange={handlePhotoCapture}
-          className="hidden"
-        />
-        {photoPumpPreview ? (
-          <div className="relative">
-            <img src={photoPumpPreview} alt="Foto bomba" className="w-full h-40 object-cover rounded-lg" />
-            <Button
-              variant="destructive"
-              size="icon"
-              className="absolute top-2 right-2 h-8 w-8"
-              onClick={() => {
-                setPhotoPump(null);
-                setPhotoPumpPreview(null);
-                if (photoPumpInputRef.current) photoPumpInputRef.current.value = '';
-              }}
-            >
-              <Trash2 className="w-4 h-4" />
-            </Button>
+        {/* Vehicle Selection - hidden for comboio users */}
+        {!isComboioUser && (
+          <div className="bg-sky-50 dark:bg-sky-950/40 rounded-2xl border-2 border-sky-400 dark:border-sky-600 p-4 space-y-3 shadow-lg">
+            <div className="flex items-center gap-3 bg-sky-100 dark:bg-sky-900/60 px-4 py-2.5 rounded-xl -ml-1">
+              <Truck className="w-6 h-6 text-sky-600 dark:text-sky-400" />
+              <span className="text-lg font-bold text-sky-800 dark:text-sky-200">
+                Comboio de Destino <span className="text-red-500">*</span>
+              </span>
+            </div>
+            <Popover open={vehicleOpen} onOpenChange={setVehicleOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  className={cn(
+                    "w-full justify-between font-medium h-14 text-lg",
+                    "bg-white dark:bg-slate-900 border-2 border-sky-300 dark:border-sky-600",
+                    "hover:border-sky-500 transition-all duration-200 shadow-md",
+                    !vehicleCode && "text-muted-foreground"
+                  )}
+                >
+                  {vehicleCode ? (
+                    <div className="flex items-center gap-2">
+                      <Truck className="w-5 h-5 text-sky-600" />
+                      <span className="font-bold">{vehicleCode}</span>
+                      {(() => {
+                        const driverName = getDriverForVehicle(vehicleCode);
+                        return driverName ? (
+                          <span className="text-sm text-muted-foreground">- {driverName}</span>
+                        ) : null;
+                      })()}
+                    </div>
+                  ) : (
+                    "Selecione o Comboio..."
+                  )}
+                  <ChevronsUpDown className="ml-2 h-5 w-5 shrink-0 text-muted-foreground" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[--radix-popover-trigger-width] min-w-[320px] p-0 bg-popover border-2 border-border shadow-xl z-[100]" align="start" sideOffset={4}>
+                <Command className="bg-popover">
+                  <div className="flex items-center border-b-2 border-border px-3 bg-muted/50">
+                    <Search className="h-5 w-5 shrink-0 text-primary mr-2" />
+                    <CommandInput
+                      placeholder="Buscar comboio..."
+                      value={vehicleSearch}
+                      onValueChange={setVehicleSearch}
+                      className="h-12 text-base border-0 focus:ring-0 bg-transparent placeholder:text-muted-foreground"
+                    />
+                  </div>
+                  <CommandList className="max-h-[400px] overflow-auto">
+                    <CommandEmpty className="py-6 text-center">
+                      <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                        <Truck className="h-8 w-8 opacity-50" />
+                        <span className="text-sm">Nenhum comboio encontrado</span>
+                      </div>
+                    </CommandEmpty>
+                    <CommandGroup>
+                      {filteredVehicles.map((v: any, idx: number) => {
+                        const code = String(v['Codigo'] || v['CODIGO'] || v['Código'] || '');
+                        const driverName = getDriverForVehicle(code);
+                        return (
+                          <CommandItem
+                            key={`${code}-${idx}`}
+                            value={`${code} ${driverName || ''}`}
+                            onSelect={() => handleVehicleSelect(v)}
+                            className="py-3"
+                          >
+                            <div className="flex items-center gap-3 w-full">
+                              <div className="w-10 h-10 rounded-lg bg-sky-500/10 flex items-center justify-center shrink-0">
+                                <Truck className="w-5 h-5 text-sky-500" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <span className="font-bold text-sm block">{code}</span>
+                                {driverName && (
+                                  <span className="text-xs text-muted-foreground block truncate">{driverName}</span>
+                                )}
+                              </div>
+                              {vehicleCode === code && (
+                                <Check className="w-4 h-4 text-primary shrink-0" />
+                              )}
+                            </div>
+                          </CommandItem>
+                        );
+                      })}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           </div>
-        ) : (
-          <Button
-            variant="outline"
-            className="w-full h-20 flex flex-col gap-1"
-            onClick={() => photoPumpInputRef.current?.click()}
-          >
-            <Camera className="w-6 h-6 text-muted-foreground" />
-            <span className="text-xs text-muted-foreground">Tirar Foto</span>
-          </Button>
         )}
-      </div>
 
-      {/* Submit Button */}
-      <Button
-        onClick={handleSubmit}
-        disabled={isSaving || !vehicleCode || !fuelQuantity || !entryLocation}
-        className={cn(
-          "w-full h-14 text-base font-bold gap-2 rounded-xl",
-          recordType === 'entrada'
-            ? "bg-green-600 hover:bg-green-700"
-            : "bg-red-600 hover:bg-red-700"
-        )}
-      >
-        {isSaving ? (
-          <>
-            <Loader2 className="w-5 h-5 animate-spin" />
-            Salvando...
-          </>
-        ) : (
-          <>
-            <Save className="w-5 h-5" />
-            Salvar {recordType === 'entrada' ? 'Entrada' : 'Saída'}
-          </>
-        )}
-      </Button>
+        {/* Quantity */}
+        <div className="bg-amber-50 dark:bg-amber-950/40 rounded-2xl border-2 border-amber-400 dark:border-amber-600 p-4 space-y-3 shadow-lg">
+          <div className="flex items-center gap-3 bg-amber-100 dark:bg-amber-900/60 px-4 py-2.5 rounded-xl -ml-1">
+            <Droplet className="w-6 h-6 text-amber-600 dark:text-amber-400" />
+            <span className="text-lg font-bold text-amber-800 dark:text-amber-200">
+              Quantidade (Litros) <span className="text-red-500">*</span>
+            </span>
+          </div>
+          <input
+            type="number"
+            inputMode="numeric"
+            value={fuelQuantity}
+            onChange={(e) => setFuelQuantity(e.target.value)}
+            placeholder="Ex: 250"
+            className="flex h-16 w-full rounded-md border-2 border-amber-300 dark:border-amber-600 bg-white dark:bg-slate-900 px-3 py-2 text-3xl text-center font-black shadow-md ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          />
+        </div>
+
+        {/* Photo */}
+        <div className="bg-emerald-50 dark:bg-emerald-950/40 rounded-2xl border-2 border-emerald-400 dark:border-emerald-600 p-4 space-y-3 shadow-lg">
+          <div className="flex items-center gap-3 bg-emerald-100 dark:bg-emerald-900/60 px-4 py-2.5 rounded-xl -ml-1">
+            <Camera className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
+            <span className="text-lg font-bold text-emerald-800 dark:text-emerald-200">
+              Foto da Bomba
+            </span>
+          </div>
+          <input
+            ref={photoPumpInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={handlePhotoCapture}
+            className="hidden"
+          />
+          {photoPumpPreview ? (
+            <div className="relative">
+              <img src={photoPumpPreview} alt="Foto bomba" className="w-full h-40 object-cover rounded-lg border-2 border-emerald-300" />
+              <Button
+                variant="destructive"
+                size="icon"
+                className="absolute top-2 right-2 h-8 w-8"
+                onClick={() => {
+                  setPhotoPump(null);
+                  setPhotoPumpPreview(null);
+                  if (photoPumpInputRef.current) photoPumpInputRef.current.value = '';
+                }}
+              >
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            </div>
+          ) : (
+            <Button
+              variant="outline"
+              className="w-full h-20 flex flex-col gap-1 border-2 border-dashed border-emerald-300 dark:border-emerald-600 hover:bg-emerald-100/50"
+              onClick={() => photoPumpInputRef.current?.click()}
+            >
+              <Camera className="w-6 h-6 text-emerald-500" />
+              <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">Tirar Foto</span>
+            </Button>
+          )}
+        </div>
+
+        {/* Submit Button */}
+        <Button
+          onClick={handleSubmit}
+          disabled={isSaving || !vehicleCode || !fuelQuantity || !entryLocation}
+          className={cn(
+            "w-full h-16 text-lg font-bold gap-2 rounded-2xl shadow-lg",
+            recordType === 'entrada'
+              ? "bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 shadow-green-500/30"
+              : "bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 shadow-red-500/30"
+          )}
+        >
+          {isSaving ? (
+            <>
+              <Loader2 className="w-5 h-5 animate-spin" />
+              Salvando...
+            </>
+          ) : (
+            <>
+              <Save className="w-5 h-5" />
+              Salvar {recordType === 'entrada' ? 'Entrada' : 'Saída'}
+            </>
+          )}
+        </Button>
+      </div>
     </div>
   );
 }

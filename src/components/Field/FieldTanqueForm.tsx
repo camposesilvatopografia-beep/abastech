@@ -8,7 +8,15 @@ import {
   Trash2,
   Check,
   TrendingUp,
+  CheckCircle,
+  Clock,
+  MapPin,
+  Droplet,
+  Building2,
+  Receipt,
+  Cloud,
 } from 'lucide-react';
+import logoAbastech from '@/assets/logo-abastech.png';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import {
@@ -246,211 +254,225 @@ export function FieldTanqueForm({ user, onBack }: FieldTanqueFormProps) {
 
   if (showSuccess) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="text-center space-y-4">
-          <div className="w-20 h-20 rounded-full bg-green-500 flex items-center justify-center mx-auto animate-bounce">
-            <Check className="w-10 h-10 text-white" />
+      <div className="fixed inset-0 bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center z-50 animate-in fade-in duration-300">
+        <div className="text-center text-white space-y-4">
+          <div className="relative">
+            <div className="absolute inset-0 bg-white/20 rounded-full animate-ping" style={{ animationDuration: '1s' }} />
+            <CheckCircle className="w-28 h-28 mx-auto relative z-10 animate-in zoom-in duration-500" />
           </div>
-          <h2 className={cn("text-xl font-bold", theme === 'dark' ? "text-white" : "text-slate-800")}>
-            Registro Salvo!
+          <h2 className="text-3xl font-bold animate-in slide-in-from-bottom duration-500">
+            Entrada Registrada!
           </h2>
+          <p className="text-lg opacity-90 animate-in slide-in-from-bottom duration-700">
+            Dados salvos com sucesso
+          </p>
+          <div className="flex items-center justify-center gap-2 mt-4 animate-in slide-in-from-bottom duration-900">
+            <Cloud className="w-5 h-5" />
+            <span className="text-sm">Sincronizando com planilha...</span>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-4 p-4">
+    <div className="min-h-screen bg-gradient-to-br from-slate-100 via-slate-50 to-white dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 pb-4">
       {/* Header */}
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={onBack} className="shrink-0">
-          <ArrowLeft className="w-5 h-5" />
-        </Button>
-        <div>
-          <h2 className={cn("text-lg font-bold", theme === 'dark' ? "text-white" : "text-slate-800")}>
-            Carregar Tanque
-          </h2>
-          <p className="text-xs text-muted-foreground">Entrada de combustível de fornecedor externo</p>
-        </div>
-      </div>
-
-      {/* Type - always Entrada */}
-      <div className={cn(
-        "rounded-xl p-4 border",
-        theme === 'dark' ? "bg-slate-800/80 border-slate-700" : "bg-white border-slate-200 shadow-sm"
-      )}>
-        <Label className="text-sm font-medium mb-2 block">Tipo</Label>
-        <div className="flex items-center gap-2 p-3 rounded-xl border-2 border-green-500 bg-green-500/20 font-semibold text-green-600 dark:text-green-400">
-          <TrendingUp className="w-5 h-5" />
-          Entrada
-        </div>
-      </div>
-
-      {/* Local (auto) */}
-      <div className={cn(
-        "rounded-xl p-4 border",
-        theme === 'dark' ? "bg-slate-800/80 border-slate-700" : "bg-white border-slate-200 shadow-sm"
-      )}>
-        <Label className="text-sm font-medium mb-2 block">Local do Tanque</Label>
-        <Select value={selectedLocation} onValueChange={setSelectedLocation}>
-          <SelectTrigger className="h-12 text-base font-semibold">
-            <SelectValue placeholder="Selecione o tanque..." />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="Tanque Canteiro 01">Tanque Canteiro 01</SelectItem>
-            <SelectItem value="Tanque Canteiro 02">Tanque Canteiro 02</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* Supplier */}
-      <div className={cn(
-        "rounded-xl p-4 border",
-        theme === 'dark' ? "bg-slate-800/80 border-slate-700" : "bg-white border-slate-200 shadow-sm"
-      )}>
-        <Label className="text-sm font-medium mb-2 block">Fornecedor</Label>
-        <Select value={supplier} onValueChange={setSupplier}>
-          <SelectTrigger className="h-12 text-base font-semibold">
-            <SelectValue placeholder="Selecione o fornecedor..." />
-          </SelectTrigger>
-          <SelectContent>
-            {suppliers.map(s => (
-              <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>
-            ))}
-            <SelectItem value="Outro">Outro</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* Invoice */}
-      <div className={cn(
-        "rounded-xl p-4 border",
-        theme === 'dark' ? "bg-slate-800/80 border-slate-700" : "bg-white border-slate-200 shadow-sm"
-      )}>
-        <Label className="text-sm font-medium mb-2 block">Nº Nota Fiscal (opcional)</Label>
-        <input
-          type="text"
-          value={invoiceNumber}
-          onChange={(e) => setInvoiceNumber(e.target.value)}
-          placeholder="Ex: 123456"
-          className={cn(
-            "flex h-12 w-full rounded-md border px-3 py-2 text-base ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-            theme === 'dark' ? "bg-slate-700 border-slate-600 text-white" : "bg-background border-input"
-          )}
-        />
-      </div>
-
-      {/* Quantity */}
-      <div className={cn(
-        "rounded-xl p-4 border",
-        theme === 'dark' ? "bg-slate-800/80 border-slate-700" : "bg-white border-slate-200 shadow-sm"
-      )}>
-        <Label className="text-sm font-medium mb-2 block">Quantidade (Litros)</Label>
-        <input
-          type="number"
-          inputMode="numeric"
-          value={fuelQuantity}
-          onChange={(e) => setFuelQuantity(e.target.value)}
-          placeholder="Ex: 5000"
-          className={cn(
-            "flex h-12 w-full rounded-md border px-3 py-2 text-lg font-bold ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-            theme === 'dark' ? "bg-slate-700 border-slate-600 text-white" : "bg-background border-input"
-          )}
-        />
-      </div>
-
-      {/* Unit Price */}
-      <div className={cn(
-        "rounded-xl p-4 border",
-        theme === 'dark' ? "bg-slate-800/80 border-slate-700" : "bg-white border-slate-200 shadow-sm"
-      )}>
-        <Label className="text-sm font-medium mb-2 block">Valor Unitário (R$/L) - opcional</Label>
-        <CurrencyInput
-          value={unitPrice}
-          onChange={setUnitPrice}
-          placeholder="0,00"
-          className="h-12 text-lg font-bold"
-        />
-      </div>
-
-
-      <div className={cn(
-        "rounded-xl p-4 border",
-        theme === 'dark' ? "bg-slate-800/80 border-slate-700" : "bg-white border-slate-200 shadow-sm"
-      )}>
-        <Label className="text-sm font-medium mb-2 block">Foto (opcional)</Label>
-        <input
-          ref={photoPumpInputRef}
-          type="file"
-          accept="image/*"
-          capture="environment"
-          onChange={handlePhotoCapture}
-          className="hidden"
-        />
-        {photoPumpPreview ? (
-          <div className="relative">
-            <img src={photoPumpPreview} alt="Foto" className="w-full h-40 object-cover rounded-lg" />
-            <Button
-              variant="destructive"
-              size="icon"
-              className="absolute top-2 right-2 h-8 w-8"
-              onClick={() => {
-                setPhotoPump(null);
-                setPhotoPumpPreview(null);
-                if (photoPumpInputRef.current) photoPumpInputRef.current.value = '';
-              }}
-            >
-              <Trash2 className="w-4 h-4" />
+      <div className="bg-gradient-to-r from-teal-800 to-teal-700 px-4 py-3">
+        <div className="flex items-center justify-between max-w-2xl mx-auto">
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="icon" onClick={onBack} className="shrink-0 text-white hover:bg-white/10">
+              <ArrowLeft className="w-5 h-5" />
             </Button>
+            <img src={logoAbastech} alt="Abastech" className="h-8 w-auto" />
+            <span className="text-white font-bold text-base">Carregar Tanque</span>
           </div>
-        ) : (
-          <Button
-            variant="outline"
-            className="w-full h-20 flex flex-col gap-1"
-            onClick={() => photoPumpInputRef.current?.click()}
-          >
-            <Camera className="w-6 h-6 text-muted-foreground" />
-            <span className="text-xs text-muted-foreground">Tirar Foto</span>
+          <div className="flex items-center gap-2 text-white/80 text-xs">
+            <Clock className="w-3.5 h-3.5" />
+            <span>{new Date().toLocaleDateString('pt-BR')} {new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="px-3 py-3 space-y-3 max-w-2xl mx-auto">
+
+        {/* Type - always Entrada */}
+        <div className="bg-white dark:bg-slate-800 rounded-2xl border-2 border-slate-200 dark:border-slate-700 p-3 shadow-lg">
+          <Button type="button" variant="default" disabled className="w-full h-12 text-base font-bold bg-gradient-to-r from-green-500 to-green-600 text-white border-0 shadow-lg shadow-green-500/30 cursor-default">
+            <TrendingUp className="w-5 h-5 mr-2" />
+            Entrada
           </Button>
-        )}
-      </div>
+        </div>
 
-      {/* Observations */}
-      <div className={cn(
-        "rounded-xl p-4 border",
-        theme === 'dark' ? "bg-slate-800/80 border-slate-700" : "bg-white border-slate-200 shadow-sm"
-      )}>
-        <Label className="text-sm font-medium mb-2 block">Observações (opcional)</Label>
-        <textarea
-          value={observations}
-          onChange={(e) => setObservations(e.target.value)}
-          placeholder="Observações..."
-          rows={2}
-          className={cn(
-            "flex w-full rounded-md border px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-            theme === 'dark' ? "bg-slate-700 border-slate-600 text-white" : "bg-background border-input"
+        {/* Local do Tanque */}
+        <div className="bg-indigo-50 dark:bg-indigo-950/40 rounded-2xl border-2 border-indigo-400 dark:border-indigo-600 p-4 space-y-3 shadow-lg">
+          <div className="flex items-center gap-3 bg-indigo-100 dark:bg-indigo-900/60 px-4 py-2.5 rounded-xl -ml-1">
+            <MapPin className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
+            <span className="text-lg font-bold text-indigo-800 dark:text-indigo-200">
+              Local do Tanque <span className="text-red-500">*</span>
+            </span>
+          </div>
+          <Select value={selectedLocation} onValueChange={setSelectedLocation}>
+            <SelectTrigger className="h-14 text-lg font-bold border-2 border-indigo-300 dark:border-indigo-600 bg-white dark:bg-slate-900 shadow-md">
+              <SelectValue placeholder="Selecione o tanque..." />
+            </SelectTrigger>
+            <SelectContent className="z-50 bg-popover">
+              <SelectItem value="Tanque Canteiro 01" className="text-base py-3 font-medium">Tanque Canteiro 01</SelectItem>
+              <SelectItem value="Tanque Canteiro 02" className="text-base py-3 font-medium">Tanque Canteiro 02</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Supplier */}
+        <div className="bg-purple-50 dark:bg-purple-950/40 rounded-2xl border-2 border-purple-400 dark:border-purple-600 p-4 space-y-3 shadow-lg">
+          <div className="flex items-center gap-3 bg-purple-100 dark:bg-purple-900/60 px-4 py-2.5 rounded-xl -ml-1">
+            <Building2 className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+            <span className="text-lg font-bold text-purple-800 dark:text-purple-200">
+              Fornecedor <span className="text-red-500">*</span>
+            </span>
+          </div>
+          <Select value={supplier} onValueChange={setSupplier}>
+            <SelectTrigger className="h-14 text-lg font-bold border-2 border-purple-300 dark:border-purple-600 bg-white dark:bg-slate-900 shadow-md">
+              <SelectValue placeholder="Selecione o fornecedor..." />
+            </SelectTrigger>
+            <SelectContent className="z-50 bg-popover">
+              {suppliers.map(s => (
+                <SelectItem key={s.id} value={s.name} className="text-base py-3 font-medium">{s.name}</SelectItem>
+              ))}
+              <SelectItem value="Outro" className="text-base py-3 font-medium">Outro</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Invoice */}
+        <div className="bg-white dark:bg-slate-800 rounded-2xl border-2 border-slate-200 dark:border-slate-700 p-4 space-y-3 shadow-lg">
+          <div className="flex items-center gap-3 bg-slate-100 dark:bg-slate-700/60 px-4 py-2.5 rounded-xl -ml-1">
+            <Receipt className="w-6 h-6 text-slate-600 dark:text-slate-400" />
+            <span className="text-lg font-bold text-slate-800 dark:text-slate-200">
+              Nº Nota Fiscal
+            </span>
+          </div>
+          <input
+            type="text"
+            value={invoiceNumber}
+            onChange={(e) => setInvoiceNumber(e.target.value)}
+            placeholder="Ex: 123456"
+            className="flex h-14 w-full rounded-md border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-lg font-bold ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 shadow-md"
+          />
+        </div>
+
+        {/* Quantity */}
+        <div className="bg-amber-50 dark:bg-amber-950/40 rounded-2xl border-2 border-amber-400 dark:border-amber-600 p-4 space-y-3 shadow-lg">
+          <div className="flex items-center gap-3 bg-amber-100 dark:bg-amber-900/60 px-4 py-2.5 rounded-xl -ml-1">
+            <Droplet className="w-6 h-6 text-amber-600 dark:text-amber-400" />
+            <span className="text-lg font-bold text-amber-800 dark:text-amber-200">
+              Quantidade (Litros) <span className="text-red-500">*</span>
+            </span>
+          </div>
+          <input
+            type="number"
+            inputMode="numeric"
+            value={fuelQuantity}
+            onChange={(e) => setFuelQuantity(e.target.value)}
+            placeholder="Ex: 5000"
+            className="flex h-16 w-full rounded-md border-2 border-amber-300 dark:border-amber-600 bg-white dark:bg-slate-900 px-3 py-2 text-3xl text-center font-black shadow-md ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          />
+        </div>
+
+        {/* Unit Price */}
+        <div className="bg-white dark:bg-slate-800 rounded-2xl border-2 border-slate-200 dark:border-slate-700 p-4 space-y-3 shadow-lg">
+          <div className="flex items-center gap-3 bg-slate-100 dark:bg-slate-700/60 px-4 py-2.5 rounded-xl -ml-1">
+            <span className="text-lg font-bold text-slate-800 dark:text-slate-200">
+              Valor Unitário (R$/L)
+            </span>
+          </div>
+          <CurrencyInput
+            value={unitPrice}
+            onChange={setUnitPrice}
+            placeholder="0,00"
+            className="h-14 text-lg font-bold border-2 border-slate-300 dark:border-slate-600 shadow-md"
+          />
+        </div>
+
+        {/* Photo */}
+        <div className="bg-emerald-50 dark:bg-emerald-950/40 rounded-2xl border-2 border-emerald-400 dark:border-emerald-600 p-4 space-y-3 shadow-lg">
+          <div className="flex items-center gap-3 bg-emerald-100 dark:bg-emerald-900/60 px-4 py-2.5 rounded-xl -ml-1">
+            <Camera className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
+            <span className="text-lg font-bold text-emerald-800 dark:text-emerald-200">
+              Foto
+            </span>
+          </div>
+          <input
+            ref={photoPumpInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={handlePhotoCapture}
+            className="hidden"
+          />
+          {photoPumpPreview ? (
+            <div className="relative">
+              <img src={photoPumpPreview} alt="Foto" className="w-full h-40 object-cover rounded-lg border-2 border-emerald-300" />
+              <Button
+                variant="destructive"
+                size="icon"
+                className="absolute top-2 right-2 h-8 w-8"
+                onClick={() => {
+                  setPhotoPump(null);
+                  setPhotoPumpPreview(null);
+                  if (photoPumpInputRef.current) photoPumpInputRef.current.value = '';
+                }}
+              >
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            </div>
+          ) : (
+            <Button
+              variant="outline"
+              className="w-full h-20 flex flex-col gap-1 border-2 border-dashed border-emerald-300 dark:border-emerald-600 hover:bg-emerald-100/50"
+              onClick={() => photoPumpInputRef.current?.click()}
+            >
+              <Camera className="w-6 h-6 text-emerald-500" />
+              <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">Tirar Foto</span>
+            </Button>
           )}
-        />
-      </div>
+        </div>
 
-      {/* Submit */}
-      <Button
-        onClick={handleSubmit}
-        disabled={isSaving || !fuelQuantity || !selectedLocation}
-        className="w-full h-14 text-base font-bold gap-2 rounded-xl bg-green-600 hover:bg-green-700"
-      >
-        {isSaving ? (
-          <>
-            <Loader2 className="w-5 h-5 animate-spin" />
-            Salvando...
-          </>
-        ) : (
-          <>
-            <Save className="w-5 h-5" />
-            Salvar Entrada no Tanque
-          </>
-        )}
-      </Button>
+        {/* Observations */}
+        <div className="bg-white dark:bg-slate-800 rounded-2xl border-2 border-slate-200 dark:border-slate-700 p-4 space-y-3 shadow-lg">
+          <div className="flex items-center gap-3 bg-slate-100 dark:bg-slate-700/60 px-4 py-2.5 rounded-xl -ml-1">
+            <span className="text-lg font-bold text-slate-800 dark:text-slate-200">
+              Observações
+            </span>
+          </div>
+          <textarea
+            value={observations}
+            onChange={(e) => setObservations(e.target.value)}
+            placeholder="Observações opcionais..."
+            rows={2}
+            className="flex w-full rounded-md border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-base ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 shadow-md"
+          />
+        </div>
+
+        {/* Submit */}
+        <Button
+          onClick={handleSubmit}
+          disabled={isSaving || !fuelQuantity || !selectedLocation}
+          className="w-full h-16 text-lg font-bold gap-2 rounded-2xl bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 shadow-lg shadow-green-500/30"
+        >
+          {isSaving ? (
+            <>
+              <Loader2 className="w-5 h-5 animate-spin" />
+              Salvando...
+            </>
+          ) : (
+            <>
+              <Save className="w-5 h-5" />
+              Salvar Entrada no Tanque
+            </>
+          )}
+        </Button>
+      </div>
     </div>
   );
 }

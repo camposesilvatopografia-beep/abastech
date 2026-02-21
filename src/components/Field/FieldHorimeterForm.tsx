@@ -748,10 +748,14 @@ export function FieldHorimeterForm({ user, onBack }: FieldHorimeterFormProps) {
     }
   }, [subView, fetchAllReadings, prefillVehicleId, prefillDate]);
 
-  const sectionClass = (color: string) => cn(
-    "rounded-xl p-4 space-y-3 shadow-md",
-    isDark ? `bg-slate-800/80 border border-slate-700` : `bg-white border border-slate-200`
-  );
+  const sectionClass = (color: string) => {
+    const colorMap: Record<string, string> = {
+      blue: "bg-sky-50 dark:bg-sky-950/40 rounded-2xl border-2 border-sky-400 dark:border-sky-600 p-4 space-y-3 shadow-lg",
+      amber: "bg-amber-50 dark:bg-amber-950/40 rounded-2xl border-2 border-amber-400 dark:border-amber-600 p-4 space-y-3 shadow-lg",
+      slate: "bg-white dark:bg-slate-800 rounded-2xl border-2 border-slate-200 dark:border-slate-700 p-4 space-y-3 shadow-lg",
+    };
+    return colorMap[color] || colorMap.slate;
+  };
 
   const getVehicleCode = (vehicleId: string) => {
     const v = vehicles.find(veh => veh.id === vehicleId);
@@ -893,7 +897,8 @@ export function FieldHorimeterForm({ user, onBack }: FieldHorimeterFormProps) {
 
   // FORM VIEW
   return (
-    <div className={cn("p-4 pb-24 space-y-4", isDark ? "text-white" : "text-slate-900")}>
+    <div className="min-h-screen bg-gradient-to-br from-slate-100 via-slate-50 to-white dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 pb-24">
+      <div className="px-3 py-3 space-y-3 max-w-2xl mx-auto">
       <button
         onClick={() => setSubView('menu')}
         className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
@@ -903,11 +908,9 @@ export function FieldHorimeterForm({ user, onBack }: FieldHorimeterFormProps) {
       </button>
       {/* Vehicle Selection */}
       <div className={sectionClass('blue')}>
-        <div className="flex items-center gap-2 mb-2">
-          <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center">
-            <Truck className="w-4 h-4 text-white" />
-          </div>
-          <h3 className="font-bold text-lg">Veículo / Equipamento</h3>
+        <div className="flex items-center gap-3 bg-sky-100 dark:bg-sky-900/60 px-4 py-2.5 rounded-xl -ml-1">
+          <Truck className="w-6 h-6 text-sky-600 dark:text-sky-400" />
+          <span className="text-lg font-bold text-sky-800 dark:text-sky-200">Veículo / Equipamento</span>
         </div>
 
         <Popover open={vehicleOpen} onOpenChange={setVehicleOpen}>
@@ -917,7 +920,8 @@ export function FieldHorimeterForm({ user, onBack }: FieldHorimeterFormProps) {
               role="combobox"
               className={cn(
                 "w-full h-auto min-h-[3.5rem] justify-between text-left font-medium text-base py-2",
-                isDark ? "bg-slate-700 border-slate-600 text-white" : "bg-white border-slate-300",
+                "bg-white dark:bg-slate-900 border-2 border-sky-300 dark:border-sky-600",
+                "hover:border-sky-500 transition-all duration-200 shadow-md",
                 !selectedVehicleId && "text-muted-foreground"
               )}
             >
@@ -1070,11 +1074,9 @@ export function FieldHorimeterForm({ user, onBack }: FieldHorimeterFormProps) {
 
       {/* Date Selection */}
       <div className={sectionClass('slate')}>
-        <div className="flex items-center gap-2 mb-2">
-          <div className="w-8 h-8 rounded-lg bg-slate-600 flex items-center justify-center">
-            <CalendarIcon className="w-4 h-4 text-white" />
-          </div>
-          <h3 className="font-bold text-lg">Data da Leitura</h3>
+        <div className="flex items-center gap-3 bg-slate-100 dark:bg-slate-700/60 px-4 py-2.5 rounded-xl -ml-1">
+          <CalendarIcon className="w-6 h-6 text-slate-600 dark:text-slate-400" />
+          <span className="text-lg font-bold text-slate-800 dark:text-slate-200">Data da Leitura</span>
         </div>
 
         <Popover open={dateOpen} onOpenChange={setDateOpen}>
@@ -1109,11 +1111,9 @@ export function FieldHorimeterForm({ user, onBack }: FieldHorimeterFormProps) {
 
       {/* Horimeter Values */}
       <div className={sectionClass('amber')}>
-        <div className="flex items-center gap-2 mb-2">
-          <div className="w-8 h-8 rounded-lg bg-amber-500 flex items-center justify-center">
-            <Clock className="w-4 h-4 text-white" />
-          </div>
-          <h3 className="font-bold text-lg">Horímetro (Horas)</h3>
+        <div className="flex items-center gap-3 bg-amber-100 dark:bg-amber-900/60 px-4 py-2.5 rounded-xl -ml-1">
+          <Clock className="w-6 h-6 text-amber-600 dark:text-amber-400" />
+          <span className="text-lg font-bold text-amber-800 dark:text-amber-200">Horímetro (Horas)</span>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
@@ -1156,11 +1156,9 @@ export function FieldHorimeterForm({ user, onBack }: FieldHorimeterFormProps) {
 
       {/* KM Values */}
       <div className={sectionClass('blue')}>
-        <div className="flex items-center gap-2 mb-2">
-          <div className="w-8 h-8 rounded-lg bg-blue-500 flex items-center justify-center">
-            <Gauge className="w-4 h-4 text-white" />
-          </div>
-          <h3 className="font-bold text-lg">Quilometragem (KM)</h3>
+        <div className="flex items-center gap-3 bg-sky-100 dark:bg-sky-900/60 px-4 py-2.5 rounded-xl -ml-1">
+          <Gauge className="w-6 h-6 text-sky-600 dark:text-sky-400" />
+          <span className="text-lg font-bold text-sky-800 dark:text-sky-200">Quilometragem (KM)</span>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
@@ -1203,11 +1201,9 @@ export function FieldHorimeterForm({ user, onBack }: FieldHorimeterFormProps) {
 
       {/* Operator */}
       <div className={sectionClass('slate')}>
-        <div className="flex items-center gap-2 mb-2">
-          <div className="w-8 h-8 rounded-lg bg-slate-500 flex items-center justify-center">
-            <User className="w-4 h-4 text-white" />
-          </div>
-          <h3 className="font-bold text-lg">Operador</h3>
+        <div className="flex items-center gap-3 bg-slate-100 dark:bg-slate-700/60 px-4 py-2.5 rounded-xl -ml-1">
+          <User className="w-6 h-6 text-slate-600 dark:text-slate-400" />
+          <span className="text-lg font-bold text-slate-800 dark:text-slate-200">Operador</span>
         </div>
         <Input
           value={operador}
@@ -1288,6 +1284,7 @@ export function FieldHorimeterForm({ user, onBack }: FieldHorimeterFormProps) {
             </>
           )}
         </Button>
+      </div>
       </div>
     </div>
   );

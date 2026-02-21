@@ -551,11 +551,11 @@ export function FieldServiceOrderForm({ user, onBack }: FieldServiceOrderFormPro
   };
 
   const sectionClass = cn(
-    "rounded-xl p-4 space-y-3 shadow-md",
-    isDark ? "bg-slate-800/80 border border-slate-700" : "bg-white border border-slate-200"
+    "rounded-2xl p-4 space-y-3 shadow-lg",
+    isDark ? "bg-slate-800 border-2 border-slate-700" : "bg-white border-2 border-slate-200"
   );
 
-  const inputClass = cn("h-12 text-base", isDark ? "bg-slate-700 border-slate-600 text-white" : "");
+  const inputClass = cn("h-14 text-base font-bold border-2", isDark ? "bg-slate-900 border-slate-600 text-white" : "border-slate-300 shadow-md");
 
   // Group records by date
   const groupedRecords = useMemo(() => {
@@ -742,7 +742,8 @@ export function FieldServiceOrderForm({ user, onBack }: FieldServiceOrderFormPro
 
   // ============ FORM VIEW ============
   return (
-    <div className={cn("p-4 pb-24 space-y-4", isDark ? "text-white" : "text-slate-900")}>
+    <div className="min-h-screen bg-gradient-to-br from-slate-100 via-slate-50 to-white dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 pb-24">
+      <div className="px-3 py-3 space-y-3 max-w-2xl mx-auto">
       
       {/* Back button */}
       <div className="flex items-center gap-3 mb-2">
@@ -753,12 +754,10 @@ export function FieldServiceOrderForm({ user, onBack }: FieldServiceOrderFormPro
       </div>
 
       {/* Vehicle Selection */}
-      <div className={sectionClass}>
-        <div className="flex items-center gap-2 mb-2">
-          <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center">
-            <Truck className="w-4 h-4 text-white" />
-          </div>
-          <h3 className="font-bold text-lg">Veículo / Equipamento</h3>
+      <div className="bg-sky-50 dark:bg-sky-950/40 rounded-2xl border-2 border-sky-400 dark:border-sky-600 p-4 space-y-3 shadow-lg">
+        <div className="flex items-center gap-3 bg-sky-100 dark:bg-sky-900/60 px-4 py-2.5 rounded-xl -ml-1">
+          <Truck className="w-6 h-6 text-sky-600 dark:text-sky-400" />
+          <span className="text-lg font-bold text-sky-800 dark:text-sky-200">Veículo / Equipamento</span>
         </div>
 
         <Popover open={vehicleOpen} onOpenChange={setVehicleOpen}>
@@ -828,12 +827,10 @@ export function FieldServiceOrderForm({ user, onBack }: FieldServiceOrderFormPro
       </div>
 
       {/* Type, Priority, Status */}
-      <div className={sectionClass}>
-        <div className="flex items-center gap-2 mb-2">
-          <div className="w-8 h-8 rounded-lg bg-purple-600 flex items-center justify-center">
-            <Wrench className="w-4 h-4 text-white" />
-          </div>
-          <h3 className="font-bold text-lg">Classificação</h3>
+      <div className="bg-purple-50 dark:bg-purple-950/40 rounded-2xl border-2 border-purple-400 dark:border-purple-600 p-4 space-y-3 shadow-lg">
+        <div className="flex items-center gap-3 bg-purple-100 dark:bg-purple-900/60 px-4 py-2.5 rounded-xl -ml-1">
+          <Wrench className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+          <span className="text-lg font-bold text-purple-800 dark:text-purple-200">Classificação</span>
         </div>
 
         <div className="grid grid-cols-3 gap-2">
@@ -880,12 +877,10 @@ export function FieldServiceOrderForm({ user, onBack }: FieldServiceOrderFormPro
       </div>
 
       {/* Entry Date/Time */}
-      <div className={sectionClass}>
-        <div className="flex items-center gap-2 mb-2">
-          <div className="w-8 h-8 rounded-lg bg-green-600 flex items-center justify-center">
-            <CalendarIcon className="w-4 h-4 text-white" />
-          </div>
-          <h3 className="font-bold text-lg">Entrada</h3>
+      <div className="bg-green-50 dark:bg-green-950/40 rounded-2xl border-2 border-green-400 dark:border-green-600 p-4 space-y-3 shadow-lg">
+        <div className="flex items-center gap-3 bg-green-100 dark:bg-green-900/60 px-4 py-2.5 rounded-xl -ml-1">
+          <CalendarIcon className="w-6 h-6 text-green-600 dark:text-green-400" />
+          <span className="text-lg font-bold text-green-800 dark:text-green-200">Entrada</span>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
@@ -933,12 +928,10 @@ export function FieldServiceOrderForm({ user, onBack }: FieldServiceOrderFormPro
       </div>
 
       {/* Horimeter / KM */}
-      <div className={sectionClass}>
-        <div className="flex items-center gap-2 mb-2">
-          <div className="w-8 h-8 rounded-lg bg-amber-500 flex items-center justify-center">
-            <Gauge className="w-4 h-4 text-white" />
-          </div>
-          <h3 className="font-bold text-lg">Horímetro / KM</h3>
+      <div className="bg-amber-50 dark:bg-amber-950/40 rounded-2xl border-2 border-amber-400 dark:border-amber-600 p-4 space-y-3 shadow-lg">
+        <div className="flex items-center gap-3 bg-amber-100 dark:bg-amber-900/60 px-4 py-2.5 rounded-xl -ml-1">
+          <Gauge className="w-6 h-6 text-amber-600 dark:text-amber-400" />
+          <span className="text-lg font-bold text-amber-800 dark:text-amber-200">Horímetro / KM</span>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
@@ -963,12 +956,10 @@ export function FieldServiceOrderForm({ user, onBack }: FieldServiceOrderFormPro
       </div>
 
       {/* Problem / Solution */}
-      <div className={sectionClass}>
-        <div className="flex items-center gap-2 mb-2">
-          <div className="w-8 h-8 rounded-lg bg-red-500 flex items-center justify-center">
-            <AlertTriangle className="w-4 h-4 text-white" />
-          </div>
-          <h3 className="font-bold text-lg">Problema *</h3>
+      <div className="bg-red-50 dark:bg-red-950/40 rounded-2xl border-2 border-red-400 dark:border-red-600 p-4 space-y-3 shadow-lg">
+        <div className="flex items-center gap-3 bg-red-100 dark:bg-red-900/60 px-4 py-2.5 rounded-xl -ml-1">
+          <AlertTriangle className="w-6 h-6 text-red-600 dark:text-red-400" />
+          <span className="text-lg font-bold text-red-800 dark:text-red-200">Problema *</span>
         </div>
         <Textarea
           value={form.problem_description}
@@ -989,12 +980,10 @@ export function FieldServiceOrderForm({ user, onBack }: FieldServiceOrderFormPro
       </div>
 
       {/* Mechanic */}
-      <div className={sectionClass}>
-        <div className="flex items-center gap-2 mb-2">
-          <div className="w-8 h-8 rounded-lg bg-slate-500 flex items-center justify-center">
-            <User className="w-4 h-4 text-white" />
-          </div>
-          <h3 className="font-bold text-lg">Mecânico</h3>
+      <div className="bg-slate-50 dark:bg-slate-800 rounded-2xl border-2 border-slate-300 dark:border-slate-600 p-4 space-y-3 shadow-lg">
+        <div className="flex items-center gap-3 bg-slate-100 dark:bg-slate-700/60 px-4 py-2.5 rounded-xl -ml-1">
+          <User className="w-6 h-6 text-slate-600 dark:text-slate-400" />
+          <span className="text-lg font-bold text-slate-800 dark:text-slate-200">Mecânico</span>
         </div>
         <Select
           value={form.mechanic_id}
@@ -1023,12 +1012,10 @@ export function FieldServiceOrderForm({ user, onBack }: FieldServiceOrderFormPro
       </div>
 
       {/* Costs */}
-      <div className={sectionClass}>
-        <div className="flex items-center gap-2 mb-2">
-          <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center">
-            <FileText className="w-4 h-4 text-white" />
-          </div>
-          <h3 className="font-bold text-lg">Peças e Custos</h3>
+      <div className="bg-emerald-50 dark:bg-emerald-950/40 rounded-2xl border-2 border-emerald-400 dark:border-emerald-600 p-4 space-y-3 shadow-lg">
+        <div className="flex items-center gap-3 bg-emerald-100 dark:bg-emerald-900/60 px-4 py-2.5 rounded-xl -ml-1">
+          <FileText className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
+          <span className="text-lg font-bold text-emerald-800 dark:text-emerald-200">Peças e Custos</span>
         </div>
         <Textarea
           value={form.parts_used}
@@ -1069,12 +1056,10 @@ export function FieldServiceOrderForm({ user, onBack }: FieldServiceOrderFormPro
       </div>
 
       {/* Photos */}
-      <div className={sectionClass}>
-        <div className="flex items-center gap-2 mb-2">
-          <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center">
-            <FileText className="w-4 h-4 text-white" />
-          </div>
-          <h3 className="font-bold text-lg">Fotos</h3>
+      <div className="bg-indigo-50 dark:bg-indigo-950/40 rounded-2xl border-2 border-indigo-400 dark:border-indigo-600 p-4 space-y-3 shadow-lg">
+        <div className="flex items-center gap-3 bg-indigo-100 dark:bg-indigo-900/60 px-4 py-2.5 rounded-xl -ml-1">
+          <FileText className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
+          <span className="text-lg font-bold text-indigo-800 dark:text-indigo-200">Fotos</span>
         </div>
         <OSPhotoUpload
           photos={{
@@ -1099,8 +1084,10 @@ export function FieldServiceOrderForm({ user, onBack }: FieldServiceOrderFormPro
       </div>
 
       {/* Notes */}
-      <div className={sectionClass}>
-        <Label className="text-sm font-medium">Observações</Label>
+      <div className="bg-white dark:bg-slate-800 rounded-2xl border-2 border-slate-200 dark:border-slate-700 p-4 space-y-3 shadow-lg">
+        <div className="flex items-center gap-3 bg-slate-100 dark:bg-slate-700/60 px-4 py-2.5 rounded-xl -ml-1">
+          <span className="text-lg font-bold text-slate-800 dark:text-slate-200">Observações</span>
+        </div>
         <Textarea
           value={form.notes}
           onChange={e => setForm(prev => ({ ...prev, notes: e.target.value }))}
@@ -1115,7 +1102,7 @@ export function FieldServiceOrderForm({ user, onBack }: FieldServiceOrderFormPro
         <Button
           onClick={handleSave}
           disabled={isSaving || !form.vehicle_code || !form.problem_description.trim()}
-          className="w-full h-14 text-lg font-bold bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/30 gap-2"
+          className="w-full h-16 text-lg font-bold bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white shadow-lg shadow-emerald-500/30 gap-2 rounded-2xl"
         >
           {isSaving ? (
             <>
@@ -1129,6 +1116,7 @@ export function FieldServiceOrderForm({ user, onBack }: FieldServiceOrderFormPro
             </>
           )}
         </Button>
+      </div>
       </div>
     </div>
   );
