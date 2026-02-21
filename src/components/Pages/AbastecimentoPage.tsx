@@ -88,7 +88,14 @@ const SHEET_NAME = 'AbastecimentoCanteiro01';
 const GERAL_SHEET = 'Geral';
 const SANEAMENTO_STOCK_SHEET = 'EstoqueObraSaneamento';
 
-import { Package2, Wrench, BarChart } from 'lucide-react';
+import { Package2, Wrench, BarChart, Fuel as FuelIcon } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { useObraSettings } from '@/hooks/useObraSettings';
 import { HorimeterCorrectionsTab } from '@/components/Abastecimento/HorimeterCorrectionsTab';
 import { VehicleConsumptionDetailTab } from '@/components/Abastecimento/VehicleConsumptionDetailTab';
@@ -2135,24 +2142,46 @@ export function AbastecimentoPage() {
           
           <div className="flex flex-wrap items-center gap-2">
             {canCreateRecords && (
-              <>
-                <Button size="sm" onClick={() => openAdminModal('comboio')} className="gap-1 bg-orange-600 hover:bg-orange-700">
-                  <Truck className="w-4 h-4" />
-                  <span className="hidden lg:inline">Carregar Comboio</span>
-                </Button>
-                <Button size="sm" onClick={() => openAdminModal('tanque_diesel')} className="gap-1 bg-blue-600 hover:bg-blue-700">
-                  <Package2 className="w-4 h-4" />
-                  <span className="hidden lg:inline">Carregar Tanque Diesel</span>
-                </Button>
-                <Button size="sm" onClick={() => openAdminModal('tanque_arla')} className="gap-1 bg-cyan-600 hover:bg-cyan-700">
-                  <Droplet className="w-4 h-4" />
-                  <span className="hidden lg:inline">Carregar Tanque Arla</span>
-                </Button>
-                <Button size="sm" onClick={() => openAdminModal('normal')} className="bg-green-600 hover:bg-green-700">
-                  <Plus className="w-4 h-4 sm:mr-1" />
-                  <span className="hidden sm:inline">Novo</span>
-                </Button>
-              </>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button size="sm" className="gap-1 bg-green-600 hover:bg-green-700">
+                    <Plus className="w-4 h-4" />
+                    <span className="hidden sm:inline">Novo Lançamento</span>
+                    <ChevronDown className="w-3 h-3 ml-1" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuItem onClick={() => openAdminModal('normal')} className="gap-2 cursor-pointer">
+                    <FuelIcon className="w-4 h-4 text-green-600" />
+                    <div>
+                      <div className="font-medium">Abastecer (Saída)</div>
+                      <div className="text-xs text-muted-foreground">Saída de combustível para equipamento</div>
+                    </div>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => openAdminModal('comboio')} className="gap-2 cursor-pointer">
+                    <Truck className="w-4 h-4 text-orange-600" />
+                    <div>
+                      <div className="font-medium">Carregar Comboio</div>
+                      <div className="text-xs text-muted-foreground">Entrada de diesel para comboio</div>
+                    </div>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => openAdminModal('tanque_diesel')} className="gap-2 cursor-pointer">
+                    <Package2 className="w-4 h-4 text-blue-600" />
+                    <div>
+                      <div className="font-medium">Carregar Tanque Diesel</div>
+                      <div className="text-xs text-muted-foreground">Entrada de diesel para tanque</div>
+                    </div>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => openAdminModal('tanque_arla')} className="gap-2 cursor-pointer">
+                    <Droplet className="w-4 h-4 text-cyan-600" />
+                    <div>
+                      <div className="font-medium">Carregar Tanque Arla</div>
+                      <div className="text-xs text-muted-foreground">Entrada de arla para tanque</div>
+                    </div>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
             {pendingSyncCount > 0 && (
               <Button
@@ -3015,24 +3044,34 @@ export function AbastecimentoPage() {
                 <Badge variant="outline">{entradasData.entries.length} registros</Badge>
               </div>
               {canCreateRecords && (
-                <div className="flex items-center gap-2 flex-wrap">
-                  <Button size="sm" onClick={() => openAdminModal('comboio')} className="gap-2 bg-orange-600 hover:bg-orange-700">
-                    <Truck className="w-4 h-4" />
-                    Carregar Comboio
-                  </Button>
-                  <Button size="sm" onClick={() => openAdminModal('tanque_diesel')} className="gap-2 bg-blue-600 hover:bg-blue-700">
-                    <Package2 className="w-4 h-4" />
-                    Carregar Tanque Diesel
-                  </Button>
-                  <Button size="sm" onClick={() => openAdminModal('tanque_arla')} className="gap-2 bg-cyan-600 hover:bg-cyan-700">
-                    <Droplet className="w-4 h-4" />
-                    Carregar Tanque Arla
-                  </Button>
-                  <Button size="sm" onClick={() => openAdminModal('normal')} variant="outline" className="gap-2">
-                    <Plus className="w-4 h-4" />
-                    Nova Entrada
-                  </Button>
-                </div>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button size="sm" className="gap-1 bg-green-600 hover:bg-green-700">
+                      <Plus className="w-4 h-4" />
+                      Novo Lançamento
+                      <ChevronDown className="w-3 h-3 ml-1" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuItem onClick={() => openAdminModal('normal')} className="gap-2 cursor-pointer">
+                      <FuelIcon className="w-4 h-4 text-green-600" />
+                      <span>Abastecer (Saída)</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => openAdminModal('comboio')} className="gap-2 cursor-pointer">
+                      <Truck className="w-4 h-4 text-orange-600" />
+                      <span>Carregar Comboio</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => openAdminModal('tanque_diesel')} className="gap-2 cursor-pointer">
+                      <Package2 className="w-4 h-4 text-blue-600" />
+                      <span>Carregar Tanque Diesel</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => openAdminModal('tanque_arla')} className="gap-2 cursor-pointer">
+                      <Droplet className="w-4 h-4 text-cyan-600" />
+                      <span>Carregar Tanque Arla</span>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               )}
             </div>
 
