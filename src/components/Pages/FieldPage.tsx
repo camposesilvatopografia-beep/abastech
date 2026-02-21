@@ -683,23 +683,7 @@ export function FieldPage() {
             <LayoutDashboard className="w-5 h-5" />
           </Button>
         )}
-        {canViewModuleEffective(userRole, 'field_abastecimento', user?.id) && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className={cn(
-              "h-11 w-11 rounded-xl",
-              (currentView === 'fuel-menu' || currentView === 'fuel-abastecer' || currentView === 'fuel-comboio' || currentView === 'fuel-tanque' || currentView === 'fuel-arla' || currentView === 'fuel-registros' || currentView === 'form')
-                ? "bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/30" 
-                : theme === 'dark'
-                  ? "text-slate-400 hover:text-white hover:bg-slate-700"
-                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
-            )}
-            onClick={() => setCurrentView('fuel-menu')}
-          >
-            <Fuel className="w-5 h-5" />
-          </Button>
-        )}
+        
         {canViewModuleEffective(userRole, 'field_horimetros', user?.id) && (
           <Button
             variant="ghost"
@@ -832,42 +816,35 @@ export function FieldPage() {
             canViewModule={canViewModuleEffective}
             isAdmin={isAdmin}
           />
-        ) : currentView === 'fuel-menu' && effectiveUser ? (
-          <FieldFuelMenu
-            onNavigate={(view) => setCurrentView(view)}
-            user={effectiveUser}
-            onBack={() => setCurrentView('dashboard')}
-            isAdmin={isAdmin}
-          />
         ) : (currentView === 'fuel-abastecer' || currentView === 'form') && effectiveUser ? (
           <FieldFuelForm 
             user={effectiveUser} 
             onLogout={handleLogout}
-            onBack={() => setCurrentView('fuel-menu')}
+            onBack={() => setCurrentView('dashboard')}
           />
         ) : currentView === 'fuel-comboio' && effectiveUser ? (
           <FieldComboioForm
             user={effectiveUser}
-            onBack={() => setCurrentView('fuel-menu')}
+            onBack={() => setCurrentView('dashboard')}
           />
         ) : currentView === 'fuel-tanque' && effectiveUser ? (
           <FieldTanqueForm
             user={effectiveUser}
-            onBack={() => setCurrentView('fuel-menu')}
+            onBack={() => setCurrentView('dashboard')}
           />
         ) : currentView === 'fuel-arla' && effectiveUser ? (
           <FieldArlaForm
             user={effectiveUser}
-            onBack={() => setCurrentView('fuel-menu')}
+            onBack={() => setCurrentView('dashboard')}
           />
         ) : currentView === 'fuel-registros' && effectiveUser ? (
           <FieldFuelRecords
             user={effectiveUser}
-            onBack={() => setCurrentView('fuel-menu')}
+            onBack={() => setCurrentView('dashboard')}
           />
         ) : currentView === 'fuel-estoques' && effectiveUser ? (
           <FieldStockView
-            onBack={() => setCurrentView('fuel-menu')}
+            onBack={() => setCurrentView('dashboard')}
             assignedLocations={effectiveUser.assigned_locations}
           />
         ) : currentView === 'horimeter' && effectiveUser ? (
