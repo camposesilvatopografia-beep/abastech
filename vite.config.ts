@@ -101,6 +101,7 @@ export default defineConfig(({ mode }) => ({
         prefer_related_applications: false
       },
       workbox: {
+        navigateFallbackDenylist: [/^\/~oauth/],
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5 MB limit
         // Force immediate update - skip waiting
