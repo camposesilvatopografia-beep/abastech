@@ -38,6 +38,7 @@ import { CurrencyInput } from '@/components/ui/currency-input';
 import { parsePtBRNumber } from '@/lib/ptBRNumber';
 import { supabase } from '@/integrations/supabase/client';
 import { useSheetData } from '@/hooks/useGoogleSheets';
+import { useRealtimeSync } from '@/hooks/useRealtimeSync';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
@@ -50,6 +51,7 @@ interface AdminServiceOrderModalProps {
 export function AdminServiceOrderModal({ open, onOpenChange, onSuccess }: AdminServiceOrderModalProps) {
   const { data: vehiclesData } = useSheetData('Veiculo');
   const [isSaving, setIsSaving] = useState(false);
+  const { broadcast } = useRealtimeSync();
 
   // Form state
   const [vehicleCode, setVehicleCode] = useState('');
@@ -167,7 +169,17 @@ export function AdminServiceOrderModal({ open, onOpenChange, onSuccess }: AdminS
       const { error } = await supabase.from('service_orders').insert(orderData);
       if (error) throw error;
 
-      toast.success(`Ordem de Serviço ${orderNumber} criada!`);
+      // Sync to Google Sheets automatically
+      try {
+        await supabase.functions.invoke('sync-os-to-sheet');
+      } catch (syncErr) {
+        console.warn('OS sheet sync failed, will retry later:', syncErr);
+      }
+
+      // Broadcast to all clients
+      broadcast('service_order_updated', { orderNumber });
+
+      toast.success(`Ordem de Serviço ${orderNumber} criada e sincronizada!`);
       onOpenChange(false);
       onSuccess?.();
     } catch (err) {
