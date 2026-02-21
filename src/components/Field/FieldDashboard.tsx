@@ -835,8 +835,8 @@ export function FieldDashboard({ user, onNavigateToForm, onNavigateToFuelMenu, o
                       <Icon className="w-7 h-7" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <span className="text-base font-bold block truncate">{item.label}</span>
-                      <span className="text-xs opacity-80 truncate block">{item.desc}</span>
+                      <span className="text-sm font-bold block leading-tight">{item.label}</span>
+                      <span className="text-[11px] opacity-80 block leading-tight mt-0.5">{item.desc}</span>
                     </div>
                   </button>
                 );
