@@ -186,7 +186,7 @@ export function FieldDashboard({ user, onNavigateToForm, onNavigateToFuelMenu, o
   const todayStr = format(new Date(), "dd 'de' MMMM", { locale: ptBR });
   const todayDateOnly = format(new Date(), 'yyyy-MM-dd');
 
-  // Check PWA install state
+  // Check PWA install state + auto-cleanup duplicates
   useEffect(() => {
     // Check if running as standalone (already installed)
     const standalone = window.matchMedia('(display-mode: standalone)').matches;
@@ -196,7 +196,16 @@ export function FieldDashboard({ user, onNavigateToForm, onNavigateToFuelMenu, o
     if (!standalone && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
       setShowInstallButton(true);
     }
-  }, []);
+
+    // Auto-cleanup duplicate records (fire-and-forget)
+    import('@/lib/deduplication').then(({ cleanupDuplicateRecords }) => {
+      cleanupDuplicateRecords(todayDateOnly).then(deleted => {
+        if (deleted > 0) {
+          console.log(`[Dashboard] Auto-cleaned ${deleted} duplicate records`);
+        }
+      });
+    });
+  }, [todayDateOnly]);
 
   // Fetch records function (reusable) - excludes records being deleted
   const fetchTodayRecords = useCallback(async () => {
