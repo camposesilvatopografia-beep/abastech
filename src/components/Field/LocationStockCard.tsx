@@ -189,97 +189,96 @@ export const LocationStockCard = forwardRef<LocationStockCardRef, LocationStockC
   // Get today's date formatted
   const todayStr = format(new Date(), 'dd/MM/yyyy', { locale: ptBR });
 
-  // Calculate stock KPIs - combine sheet + DB data
-  const stockKPIs = useMemo(() => {
-    if (!stockSheetData.rows.length && dbEntradas === 0 && dbSaidas === 0) {
-      return { estoqueAnterior: 0, entradas: 0, saidas: 0, estoqueAtual: 0, hasData: false };
-    }
+    // Helper to parse Brazilian number from sheet
+    const parseBRNumber = (value: any): number => {
+      if (!value) return 0;
+      return parseFloat(String(value).replace(/\./g, '').replace(',', '.')) || 0;
+    };
 
-    let estoqueAnterior = 0;
-    let sheetEntradas = 0;
-    let sheetSaidas = 0;
-    let estoqueAtual = 0;
-    let hasData = false;
-
-    // First, try to find today's row in the sheet
-    for (const row of stockSheetData.rows) {
-      const rowDate = String(row['DATA'] || row['Data'] || row['data'] || '').trim();
-      
-      if (isToday(rowDate)) {
-        hasData = true;
-        
-        estoqueAtual = parseFloat(String(
-          row['EstoqueAtual'] || row['ESTOQUE ATUAL'] || row['Estoque Atual'] || row['EST_ATUAL'] || 
-          row['ESTOQUE'] || row['Estoque'] || 0
-        ).replace(/\./g, '').replace(',', '.')) || 0;
-        
-        estoqueAnterior = parseFloat(String(
-          row['EstoqueAnterior'] || row['ESTOQUE ANTERIOR'] || row['Estoque Anterior'] || row['EST_ANTERIOR'] || 
-          row['ANTERIOR'] || 0
-        ).replace(/\./g, '').replace(',', '.')) || 0;
-        
-        sheetEntradas = parseFloat(String(
-          row['ENTRADA'] || row['Entrada'] || row['ENTRADAS'] || 0
-        ).replace(/\./g, '').replace(',', '.')) || 0;
-        
-        sheetSaidas = parseFloat(String(
-          row['SAÍDA'] || row['Saída'] || row['SAIDA'] || row['Saida'] || 
-          row['Saida_para_Comboios'] || row['Saida_Para_Comboio'] || row['Saida_para_Equipamentos'] || row['Saida_Equipamentos'] ||
-          row['SAIDAS'] || row['SAÍDAS'] || 0
-        ).replace(/\./g, '').replace(',', '.')) || 0;
-        
-        break;
+    // Calculate stock KPIs - use sheet values directly, only supplement with unsynced DB data
+    const stockKPIs = useMemo(() => {
+      if (!stockSheetData.rows.length && dbEntradas === 0 && dbSaidas === 0) {
+        return { estoqueAnterior: 0, entradas: 0, saidas: 0, estoqueAtual: 0, hasData: false };
       }
-    }
 
-    // If no today's row found, get the most recent row as fallback
-    if (!hasData) {
-      const sortedRows = [...stockSheetData.rows].reverse();
-      for (const row of sortedRows) {
-        estoqueAtual = parseFloat(String(
-          row['EstoqueAtual'] || row['ESTOQUE ATUAL'] || row['Estoque Atual'] || row['EST_ATUAL'] || 
-          row['ESTOQUE'] || row['Estoque'] || 0
-        ).replace(/\./g, '').replace(',', '.')) || 0;
-        
-        estoqueAnterior = parseFloat(String(
-          row['EstoqueAnterior'] || row['ESTOQUE ANTERIOR'] || row['Estoque Anterior'] || row['EST_ANTERIOR'] || 
-          row['ANTERIOR'] || 0
-        ).replace(/\./g, '').replace(',', '.')) || 0;
-        
-        sheetEntradas = parseFloat(String(
-          row['ENTRADA'] || row['Entrada'] || row['ENTRADAS'] || 0
-        ).replace(/\./g, '').replace(',', '.')) || 0;
-        
-        sheetSaidas = parseFloat(String(
-          row['SAÍDA'] || row['Saída'] || row['SAIDA'] || row['Saida'] || 
-          row['Saida_para_Comboios'] || row['Saida_Para_Comboio'] || row['Saida_para_Equipamentos'] || row['Saida_Equipamentos'] ||
-          row['SAIDAS'] || row['SAÍDAS'] || 0
-        ).replace(/\./g, '').replace(',', '.')) || 0;
+      let estoqueAnterior = 0;
+      let sheetEntradas = 0;
+      let sheetSaidas = 0;
+      let estoqueAtual = 0;
+      let hasData = false;
 
-        if (estoqueAtual > 0 || sheetEntradas > 0 || sheetSaidas > 0) {
+      // Helper to extract values from a row
+      const extractRow = (row: any) => {
+        const ea = parseBRNumber(
+          row['EstoqueAtual'] || row['Estoque Atual'] || row['ESTOQUE ATUAL'] || 0
+        );
+        const ant = parseBRNumber(
+          row['Estoque Anterior'] || row['EstoqueAnterior'] || row['ESTOQUE ANTERIOR'] || 0
+        );
+        const ent = parseBRNumber(
+          row['Entrada'] || row['ENTRADA'] || 0
+        );
+        // Use the total Saida column (column E), NOT sub-columns
+        const sai = parseBRNumber(
+          row['Saida'] || row['SAIDA'] || row['SAÍDA'] || row['Saída'] || 0
+        );
+        return { estoqueAtual: ea, estoqueAnterior: ant, entradas: ent, saidas: sai };
+      };
+
+      // First, try to find today's row in the sheet
+      for (const row of stockSheetData.rows) {
+        const rowDate = String(row['DATA'] || row['Data'] || row['data'] || '').trim();
+        
+        if (isToday(rowDate)) {
           hasData = true;
+          const vals = extractRow(row);
+          estoqueAtual = vals.estoqueAtual;
+          estoqueAnterior = vals.estoqueAnterior;
+          sheetEntradas = vals.entradas;
+          sheetSaidas = vals.saidas;
           break;
         }
       }
-    }
 
-    // Use the MAXIMUM between sheet and DB values (DB is always more current)
-    const finalEntradas = Math.max(sheetEntradas, dbEntradas, localRecordKPIs?.entradas ?? 0);
-    const finalSaidas = Math.max(sheetSaidas, dbSaidas, localRecordKPIs?.saidas ?? 0);
-    
-    // Recalculate stock
-    const finalEstoqueAtual = estoqueAnterior > 0 
-      ? Math.max(0, estoqueAnterior + finalEntradas - finalSaidas)
-      : Math.max(0, estoqueAtual);
+      // If no today's row found, get the most recent row as fallback
+      if (!hasData) {
+        const sortedRows = [...stockSheetData.rows].reverse();
+        for (const row of sortedRows) {
+          const vals = extractRow(row);
+          if (vals.estoqueAtual > 0 || vals.entradas > 0 || vals.saidas > 0) {
+            estoqueAtual = vals.estoqueAtual;
+            estoqueAnterior = vals.estoqueAnterior;
+            sheetEntradas = vals.entradas;
+            sheetSaidas = vals.saidas;
+            hasData = true;
+            break;
+          }
+        }
+      }
 
-    return {
-      estoqueAnterior,
-      entradas: finalEntradas,
-      saidas: finalSaidas,
-      estoqueAtual: finalEstoqueAtual,
-      hasData: hasData || dbEntradas > 0 || dbSaidas > 0 || !!localRecordKPIs,
-    };
-  }, [stockSheetData.rows, localRecordKPIs, dbEntradas, dbSaidas]);
+      // Use sheet values as the source of truth
+      // Only use DB/local values if they are HIGHER (meaning new records not yet synced to sheet)
+      const finalEntradas = Math.max(sheetEntradas, dbEntradas, localRecordKPIs?.entradas ?? 0);
+      const finalSaidas = Math.max(sheetSaidas, dbSaidas, localRecordKPIs?.saidas ?? 0);
+      
+      // Use the sheet's EstoqueAtual directly as the authoritative value
+      // Only recalculate if DB has newer data than the sheet
+      let finalEstoqueAtual = estoqueAtual;
+      if (finalEntradas > sheetEntradas || finalSaidas > sheetSaidas) {
+        // DB has newer records - recalculate from estoqueAnterior
+        if (estoqueAnterior > 0) {
+          finalEstoqueAtual = Math.max(0, estoqueAnterior + finalEntradas - finalSaidas);
+        }
+      }
+
+      return {
+        estoqueAnterior,
+        entradas: finalEntradas,
+        saidas: finalSaidas,
+        estoqueAtual: finalEstoqueAtual,
+        hasData: hasData || dbEntradas > 0 || dbSaidas > 0 || !!localRecordKPIs,
+      };
+    }, [stockSheetData.rows, localRecordKPIs, dbEntradas, dbSaidas]);
 
   // Get short location name for display
   const shortLocationName = useMemo(() => {
