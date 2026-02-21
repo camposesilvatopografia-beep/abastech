@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   Clock,
   Save,
@@ -20,6 +20,8 @@ import {
   ChevronLeft,
   ChevronDown,
   ChevronUp,
+  Camera,
+  Trash2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -180,6 +182,11 @@ export function FieldHorimeterForm({ user, onBack }: FieldHorimeterFormProps) {
   const [operador, setOperador] = useState(user.name);
   const [observacao, setObservacao] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+
+  // Photo state
+  const [photo, setPhoto] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
 
   // Previous values (auto-filled)
   const [previousHorimeter, setPreviousHorimeter] = useState(0);
@@ -471,6 +478,32 @@ export function FieldHorimeterForm({ user, onBack }: FieldHorimeterFormProps) {
   const intervalHor = (horimeterValue ?? 0) > 0 && previousHorimeter > 0 ? (horimeterValue ?? 0) - previousHorimeter : 0;
   const intervalKm = (kmValue ?? 0) > 0 && previousKm > 0 ? (kmValue ?? 0) - previousKm : 0;
 
+  // Photo handlers
+  const handlePhotoCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onloadend = () => setPhotoPreview(reader.result as string);
+    reader.readAsDataURL(file);
+    setPhoto(file);
+  };
+
+  const uploadPhoto = async (file: File): Promise<string | null> => {
+    try {
+      const fileName = `horimeter/${Date.now()}_${Math.random().toString(36).substring(7)}.jpg`;
+      const { error } = await supabase.storage.from('field-photos').upload(fileName, file, {
+        contentType: file.type,
+        upsert: false,
+      });
+      if (error) throw error;
+      const { data: urlData } = supabase.storage.from('field-photos').getPublicUrl(fileName);
+      return urlData.publicUrl;
+    } catch (err) {
+      console.error('Error uploading photo:', err);
+      return null;
+    }
+  };
+
   const handleSave = async () => {
     if (!selectedVehicleId) {
       toast.error('Selecione um veículo');
@@ -514,6 +547,17 @@ export function FieldHorimeterForm({ user, onBack }: FieldHorimeterFormProps) {
     try {
       const readingDate = format(selectedDate, 'yyyy-MM-dd');
 
+      // Upload photo if exists
+      let photoUrl: string | null = null;
+      if (photo) {
+        photoUrl = await uploadPhoto(photo);
+      }
+
+      const finalObservations = [
+        observacao,
+        photoUrl ? `FOTO: ${photoUrl}` : '',
+      ].filter(Boolean).join(' | ') || null;
+
       const { data, error } = await supabase
         .from('horimeter_readings')
         .insert({
@@ -524,7 +568,7 @@ export function FieldHorimeterForm({ user, onBack }: FieldHorimeterFormProps) {
           current_km: kmNum > 0 ? kmNum : null,
           previous_km: previousKm > 0 ? previousKm : null,
           operator: operador || null,
-          observations: observacao || null,
+          observations: finalObservations,
           source: 'field',
         })
         .select('id')
@@ -1255,6 +1299,48 @@ export function FieldHorimeterForm({ user, onBack }: FieldHorimeterFormProps) {
           </div>
         </div>
       )}
+
+      {/* Photo (optional) */}
+      <div className={sectionClass('slate')}>
+        <div className="flex items-center gap-2 mb-2">
+          <Camera className="w-4 h-4 opacity-70" />
+          <h3 className="font-medium text-sm">Foto (opcional)</h3>
+        </div>
+        <input
+          ref={photoInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          onChange={handlePhotoCapture}
+          className="hidden"
+        />
+        {photoPreview ? (
+          <div className="relative">
+            <img src={photoPreview} alt="Foto" className="w-full h-40 object-cover rounded-lg" />
+            <Button
+              variant="destructive"
+              size="icon"
+              className="absolute top-2 right-2 h-8 w-8"
+              onClick={() => {
+                setPhoto(null);
+                setPhotoPreview(null);
+                if (photoInputRef.current) photoInputRef.current.value = '';
+              }}
+            >
+              <Trash2 className="w-4 h-4" />
+            </Button>
+          </div>
+        ) : (
+          <Button
+            variant="outline"
+            className="w-full h-16 flex flex-col gap-1"
+            onClick={() => photoInputRef.current?.click()}
+          >
+            <Camera className="w-5 h-5 text-muted-foreground" />
+            <span className="text-xs text-muted-foreground">Tirar Foto</span>
+          </Button>
+        )}
+      </div>
 
       {/* Duplicate warning */}
       {hasDuplicate && (
