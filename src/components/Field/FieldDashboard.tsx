@@ -4,6 +4,8 @@ import {
   TrendingUp, 
   TrendingDown, 
   Package,
+  Package2,
+  Droplets,
   Calendar,
   Clock,
   FileText,
@@ -69,10 +71,12 @@ interface FieldDashboardProps {
   onNavigateToFuelMenu?: () => void;
   onNavigateToHorimeter?: () => void;
   onNavigateToOS?: () => void;
+  onNavigateToFuelView?: (view: 'fuel-abastecer' | 'fuel-comboio' | 'fuel-tanque' | 'fuel-arla' | 'fuel-registros' | 'fuel-estoques') => void;
   pendingSyncCount?: number;
   isSyncing?: boolean;
   onSync?: () => void;
   canViewModule?: (role: string, moduleId: string, userId?: string) => boolean;
+  isAdmin?: boolean;
 }
 
 interface RecentRecord {
@@ -97,7 +101,7 @@ interface DeleteConfirmation {
   reason: string;
 }
 
-export function FieldDashboard({ user, onNavigateToForm, onNavigateToFuelMenu, onNavigateToHorimeter, onNavigateToOS, pendingSyncCount = 0, isSyncing = false, onSync, canViewModule }: FieldDashboardProps) {
+export function FieldDashboard({ user, onNavigateToForm, onNavigateToFuelMenu, onNavigateToHorimeter, onNavigateToOS, onNavigateToFuelView, pendingSyncCount = 0, isSyncing = false, onSync, canViewModule, isAdmin = false }: FieldDashboardProps) {
   const { theme } = useTheme();
   const navigate = useNavigate();
   const [dashboardTab, setDashboardTab] = useState<'inicio' | 'resumo'>('inicio');
@@ -912,9 +916,43 @@ export function FieldDashboard({ user, onNavigateToForm, onNavigateToFuelMenu, o
         </>
       ) : (
         <>
+          {/* Fuel Quick Access Buttons */}
+          {onNavigateToFuelView && canViewModule && canViewModule(user.role || 'operador', 'field_abastecimento', user.id) && (
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { key: 'fuel-abastecer' as const, label: 'Abastecer', desc: 'Veículos e Equipamentos', icon: Fuel, gradient: 'from-emerald-500 to-emerald-700' },
+                { key: 'fuel-comboio' as const, label: 'Carregar Comboio', desc: 'Tanque do Comboio', icon: Truck, gradient: 'from-orange-500 to-orange-700' },
+                ...((isAdmin || (user.assigned_locations || []).some(l => l.toLowerCase().includes('tanque')))
+                  ? [
+                      { key: 'fuel-tanque' as const, label: 'Tanque Diesel', desc: 'Entrada de fornecedor', icon: Package2, gradient: 'from-blue-500 to-blue-700' },
+                      { key: 'fuel-arla' as const, label: 'Tanque Arla', desc: 'Entrada de Arla', icon: Droplets, gradient: 'from-cyan-500 to-cyan-700' },
+                    ]
+                  : []),
+              ].map((item) => {
+                const Icon = item.icon;
+                return (
+                  <button
+                    key={item.key}
+                    onClick={() => onNavigateToFuelView(item.key)}
+                    className={cn(
+                      "flex items-center gap-3 p-3 rounded-xl text-white shadow-md active:scale-[0.97] transition-transform text-left",
+                      `bg-gradient-to-r ${item.gradient}`
+                    )}
+                  >
+                    <div className="w-10 h-10 rounded-lg bg-white/20 flex items-center justify-center shrink-0">
+                      <Icon className="w-5 h-5" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <span className="text-sm font-bold block truncate">{item.label}</span>
+                      <span className="text-[10px] opacity-80 truncate block">{item.desc}</span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
 
 
-          {/* Location Selector for Multiple Locations */}
           {hasMultipleLocations && (
             <div className={cn(
               "rounded-xl p-4 border",
