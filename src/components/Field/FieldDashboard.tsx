@@ -72,6 +72,7 @@ interface FieldDashboardProps {
   pendingSyncCount?: number;
   isSyncing?: boolean;
   onSync?: () => void;
+  canViewModule?: (role: string, moduleId: string, userId?: string) => boolean;
 }
 
 interface RecentRecord {
@@ -96,7 +97,7 @@ interface DeleteConfirmation {
   reason: string;
 }
 
-export function FieldDashboard({ user, onNavigateToForm, onNavigateToFuelMenu, onNavigateToHorimeter, onNavigateToOS, pendingSyncCount = 0, isSyncing = false, onSync }: FieldDashboardProps) {
+export function FieldDashboard({ user, onNavigateToForm, onNavigateToFuelMenu, onNavigateToHorimeter, onNavigateToOS, pendingSyncCount = 0, isSyncing = false, onSync, canViewModule }: FieldDashboardProps) {
   const { theme } = useTheme();
   const navigate = useNavigate();
   const [dashboardTab, setDashboardTab] = useState<'inicio' | 'resumo'>('inicio');
@@ -796,47 +797,53 @@ export function FieldDashboard({ user, onNavigateToForm, onNavigateToFuelMenu, o
         <>
           {/* Menu Cards */}
           <div className="grid grid-cols-1 gap-3">
-            <button
-              onClick={onNavigateToForm}
-              className="flex items-center gap-4 p-4 rounded-2xl bg-gradient-to-r from-emerald-500 to-emerald-700 text-white shadow-lg shadow-emerald-500/30 active:scale-[0.98] transition-transform text-left"
-            >
-              <div className="w-14 h-14 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center shrink-0">
-                <Fuel className="w-7 h-7" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <span className="text-base font-bold block">Abastecimento</span>
-                <span className="text-xs opacity-80">Registrar abastecimento de combustível</span>
-              </div>
-              <ArrowRight className="w-5 h-5 opacity-60 shrink-0" />
-            </button>
+            {(!canViewModule || canViewModule(user.role, 'field_abastecimento', user.id)) && (
+              <button
+                onClick={onNavigateToForm}
+                className="flex items-center gap-4 p-4 rounded-2xl bg-gradient-to-r from-emerald-500 to-emerald-700 text-white shadow-lg shadow-emerald-500/30 active:scale-[0.98] transition-transform text-left"
+              >
+                <div className="w-14 h-14 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center shrink-0">
+                  <Fuel className="w-7 h-7" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <span className="text-base font-bold block">Abastecimento</span>
+                  <span className="text-xs opacity-80">Registrar abastecimento de combustível</span>
+                </div>
+                <ArrowRight className="w-5 h-5 opacity-60 shrink-0" />
+              </button>
+            )}
 
-            <button
-              onClick={onNavigateToHorimeter}
-              className="flex items-center gap-4 p-4 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-700 text-white shadow-lg shadow-amber-500/30 active:scale-[0.98] transition-transform text-left"
-            >
-              <div className="w-14 h-14 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center shrink-0">
-                <Clock className="w-7 h-7" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <span className="text-base font-bold block">Horímetro</span>
-                <span className="text-xs opacity-80">Lançar leituras de horímetro e KM</span>
-              </div>
-              <ArrowRight className="w-5 h-5 opacity-60 shrink-0" />
-            </button>
+            {(!canViewModule || canViewModule(user.role, 'field_horimetros', user.id)) && (
+              <button
+                onClick={onNavigateToHorimeter}
+                className="flex items-center gap-4 p-4 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-700 text-white shadow-lg shadow-amber-500/30 active:scale-[0.98] transition-transform text-left"
+              >
+                <div className="w-14 h-14 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center shrink-0">
+                  <Clock className="w-7 h-7" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <span className="text-base font-bold block">Horímetro</span>
+                  <span className="text-xs opacity-80">Lançar leituras de horímetro e KM</span>
+                </div>
+                <ArrowRight className="w-5 h-5 opacity-60 shrink-0" />
+              </button>
+            )}
 
-            <button
-              onClick={onNavigateToOS}
-              className="flex items-center gap-4 p-4 rounded-2xl bg-gradient-to-r from-purple-500 to-purple-700 text-white shadow-lg shadow-purple-500/30 active:scale-[0.98] transition-transform text-left"
-            >
-              <div className="w-14 h-14 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center shrink-0">
-                <Wrench className="w-7 h-7" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <span className="text-base font-bold block">Ordem de Serviço</span>
-                <span className="text-xs opacity-80">Abrir ou gerenciar manutenções</span>
-              </div>
-              <ArrowRight className="w-5 h-5 opacity-60 shrink-0" />
-            </button>
+            {(!canViewModule || canViewModule(user.role, 'field_os', user.id)) && (
+              <button
+                onClick={onNavigateToOS}
+                className="flex items-center gap-4 p-4 rounded-2xl bg-gradient-to-r from-purple-500 to-purple-700 text-white shadow-lg shadow-purple-500/30 active:scale-[0.98] transition-transform text-left"
+              >
+                <div className="w-14 h-14 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center shrink-0">
+                  <Wrench className="w-7 h-7" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <span className="text-base font-bold block">Ordem de Serviço</span>
+                  <span className="text-xs opacity-80">Abrir ou gerenciar manutenções</span>
+                </div>
+                <ArrowRight className="w-5 h-5 opacity-60 shrink-0" />
+              </button>
+            )}
           </div>
 
           {/* Pending Sync Counter */}
