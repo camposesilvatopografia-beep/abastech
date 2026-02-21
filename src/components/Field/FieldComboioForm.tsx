@@ -76,8 +76,9 @@ export function FieldComboioForm({ user, onBack }: FieldComboioFormProps) {
   const [vehicleCode, setVehicleCode] = useState('');
   const [vehicleDescription, setVehicleDescription] = useState('');
   const [company, setCompany] = useState('');
-  const [fuelQuantity, setFuelQuantity] = useState<number | null>(null);
+  const [fuelQuantity, setFuelQuantity] = useState('');
   const [recordType, setRecordType] = useState<'entrada' | 'saida'>('entrada');
+  const [entryLocation, setEntryLocation] = useState('');
   const [photoPump, setPhotoPump] = useState<File | null>(null);
   const [photoPumpPreview, setPhotoPumpPreview] = useState<string | null>(null);
   const photoPumpInputRef = useRef<HTMLInputElement>(null);
@@ -94,6 +95,50 @@ export function FieldComboioForm({ user, onBack }: FieldComboioFormProps) {
       return cat.includes('tanque comboio') || cat.includes('tanque_comboio');
     });
   }, [vehiclesData?.rows]);
+
+  // Auto-select comboio based on user's assigned_locations
+  useEffect(() => {
+    if (vehicleCode || comboioVehicles.length === 0) return;
+    
+    const userLocations = user.assigned_locations || [];
+    // Find a comboio that matches the user's assigned location
+    for (const loc of userLocations) {
+      const normalized = loc.toLowerCase();
+      const match = comboioVehicles.find((v: any) => {
+        const code = String(v['Codigo'] || v['CODIGO'] || v['Código'] || '').toLowerCase();
+        const desc = String(v['Descricao'] || v['DESCRICAO'] || v['Descrição'] || v['Nome'] || '').toLowerCase();
+        // Match "comboio 01" in location with vehicle code/desc
+        return normalized.includes(code) || code.includes(normalized.replace('tanque ', '').replace('canteiro ', '')) ||
+               desc.includes(normalized) || normalized.includes(desc.split(' ').slice(-1)[0]);
+      });
+      if (match) {
+        handleVehicleSelect(match);
+        break;
+      }
+    }
+
+    // If user location contains "comboio", try direct match
+    if (!vehicleCode) {
+      for (const loc of userLocations) {
+        const normalized = loc.toLowerCase();
+        if (normalized.includes('comboio')) {
+          // Extract number from location like "Comboio 01"
+          const numMatch = normalized.match(/\d+/);
+          if (numMatch) {
+            const match = comboioVehicles.find((v: any) => {
+              const code = String(v['Codigo'] || v['CODIGO'] || v['Código'] || '').toLowerCase();
+              const desc = String(v['Descricao'] || v['DESCRICAO'] || v['Descrição'] || v['Nome'] || '').toLowerCase();
+              return code.includes(numMatch[0]) || desc.includes(numMatch[0]);
+            });
+            if (match) {
+              handleVehicleSelect(match);
+              break;
+            }
+          }
+        }
+      }
+    }
+  }, [comboioVehicles, user.assigned_locations]);
 
   const filteredVehicles = useMemo(() => {
     if (!vehicleSearch) return comboioVehicles;
@@ -149,7 +194,12 @@ export function FieldComboioForm({ user, onBack }: FieldComboioFormProps) {
       toast.error('Selecione o veículo (Comboio)');
       return;
     }
-    if (!fuelQuantity || fuelQuantity <= 0) {
+    if (!entryLocation) {
+      toast.error('Selecione o Local de Entrada');
+      return;
+    }
+    const qty = parseInt(fuelQuantity, 10);
+    if (!qty || qty <= 0) {
       toast.error('Informe a quantidade de combustível');
       return;
     }
@@ -166,7 +216,7 @@ export function FieldComboioForm({ user, onBack }: FieldComboioFormProps) {
       const now = new Date();
       const recordDate = format(now, 'yyyy-MM-dd');
       const recordTime = format(now, 'HH:mm:ss');
-      const location = user.assigned_locations?.[0] || '';
+      const location = entryLocation || user.assigned_locations?.[0] || '';
 
       const recordData = {
         user_id: user.id,
@@ -180,11 +230,12 @@ export function FieldComboioForm({ user, onBack }: FieldComboioFormProps) {
         horimeter_current: null,
         km_previous: null,
         km_current: null,
-        fuel_quantity: fuelQuantity,
+        fuel_quantity: qty,
         fuel_type: 'Diesel',
         arla_quantity: null,
         location,
-        observations: `[CARREGAR COMBOIO]`,
+        entry_location: entryLocation,
+        observations: `[CARREGAR COMBOIO] Local: ${entryLocation}`,
         record_date: recordDate,
         record_time: recordTime,
         record_type: recordType,
@@ -221,7 +272,7 @@ export function FieldComboioForm({ user, onBack }: FieldComboioFormProps) {
               'Diesel',
               '',
               location,
-              '[CARREGAR COMBOIO]',
+              `[CARREGAR COMBOIO] Local: ${entryLocation}`,
             ]],
           },
         });
@@ -241,8 +292,9 @@ export function FieldComboioForm({ user, onBack }: FieldComboioFormProps) {
         setVehicleCode('');
         setVehicleDescription('');
         setCompany('');
-        setFuelQuantity(null);
+        setFuelQuantity('');
         setRecordType('entrada');
+        setEntryLocation('');
         setPhotoPump(null);
         setPhotoPumpPreview(null);
         if (photoPumpInputRef.current) photoPumpInputRef.current.value = '';
@@ -394,17 +446,41 @@ export function FieldComboioForm({ user, onBack }: FieldComboioFormProps) {
         )}
       </div>
 
+      {/* Local de Entrada */}
+      <div className={cn(
+        "rounded-xl p-4 border",
+        theme === 'dark' ? "bg-slate-800/80 border-slate-700" : "bg-white border-slate-200 shadow-sm"
+      )}>
+        <Label className="text-sm font-medium mb-2 block">Local de Entrada</Label>
+        <Select value={entryLocation} onValueChange={setEntryLocation}>
+          <SelectTrigger className="h-12 text-base font-semibold">
+            <SelectValue placeholder="Selecione o tanque..." />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="Tanque Canteiro 01">Tanque Canteiro 01</SelectItem>
+            <SelectItem value="Tanque Canteiro 02">Tanque Canteiro 02</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
       {/* Quantity */}
       <div className={cn(
         "rounded-xl p-4 border",
         theme === 'dark' ? "bg-slate-800/80 border-slate-700" : "bg-white border-slate-200 shadow-sm"
       )}>
         <Label className="text-sm font-medium mb-2 block">Quantidade (Litros)</Label>
-        <CurrencyInput
+        <input
+          type="number"
+          inputMode="numeric"
           value={fuelQuantity}
-          onChange={setFuelQuantity}
-          placeholder="0,00"
-          className="h-12 text-lg font-bold"
+          onChange={(e) => setFuelQuantity(e.target.value)}
+          placeholder="Ex: 250"
+          className={cn(
+            "flex h-12 w-full rounded-md border px-3 py-2 text-lg font-bold ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+            theme === 'dark' 
+              ? "bg-slate-700 border-slate-600 text-white" 
+              : "bg-background border-input"
+          )}
         />
       </div>
 
@@ -453,7 +529,7 @@ export function FieldComboioForm({ user, onBack }: FieldComboioFormProps) {
       {/* Submit Button */}
       <Button
         onClick={handleSubmit}
-        disabled={isSaving || !vehicleCode || !fuelQuantity}
+        disabled={isSaving || !vehicleCode || !fuelQuantity || !entryLocation}
         className={cn(
           "w-full h-14 text-base font-bold gap-2 rounded-xl",
           recordType === 'entrada'
