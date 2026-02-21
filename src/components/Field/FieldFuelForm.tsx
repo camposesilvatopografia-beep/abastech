@@ -2007,39 +2007,18 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
       {/* Form */}
       <div className="px-3 py-3 space-y-3 max-w-2xl mx-auto">
 
-        {/* Record Type Selection - Compact */}
+        {/* Record Type - Fixed as Saída */}
         <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-3 shadow-sm">
-          <div className={cn("grid gap-2", userLocationInfo.isOnlyComboio ? "grid-cols-1" : "grid-cols-2")}>
+          <div className="grid grid-cols-1">
             <Button
               type="button"
-              variant={recordType === 'saida' && quickEntryMode === 'normal' ? 'default' : 'outline'}
-              className={cn(
-                "h-12 text-base font-bold transition-all",
-                recordType === 'saida' && quickEntryMode === 'normal'
-                  ? "bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white border-0 shadow-lg shadow-red-500/30"
-                  : "border-red-600/30 text-muted-foreground hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/50"
-              )}
-              onClick={() => { setRecordType('saida'); setQuickEntryMode('normal'); setShowQuickOptions(false); }}
+              variant="default"
+              className="h-12 text-base font-bold bg-gradient-to-r from-red-500 to-red-600 text-white border-0 shadow-lg shadow-red-500/30 cursor-default"
+              disabled
             >
               <Fuel className="w-5 h-5 mr-2" />
               Saída
             </Button>
-            {!userLocationInfo.isOnlyComboio && (
-              <Button
-                type="button"
-                variant={recordType === 'entrada' && quickEntryMode === 'normal' ? 'default' : 'outline'}
-                className={cn(
-                  "h-12 text-base font-bold transition-all",
-                  recordType === 'entrada' && quickEntryMode === 'normal'
-                    ? "bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white border-0 shadow-lg shadow-green-500/30"
-                    : "border-green-600/30 text-muted-foreground hover:bg-green-500/10 hover:text-green-400 hover:border-green-500/50"
-                )}
-                onClick={() => { setRecordType('entrada'); setQuickEntryMode('normal'); setShowQuickOptions(false); }}
-              >
-                <Building2 className="w-5 h-5 mr-2" />
-                Entrada
-              </Button>
-            )}
           </div>
         </div>
 
