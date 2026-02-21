@@ -214,7 +214,16 @@ export function FieldComboioForm({ user, onBack }: FieldComboioFormProps) {
       const now = new Date();
       const recordDate = format(now, 'yyyy-MM-dd');
       const recordTime = format(now, 'HH:mm:ss');
-      const location = vehicleDescription || vehicleCode || user.assigned_locations?.[0] || '';
+      // Map vehicle code to comboio name for LOCAL column
+      const comboioNameMap: Record<string, string> = {
+        'CC-01-C': 'Comboio 01',
+        'CC-02-ENG': 'Comboio 02', 
+        'CC-03-LP': 'Comboio 03',
+      };
+      const normalizedCode = vehicleCode.toUpperCase().replace(/\s/g, '');
+      const location = comboioNameMap[normalizedCode] || 
+        Object.entries(comboioNameMap).find(([k]) => normalizedCode.includes(k))?.[1] ||
+        vehicleDescription || vehicleCode || '';
 
       const recordData = {
         user_id: user.id,
