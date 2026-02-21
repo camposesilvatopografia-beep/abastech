@@ -286,16 +286,7 @@ export function FieldComboioForm({ user, onBack }: FieldComboioFormProps) {
       setShowSuccess(true);
       setTimeout(() => {
         setShowSuccess(false);
-        // Reset form
-        setVehicleCode('');
-        setVehicleDescription('');
-        setCompany('');
-        setFuelQuantity('');
-        setRecordType('entrada');
-        setEntryLocation('');
-        setPhotoPump(null);
-        setPhotoPumpPreview(null);
-        if (photoPumpInputRef.current) photoPumpInputRef.current.value = '';
+        onBack();
       }, 2000);
 
       toast.success('Registro salvo com sucesso!');

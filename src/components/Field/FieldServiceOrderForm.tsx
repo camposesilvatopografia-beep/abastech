@@ -494,39 +494,10 @@ export function FieldServiceOrderForm({ user, onBack }: FieldServiceOrderFormPro
 
       toast.success(`${orderNumber} criada com sucesso!`);
 
-      // Reset form
-      setForm(prev => ({
-        ...prev,
-        vehicle_code: '',
-        vehicle_description: '',
-        vehicle_company: '',
-        problem_description: '',
-        solution_description: '',
-        mechanic_id: '',
-        mechanic_name: '',
-        estimated_hours: '',
-        actual_hours: '',
-        parts_used: '',
-        parts_cost: '',
-        labor_cost: '',
-        notes: '',
-        horimeter_current: null,
-        km_current: null,
-        status: 'Aberta',
-        order_type: 'Corretiva',
-        priority: 'Média',
-        entry_date: new Date().toISOString().split('T')[0],
-        entry_time: format(new Date(), 'HH:mm'),
-        exit_date: '',
-        exit_time: '',
-        photo_before_url: null,
-        photo_after_url: null,
-        photo_parts_url: null,
-        photo_4_url: null,
-        photo_5_url: null,
-      }));
-      setLastHorimeter(null);
-      setLastKm(null);
+      // Navigate back to home after success
+      setTimeout(() => {
+        onBack();
+      }, 1500);
     } catch (err: any) {
       console.error('Erro ao criar OS:', err);
       
@@ -566,6 +537,7 @@ export function FieldServiceOrderForm({ user, onBack }: FieldServiceOrderFormPro
             icon: '📱',
             duration: 4000,
           });
+          setTimeout(() => { onBack(); }, 1500);
           return;
         } catch (offlineErr) {
           console.error('Offline save also failed:', offlineErr);
