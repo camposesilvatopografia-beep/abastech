@@ -78,27 +78,46 @@ export function VehicleCombobox({
     return desc ? `${selectedVehicle.code} - ${desc}` : selectedVehicle.code;
   }, [selectedVehicle, placeholder]);
 
-  // Custom filtering: normalize search terms, split into words, all must match
+  // Custom filtering + relevance scoring
   const filteredGrouped = React.useMemo(() => {
     const normalizedSearch = normalize(search);
     const searchTerms = normalizedSearch.split(/\s+/).filter(Boolean);
 
-    const filtered = vehicles.filter(vehicle => {
-      if (searchTerms.length === 0) return true;
-      const name = vehicle.name || vehicle.description || '';
-      const category = vehicle.category || '';
-      const haystack = normalize(`${vehicle.code} ${name} ${category}`);
-      // Also try matching code without separators (e.g. "mn20" matches "MN-20")
-      const haystackCompact = haystack.replace(/[-\s]/g, '');
-      return searchTerms.every(term => {
-        const termCompact = term.replace(/[-\s]/g, '');
-        return haystack.includes(term) || haystackCompact.includes(termCompact);
-      });
-    });
+    const scored = vehicles
+      .map(vehicle => {
+        if (searchTerms.length === 0) return { vehicle, score: 0 };
+        const name = vehicle.name || vehicle.description || '';
+        const category = vehicle.category || '';
+        const codeNorm = normalize(vehicle.code);
+        const codeCompact = codeNorm.replace(/[-\s]/g, '');
+        const haystack = normalize(`${vehicle.code} ${name} ${category}`);
+        const haystackCompact = haystack.replace(/[-\s]/g, '');
 
-    // Group by category
+        const matches = searchTerms.every(term => {
+          const termCompact = term.replace(/[-\s]/g, '');
+          return haystack.includes(term) || haystackCompact.includes(termCompact);
+        });
+        if (!matches) return null;
+
+        // Score: prefix on code = highest, code contains = high, name match = lower
+        let score = 0;
+        const termCompact = normalizedSearch.replace(/[-\s]/g, '');
+        if (codeCompact === termCompact) score = 100;
+        else if (codeCompact.startsWith(termCompact)) score = 80;
+        else if (codeNorm.startsWith(normalizedSearch)) score = 75;
+        else if (codeCompact.includes(termCompact)) score = 50;
+        else score = 10;
+
+        return { vehicle, score };
+      })
+      .filter(Boolean) as { vehicle: VehicleOption; score: number }[];
+
+    // Sort by score desc, then code
+    scored.sort((a, b) => b.score - a.score || a.vehicle.code.localeCompare(b.vehicle.code));
+
+    // Group by category preserving score order
     const groups: Record<string, VehicleOption[]> = {};
-    filtered.forEach(vehicle => {
+    scored.forEach(({ vehicle }) => {
       const cat = vehicle.category?.trim() || 'Outros';
       if (!groups[cat]) groups[cat] = [];
       groups[cat].push(vehicle);
@@ -112,7 +131,7 @@ export function VehicleCombobox({
 
     return sortedCategories.map(category => ({
       category,
-      vehicles: groups[category].sort((a, b) => a.code.localeCompare(b.code)),
+      vehicles: groups[category],
     }));
   }, [vehicles, search]);
 
