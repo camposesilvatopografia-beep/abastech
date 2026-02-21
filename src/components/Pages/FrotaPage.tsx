@@ -853,129 +853,94 @@ export function FrotaPage() {
         </div>
 
         {/* KPI Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3 md:gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-2 md:gap-3">
           {/* Total - Blue */}
           <div 
-            className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-4 text-white shadow-lg cursor-pointer transition-transform hover:scale-105"
+            className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-3 text-white shadow-lg cursor-pointer transition-transform hover:scale-105"
             onClick={() => handleKpiClick('total')}
           >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-medium text-blue-100 uppercase tracking-wide">TOTAL</p>
-                <p className="text-3xl font-bold mt-1">{metrics.totalAtivos}</p>
-                <p className="text-xs text-blue-200 mt-1">Cadastrados</p>
-              </div>
-              <Truck className="w-8 h-8 text-blue-200" />
-            </div>
+            <p className="text-[10px] font-semibold text-blue-100 uppercase tracking-wide">TOTAL</p>
+            <p className="text-2xl font-bold mt-0.5">{metrics.totalAtivos}</p>
+            <p className="text-[10px] text-blue-200">Cadastrados</p>
           </div>
 
           {/* Ativos - Green */}
           <div 
             className={cn(
-              "bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-xl p-4 text-white shadow-lg cursor-pointer transition-transform hover:scale-105",
+              "bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-xl p-3 text-white shadow-lg cursor-pointer transition-transform hover:scale-105",
               statusFilter === 'ativo' && "ring-2 ring-white ring-offset-2 ring-offset-emerald-500"
             )}
             onClick={() => handleKpiClick('ativos')}
           >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-medium text-emerald-100 uppercase tracking-wide">ATIVOS</p>
-                <p className="text-3xl font-bold mt-1">{metrics.ativos}</p>
-                <p className="text-xs text-emerald-200 mt-1">Em operação</p>
-              </div>
-              <Activity className="w-8 h-8 text-emerald-200" />
-            </div>
+            <p className="text-[10px] font-semibold text-emerald-100 uppercase tracking-wide">ATIVOS</p>
+            <p className="text-2xl font-bold mt-0.5">{metrics.ativos}</p>
+            <p className="text-[10px] text-emerald-200">Em operação</p>
           </div>
 
           {/* Inativos - Gray */}
           <div 
             className={cn(
-              "bg-gradient-to-br from-gray-400 to-gray-500 rounded-xl p-4 text-white shadow-lg cursor-pointer transition-transform hover:scale-105",
+              "bg-gradient-to-br from-gray-400 to-gray-500 rounded-xl p-3 text-white shadow-lg cursor-pointer transition-transform hover:scale-105",
               statusFilter === 'inativo' && "ring-2 ring-white ring-offset-2 ring-offset-gray-400"
             )}
             onClick={() => handleKpiClick('inativos')}
           >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-medium text-gray-100 uppercase tracking-wide">INATIVOS</p>
-                <p className="text-3xl font-bold mt-1">{metrics.inativos}</p>
-                <p className="text-xs text-gray-200 mt-1">Parados</p>
-              </div>
-              <X className="w-8 h-8 text-gray-200" />
-            </div>
+            <p className="text-[10px] font-semibold text-gray-100 uppercase tracking-wide">INATIVOS</p>
+            <p className="text-2xl font-bold mt-0.5">{metrics.inativos}</p>
+            <p className="text-[10px] text-gray-200">Parados</p>
           </div>
 
-          {/* Em Manutenção - Amber - LINKED TO SERVICE_ORDERS */}
+          {/* Em Manutenção - Amber */}
           <div 
             className={cn(
-              "bg-gradient-to-br from-amber-500 to-amber-600 rounded-xl p-4 text-white shadow-lg cursor-pointer transition-transform hover:scale-105",
+              "bg-gradient-to-br from-amber-500 to-amber-600 rounded-xl p-3 text-white shadow-lg cursor-pointer transition-transform hover:scale-105",
               statusFilter === 'manutencao' && "ring-2 ring-white ring-offset-2 ring-offset-amber-500"
             )}
             onClick={() => handleKpiClick('manutencao')}
           >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-medium text-amber-100 uppercase tracking-wide">MANUTENÇÃO</p>
-                <p className="text-3xl font-bold mt-1">{maintenanceCount}</p>
-                <p className="text-xs text-amber-200 mt-1">OS ativas</p>
-              </div>
-              <Cog className="w-8 h-8 text-amber-200" />
-            </div>
+            <p className="text-[10px] font-semibold text-amber-100 uppercase tracking-wide">MANUTENÇÃO</p>
+            <p className="text-2xl font-bold mt-0.5">{maintenanceCount}</p>
+            <p className="text-[10px] text-amber-200">OS ativas</p>
           </div>
 
           {/* Mobilizados - Blue */}
           <div 
             className={cn(
-              "bg-gradient-to-br from-blue-400 to-blue-500 rounded-xl p-4 text-white shadow-lg cursor-pointer transition-transform hover:scale-105",
+              "bg-gradient-to-br from-blue-400 to-blue-500 rounded-xl p-3 text-white shadow-lg cursor-pointer transition-transform hover:scale-105",
               statusFilter === 'mobilizado' && "ring-2 ring-white ring-offset-2 ring-offset-blue-400"
             )}
             onClick={() => handleKpiClick('mobilizados')}
           >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-medium text-blue-100 uppercase tracking-wide">MOBILIZADOS</p>
-                <p className="text-3xl font-bold mt-1">{metrics.mobilizados}</p>
-                <p className="text-xs text-blue-200 mt-1">Em campo</p>
-              </div>
-              <Truck className="w-8 h-8 text-blue-200" />
-            </div>
+            <p className="text-[10px] font-semibold text-blue-100 uppercase tracking-wide">MOBILIZADOS</p>
+            <p className="text-2xl font-bold mt-0.5">{metrics.mobilizados}</p>
+            <p className="text-[10px] text-blue-200">Em campo</p>
           </div>
 
           {/* Desmobilizados - Red */}
           <div 
             className={cn(
-              "bg-gradient-to-br from-red-400 to-red-500 rounded-xl p-4 text-white shadow-lg cursor-pointer transition-transform hover:scale-105",
+              "bg-gradient-to-br from-red-400 to-red-500 rounded-xl p-3 text-white shadow-lg cursor-pointer transition-transform hover:scale-105",
               statusFilter === 'desmobilizado' && "ring-2 ring-white ring-offset-2 ring-offset-red-400"
             )}
             onClick={() => handleKpiClick('desmobilizados')}
           >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-medium text-red-100 uppercase tracking-wide">DESMOB.</p>
-                <p className="text-3xl font-bold mt-1">{metrics.desmobilizados}</p>
-                <p className="text-xs text-red-200 mt-1">Retirados</p>
-              </div>
-              <X className="w-8 h-8 text-red-200" />
+            <p className="text-[10px] font-semibold text-red-100 uppercase tracking-wide">DESMOB.</p>
+            <p className="text-2xl font-bold mt-0.5">{metrics.desmobilizados}</p>
+            <p className="text-[10px] text-red-200">Retirados</p>
           </div>
 
           {/* Obra Saneamento - Purple */}
           <div 
             className={cn(
-              "bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl p-4 text-white shadow-lg cursor-pointer transition-transform hover:scale-105",
+              "bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl p-3 text-white shadow-lg cursor-pointer transition-transform hover:scale-105",
               statusFilter === 'obra_saneamento' && "ring-2 ring-white ring-offset-2 ring-offset-purple-500"
             )}
             onClick={() => handleKpiClick('obra_saneamento')}
           >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-medium text-purple-100 uppercase tracking-wide">SANEAMENTO</p>
-                <p className="text-3xl font-bold mt-1">{metrics.obraSaneamento}</p>
-                <p className="text-xs text-purple-200 mt-1">Obra Saneamento</p>
-              </div>
-              <Building2 className="w-8 h-8 text-purple-200" />
-            </div>
+            <p className="text-[10px] font-semibold text-purple-100 uppercase tracking-wide">SANEAMENTO</p>
+            <p className="text-2xl font-bold mt-0.5">{metrics.obraSaneamento}</p>
+            <p className="text-[10px] text-purple-200">Obra Saneamento</p>
           </div>
-        </div>
         </div>
 
         {/* Mobilized View Mode */}
