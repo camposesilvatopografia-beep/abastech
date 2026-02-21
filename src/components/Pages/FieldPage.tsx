@@ -6,6 +6,7 @@ import { FieldHorimeterForm } from '@/components/Field/FieldHorimeterForm';
 import { FieldServiceOrderForm } from '@/components/Field/FieldServiceOrderForm';
 import { FieldFuelMenu } from '@/components/Field/FieldFuelMenu';
 import { FieldComboioForm } from '@/components/Field/FieldComboioForm';
+import { FieldTanqueForm } from '@/components/Field/FieldTanqueForm';
 import { FieldFuelRecords } from '@/components/Field/FieldFuelRecords';
 import { FieldStockView } from '@/components/Field/FieldStockView';
 import { useRolePermissions } from '@/hooks/useRolePermissions';
@@ -62,7 +63,7 @@ interface FieldUser {
 
 const STORAGE_KEY = 'abastech_field_user';
 
-type FieldView = 'dashboard' | 'form' | 'fuel-menu' | 'fuel-abastecer' | 'fuel-comboio' | 'fuel-registros' | 'fuel-estoques' | 'horimeter' | 'os';
+type FieldView = 'dashboard' | 'form' | 'fuel-menu' | 'fuel-abastecer' | 'fuel-comboio' | 'fuel-tanque' | 'fuel-registros' | 'fuel-estoques' | 'horimeter' | 'os';
 
 export function FieldPage() {
   const [user, setUser] = useState<FieldUser | null>(null);
@@ -618,7 +619,7 @@ export function FieldPage() {
             size="icon"
             className={cn(
               "h-11 w-11 rounded-xl",
-              (currentView === 'fuel-menu' || currentView === 'fuel-abastecer' || currentView === 'fuel-comboio' || currentView === 'fuel-registros' || currentView === 'form')
+              (currentView === 'fuel-menu' || currentView === 'fuel-abastecer' || currentView === 'fuel-comboio' || currentView === 'fuel-tanque' || currentView === 'fuel-registros' || currentView === 'form')
                 ? "bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/30" 
                 : theme === 'dark'
                   ? "text-slate-400 hover:text-white hover:bg-slate-700"
@@ -727,6 +728,11 @@ export function FieldPage() {
           />
         ) : currentView === 'fuel-comboio' ? (
           <FieldComboioForm
+            user={user}
+            onBack={() => setCurrentView('fuel-menu')}
+          />
+        ) : currentView === 'fuel-tanque' ? (
+          <FieldTanqueForm
             user={user}
             onBack={() => setCurrentView('fuel-menu')}
           />
