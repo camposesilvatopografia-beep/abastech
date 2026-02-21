@@ -1,4 +1,4 @@
-import { useMemo, forwardRef, useImperativeHandle } from 'react';
+import { useMemo, forwardRef, useImperativeHandle, useEffect, useState, useCallback } from 'react';
 import { 
   Fuel, 
   TrendingDown, 
@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useSheetData } from '@/hooks/useGoogleSheets';
+import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -52,6 +53,17 @@ function getStockSheetName(location: string): string {
   return 'GERAL';
 }
 
+// Helper to get location match strings for DB queries
+function getLocationMatchStrings(location: string): string[] {
+  const normalized = location.toLowerCase().trim();
+  if (normalized.includes('comboio 01')) return ['Comboio 01', 'comboio 01', 'CB-01'];
+  if (normalized.includes('comboio 02')) return ['Comboio 02', 'comboio 02', 'CB-02'];
+  if (normalized.includes('comboio 03')) return ['Comboio 03', 'comboio 03', 'CB-03'];
+  if (normalized.includes('canteiro 01')) return ['Tanque Canteiro 01', 'tanque canteiro 01', 'Canteiro 01'];
+  if (normalized.includes('canteiro 02')) return ['Tanque Canteiro 02', 'tanque canteiro 02', 'Canteiro 02'];
+  return [location];
+}
+
 // Helper to parse Brazilian date format (dd/MM/yyyy)
 function parseBrazilianDate(dateStr: string): Date | null {
   if (!dateStr) return null;
@@ -70,10 +82,8 @@ function isToday(dateStr: string): boolean {
   const today = new Date();
   const todayFormatted = `${String(today.getDate()).padStart(2, '0')}/${String(today.getMonth() + 1).padStart(2, '0')}/${today.getFullYear()}`;
   
-  // Direct string comparison
   if (dateStr === todayFormatted) return true;
   
-  // Try parsing
   const parsedDate = parseBrazilianDate(dateStr);
   if (parsedDate) {
     return parsedDate.toDateString() === today.toDateString();
@@ -86,36 +96,112 @@ export const LocationStockCard = forwardRef<LocationStockCardRef, LocationStockC
   function LocationStockCard({ location, localRecordKPIs }, ref) {
   const { theme } = useTheme();
   const stockSheetName = getStockSheetName(location);
+  const todayISO = format(new Date(), 'yyyy-MM-dd');
   
-  // Use polling every 10 seconds for real-time updates
-  const { data: stockSheetData, loading, refetch } = useSheetData(stockSheetName, { 
-    pollingInterval: 10000 
+  // Use polling every 15 seconds for sheet data
+  const { data: stockSheetData, loading: sheetLoading, refetch } = useSheetData(stockSheetName, { 
+    pollingInterval: 15000 
   });
+
+  // Also fetch today's records from DB for instant updates
+  const [dbEntradas, setDbEntradas] = useState(0);
+  const [dbSaidas, setDbSaidas] = useState(0);
+  const [dbVersion, setDbVersion] = useState(0);
+
+  const locationMatches = useMemo(() => getLocationMatchStrings(location), [location]);
+
+  const fetchDbRecords = useCallback(async () => {
+    try {
+      // Build OR filter for location matches
+      const orFilter = locationMatches.map(l => `location.eq.${l}`).join(',');
+      
+      const { data, error } = await supabase
+        .from('field_fuel_records')
+        .select('fuel_quantity, record_type, location')
+        .eq('record_date', todayISO)
+        .or(orFilter);
+
+      if (error) {
+        console.error('Error fetching DB records for stock:', error);
+        return;
+      }
+
+      let entradas = 0;
+      let saidas = 0;
+      
+      (data || []).forEach(r => {
+        const qty = Number(r.fuel_quantity) || 0;
+        if (r.record_type === 'entrada') {
+          entradas += qty;
+        } else {
+          saidas += qty;
+        }
+      });
+
+      setDbEntradas(entradas);
+      setDbSaidas(saidas);
+    } catch (err) {
+      console.error('Error in fetchDbRecords:', err);
+    }
+  }, [todayISO, locationMatches]);
+
+  // Initial fetch
+  useEffect(() => {
+    fetchDbRecords();
+  }, [fetchDbRecords]);
+
+  // Realtime subscription for instant updates
+  useEffect(() => {
+    const channel = supabase
+      .channel(`stock-realtime-${location.replace(/\s/g, '-')}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'field_fuel_records',
+        },
+        () => {
+          // Refetch DB records immediately
+          fetchDbRecords();
+          // Also trigger sheet refetch after a short delay (sheet needs time to update)
+          setTimeout(() => {
+            setDbVersion(v => v + 1);
+            refetch();
+          }, 3000);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [location, fetchDbRecords, refetch]);
   
   // Expose refetch method to parent
   useImperativeHandle(ref, () => ({
     refetch: () => {
+      fetchDbRecords();
       refetch();
     }
-  }), [refetch]);
+  }), [refetch, fetchDbRecords]);
   
   // Get today's date formatted
   const todayStr = format(new Date(), 'dd/MM/yyyy', { locale: ptBR });
 
-  // Calculate stock KPIs from location-specific sheet for TODAY only
+  // Calculate stock KPIs - combine sheet + DB data
   const stockKPIs = useMemo(() => {
-    if (!stockSheetData.rows.length) {
+    if (!stockSheetData.rows.length && dbEntradas === 0 && dbSaidas === 0) {
       return { estoqueAnterior: 0, entradas: 0, saidas: 0, estoqueAtual: 0, hasData: false };
     }
 
-    // Find today's row
     let estoqueAnterior = 0;
-    let entradas = 0;
-    let saidas = 0;
+    let sheetEntradas = 0;
+    let sheetSaidas = 0;
     let estoqueAtual = 0;
     let hasData = false;
 
-    // First, try to find today's row
+    // First, try to find today's row in the sheet
     for (const row of stockSheetData.rows) {
       const rowDate = String(row['DATA'] || row['Data'] || row['data'] || '').trim();
       
@@ -132,11 +218,11 @@ export const LocationStockCard = forwardRef<LocationStockCardRef, LocationStockC
           row['ANTERIOR'] || 0
         ).replace(/\./g, '').replace(',', '.')) || 0;
         
-        entradas = parseFloat(String(
+        sheetEntradas = parseFloat(String(
           row['ENTRADA'] || row['Entrada'] || row['ENTRADAS'] || 0
         ).replace(/\./g, '').replace(',', '.')) || 0;
         
-        saidas = parseFloat(String(
+        sheetSaidas = parseFloat(String(
           row['SAÍDA'] || row['Saída'] || row['SAIDA'] || row['Saida'] || 
           row['SAIDAS'] || row['SAÍDAS'] || 0
         ).replace(/\./g, '').replace(',', '.')) || 0;
@@ -159,28 +245,28 @@ export const LocationStockCard = forwardRef<LocationStockCardRef, LocationStockC
           row['ANTERIOR'] || 0
         ).replace(/\./g, '').replace(',', '.')) || 0;
         
-        entradas = parseFloat(String(
+        sheetEntradas = parseFloat(String(
           row['ENTRADA'] || row['Entrada'] || row['ENTRADAS'] || 0
         ).replace(/\./g, '').replace(',', '.')) || 0;
         
-        saidas = parseFloat(String(
+        sheetSaidas = parseFloat(String(
           row['SAÍDA'] || row['Saída'] || row['SAIDA'] || row['Saida'] || 
           row['SAIDAS'] || row['SAÍDAS'] || 0
         ).replace(/\./g, '').replace(',', '.')) || 0;
 
-        if (estoqueAtual > 0 || entradas > 0 || saidas > 0) {
+        if (estoqueAtual > 0 || sheetEntradas > 0 || sheetSaidas > 0) {
           hasData = true;
           break;
         }
       }
     }
 
-    // Use local KPIs if provided for instant updates, but keep sheet's stock values
-    const finalEntradas = localRecordKPIs?.entradas ?? entradas;
-    const finalSaidas = localRecordKPIs?.saidas ?? saidas;
+    // Use the MAXIMUM between sheet and DB values (DB is always more current)
+    const finalEntradas = Math.max(sheetEntradas, dbEntradas, localRecordKPIs?.entradas ?? 0);
+    const finalSaidas = Math.max(sheetSaidas, dbSaidas, localRecordKPIs?.saidas ?? 0);
     
-    // Recalculate stock based on local KPIs if available
-    const finalEstoqueAtual = localRecordKPIs 
+    // Recalculate stock
+    const finalEstoqueAtual = estoqueAnterior > 0 
       ? Math.max(0, estoqueAnterior + finalEntradas - finalSaidas)
       : Math.max(0, estoqueAtual);
 
@@ -189,9 +275,9 @@ export const LocationStockCard = forwardRef<LocationStockCardRef, LocationStockC
       entradas: finalEntradas,
       saidas: finalSaidas,
       estoqueAtual: finalEstoqueAtual,
-      hasData: hasData || !!localRecordKPIs,
+      hasData: hasData || dbEntradas > 0 || dbSaidas > 0 || !!localRecordKPIs,
     };
-  }, [stockSheetData.rows, localRecordKPIs]);
+  }, [stockSheetData.rows, localRecordKPIs, dbEntradas, dbSaidas]);
 
   // Get short location name for display
   const shortLocationName = useMemo(() => {
@@ -228,7 +314,7 @@ export const LocationStockCard = forwardRef<LocationStockCardRef, LocationStockC
         </CardTitle>
       </CardHeader>
       <CardContent className="pt-0">
-        {loading ? (
+        {sheetLoading && dbEntradas === 0 && dbSaidas === 0 ? (
           <div className="flex items-center justify-center py-4">
             <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
           </div>
