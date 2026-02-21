@@ -1629,6 +1629,21 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         
         return;
       }
+      // Check for duplicates before saving
+      const { checkDuplicateFuelRecord } = await import('@/lib/deduplication');
+      const duplicate = await checkDuplicateFuelRecord({
+        vehicle_code: recordData.vehicle_code,
+        record_date: recordData.record_date,
+        fuel_quantity: recordData.fuel_quantity,
+        record_type: recordData.record_type || undefined,
+        record_time: recordData.record_time,
+      });
+
+      if (duplicate) {
+        toast.warning(`Registro duplicado detectado! Já existe um lançamento idêntico às ${duplicate.record_time} para este veículo.`, { duration: 5000 });
+        setIsSaving(false);
+        return;
+      }
 
       // Save to database (online mode)
       const { data: savedRecord, error } = await supabase

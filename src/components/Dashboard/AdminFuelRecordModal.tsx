@@ -613,6 +613,22 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess, presetMode
         synced_to_sheet: false,
       };
 
+      // Check for duplicates before saving
+      const { checkDuplicateFuelRecord } = await import('@/lib/deduplication');
+      const duplicate = await checkDuplicateFuelRecord({
+        vehicle_code: dbRecord.vehicle_code,
+        record_date: dbRecord.record_date,
+        fuel_quantity: dbRecord.fuel_quantity,
+        record_type: dbRecord.record_type || undefined,
+        record_time: dbRecord.record_time,
+      });
+
+      if (duplicate) {
+        toast.warning(`Registro duplicado detectado! Já existe um lançamento idêntico às ${duplicate.record_time} para este veículo.`, { duration: 5000 });
+        setIsSaving(false);
+        return;
+      }
+
       // Insert into database
       const { error: dbError } = await supabase
         .from('field_fuel_records')
