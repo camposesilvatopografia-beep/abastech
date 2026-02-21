@@ -403,6 +403,9 @@ export function FrotaPage() {
     return Array.from(unique).sort();
   }, [data.rows]);
 
+  // Descriptions excluded from fleet/efetivo counts
+  const EXCLUDED_DESCRIPTIONS = ['aferição comboio', 'ajuste'];
+
   const filteredRows = useMemo(() => {
     return data.rows.filter(row => {
       const matchesSearch = !search || 
@@ -413,6 +416,10 @@ export function FrotaPage() {
       const empresaValue = getRowValue(row as any, ['EMPRESA', 'Empresa', 'empresa']);
       const descricaoValue = getRowValue(row as any, ['DESCRICAO', 'DESCRIÇÃO', 'Descricao', 'descrição', 'descricao']);
       const statusValue = getRowValue(row as any, ['STATUS', 'Status', 'status']) || 'ativo';
+
+      // Exclude "Aferição Comboio" and "AJUSTE" from all counts
+      const isExcludedDesc = EXCLUDED_DESCRIPTIONS.includes(descricaoValue.trim().toLowerCase());
+      if (isExcludedDesc) return false;
 
       const matchesEmpresa = empresaFilter === 'all' || empresaValue === empresaFilter;
       const matchesDescricao = descricaoFilter === 'all' || descricaoValue === descricaoFilter;
