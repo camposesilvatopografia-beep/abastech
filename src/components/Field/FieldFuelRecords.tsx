@@ -11,16 +11,31 @@ import {
   FileText,
   Truck,
   Package,
+  Pencil,
+  Trash2,
+  AlertTriangle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
 import { useTheme } from '@/hooks/useTheme';
 import { format, subDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { EditRequestModal } from './EditRequestModal';
+import { toast } from 'sonner';
 
 interface FieldUser {
   id: string;
@@ -58,6 +73,9 @@ export function FieldFuelRecords({ user, onBack }: FieldFuelRecordsProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [startDate, setStartDate] = useState(format(subDays(new Date(), 7), 'yyyy-MM-dd'));
   const [endDate, setEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [editingRecord, setEditingRecord] = useState<FuelRecord | null>(null);
+  const [deletingRecord, setDeletingRecord] = useState<FuelRecord | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const fetchRecords = useCallback(async () => {
     setIsLoading(true);
@@ -83,6 +101,49 @@ export function FieldFuelRecords({ user, onBack }: FieldFuelRecordsProps) {
   useEffect(() => {
     fetchRecords();
   }, [fetchRecords]);
+
+  // Realtime subscription
+  useEffect(() => {
+    const channel = supabase
+      .channel('field_fuel_records_realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'field_fuel_records',
+        },
+        () => {
+          fetchRecords();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [fetchRecords]);
+
+  const handleDelete = async () => {
+    if (!deletingRecord) return;
+    setIsDeleting(true);
+    try {
+      const { error } = await supabase
+        .from('field_fuel_records')
+        .delete()
+        .eq('id', deletingRecord.id);
+
+      if (error) throw error;
+      toast.success('Registro excluído com sucesso');
+      setDeletingRecord(null);
+      fetchRecords();
+    } catch (err) {
+      console.error('Error deleting record:', err);
+      toast.error('Erro ao excluir registro');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   // Group records by date
   const groupedRecords = records.reduce<Record<string, FuelRecord[]>>((acc, record) => {
@@ -213,13 +274,29 @@ export function FieldFuelRecords({ user, onBack }: FieldFuelRecordsProps) {
                           </Badge>
                         )}
                       </div>
-                      <div className="text-right">
+                      <div className="flex items-center gap-1">
                         <p className={cn(
-                          "text-sm font-bold",
+                          "text-sm font-bold mr-1",
                           record.record_type === 'entrada' ? "text-green-500" : "text-red-500"
                         )}>
                           {record.record_type === 'entrada' ? '+' : '-'}{record.fuel_quantity}L
                         </p>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-blue-500 hover:text-blue-600 hover:bg-blue-500/10"
+                          onClick={() => setEditingRecord(record)}
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-red-500 hover:text-red-600 hover:bg-red-500/10"
+                          onClick={() => setDeletingRecord(record)}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
                       </div>
                     </div>
 
@@ -265,6 +342,71 @@ export function FieldFuelRecords({ user, onBack }: FieldFuelRecordsProps) {
           ))}
         </div>
       )}
+
+      {/* Edit Modal */}
+      <EditRequestModal
+        record={editingRecord ? {
+          id: editingRecord.id,
+          vehicle_code: editingRecord.vehicle_code,
+          fuel_quantity: editingRecord.fuel_quantity,
+          record_date: editingRecord.record_date,
+          record_time: editingRecord.record_time,
+          location: editingRecord.location || '',
+          operator_name: editingRecord.operator_name || undefined,
+          horimeter_current: editingRecord.horimeter_current || undefined,
+          km_current: editingRecord.km_current || undefined,
+          arla_quantity: editingRecord.arla_quantity || undefined,
+          observations: editingRecord.observations || undefined,
+        } : null}
+        userId={user.id}
+        onClose={() => setEditingRecord(null)}
+        onSuccess={() => {
+          setEditingRecord(null);
+          fetchRecords();
+        }}
+      />
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!deletingRecord} onOpenChange={() => setDeletingRecord(null)}>
+        <AlertDialogContent className="bg-card border-border">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-foreground">
+              <AlertTriangle className="w-5 h-5 text-red-500" />
+              Confirmar Exclusão
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-muted-foreground">
+              Tem certeza que deseja excluir o registro de{' '}
+              <strong className="text-foreground">{deletingRecord?.vehicle_code}</strong> do dia{' '}
+              <strong className="text-foreground">{deletingRecord?.record_date}</strong> com{' '}
+              <strong className="text-foreground">{deletingRecord?.fuel_quantity}L</strong>?
+              <br /><br />
+              <span className="text-red-500 font-medium">Esta ação não pode ser desfeita.</span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="bg-secondary text-secondary-foreground hover:bg-secondary/80 border-0">
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={isDeleting}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Excluindo...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Excluir
+                </>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
