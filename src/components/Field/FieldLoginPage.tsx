@@ -115,40 +115,78 @@ export function FieldLoginPage({ onLogin }: FieldLoginPageProps) {
     }
 
     try {
+      // First try field_users
       const { data, error } = await supabase
         .from('field_users')
         .select('id, name, username, password_hash, role, active, assigned_locations')
         .eq('username', trimmedUsername)
         .single();
 
-      if (error || !data) {
+      if (data && !error) {
+        if (!data.active) {
+          toast.error('Usuário desativado');
+          setIsLoading(false);
+          return;
+        }
+        if (data.password_hash !== password) {
+          toast.error('Senha incorreta');
+          setIsLoading(false);
+          return;
+        }
+        cacheCredentials(data, password);
+        completeLogin({
+          id: data.id,
+          name: data.name,
+          username: data.username,
+          role: data.role || 'operador',
+          assigned_locations: (data as any).assigned_locations || [],
+        });
+        return;
+      }
+
+      // If not found in field_users, try system_users (admin/supervisor access)
+      const { data: sysUser, error: sysError } = await supabase
+        .from('system_users')
+        .select('id, name, username, password_hash, role, active')
+        .eq('username', trimmedUsername)
+        .single();
+
+      if (sysError || !sysUser) {
         toast.error('Usuário não encontrado');
         setIsLoading(false);
         return;
       }
 
-      if (!data.active) {
+      if (!sysUser.active) {
         toast.error('Usuário desativado');
         setIsLoading(false);
         return;
       }
 
-      if (data.password_hash !== password) {
+      if (sysUser.password_hash !== password) {
         toast.error('Senha incorreta');
         setIsLoading(false);
         return;
       }
 
-      // Cache credentials for offline use
-      cacheCredentials(data, password);
+      // System admin/supervisor gets admin role with all locations
+      const allLocations = [
+        'Tanque Canteiro 01', 'Tanque Canteiro 02', 'Tanque Canteiro 03',
+        'Comboio 01', 'Comboio 02', 'Comboio 03', 'Comboio 04', 'Comboio 05',
+        'Tanque Arla'
+      ];
 
-      completeLogin({
-        id: data.id,
-        name: data.name,
-        username: data.username,
-        role: data.role || 'operador',
-        assigned_locations: (data as any).assigned_locations || [],
-      });
+      const systemUserData = {
+        id: sysUser.id,
+        name: sysUser.name,
+        username: sysUser.username,
+        role: sysUser.role === 'admin' ? 'admin' : (sysUser.role === 'supervisor' ? 'supervisor' : 'operador'),
+        assigned_locations: allLocations,
+        active: true,
+      };
+
+      cacheCredentials(systemUserData, password);
+      completeLogin(systemUserData);
     } catch (err) {
       console.error('Login error:', err);
       // Network error - try offline fallback
