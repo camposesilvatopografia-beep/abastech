@@ -87,6 +87,11 @@ export function FieldComboioForm({ user, onBack }: FieldComboioFormProps) {
   const [vehicleOpen, setVehicleOpen] = useState(false);
   const [vehicleSearch, setVehicleSearch] = useState('');
 
+  // Detect if user is a comboio user (only shows Entrada) or tanque user (shows both)
+  const isComboioUser = useMemo(() => {
+    const locs = user.assigned_locations || [];
+    return locs.some(loc => loc.toLowerCase().includes('comboio'));
+  }, [user.assigned_locations]);
   // Filter vehicles to only show "Tanque Comboio" category
   const comboioVehicles = useMemo(() => {
     if (!vehiclesData?.rows) return [];
@@ -339,45 +344,58 @@ export function FieldComboioForm({ user, onBack }: FieldComboioFormProps) {
         </div>
       </div>
 
-      {/* Type Selection */}
-      <div className={cn(
-        "rounded-xl p-4 border",
-        theme === 'dark' ? "bg-slate-800/80 border-slate-700" : "bg-white border-slate-200 shadow-sm"
-      )}>
-        <Label className="text-sm font-medium mb-2 block">Tipo</Label>
-        <div className="grid grid-cols-2 gap-2">
-          <button
-            type="button"
-            onClick={() => setRecordType('entrada')}
-            className={cn(
-              "flex items-center justify-center gap-2 p-3 rounded-xl border-2 transition-all font-semibold",
-              recordType === 'entrada'
-                ? "border-green-500 bg-green-500/20 text-green-600 dark:text-green-400"
-                : theme === 'dark'
-                  ? "border-slate-600 text-slate-400 hover:border-slate-500"
-                  : "border-slate-200 text-slate-500 hover:border-slate-300"
-            )}
-          >
+      {/* Type Selection - only show for tanque users */}
+      {isComboioUser ? (
+        <div className={cn(
+          "rounded-xl p-4 border",
+          theme === 'dark' ? "bg-slate-800/80 border-slate-700" : "bg-white border-slate-200 shadow-sm"
+        )}>
+          <Label className="text-sm font-medium mb-2 block">Tipo</Label>
+          <div className="flex items-center gap-2 p-3 rounded-xl border-2 border-green-500 bg-green-500/20 font-semibold text-green-600 dark:text-green-400">
             <TrendingUp className="w-5 h-5" />
             Entrada
-          </button>
-          <button
-            type="button"
-            onClick={() => setRecordType('saida')}
-            className={cn(
-              "flex items-center justify-center gap-2 p-3 rounded-xl border-2 transition-all font-semibold",
-              recordType === 'saida'
-                ? "border-red-500 bg-red-500/20 text-red-600 dark:text-red-400"
-                : theme === 'dark'
-                  ? "border-slate-600 text-slate-400 hover:border-slate-500"
-                  : "border-slate-200 text-slate-500 hover:border-slate-300"
-            )}
-          >
-            <TrendingDown className="w-5 h-5" />
-            Saída
-          </button>
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className={cn(
+          "rounded-xl p-4 border",
+          theme === 'dark' ? "bg-slate-800/80 border-slate-700" : "bg-white border-slate-200 shadow-sm"
+        )}>
+          <Label className="text-sm font-medium mb-2 block">Tipo</Label>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setRecordType('entrada')}
+              className={cn(
+                "flex items-center justify-center gap-2 p-3 rounded-xl border-2 transition-all font-semibold",
+                recordType === 'entrada'
+                  ? "border-green-500 bg-green-500/20 text-green-600 dark:text-green-400"
+                  : theme === 'dark'
+                    ? "border-slate-600 text-slate-400 hover:border-slate-500"
+                    : "border-slate-200 text-slate-500 hover:border-slate-300"
+              )}
+            >
+              <TrendingUp className="w-5 h-5" />
+              Entrada
+            </button>
+            <button
+              type="button"
+              onClick={() => setRecordType('saida')}
+              className={cn(
+                "flex items-center justify-center gap-2 p-3 rounded-xl border-2 transition-all font-semibold",
+                recordType === 'saida'
+                  ? "border-red-500 bg-red-500/20 text-red-600 dark:text-red-400"
+                  : theme === 'dark'
+                    ? "border-slate-600 text-slate-400 hover:border-slate-500"
+                    : "border-slate-200 text-slate-500 hover:border-slate-300"
+              )}
+            >
+              <TrendingDown className="w-5 h-5" />
+              Saída
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Vehicle Selection */}
       <div className={cn(
