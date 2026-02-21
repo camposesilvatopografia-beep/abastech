@@ -1996,7 +1996,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
 
         {/* Record Type Selection - Compact */}
         <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-3 shadow-sm">
-          <div className="grid grid-cols-2 gap-2">
+          <div className={cn("grid gap-2", userLocationInfo.isOnlyComboio ? "grid-cols-1" : "grid-cols-2")}>
             <Button
               type="button"
               variant={recordType === 'saida' && quickEntryMode === 'normal' ? 'default' : 'outline'}
@@ -2011,20 +2011,22 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
               <Fuel className="w-5 h-5 mr-2" />
               Saída
             </Button>
-            <Button
-              type="button"
-              variant={recordType === 'entrada' && quickEntryMode === 'normal' ? 'default' : 'outline'}
-              className={cn(
-                "h-12 text-base font-bold transition-all",
-                recordType === 'entrada' && quickEntryMode === 'normal'
-                  ? "bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white border-0 shadow-lg shadow-green-500/30"
-                  : "border-green-600/30 text-muted-foreground hover:bg-green-500/10 hover:text-green-400 hover:border-green-500/50"
-              )}
-              onClick={() => { setRecordType('entrada'); setQuickEntryMode('normal'); setShowQuickOptions(false); }}
-            >
-              <Building2 className="w-5 h-5 mr-2" />
-              Entrada
-            </Button>
+            {!userLocationInfo.isOnlyComboio && (
+              <Button
+                type="button"
+                variant={recordType === 'entrada' && quickEntryMode === 'normal' ? 'default' : 'outline'}
+                className={cn(
+                  "h-12 text-base font-bold transition-all",
+                  recordType === 'entrada' && quickEntryMode === 'normal'
+                    ? "bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white border-0 shadow-lg shadow-green-500/30"
+                    : "border-green-600/30 text-muted-foreground hover:bg-green-500/10 hover:text-green-400 hover:border-green-500/50"
+                )}
+                onClick={() => { setRecordType('entrada'); setQuickEntryMode('normal'); setShowQuickOptions(false); }}
+              >
+                <Building2 className="w-5 h-5 mr-2" />
+                Entrada
+              </Button>
+            )}
           </div>
         </div>
 
