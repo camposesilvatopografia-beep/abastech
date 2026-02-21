@@ -1026,31 +1026,6 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess, presetMode
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <User className="h-4 w-4" />
-                    Motorista/Operador
-                  </Label>
-                  <Input
-                    value={operatorName}
-                    onChange={(e) => setOperatorName(e.target.value)}
-                    placeholder="Nome do operador"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <Building2 className="h-4 w-4" />
-                    Empresa
-                  </Label>
-                  <Input
-                    value={company}
-                    onChange={(e) => setCompany(e.target.value)}
-                    placeholder="Empresa"
-                  />
-                </div>
-              </div>
-
               {/* Horimeter with validation */}
               <TooltipProvider>
                 <div className="grid grid-cols-2 gap-4">
@@ -1142,6 +1117,31 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess, presetMode
                   </div>
                 </div>
               </TooltipProvider>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <User className="h-4 w-4" />
+                    Motorista/Operador
+                  </Label>
+                  <Input
+                    value={operatorName}
+                    onChange={(e) => setOperatorName(e.target.value)}
+                    placeholder="Nome do operador"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <Building2 className="h-4 w-4" />
+                    Empresa
+                  </Label>
+                  <Input
+                    value={company}
+                    onChange={(e) => setCompany(e.target.value)}
+                    placeholder="Empresa"
+                  />
+                </div>
+              </div>
 
               {/* Fuel */}
               <div className="grid grid-cols-2 gap-4">
