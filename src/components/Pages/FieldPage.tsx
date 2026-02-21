@@ -638,6 +638,7 @@ export function FieldPage() {
         ) : currentView === 'fuel-menu' ? (
           <FieldFuelMenu
             onNavigate={(view) => setCurrentView(view)}
+            user={user}
           />
         ) : currentView === 'fuel-abastecer' || currentView === 'form' ? (
           <FieldFuelForm 
