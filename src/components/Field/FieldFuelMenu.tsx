@@ -1,4 +1,4 @@
-import { Fuel, Truck, FileText, ArrowLeft, ArrowRight, Package2, User } from 'lucide-react';
+import { Fuel, Truck, ArrowLeft, ArrowRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTheme } from '@/hooks/useTheme';
 import { Button } from '@/components/ui/button';
@@ -12,7 +12,7 @@ interface FieldUser {
 }
 
 interface FieldFuelMenuProps {
-  onNavigate: (view: 'fuel-abastecer' | 'fuel-comboio' | 'fuel-registros' | 'fuel-estoques') => void;
+  onNavigate: (view: 'fuel-abastecer' | 'fuel-comboio') => void;
   user?: FieldUser;
   onBack?: () => void;
 }
@@ -36,22 +36,6 @@ export function FieldFuelMenu({ onNavigate, user, onBack }: FieldFuelMenuProps) 
       icon: Truck,
       gradient: 'from-orange-500 to-orange-700',
       shadow: 'shadow-orange-500/30',
-    },
-    {
-      key: 'fuel-registros' as const,
-      label: 'Registros',
-      description: 'Consultar registros por data',
-      icon: FileText,
-      gradient: 'from-blue-500 to-blue-700',
-      shadow: 'shadow-blue-500/30',
-    },
-    {
-      key: 'fuel-estoques' as const,
-      label: 'Estoques',
-      description: 'Painel de estoque por local',
-      icon: Package2,
-      gradient: 'from-purple-500 to-purple-700',
-      shadow: 'shadow-purple-500/30',
     },
   ];
 
