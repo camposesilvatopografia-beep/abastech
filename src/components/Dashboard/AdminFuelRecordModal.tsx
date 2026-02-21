@@ -66,15 +66,18 @@ import { useRealtimeSync } from '@/hooks/useRealtimeSync';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
+export type AdminPresetMode = 'normal' | 'comboio' | 'tanque_diesel' | 'tanque_arla';
+
 interface AdminFuelRecordModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess?: () => void;
+  presetMode?: AdminPresetMode;
 }
 
 type QuickEntryMode = 'normal' | 'arla_only' | 'lubrication_only' | 'filter_blow_only' | 'oil_only';
 
-export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFuelRecordModalProps) {
+export function AdminFuelRecordModal({ open, onOpenChange, onSuccess, presetMode = 'normal' }: AdminFuelRecordModalProps) {
   const { data: vehiclesData } = useSheetData('Veiculo');
   const [isSaving, setIsSaving] = useState(false);
   const { broadcast } = useRealtimeSync();
@@ -131,6 +134,8 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
   const locationOptions = [
     'Tanque Canteiro 01',
     'Tanque Canteiro 02',
+    'Tanque Arla 01',
+    'Tanque Arla 02',
     'Comboio 01',
     'Comboio 02',
     'Comboio 03',
@@ -241,8 +246,22 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
   useEffect(() => {
     if (open) {
       resetForm();
+      // Apply preset mode
+      if (presetMode === 'comboio') {
+        setRecordType('entrada');
+        setEntryLocation('Comboio 01');
+        setFuelType('Diesel');
+      } else if (presetMode === 'tanque_diesel') {
+        setRecordType('entrada');
+        setEntryLocation('Tanque Canteiro 01');
+        setFuelType('Diesel');
+      } else if (presetMode === 'tanque_arla') {
+        setRecordType('entrada');
+        setFuelType('Arla');
+        setEntryLocation('Tanque Canteiro 01');
+      }
     }
-  }, [open]);
+  }, [open, presetMode]);
 
   const resetForm = () => {
     setQuickEntryMode('normal');
@@ -274,6 +293,16 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
     setRecordDate(new Date());
     setRecordTime(new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
     setLastHorimeterHistory([]);
+  };
+
+  // Get title based on preset mode
+  const getModalTitle = () => {
+    switch (presetMode) {
+      case 'comboio': return 'Carregar Comboio';
+      case 'tanque_diesel': return 'Carregar Tanque de Diesel';
+      case 'tanque_arla': return 'Carregar Tanque de Arla';
+      default: return 'Novo Apontamento (Admin)';
+    }
   };
 
   // Transform vehicles for combobox
@@ -680,7 +709,7 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
             )}>
               <Fuel className="h-5 w-5" />
             </div>
-            Novo Apontamento (Admin)
+            {getModalTitle()}
           </DialogTitle>
         </DialogHeader>
 
@@ -731,7 +760,8 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
             </div>
           </div>
 
-          {/* Record Type */}
+          {/* Record Type - hidden when using preset modes */}
+          {presetMode === 'normal' && (
           <div className="space-y-2">
             <Label>Tipo de Registro</Label>
             <div className="flex gap-2">
@@ -759,6 +789,7 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess }: AdminFue
               </Button>
             </div>
           </div>
+          )}
 
           {/* Quick Entry Options - Only for Saida */}
           {recordType === 'saida' && (
