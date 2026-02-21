@@ -318,6 +318,14 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
     category.toLowerCase().includes('máquina')
   ) : false;
 
+  // Check if category is vehicle (uses KM instead of horimeter)
+  const isVehicleCategory = category ? (
+    category.toLowerCase() === 'veiculo' ||
+    category.toLowerCase() === 'veículo' ||
+    category.toLowerCase().includes('veiculo') ||
+    category.toLowerCase().includes('veículo')
+  ) : false;
+
   // Voice recognition
   const voice = useVoiceRecognition();
 
@@ -1406,15 +1414,15 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
             return;
           }
           
-          // Validate horimeter based on user config (or equipment type)
-          if ((requiredFields.horimeter_current || isEquipment) && !horimeterCurrent) {
+          // Validate horimeter based on user config (or equipment type) - skip for vehicles
+          if (!isVehicleCategory && (requiredFields.horimeter_current || isEquipment) && !horimeterCurrent) {
             toast.error('Horímetro Atual é obrigatório');
             return;
           }
           
-          // Validate km_current based on user config
-          if (requiredFields.km_current && !kmCurrent) {
-            toast.error('KM Atual é obrigatório');
+          // Validate km_current for vehicles or based on user config
+          if ((isVehicleCategory || requiredFields.km_current) && !horimeterCurrent && !kmCurrent) {
+            toast.error(isVehicleCategory ? 'KM Atual é obrigatório' : 'KM Atual é obrigatório');
             return;
           }
           
@@ -1459,13 +1467,14 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
           }
         }
         
-        // Validate horimeter current > previous (only if horimeter is provided)
+        // Validate current > previous (only if value is provided)
         if (horimeterCurrent !== null && horimeterPrevious) {
           const currentValue = horimeterCurrent;
           const previousValue = parseBrazilianNumber(horimeterPrevious);
+          const label = isVehicleCategory ? 'KM' : 'Horímetro';
           
           if (currentValue <= previousValue) {
-            toast.error(`Horímetro Atual (${formatBrazilianNumber(currentValue)}) deve ser maior que o Anterior (${formatBrazilianNumber(previousValue)})`);
+            toast.error(`${label} Atual (${formatBrazilianNumber(currentValue)}) deve ser maior que o Anterior (${formatBrazilianNumber(previousValue)})`);
             return;
           }
           
@@ -1555,9 +1564,11 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         operator_name: recordType === 'entrada' ? '' : (operatorName || user.name),
         company,
         work_site: workSite,
-        // Only save horimeter values for own refueling (not for tank refuel mode)
-        horimeter_previous: quickEntryMode === 'comboio_tank_refuel' ? null : parseBrazilianNumber(horimeterPrevious),
-        horimeter_current: quickEntryMode === 'comboio_tank_refuel' ? null : horimeterCurrent,
+        // For vehicles: save to km columns; for equipment: save to horimeter columns
+        horimeter_previous: quickEntryMode === 'comboio_tank_refuel' ? null : (isVehicleCategory ? null : parseBrazilianNumber(horimeterPrevious)),
+        horimeter_current: quickEntryMode === 'comboio_tank_refuel' ? null : (isVehicleCategory ? null : horimeterCurrent),
+        km_previous: isVehicleCategory ? parseBrazilianNumber(horimeterPrevious) : (kmPrevious ? parseBrazilianNumber(kmPrevious) : null),
+        km_current: isVehicleCategory ? horimeterCurrent : (kmCurrent ?? null),
         // fuelQuantity is now a number, no need to parse
         fuel_quantity: fuelQuantity ?? 0,
         fuel_type: fuelType,
@@ -1640,10 +1651,10 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         operatorName: recordType === 'entrada' ? '' : (operatorName || user.name),
         company,
         workSite,
-        horimeterPrevious: parseBrazilianNumber(horimeterPrevious),
-        horimeterCurrent: horimeterCurrent ?? 0,
-        kmPrevious: kmPrevious ? parseBrazilianNumber(kmPrevious) : 0,
-        kmCurrent: kmCurrent ?? 0,
+        horimeterPrevious: isVehicleCategory ? 0 : parseBrazilianNumber(horimeterPrevious),
+        horimeterCurrent: isVehicleCategory ? 0 : (horimeterCurrent ?? 0),
+        kmPrevious: isVehicleCategory ? parseBrazilianNumber(horimeterPrevious) : (kmPrevious ? parseBrazilianNumber(kmPrevious) : 0),
+        kmCurrent: isVehicleCategory ? (horimeterCurrent ?? 0) : (kmCurrent ?? 0),
         fuelQuantity: fuelQuantity ?? 0,
         fuelType,
         arlaQuantity: arlaQuantity ?? 0,
@@ -2718,7 +2729,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                           </span>
                         </div>
                         <div className="bg-white/50 dark:bg-blue-950/50 rounded p-2 border border-blue-100 dark:border-blue-800">
-                          <span className="text-xs text-muted-foreground block">Horímetro Atual</span>
+                          <span className="text-xs text-muted-foreground block">{isVehicleCategory ? 'KM Atual' : 'Horímetro Atual'}</span>
                           <span className="font-bold text-blue-700 dark:text-blue-200">
                             {horimeterPrevious}
                           </span>
@@ -2835,9 +2846,9 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
             <div className="flex items-center gap-3 bg-emerald-100 dark:bg-emerald-900/60 px-4 py-2.5 rounded-xl -ml-1">
               <Gauge className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
               <span className="text-lg font-bold text-emerald-800 dark:text-emerald-200">
-                Horímetro / KM Atual
+                {isVehicleCategory ? 'KM Atual' : 'Horímetro Atual'}
               </span>
-              {isEquipment && recordType === 'saida' && (
+              {(isEquipment || isVehicleCategory) && recordType === 'saida' && (
                 <span className="text-red-500 text-2xl font-bold">*</span>
               )}
             </div>
