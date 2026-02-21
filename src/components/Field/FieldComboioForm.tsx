@@ -390,72 +390,74 @@ export function FieldComboioForm({ user, onBack }: FieldComboioFormProps) {
         </div>
       )}
 
-      {/* Vehicle Selection */}
-      <div className={cn(
-        "rounded-xl p-4 border",
-        theme === 'dark' ? "bg-slate-800/80 border-slate-700" : "bg-white border-slate-200 shadow-sm"
-      )}>
-        <Label className="text-sm font-medium mb-2 block">Veículo (Comboio)</Label>
-        <Popover open={vehicleOpen} onOpenChange={setVehicleOpen}>
-          <PopoverTrigger asChild>
-            <Button
-              variant="outline"
-              role="combobox"
-              className={cn(
-                "w-full justify-between h-12 text-left",
-                !vehicleCode && "text-muted-foreground"
-              )}
-            >
-              {vehicleCode ? (
-                <span className="font-bold text-primary">{vehicleCode}</span>
-              ) : (
-                "Selecione o Comboio..."
-              )}
-              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-[calc(100vw-3rem)] p-0" align="start">
-            <Command>
-              <CommandInput
-                placeholder="Buscar comboio..."
-                value={vehicleSearch}
-                onValueChange={setVehicleSearch}
-              />
-              <CommandList className="max-h-[300px]">
-                <CommandEmpty>Nenhum comboio encontrado</CommandEmpty>
-                <CommandGroup>
-                  {filteredVehicles.map((v: any, idx: number) => {
-                    const code = String(v['Codigo'] || v['CODIGO'] || v['Código'] || '');
-                    const desc = String(v['Descricao'] || v['DESCRICAO'] || v['Descrição'] || v['Nome'] || '');
-                    return (
-                      <CommandItem
-                        key={`${code}-${idx}`}
-                        value={`${code} ${desc}`}
-                        onSelect={() => handleVehicleSelect(v)}
-                        className="py-3"
-                      >
-                        <div className="flex items-center gap-2 w-full">
-                          <Truck className="w-4 h-4 text-orange-500 shrink-0" />
-                          <div className="flex-1 min-w-0">
-                            <span className="font-bold text-primary">{code}</span>
-                            <span className="text-xs text-muted-foreground ml-2 truncate">{desc}</span>
+      {/* Vehicle Selection - hidden for comboio users (auto-filled) */}
+      {!isComboioUser && (
+        <div className={cn(
+          "rounded-xl p-4 border",
+          theme === 'dark' ? "bg-slate-800/80 border-slate-700" : "bg-white border-slate-200 shadow-sm"
+        )}>
+          <Label className="text-sm font-medium mb-2 block">Veículo (Comboio)</Label>
+          <Popover open={vehicleOpen} onOpenChange={setVehicleOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                role="combobox"
+                className={cn(
+                  "w-full justify-between h-12 text-left",
+                  !vehicleCode && "text-muted-foreground"
+                )}
+              >
+                {vehicleCode ? (
+                  <span className="font-bold text-primary">{vehicleCode}</span>
+                ) : (
+                  "Selecione o Comboio..."
+                )}
+                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[calc(100vw-3rem)] p-0" align="start">
+              <Command>
+                <CommandInput
+                  placeholder="Buscar comboio..."
+                  value={vehicleSearch}
+                  onValueChange={setVehicleSearch}
+                />
+                <CommandList className="max-h-[300px]">
+                  <CommandEmpty>Nenhum comboio encontrado</CommandEmpty>
+                  <CommandGroup>
+                    {filteredVehicles.map((v: any, idx: number) => {
+                      const code = String(v['Codigo'] || v['CODIGO'] || v['Código'] || '');
+                      const desc = String(v['Descricao'] || v['DESCRICAO'] || v['Descrição'] || v['Nome'] || '');
+                      return (
+                        <CommandItem
+                          key={`${code}-${idx}`}
+                          value={`${code} ${desc}`}
+                          onSelect={() => handleVehicleSelect(v)}
+                          className="py-3"
+                        >
+                          <div className="flex items-center gap-2 w-full">
+                            <Truck className="w-4 h-4 text-orange-500 shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <span className="font-bold text-primary">{code}</span>
+                              <span className="text-xs text-muted-foreground ml-2 truncate">{desc}</span>
+                            </div>
+                            {vehicleCode === code && (
+                              <Check className="w-4 h-4 text-primary shrink-0" />
+                            )}
                           </div>
-                          {vehicleCode === code && (
-                            <Check className="w-4 h-4 text-primary shrink-0" />
-                          )}
-                        </div>
-                      </CommandItem>
-                    );
-                  })}
-                </CommandGroup>
-              </CommandList>
-            </Command>
-          </PopoverContent>
-        </Popover>
-        {vehicleDescription && (
-          <p className="text-xs text-muted-foreground mt-1">{vehicleDescription}</p>
-        )}
-      </div>
+                        </CommandItem>
+                      );
+                    })}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
+          {vehicleDescription && (
+            <p className="text-xs text-muted-foreground mt-1">{vehicleDescription}</p>
+          )}
+        </div>
+      )}
 
       {/* Local de Entrada */}
       <div className={cn(
