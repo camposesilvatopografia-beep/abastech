@@ -2650,37 +2650,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
               )}
             </div>
 
-        {/* Fuel Quantity with OCR - OPTIMIZED FOR SUNLIGHT */}
-        <div className="bg-amber-50 dark:bg-amber-950/40 rounded-2xl border-2 border-amber-400 dark:border-amber-600 p-4 space-y-3 shadow-lg">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3 bg-amber-100 dark:bg-amber-900/60 px-4 py-2.5 rounded-xl -ml-1">
-              <Fuel className="w-6 h-6 text-amber-600 dark:text-amber-400" />
-              <span className="text-lg font-bold text-amber-800 dark:text-amber-200">
-                Quantidade (Litros)
-              </span>
-            </div>
-          </div>
-          
-          <input
-            type="number"
-            inputMode="numeric"
-            placeholder="Ex: 250"
-            value={fuelQuantity ?? ''}
-            onChange={(e) => {
-              const val = e.target.value;
-              setFuelQuantity(val ? Number(val) : null);
-              if (val) {
-                const result = formatQuantityInput(val);
-                setQuantityInWords(result.inWords);
-              } else {
-                setQuantityInWords('');
-              }
-            }}
-            className="flex h-16 w-full rounded-md border-2 border-amber-300 dark:border-amber-600 bg-white dark:bg-slate-900 px-3 py-2 text-3xl text-center font-black ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-200 dark:focus:ring-amber-800 shadow-md"
-          />
-        </div>
-
-        {/* Horimeter / KM with OCR */}
+        {/* Horimeter / KM - RIGHT AFTER VEHICLE */}
         {quickEntryMode !== 'comboio_tank_refuel' && (
         <div className="bg-emerald-50 dark:bg-emerald-950/40 rounded-2xl border-2 border-emerald-400 dark:border-emerald-600 p-4 space-y-3 shadow-lg">
           <div className="flex items-center justify-between">
@@ -2714,6 +2684,36 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
           )}
         </div>
         )}
+
+        {/* Fuel Quantity - AFTER HORIMETER */}
+        <div className="bg-amber-50 dark:bg-amber-950/40 rounded-2xl border-2 border-amber-400 dark:border-amber-600 p-4 space-y-3 shadow-lg">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3 bg-amber-100 dark:bg-amber-900/60 px-4 py-2.5 rounded-xl -ml-1">
+              <Fuel className="w-6 h-6 text-amber-600 dark:text-amber-400" />
+              <span className="text-lg font-bold text-amber-800 dark:text-amber-200">
+                Quantidade (Litros)
+              </span>
+            </div>
+          </div>
+          
+          <input
+            type="number"
+            inputMode="numeric"
+            placeholder="Ex: 250"
+            value={fuelQuantity ?? ''}
+            onChange={(e) => {
+              const val = e.target.value;
+              setFuelQuantity(val ? Number(val) : null);
+              if (val) {
+                const result = formatQuantityInput(val);
+                setQuantityInWords(result.inWords);
+              } else {
+                setQuantityInWords('');
+              }
+            }}
+            className="flex h-16 w-full rounded-md border-2 border-amber-300 dark:border-amber-600 bg-white dark:bg-slate-900 px-3 py-2 text-3xl text-center font-black ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-200 dark:focus:ring-amber-800 shadow-md"
+          />
+        </div>
 
         {/* Equipment-specific fields (optional) - Hide for comboio tank refuel mode */}
         {isEquipment && recordType === 'saida' && quickEntryMode !== 'comboio_tank_refuel' && (
