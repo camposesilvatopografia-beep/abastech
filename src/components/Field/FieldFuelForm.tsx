@@ -2724,18 +2724,13 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
 
                       {lastHorimeterHistory.length > 0 && (
                         <div className="bg-white/30 dark:bg-blue-950/30 rounded p-2 border border-blue-100/60 dark:border-blue-800/60">
-                          <div className="text-xs font-semibold text-blue-700 dark:text-blue-300 mb-1">
-                            Histórico (5 últimos {lastHorimeterHistory[0]?.isKm ? 'km' : 'horímetros'})
-                          </div>
-                          <div className="space-y-1">
-                            {lastHorimeterHistory.map((h, idx) => (
-                              <div key={`${h.dateTime}-${idx}`} className="flex items-center justify-between text-xs">
-                                <span className="text-muted-foreground">{h.dateTime}</span>
-                                <span className="font-semibold text-blue-700 dark:text-blue-200">
-                                  {h.horimeterAtual}{h.isKm ? ' km' : 'h'}
-                                </span>
-                              </div>
-                            ))}
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-muted-foreground">
+                              Último registro: {lastHorimeterHistory[0].dateTime}
+                            </span>
+                            <span className="font-semibold text-blue-700 dark:text-blue-200">
+                              {lastHorimeterHistory[0].horimeterAtual}{lastHorimeterHistory[0].isKm ? ' km' : 'h'}
+                            </span>
                           </div>
                         </div>
                       )}
