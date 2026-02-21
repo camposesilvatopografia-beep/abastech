@@ -30,7 +30,7 @@ import { CurrencyInput } from '@/components/ui/currency-input';
 import { useVehicles, useHorimeterReadings, HorimeterWithVehicle } from '@/hooks/useHorimeters';
 import { useToast } from '@/hooks/use-toast';
 import { Clock, Save, History, AlertTriangle, RefreshCw, TrendingUp, CalendarIcon, X, ChevronUp, ChevronDown } from 'lucide-react';
-import { format, startOfMonth, endOfMonth, isWithinInterval, startOfDay, isSameDay, isAfter } from 'date-fns';
+import { format, startOfMonth, endOfMonth, isWithinInterval, startOfDay, isSameDay, isAfter, addDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { parsePtBRNumber, formatPtBRNumber } from '@/lib/ptBRNumber';
@@ -414,6 +414,20 @@ export function DatabaseHorimeterModal({
     ? (previousKmValue ?? 0)
     : previousKmDerived;
 
+  // Find the latest reading date for this vehicle (for sequential validation)
+  const latestReadingDate = useMemo(() => {
+    if (!selectedVehicleId) return null;
+    const vehicleReadings = readings
+      .filter(r => {
+        if (r.vehicle_id !== selectedVehicleId) return false;
+        if (isEditMode && editRecord && r.id === editRecord.id) return false;
+        return true;
+      })
+      .map(r => r.reading_date)
+      .sort((a, b) => b.localeCompare(a));
+    return vehicleReadings.length > 0 ? vehicleReadings[0] : null;
+  }, [selectedVehicleId, readings, isEditMode, editRecord]);
+
   // Check for duplicate - improved logic for edit mode
   const hasDuplicateRecord = useMemo(() => {
     if (!selectedVehicleId || !selectedDate) return false;
@@ -572,6 +586,23 @@ export function DatabaseHorimeterModal({
         variant: 'destructive',
       });
       return false;
+    }
+
+    // Sequential date validation: cannot skip days
+    if (!isEditMode && latestReadingDate) {
+      const lastDate = new Date(latestReadingDate + 'T12:00:00');
+      const nextAllowedDate = addDays(startOfDay(lastDate), 1);
+      const selectedDateStart = startOfDay(selectedDate);
+      if (isAfter(selectedDateStart, nextAllowedDate)) {
+        const lastDateFormatted = format(lastDate, 'dd/MM/yyyy');
+        const nextDateFormatted = format(nextAllowedDate, 'dd/MM/yyyy');
+        toast({
+          title: 'Data não sequencial',
+          description: `O último lançamento deste veículo foi em ${lastDateFormatted}. O próximo lançamento deve ser em ${nextDateFormatted}. Não é permitido pular datas.`,
+          variant: 'destructive',
+        });
+        return false;
+      }
     }
 
     const horimeterNum = horimeterValue ?? 0;
@@ -797,7 +828,16 @@ export function DatabaseHorimeterModal({
                         mode="single"
                         selected={selectedDate}
                         onSelect={(date) => date && setSelectedDate(date)}
-                        disabled={(date) => date > new Date()}
+                        disabled={(date) => {
+                          if (date > new Date()) return true;
+                          // Disable dates that skip beyond next allowed date
+                          if (!isEditMode && latestReadingDate) {
+                            const lastDate = new Date(latestReadingDate + 'T12:00:00');
+                            const nextAllowed = addDays(startOfDay(lastDate), 1);
+                            if (startOfDay(date) > nextAllowed) return true;
+                          }
+                          return false;
+                        }}
                         initialFocus
                         locale={ptBR}
                         className="p-3"
@@ -813,6 +853,22 @@ export function DatabaseHorimeterModal({
                   Já existe registro nesta data
                 </p>
               )}
+
+              {!isEditMode && latestReadingDate && (() => {
+                const lastDate = new Date(latestReadingDate + 'T12:00:00');
+                const nextAllowed = addDays(startOfDay(lastDate), 1);
+                const selectedDateStart = startOfDay(selectedDate);
+                const isSkipping = isAfter(selectedDateStart, nextAllowed);
+                if (isSkipping) {
+                  return (
+                    <p className="text-xs text-destructive flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3" />
+                      Próxima data permitida: {format(nextAllowed, 'dd/MM/yyyy')} (último lançamento: {format(lastDate, 'dd/MM/yyyy')})
+                    </p>
+                  );
+                }
+                return null;
+              })()}
 
               {/* Compact vehicle info + previous values */}
               {selectedVehicle && (

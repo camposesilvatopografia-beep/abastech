@@ -45,7 +45,7 @@ import { getSheetData } from '@/lib/googleSheets';
 import { parsePtBRNumber, formatPtBRNumber } from '@/lib/ptBRNumber';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { format, startOfDay, isAfter, isSameDay } from 'date-fns';
+import { format, startOfDay, isAfter, isSameDay, addDays } from 'date-fns';
 import { FieldPendingHorimeters } from './FieldPendingHorimeters';
 import { ptBR } from 'date-fns/locale';
 import { useTheme } from '@/hooks/useTheme';
@@ -495,6 +495,18 @@ export function FieldHorimeterForm({ user, onBack }: FieldHorimeterFormProps) {
     if (hasDuplicate) {
       toast.error('Já existe um registro para este veículo nesta data');
       return;
+    }
+
+    // Sequential date validation: cannot skip days
+    if (lastRecordDate) {
+      const nextAllowedDate = addDays(startOfDay(lastRecordDate), 1);
+      const selectedDateStart = startOfDay(selectedDate);
+      if (isAfter(selectedDateStart, nextAllowedDate)) {
+        const lastDateFormatted = format(lastRecordDate, 'dd/MM/yyyy');
+        const nextDateFormatted = format(nextAllowedDate, 'dd/MM/yyyy');
+        toast.error(`O último lançamento foi em ${lastDateFormatted}. O próximo deve ser em ${nextDateFormatted}. Não é permitido pular datas.`);
+        return;
+      }
     }
 
     const horNum = horimeterValue ?? 0;
