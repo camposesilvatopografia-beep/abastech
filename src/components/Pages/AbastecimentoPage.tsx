@@ -46,6 +46,8 @@ import {
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { AdminFuelRecordModal, type AdminPresetMode } from '@/components/Dashboard/AdminFuelRecordModal';
+import { AdminServiceOrderModal } from '@/components/Dashboard/AdminServiceOrderModal';
+import { DatabaseHorimeterModal } from '@/components/Horimetros/DatabaseHorimeterModal';
 import { StockPanelTab } from '@/components/Dashboard/StockPanelTab';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -88,7 +90,7 @@ const SHEET_NAME = 'AbastecimentoCanteiro01';
 const GERAL_SHEET = 'Geral';
 const SANEAMENTO_STOCK_SHEET = 'EstoqueObraSaneamento';
 
-import { Package2, Wrench, BarChart, Fuel as FuelIcon } from 'lucide-react';
+import { Package2, Wrench, BarChart, Fuel as FuelIcon, Gauge } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -214,6 +216,8 @@ export function AbastecimentoPage() {
   const [adminPresetMode, setAdminPresetMode] = useState<AdminPresetMode>('normal');
   const [editingRecord, setEditingRecord] = useState<any>(null);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showHorimeterModal, setShowHorimeterModal] = useState(false);
+  const [showOSModal, setShowOSModal] = useState(false);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [sortByDescription, setSortByDescription] = useState(false);
   const [reportCategoryFilter, setReportCategoryFilter] = useState('all');
@@ -2180,6 +2184,21 @@ export function AbastecimentoPage() {
                       <div className="text-xs text-muted-foreground">Entrada de arla para tanque</div>
                     </div>
                   </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => setShowHorimeterModal(true)} className="gap-2 cursor-pointer">
+                    <Gauge className="w-4 h-4 text-purple-600" />
+                    <div>
+                      <div className="font-medium">Lançar Horímetro</div>
+                      <div className="text-xs text-muted-foreground">Registrar leitura de horímetro/km</div>
+                    </div>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setShowOSModal(true)} className="gap-2 cursor-pointer">
+                    <Wrench className="w-4 h-4 text-amber-600" />
+                    <div>
+                      <div className="font-medium">Nova Ordem de Serviço</div>
+                      <div className="text-xs text-muted-foreground">Criar OS de manutenção</div>
+                    </div>
+                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             )}
@@ -3070,6 +3089,15 @@ export function AbastecimentoPage() {
                       <Droplet className="w-4 h-4 text-cyan-600" />
                       <span>Carregar Tanque Arla</span>
                     </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => setShowHorimeterModal(true)} className="gap-2 cursor-pointer">
+                      <Gauge className="w-4 h-4 text-purple-600" />
+                      <span>Lançar Horímetro</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setShowOSModal(true)} className="gap-2 cursor-pointer">
+                      <Wrench className="w-4 h-4 text-amber-600" />
+                      <span>Nova Ordem de Serviço</span>
+                    </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               )}
@@ -3526,6 +3554,24 @@ export function AbastecimentoPage() {
           onOpenChange={setShowAdminRecordModal}
           onSuccess={() => refetch()}
           presetMode={adminPresetMode}
+        />
+      )}
+
+      {/* Admin Horimeter Modal */}
+      {canCreateRecords && (
+        <DatabaseHorimeterModal
+          open={showHorimeterModal}
+          onOpenChange={setShowHorimeterModal}
+          onSuccess={() => refetch()}
+        />
+      )}
+
+      {/* Admin Service Order Modal */}
+      {canCreateRecords && (
+        <AdminServiceOrderModal
+          open={showOSModal}
+          onOpenChange={setShowOSModal}
+          onSuccess={() => refetch()}
         />
       )}
 
