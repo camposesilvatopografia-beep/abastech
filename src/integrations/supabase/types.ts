@@ -292,6 +292,39 @@ export type Database = {
         }
         Relationships: []
       }
+      form_field_order: {
+        Row: {
+          created_at: string
+          field_id: string
+          field_label: string
+          form_type: string
+          id: string
+          sort_order: number
+          updated_at: string
+          visible: boolean
+        }
+        Insert: {
+          created_at?: string
+          field_id: string
+          field_label: string
+          form_type: string
+          id?: string
+          sort_order?: number
+          updated_at?: string
+          visible?: boolean
+        }
+        Update: {
+          created_at?: string
+          field_id?: string
+          field_label?: string
+          form_type?: string
+          id?: string
+          sort_order?: number
+          updated_at?: string
+          visible?: boolean
+        }
+        Relationships: []
+      }
       horimeter_inconsistency_alerts: {
         Row: {
           created_at: string

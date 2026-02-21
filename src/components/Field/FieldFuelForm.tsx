@@ -2685,7 +2685,122 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         </div>
         )}
 
-        {/* Fuel Quantity - AFTER HORIMETER */}
+        {/* Photos Section - RIGHT AFTER HORIMETER/KM */}
+        {recordType === 'saida' && (
+        <div className="bg-rose-50 dark:bg-rose-950/40 rounded-2xl border-2 border-rose-400 dark:border-rose-600 p-4 space-y-3 shadow-lg">
+          <div className="flex items-center gap-2 text-rose-700 dark:text-rose-300">
+            <Camera className="w-5 h-5" />
+            <span className="text-base font-bold">
+              {quickEntryMode === 'comboio_tank_refuel' ? 'Foto da Bomba' : 'Fotos'} *
+            </span>
+          </div>
+          
+          <div className={cn(
+            "grid gap-3",
+            quickEntryMode === 'comboio_tank_refuel' ? "grid-cols-1" : "grid-cols-2"
+          )}>
+            {/* Pump Photo */}
+            <div className="space-y-2">
+              <Label className="text-sm text-rose-600 dark:text-rose-400">Foto Bomba</Label>
+              <div className="relative">
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) setPhotoPump(file);
+                  }}
+                  className="hidden"
+                  id="photo-pump"
+                />
+                <label
+                  htmlFor="photo-pump"
+                  className={cn(
+                    "flex flex-col items-center justify-center w-full h-24 rounded-xl border-2 border-dashed cursor-pointer transition-all",
+                    photoPump
+                      ? "border-green-400 bg-green-50 dark:bg-green-950/30"
+                      : "border-rose-300 dark:border-rose-700 bg-white dark:bg-slate-900 hover:border-rose-400"
+                  )}
+                >
+                  {photoPump ? (
+                    <div className="flex items-center gap-2 text-green-600">
+                      <CheckCircle className="w-5 h-5" />
+                      <span className="text-sm font-medium">Foto OK</span>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center gap-1">
+                      <Camera className="w-6 h-6 text-rose-400" />
+                      <span className="text-xs text-muted-foreground">Tirar foto</span>
+                    </div>
+                  )}
+                </label>
+                {photoPump && (
+                  <button
+                    type="button"
+                    onClick={() => setPhotoPump(null)}
+                    className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center shadow-md"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Horimeter Photo */}
+            {quickEntryMode !== 'comboio_tank_refuel' && (
+              <div className="space-y-2">
+                <Label className="text-sm text-rose-600 dark:text-rose-400">{isVehicleCategory ? 'Foto KM' : 'Foto Horímetro'}</Label>
+                <div className="relative">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) setPhotoHorimeter(file);
+                    }}
+                    className="hidden"
+                    id="photo-horimeter"
+                  />
+                  <label
+                    htmlFor="photo-horimeter"
+                    className={cn(
+                      "flex flex-col items-center justify-center w-full h-24 rounded-xl border-2 border-dashed cursor-pointer transition-all",
+                      photoHorimeter
+                        ? "border-green-400 bg-green-50 dark:bg-green-950/30"
+                        : "border-rose-300 dark:border-rose-700 bg-white dark:bg-slate-900 hover:border-rose-400"
+                    )}
+                  >
+                    {photoHorimeter ? (
+                      <div className="flex items-center gap-2 text-green-600">
+                        <CheckCircle className="w-5 h-5" />
+                        <span className="text-sm font-medium">Foto OK</span>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center gap-1">
+                        <Image className="w-6 h-6 text-rose-400" />
+                        <span className="text-xs text-muted-foreground">Tirar foto</span>
+                      </div>
+                    )}
+                  </label>
+                  {photoHorimeter && (
+                    <button
+                      type="button"
+                      onClick={() => setPhotoHorimeter(null)}
+                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center shadow-md"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+        )}
+
+        {/* Fuel Quantity - AFTER PHOTOS */}
         <div className="bg-amber-50 dark:bg-amber-950/40 rounded-2xl border-2 border-amber-400 dark:border-amber-600 p-4 space-y-3 shadow-lg">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3 bg-amber-100 dark:bg-amber-900/60 px-4 py-2.5 rounded-xl -ml-1">
@@ -2962,121 +3077,6 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
               );
             })()}
           </>
-        )}
-
-        {/* Photos Section - Only for Saida - OPTIMIZED FOR SUNLIGHT */}
-        {recordType === 'saida' && (
-        <div className="bg-rose-50 dark:bg-rose-950/40 rounded-2xl border-2 border-rose-400 dark:border-rose-600 p-4 space-y-3 shadow-lg">
-          <div className="flex items-center gap-2 text-rose-700 dark:text-rose-300">
-            <Camera className="w-5 h-5" />
-            <span className="text-base font-bold">
-              {quickEntryMode === 'comboio_tank_refuel' ? 'Foto da Bomba' : 'Fotos'} *
-            </span>
-          </div>
-          
-          <div className={cn(
-            "grid gap-3",
-            quickEntryMode === 'comboio_tank_refuel' ? "grid-cols-1" : "grid-cols-2"
-          )}>
-            {/* Pump Photo - Always visible */}
-            <div className="space-y-2">
-              <Label className="text-sm text-rose-600 dark:text-rose-400">Foto Bomba</Label>
-              <div className="relative">
-                <input
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) setPhotoPump(file);
-                  }}
-                  className="hidden"
-                  id="photo-pump"
-                />
-                <label
-                  htmlFor="photo-pump"
-                  className={cn(
-                    "flex flex-col items-center justify-center w-full h-24 rounded-xl border-2 border-dashed cursor-pointer transition-all",
-                    photoPump
-                      ? "border-green-400 bg-green-50 dark:bg-green-950/30"
-                      : "border-rose-300 dark:border-rose-700 bg-white dark:bg-slate-900 hover:border-rose-400"
-                  )}
-                >
-                  {photoPump ? (
-                    <div className="flex items-center gap-2 text-green-600">
-                      <CheckCircle className="w-5 h-5" />
-                      <span className="text-sm font-medium">Foto OK</span>
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-center gap-1">
-                      <Camera className="w-6 h-6 text-rose-400" />
-                      <span className="text-xs text-muted-foreground">Tirar foto</span>
-                    </div>
-                  )}
-                </label>
-                {photoPump && (
-                  <button
-                    type="button"
-                    onClick={() => setPhotoPump(null)}
-                    className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center shadow-md"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Horimeter Photo - Hidden for comboio tank refuel */}
-            {quickEntryMode !== 'comboio_tank_refuel' && (
-              <div className="space-y-2">
-                <Label className="text-sm text-rose-600 dark:text-rose-400">{isVehicleCategory ? 'Foto KM' : 'Foto Horímetro'}</Label>
-                <div className="relative">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    capture="environment"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) setPhotoHorimeter(file);
-                    }}
-                    className="hidden"
-                    id="photo-horimeter"
-                  />
-                  <label
-                    htmlFor="photo-horimeter"
-                    className={cn(
-                      "flex flex-col items-center justify-center w-full h-24 rounded-xl border-2 border-dashed cursor-pointer transition-all",
-                      photoHorimeter
-                        ? "border-green-400 bg-green-50 dark:bg-green-950/30"
-                        : "border-rose-300 dark:border-rose-700 bg-white dark:bg-slate-900 hover:border-rose-400"
-                    )}
-                  >
-                    {photoHorimeter ? (
-                      <div className="flex items-center gap-2 text-green-600">
-                        <CheckCircle className="w-5 h-5" />
-                        <span className="text-sm font-medium">Foto OK</span>
-                      </div>
-                    ) : (
-                      <div className="flex flex-col items-center gap-1">
-                        <Image className="w-6 h-6 text-rose-400" />
-                        <span className="text-xs text-muted-foreground">Tirar foto</span>
-                      </div>
-                    )}
-                  </label>
-                  {photoHorimeter && (
-                    <button
-                      type="button"
-                      onClick={() => setPhotoHorimeter(null)}
-                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center shadow-md"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
         )}
 
         {/* Save Button */}

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Building2, Save, MapPin, FileText, Image, Upload, X, Loader2 } from 'lucide-react';
+import { FormFieldOrderManager } from '@/components/Cadastros/FormFieldOrderManager';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -342,6 +343,9 @@ export function ObraSettingsPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Form Field Order Manager */}
+      <FormFieldOrderManager />
     </div>
   );
 }
