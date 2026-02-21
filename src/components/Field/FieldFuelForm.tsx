@@ -2310,12 +2310,13 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                   Quantidade de ARLA (Litros)
                   <span className="text-red-500">*</span>
                 </Label>
-                <CurrencyInput
-                  placeholder="0,00"
-                  value={arlaQuantity}
-                  onChange={setArlaQuantity}
-                  decimals={2}
-                  className="h-14 text-2xl text-center font-bold"
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  placeholder="Ex: 50"
+                  value={arlaQuantity ?? ''}
+                  onChange={(e) => setArlaQuantity(e.target.value ? Number(e.target.value) : null)}
+                  className="flex h-14 w-full rounded-md border px-3 py-2 text-2xl text-center font-bold ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 bg-background border-input"
                 />
               </div>
             )}
@@ -2357,12 +2358,13 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                   Quantidade Sopra Filtro
                   <span className="text-red-500">*</span>
                 </Label>
-                <CurrencyInput
-                  placeholder="0,00"
-                  value={filterBlowQuantity}
-                  onChange={setFilterBlowQuantity}
-                  decimals={0}
-                  className="h-14 text-2xl text-center font-bold"
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  placeholder="Ex: 2"
+                  value={filterBlowQuantity ?? ''}
+                  onChange={(e) => setFilterBlowQuantity(e.target.value ? Number(e.target.value) : null)}
+                  className="flex h-14 w-full rounded-md border px-3 py-2 text-2xl text-center font-bold ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 bg-background border-input"
                 />
               </div>
             )}
@@ -2399,12 +2401,13 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
 
                 <div className="space-y-2">
                   <Label className="text-sm">Quantidade (Litros) <span className="text-red-500">*</span></Label>
-                  <CurrencyInput
-                    placeholder="0,00"
-                    value={oilQuantity}
-                    onChange={setOilQuantity}
-                    decimals={2}
-                    className="h-14 text-2xl text-center font-bold"
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    placeholder="Ex: 5"
+                    value={oilQuantity ?? ''}
+                    onChange={(e) => setOilQuantity(e.target.value ? Number(e.target.value) : null)}
+                    className="flex h-14 w-full rounded-md border px-3 py-2 text-2xl text-center font-bold ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 bg-background border-input"
                   />
                 </div>
               </div>
@@ -2806,12 +2809,22 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
           
           
           
-          <CurrencyInput
-            placeholder="0,00"
-            value={fuelQuantity}
-            onChange={setFuelQuantity}
-            decimals={2}
-            className="h-16 text-3xl text-center font-black border-2 border-amber-300 dark:border-amber-600 bg-white dark:bg-slate-900 focus:border-amber-500 focus:ring-2 focus:ring-amber-200 dark:focus:ring-amber-800 shadow-md"
+          <input
+            type="number"
+            inputMode="numeric"
+            placeholder="Ex: 250"
+            value={fuelQuantity ?? ''}
+            onChange={(e) => {
+              const val = e.target.value;
+              setFuelQuantity(val ? Number(val) : null);
+              if (val) {
+                const result = formatQuantityInput(val);
+                setQuantityInWords(result.inWords);
+              } else {
+                setQuantityInWords('');
+              }
+            }}
+            className="flex h-16 w-full rounded-md border-2 border-amber-300 dark:border-amber-600 bg-white dark:bg-slate-900 px-3 py-2 text-3xl text-center font-black ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-200 dark:focus:ring-amber-800 shadow-md"
           />
         </div>
 
@@ -2881,24 +2894,26 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
             {/* Oil Quantity */}
             <div className="space-y-2">
               <Label className="text-sm">Quantidade de Óleo (Litros)</Label>
-              <CurrencyInput
-                placeholder="0,00"
-                value={oilQuantity}
-                onChange={setOilQuantity}
-                decimals={2}
-                className="h-10"
+              <input
+                type="number"
+                inputMode="numeric"
+                placeholder="Ex: 5"
+                value={oilQuantity ?? ''}
+                onChange={(e) => setOilQuantity(e.target.value ? Number(e.target.value) : null)}
+                className="flex h-10 w-full rounded-md border px-3 py-2 ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 bg-background border-input"
               />
             </div>
             
             {/* Filter Blow - just quantity input */}
             <div className="space-y-2">
               <Label className="text-sm">Sopra Filtro (Quantidade)</Label>
-              <CurrencyInput
-                placeholder="0"
-                value={filterBlowQuantity}
-                onChange={setFilterBlowQuantity}
-                decimals={0}
-                className="h-10"
+              <input
+                type="number"
+                inputMode="numeric"
+                placeholder="Ex: 2"
+                value={filterBlowQuantity ?? ''}
+                onChange={(e) => setFilterBlowQuantity(e.target.value ? Number(e.target.value) : null)}
+                className="flex h-10 w-full rounded-md border px-3 py-2 ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 bg-background border-input"
               />
             </div>
             
@@ -2934,12 +2949,13 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
               </Label>
               
             </div>
-            <CurrencyInput
-              placeholder="0,00"
-              value={arlaQuantity}
-              onChange={setArlaQuantity}
-              decimals={2}
-              className="h-12 text-lg text-center"
+            <input
+              type="number"
+              inputMode="numeric"
+              placeholder="Ex: 50"
+              value={arlaQuantity ?? ''}
+              onChange={(e) => setArlaQuantity(e.target.value ? Number(e.target.value) : null)}
+              className="flex h-12 w-full rounded-md border px-3 py-2 text-lg text-center ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 bg-background border-input"
             />
           </div>
         )}
@@ -3032,21 +3048,22 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                   Quantidade (Litros)
                 </Label>
               </div>
-              <CurrencyInput
-                placeholder="0,00"
-                value={fuelQuantity}
-                onChange={(val) => {
-                  setFuelQuantity(val);
-                  // Also update the in words representation
-                  if (val !== null) {
-                    const result = formatQuantityInput(String(Math.round(val)));
+              <input
+                type="number"
+                inputMode="numeric"
+                placeholder="Ex: 250"
+                value={fuelQuantity ?? ''}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setFuelQuantity(val ? Number(val) : null);
+                  if (val) {
+                    const result = formatQuantityInput(val);
                     setQuantityInWords(result.inWords);
                   } else {
                     setQuantityInWords('');
                   }
                 }}
-                decimals={0}
-                className="h-14 text-2xl text-center font-bold"
+                className="flex h-14 w-full rounded-md border px-3 py-2 text-2xl text-center font-bold ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 bg-background border-input"
               />
               {quantityInWords && (
                 <div className="bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 p-3 rounded-lg">
