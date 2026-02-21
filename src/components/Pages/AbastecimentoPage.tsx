@@ -2648,172 +2648,156 @@ export function AbastecimentoPage() {
           </div>
         )}
 
-        {activeTab === 'entradas' && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <div className="flex items-center gap-2">
-                <TrendingUp className="w-5 h-5 text-success" />
-                <h2 className="text-lg font-semibold">Entradas de Combustível</h2>
-                <Badge variant="outline">{entradasData.entries.length} registros</Badge>
+        {activeTab === 'entradas' && (() => {
+          const totalEntradas = entradasData.entries.length;
+          const totalQuantidade = entradasData.entries.reduce((sum, row) => sum + parseNumber(row['QUANTIDADE']), 0);
+          const totalValor = entradasData.entries.reduce((sum, row) => sum + parseNumber(row['VALOR TOTAL']), 0);
+
+          const exportEntradasPDF = () => {
+            try {
+              const doc = new jsPDF('landscape');
+              const pageWidth = doc.internal.pageSize.getWidth();
+              
+              doc.setFontSize(14);
+              doc.setFont('helvetica', 'bold');
+              const title = obraSettings?.nome ? `${obraSettings.nome} - ENTRADAS DE COMBUSTÍVEL` : 'ENTRADAS DE COMBUSTÍVEL';
+              doc.text(title.toUpperCase(), pageWidth / 2, 12, { align: 'center' });
+              
+              if (startDate || endDate) {
+                doc.setFontSize(9);
+                doc.setFont('helvetica', 'normal');
+                const periodLabel = startDate && endDate
+                  ? `Período: ${format(startDate, 'dd/MM/yyyy')} a ${format(endDate, 'dd/MM/yyyy')}`
+                  : startDate ? `A partir de: ${format(startDate, 'dd/MM/yyyy')}` : `Até: ${format(endDate!, 'dd/MM/yyyy')}`;
+                doc.text(periodLabel, pageWidth / 2, 18, { align: 'center' });
+              }
+
+              doc.setFontSize(10);
+              doc.setFont('helvetica', 'bold');
+              doc.text(`Total de Entradas: ${totalEntradas}`, 14, 26);
+              doc.text(`Quantidade Total: ${totalQuantidade.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} L`, 14, 32);
+              doc.text(`Valor Total: R$ ${totalValor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 14, 38);
+
+              const tableRows = entradasData.entries.map(row => {
+                const qtd = parseNumber(row['QUANTIDADE']);
+                const valorUnit = parseNumber(row['VALOR UNITARIO'] || row['VALOR_UNITARIO'] || row['PRECO'] || 0);
+                const valorTotal = parseNumber(row['VALOR TOTAL'] || 0);
+                return [
+                  String(row['DATA'] || ''),
+                  String(row['HORA'] || ''),
+                  String(row['FORNECEDOR'] || '-'),
+                  String(row['LOCAL'] || row['TANQUE'] || '-'),
+                  qtd.toLocaleString('pt-BR', { minimumFractionDigits: 2 }),
+                  String(row['NOTA FISCAL'] || '-'),
+                  valorUnit > 0 ? `R$ ${valorUnit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '-',
+                  valorTotal > 0 ? `R$ ${valorTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '-',
+                ];
+              });
+
+              autoTable(doc, {
+                startY: 44,
+                head: [['Data', 'Hora', 'Fornecedor', 'Local', 'Quantidade (L)', 'NF', 'Valor Unit.', 'Valor Total']],
+                body: tableRows,
+                theme: 'grid',
+                headStyles: { fillColor: [41, 128, 185], fontSize: 8, halign: 'center' },
+                bodyStyles: { fontSize: 7 },
+                columnStyles: {
+                  4: { halign: 'right' },
+                  6: { halign: 'right' },
+                  7: { halign: 'right' },
+                },
+              });
+
+              doc.save(`entradas_combustivel_${format(new Date(), 'yyyyMMdd')}.pdf`);
+              toast.success('PDF exportado com sucesso!');
+            } catch (error) {
+              console.error('Error exporting PDF:', error);
+              toast.error('Erro ao exportar PDF');
+            }
+          };
+
+          return (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-2">
+                  <TrendingUp className="w-5 h-5 text-success" />
+                  <h2 className="text-lg font-semibold">Entradas de Combustível</h2>
+                </div>
+                <Button size="sm" variant="outline" className="gap-1" onClick={exportEntradasPDF}>
+                  <FileSpreadsheet className="w-4 h-4" />
+                  Exportar PDF
+                </Button>
               </div>
-              {canCreateRecords && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button size="sm" className="gap-1 bg-green-600 hover:bg-green-700">
-                      <Plus className="w-4 h-4" />
-                      Novo Lançamento
-                      <ChevronDown className="w-3 h-3 ml-1" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-56">
-                    <DropdownMenuItem onClick={() => openAdminModal('normal')} className="gap-2 cursor-pointer">
-                      <FuelIcon className="w-4 h-4 text-green-600" />
-                      <span>Abastecer (Saída)</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={() => openAdminModal('comboio')} className="gap-2 cursor-pointer">
-                      <Truck className="w-4 h-4 text-orange-600" />
-                      <span>Carregar Comboio</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => openAdminModal('tanque_diesel')} className="gap-2 cursor-pointer">
-                      <Package2 className="w-4 h-4 text-blue-600" />
-                      <span>Carregar Tanque Diesel</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => openAdminModal('tanque_arla')} className="gap-2 cursor-pointer">
-                      <Droplet className="w-4 h-4 text-cyan-600" />
-                      <span>Carregar Tanque Arla</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={() => setShowHorimeterModal(true)} className="gap-2 cursor-pointer">
-                      <Gauge className="w-4 h-4 text-purple-600" />
-                      <span>Lançar Horímetro</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setShowOSModal(true)} className="gap-2 cursor-pointer">
-                      <Wrench className="w-4 h-4 text-amber-600" />
-                      <span>Nova Ordem de Serviço</span>
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+
+              {/* KPI Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-card rounded-lg border border-border p-4">
+                  <p className="text-sm text-muted-foreground">Total de Entradas</p>
+                  <p className="text-2xl font-bold text-foreground">{totalEntradas}</p>
+                </div>
+                <div className="bg-card rounded-lg border border-border p-4">
+                  <p className="text-sm text-muted-foreground">Quantidade Total</p>
+                  <p className="text-2xl font-bold text-success">+{totalQuantidade.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} L</p>
+                </div>
+                <div className="bg-card rounded-lg border border-border p-4">
+                  <p className="text-sm text-muted-foreground">Valor Total</p>
+                  <p className="text-2xl font-bold text-primary">R$ {totalValor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                </div>
+              </div>
+
+              {/* Detailed Table */}
+              {totalEntradas === 0 ? (
+                <div className="bg-card rounded-lg border border-border p-8 text-center">
+                  <ArrowDownUp className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                  <h3 className="font-semibold text-lg mb-2">Nenhuma entrada encontrada</h3>
+                  <p className="text-muted-foreground">Não há registros de entrada no período selecionado.</p>
+                </div>
+              ) : (
+                <div className="bg-card rounded-lg border border-border overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-muted/50">
+                        <TableHead>Data</TableHead>
+                        <TableHead>Hora</TableHead>
+                        <TableHead>Fornecedor</TableHead>
+                        <TableHead>Local</TableHead>
+                        <TableHead className="text-right">Quantidade (L)</TableHead>
+                        <TableHead>NF</TableHead>
+                        <TableHead className="text-right">Valor Unit.</TableHead>
+                        <TableHead className="text-right">Valor Total</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {entradasData.entries.map((row, index) => {
+                        const qtd = parseNumber(row['QUANTIDADE']);
+                        const valorUnit = parseNumber(row['VALOR UNITARIO'] || row['VALOR_UNITARIO'] || row['PRECO'] || 0);
+                        const valorTotal = parseNumber(row['VALOR TOTAL'] || 0);
+                        return (
+                          <TableRow key={row._rowIndex || index}>
+                            <TableCell>{row['DATA']}</TableCell>
+                            <TableCell>{row['HORA'] || '-'}</TableCell>
+                            <TableCell>{row['FORNECEDOR'] || '-'}</TableCell>
+                            <TableCell>{row['LOCAL'] || row['TANQUE'] || '-'}</TableCell>
+                            <TableCell className="text-right font-medium text-success">
+                              +{qtd.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            </TableCell>
+                            <TableCell>{row['NOTA FISCAL'] || '-'}</TableCell>
+                            <TableCell className="text-right">
+                              {valorUnit > 0 ? `R$ ${valorUnit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '-'}
+                            </TableCell>
+                            <TableCell className="text-right font-medium">
+                              {valorTotal > 0 ? `R$ ${valorTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '-'}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
               )}
             </div>
-
-            {/* Summary by Supplier */}
-            {entradasPorFornecedor.length > 0 && (
-              <div className="bg-card rounded-lg border border-border overflow-hidden mb-4">
-                <div className="p-4 border-b border-border bg-muted/30">
-                  <h3 className="font-semibold">Resumo por Fornecedor</h3>
-                </div>
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-muted/50">
-                      <TableHead>Fornecedor</TableHead>
-                      <TableHead className="text-center">Registros</TableHead>
-                      <TableHead className="text-center">Quantidade (L)</TableHead>
-                      <TableHead className="text-right">Valor Total</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {entradasPorFornecedor.map(([fornecedor, values]) => (
-                      <TableRow key={fornecedor}>
-                        <TableCell className="font-medium">{fornecedor}</TableCell>
-                        <TableCell className="text-center">{values.registros}</TableCell>
-                        <TableCell className="text-center text-success font-medium">
-                          +{values.quantidade.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          R$ {values.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-
-            {/* Summary by Entry Location (Tanques) */}
-            {Object.keys(entradasData.byLocation).length > 0 && (
-              <div className="bg-card rounded-lg border border-border overflow-hidden mb-4">
-                <div className="p-4 border-b border-border bg-muted/30">
-                  <h3 className="font-semibold">Entradas por Local (Tanques)</h3>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-4">
-                  {Object.entries(entradasData.byLocation).map(([local, locData]) => (
-                    <div key={local} className="bg-muted/20 rounded-lg p-4 border">
-                      <div className="flex items-center gap-2 mb-2">
-                        <MapPin className="w-4 h-4 text-primary" />
-                        <span className="font-medium">{local}</span>
-                      </div>
-                      <div className="text-2xl font-bold text-success">
-                        +{locData.total.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L
-                      </div>
-                      <div className="text-sm text-muted-foreground">
-                        {locData.registros.length} entradas
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {entradasData.entries.length === 0 ? (
-              <div className="bg-card rounded-lg border border-border p-8 text-center">
-                <ArrowDownUp className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="font-semibold text-lg mb-2">Nenhuma entrada encontrada</h3>
-                <p className="text-muted-foreground">Não há registros de entrada de combustível no período selecionado.</p>
-              </div>
-            ) : (
-              <div className="bg-card rounded-lg border border-border overflow-hidden">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-muted/50">
-                      <TableHead>Data</TableHead>
-                      <TableHead>Tipo</TableHead>
-                      <TableHead>Fornecedor</TableHead>
-                      <TableHead>Local de Entrada</TableHead>
-                      <TableHead>Nota Fiscal</TableHead>
-                      <TableHead className="text-right">Quantidade</TableHead>
-                      <TableHead className="text-right">Valor Total</TableHead>
-                      {canCreateRecords && <TableHead className="w-20 text-center">Ações</TableHead>}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {entradasData.entries.map((row, index) => (
-                      <TableRow key={row._rowIndex || index}>
-                        <TableCell>{row['DATA']}</TableCell>
-                        <TableCell>
-                          <Badge className="bg-success/20 text-success border-success/30">Entrada</Badge>
-                        </TableCell>
-                        <TableCell>{row['FORNECEDOR'] || '-'}</TableCell>
-                        <TableCell>{row['LOCAL'] || row['TANQUE'] || '-'}</TableCell>
-                        <TableCell>{row['NOTA FISCAL'] || '-'}</TableCell>
-                        <TableCell className="text-right font-medium text-success">
-                          +{parseNumber(row['QUANTIDADE']).toLocaleString('pt-BR')} L
-                        </TableCell>
-                        <TableCell className="text-right">
-                          R$ {parseNumber(row['VALOR TOTAL']).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                        </TableCell>
-                        {canCreateRecords && (
-                          <TableCell className="text-center">
-                            <div className="flex items-center justify-center gap-1">
-                              <Button variant="ghost" size="icon" className="h-7 w-7" title="Editar"
-                                onClick={() => { setEditingRecord(row); setShowEditModal(true); }}>
-                                <Edit2 className="h-4 w-4 text-blue-500" />
-                              </Button>
-                              <Button variant="ghost" size="icon" className="h-7 w-7" title="Excluir"
-                                onClick={() => { setDeletingRecord(row); setShowDeleteConfirm(true); }}>
-                                <Trash2 className="h-4 w-4 text-destructive" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                        )}
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </div>
-        )}
+          );
+        })()}
 
         {activeTab === 'consumo' && (
           <VehicleConsumptionDetailTab
