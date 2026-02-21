@@ -16,15 +16,17 @@ interface FieldFuelMenuProps {
   onNavigate: (view: 'fuel-abastecer' | 'fuel-comboio' | 'fuel-tanque' | 'fuel-arla') => void;
   user?: FieldUser;
   onBack?: () => void;
+  isAdmin?: boolean;
 }
 
-export function FieldFuelMenu({ onNavigate, user, onBack }: FieldFuelMenuProps) {
+export function FieldFuelMenu({ onNavigate, user, onBack, isAdmin = false }: FieldFuelMenuProps) {
   const { theme } = useTheme();
 
   const isTanqueUser = useMemo(() => {
+    if (isAdmin) return true;
     const locs = user?.assigned_locations || [];
     return locs.some(loc => loc.toLowerCase().includes('tanque'));
-  }, [user?.assigned_locations]);
+  }, [user?.assigned_locations, isAdmin]);
 
   const menuItems = [
     {
