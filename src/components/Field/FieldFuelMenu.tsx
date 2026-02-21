@@ -1,4 +1,4 @@
-import { Fuel, Truck, ArrowLeft, ArrowRight, Package2 } from 'lucide-react';
+import { Fuel, Truck, ArrowLeft, ArrowRight, Package2, Droplets } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTheme } from '@/hooks/useTheme';
 import { Button } from '@/components/ui/button';
@@ -13,7 +13,7 @@ interface FieldUser {
 }
 
 interface FieldFuelMenuProps {
-  onNavigate: (view: 'fuel-abastecer' | 'fuel-comboio' | 'fuel-tanque') => void;
+  onNavigate: (view: 'fuel-abastecer' | 'fuel-comboio' | 'fuel-tanque' | 'fuel-arla') => void;
   user?: FieldUser;
   onBack?: () => void;
 }
@@ -52,6 +52,15 @@ export function FieldFuelMenu({ onNavigate, user, onBack }: FieldFuelMenuProps) 
       icon: Package2,
       gradient: 'from-blue-500 to-blue-700',
       shadow: 'shadow-blue-500/30',
+      show: isTanqueUser,
+    },
+    {
+      key: 'fuel-arla' as const,
+      label: 'Carregar Tanque Arla',
+      description: 'Entrada de Arla de fornecedor externo',
+      icon: Droplets,
+      gradient: 'from-cyan-500 to-cyan-700',
+      shadow: 'shadow-cyan-500/30',
       show: isTanqueUser,
     },
   ].filter(item => item.show);
