@@ -1562,7 +1562,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         fuel_quantity: fuelQuantity ?? 0,
         fuel_type: fuelType,
         arla_quantity: arlaQuantity ?? 0,
-        location: recordType === 'entrada' ? entryLocation : location,
+        location: location,
         observations: (() => {
           let obs = observations;
           // Add comboio tank refuel indicator
@@ -1647,7 +1647,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         fuelQuantity: fuelQuantity ?? 0,
         fuelType,
         arlaQuantity: arlaQuantity ?? 0,
-        location: recordType === 'entrada' ? entryLocation : location,
+        location: location,
         observations: recordType === 'entrada' && photoInvoiceUrl
           ? `${observations} | FOTO NF: ${photoInvoiceUrl}`.trim()
           : observations,
@@ -1705,7 +1705,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
       console.log('[FieldFuelForm] Broadcasting fuel_record_created event...');
       await broadcast('fuel_record_created', { 
         vehicleCode: recordType === 'entrada' ? 'ENTRADA' : vehicleCode,
-        location: recordType === 'entrada' ? entryLocation : location,
+        location: location,
         quantity: fuelQuantity ?? 0
       });
       
@@ -1740,7 +1740,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
             fuel_quantity: fuelQuantity ?? 0,
             fuel_type: fuelType,
             arla_quantity: arlaQuantity ?? 0,
-            location: recordType === 'entrada' ? entryLocation : location,
+            location: location,
             observations,
             record_date: now.toISOString().split('T')[0],
             record_time: now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
