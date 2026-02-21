@@ -216,7 +216,7 @@ export function FieldComboioForm({ user, onBack }: FieldComboioFormProps) {
       const now = new Date();
       const recordDate = format(now, 'yyyy-MM-dd');
       const recordTime = format(now, 'HH:mm:ss');
-      const location = entryLocation || user.assigned_locations?.[0] || '';
+      const location = vehicleDescription || vehicleCode || user.assigned_locations?.[0] || '';
 
       const recordData = {
         user_id: user.id,
@@ -457,8 +457,8 @@ export function FieldComboioForm({ user, onBack }: FieldComboioFormProps) {
             <SelectValue placeholder="Selecione o tanque..." />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="Tanque Canteiro 01">Tanque Canteiro 01</SelectItem>
-            <SelectItem value="Tanque Canteiro 02">Tanque Canteiro 02</SelectItem>
+            <SelectItem value="Tanque 01">Tanque 01</SelectItem>
+            <SelectItem value="Tanque 02">Tanque 02</SelectItem>
           </SelectContent>
         </Select>
       </div>
