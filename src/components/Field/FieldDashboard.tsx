@@ -912,27 +912,7 @@ export function FieldDashboard({ user, onNavigateToForm, onNavigateToFuelMenu, o
         </>
       ) : (
         <>
-          <div className={cn(
-            "rounded-xl p-4 border",
-            theme === 'dark' 
-              ? "bg-slate-800/80 border-slate-700" 
-              : "bg-white border-slate-200 shadow-sm"
-          )}>
-            <div className="grid grid-cols-3 gap-3 text-center">
-              <div>
-                <p className={cn("text-2xl font-bold", theme === 'dark' ? "text-white" : "text-slate-800")}>{todayStats.totalRecords}</p>
-                <p className="text-xs text-muted-foreground">Registros</p>
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-red-500">{todayStats.totalLiters.toLocaleString('pt-BR')}L</p>
-                <p className="text-xs text-muted-foreground">Combustível</p>
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-cyan-500">{todayStats.totalArla.toLocaleString('pt-BR')}L</p>
-                <p className="text-xs text-muted-foreground">ARLA</p>
-              </div>
-            </div>
-          </div>
+
 
           {/* Location Selector for Multiple Locations */}
           {hasMultipleLocations && (
