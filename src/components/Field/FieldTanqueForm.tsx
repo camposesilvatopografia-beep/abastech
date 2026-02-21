@@ -18,6 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { CurrencyInput } from '@/components/ui/currency-input';
 import { supabase } from '@/integrations/supabase/client';
 import { useRealtimeSync } from '@/hooks/useRealtimeSync';
 import { toast } from 'sonner';
@@ -52,7 +53,9 @@ export function FieldTanqueForm({ user, onBack }: FieldTanqueFormProps) {
   const [showSuccess, setShowSuccess] = useState(false);
 
   // Form state
+  const [selectedLocation, setSelectedLocation] = useState('');
   const [fuelQuantity, setFuelQuantity] = useState('');
+  const [unitPrice, setUnitPrice] = useState<number>(0);
   const [supplier, setSupplier] = useState('');
   const [invoiceNumber, setInvoiceNumber] = useState('');
   const [observations, setObservations] = useState('');
@@ -109,6 +112,10 @@ export function FieldTanqueForm({ user, onBack }: FieldTanqueFormProps) {
   };
 
   const handleSubmit = async () => {
+    if (!selectedLocation) {
+      toast.error('Selecione o local do tanque');
+      return;
+    }
     const qty = parseInt(fuelQuantity, 10);
     if (!qty || qty <= 0) {
       toast.error('Informe a quantidade de combustível');
@@ -127,10 +134,12 @@ export function FieldTanqueForm({ user, onBack }: FieldTanqueFormProps) {
       const recordDate = format(now, 'yyyy-MM-dd');
       const recordTime = format(now, 'HH:mm:ss');
 
+      const parsedPrice = unitPrice ? unitPrice / 100 : null;
+
       const recordData = {
         user_id: user.id,
-        vehicle_code: userTanqueLocation,
-        vehicle_description: userTanqueLocation,
+        vehicle_code: selectedLocation,
+        vehicle_description: selectedLocation,
         category: 'Tanque Canteiro',
         company: '',
         operator_name: removeAccents(user.name),
@@ -142,8 +151,9 @@ export function FieldTanqueForm({ user, onBack }: FieldTanqueFormProps) {
         fuel_quantity: qty,
         fuel_type: 'Diesel',
         arla_quantity: null,
-        location: userTanqueLocation,
-        entry_location: supplier || 'Fornecedor Externo',
+        location: selectedLocation,
+        entry_location: null,
+        unit_price: parsedPrice,
         observations: `[CARREGAR TANQUE] Fornecedor: ${supplier || 'N/A'}${invoiceNumber ? ` | NF: ${invoiceNumber}` : ''}${observations ? ` | ${observations}` : ''}`,
         record_date: recordDate,
         record_time: recordTime,
@@ -177,8 +187,8 @@ export function FieldTanqueForm({ user, onBack }: FieldTanqueFormProps) {
                 dateBR,
                 recordTime.substring(0, 5),
                 'ENTRADA',
-                userTanqueLocation,
-                removeAccents(userTanqueLocation),
+                selectedLocation,
+                removeAccents(selectedLocation),
                 'Tanque Canteiro',
                 removeAccents(user.name),
                 '',
@@ -187,7 +197,7 @@ export function FieldTanqueForm({ user, onBack }: FieldTanqueFormProps) {
                 fuelQuantity,
                 'Diesel',
                 '',
-                userTanqueLocation,
+                selectedLocation,
                 `[CARREGAR TANQUE] Fornecedor: ${supplier || 'N/A'}${invoiceNumber ? ` | NF: ${invoiceNumber}` : ''}`,
               ]],
             },
@@ -274,13 +284,15 @@ export function FieldTanqueForm({ user, onBack }: FieldTanqueFormProps) {
         theme === 'dark' ? "bg-slate-800/80 border-slate-700" : "bg-white border-slate-200 shadow-sm"
       )}>
         <Label className="text-sm font-medium mb-2 block">Local do Tanque</Label>
-        <div className={cn(
-          "h-12 flex items-center px-3 rounded-md border font-semibold",
-          theme === 'dark' ? "bg-slate-700 border-slate-600 text-white" : "bg-muted border-input"
-        )}>
-          <Package2 className="w-4 h-4 mr-2 text-muted-foreground" />
-          {userTanqueLocation || 'Não definido'}
-        </div>
+        <Select value={selectedLocation} onValueChange={setSelectedLocation}>
+          <SelectTrigger className="h-12 text-base font-semibold">
+            <SelectValue placeholder="Selecione o tanque..." />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="Tanque Canteiro 01">Tanque Canteiro 01</SelectItem>
+            <SelectItem value="Tanque Canteiro 02">Tanque Canteiro 02</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Supplier */}
@@ -339,7 +351,21 @@ export function FieldTanqueForm({ user, onBack }: FieldTanqueFormProps) {
         />
       </div>
 
-      {/* Photo */}
+      {/* Unit Price */}
+      <div className={cn(
+        "rounded-xl p-4 border",
+        theme === 'dark' ? "bg-slate-800/80 border-slate-700" : "bg-white border-slate-200 shadow-sm"
+      )}>
+        <Label className="text-sm font-medium mb-2 block">Valor Unitário (R$/L) - opcional</Label>
+        <CurrencyInput
+          value={unitPrice}
+          onChange={setUnitPrice}
+          placeholder="0,00"
+          className="h-12 text-lg font-bold"
+        />
+      </div>
+
+
       <div className={cn(
         "rounded-xl p-4 border",
         theme === 'dark' ? "bg-slate-800/80 border-slate-700" : "bg-white border-slate-200 shadow-sm"
@@ -402,7 +428,7 @@ export function FieldTanqueForm({ user, onBack }: FieldTanqueFormProps) {
       {/* Submit */}
       <Button
         onClick={handleSubmit}
-        disabled={isSaving || !fuelQuantity}
+        disabled={isSaving || !fuelQuantity || !selectedLocation}
         className="w-full h-14 text-base font-bold gap-2 rounded-xl bg-green-600 hover:bg-green-700"
       >
         {isSaving ? (
