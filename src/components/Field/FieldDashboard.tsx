@@ -959,7 +959,6 @@ export function FieldDashboard({ user, onNavigateToForm, onNavigateToFuelMenu, o
                 <LocationStockCard 
                   key={selectedLocation} 
                   location={selectedLocation}
-                  localRecordKPIs={getLocalKPIsForLocation(selectedLocation)}
                   ref={(el) => {
                     if (el) stockCardRefs.current.set(selectedLocation, el);
                   }}
@@ -969,7 +968,6 @@ export function FieldDashboard({ user, onNavigateToForm, onNavigateToFuelMenu, o
                   <LocationStockCard 
                     key={location} 
                     location={location}
-                    localRecordKPIs={getLocalKPIsForLocation(location)}
                     ref={(el) => {
                       if (el) stockCardRefs.current.set(location, el);
                     }}
