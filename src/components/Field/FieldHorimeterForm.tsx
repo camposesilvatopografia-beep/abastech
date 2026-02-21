@@ -774,6 +774,15 @@ export function FieldHorimeterForm({ user, onBack }: FieldHorimeterFormProps) {
   if (subView === 'menu') {
     return (
       <div className={cn("p-4 space-y-4", isDark ? "text-white" : "text-slate-900")}>
+        <div className="flex items-center gap-3 mb-2">
+          <Button variant="ghost" size="icon" onClick={onBack} className="shrink-0">
+            <ArrowLeft className="w-5 h-5" />
+          </Button>
+          <div>
+            <h2 className="text-xl font-bold">{user.name}</h2>
+            <p className="text-sm text-muted-foreground">Horímetro • Selecione uma opção</p>
+          </div>
+        </div>
         <div className="space-y-3">
           <button
             onClick={() => setSubView('form')}
