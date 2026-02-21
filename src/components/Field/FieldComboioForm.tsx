@@ -138,6 +138,14 @@ export function FieldComboioForm({ user, onBack }: FieldComboioFormProps) {
     }
   }, [comboioVehicles, user.assigned_locations]);
 
+  // Auto-set entryLocation for tanque users
+  useEffect(() => {
+    if (!isComboioUser && !entryLocation) {
+      const tanqueLoc = (user.assigned_locations || []).find(loc => loc.toLowerCase().includes('tanque'));
+      if (tanqueLoc) setEntryLocation(tanqueLoc);
+    }
+  }, [isComboioUser, user.assigned_locations]);
+
   const filteredVehicles = useMemo(() => {
     if (!vehicleSearch) return comboioVehicles;
     const search = vehicleSearch.toLowerCase();
@@ -374,7 +382,7 @@ export function FieldComboioForm({ user, onBack }: FieldComboioFormProps) {
           "rounded-xl p-4 border",
           theme === 'dark' ? "bg-slate-800/80 border-slate-700" : "bg-white border-slate-200 shadow-sm"
         )}>
-          <Label className="text-sm font-medium mb-2 block">Veículo (Comboio)</Label>
+          <Label className="text-sm font-medium mb-2 block">Comboio de Destino</Label>
           <Popover open={vehicleOpen} onOpenChange={setVehicleOpen}>
             <PopoverTrigger asChild>
               <Button
@@ -386,7 +394,13 @@ export function FieldComboioForm({ user, onBack }: FieldComboioFormProps) {
                 )}
               >
                 {vehicleCode ? (
-                  <span className="font-bold text-primary">{vehicleCode}</span>
+                  <div className="flex items-center gap-2">
+                    <Truck className="w-4 h-4 text-orange-500" />
+                    <span className="font-bold">{vehicleCode}</span>
+                    {vehicleDescription && (
+                      <span className="text-xs text-muted-foreground">- {vehicleDescription}</span>
+                    )}
+                  </div>
                 ) : (
                   "Selecione o Comboio..."
                 )}
@@ -413,11 +427,13 @@ export function FieldComboioForm({ user, onBack }: FieldComboioFormProps) {
                           onSelect={() => handleVehicleSelect(v)}
                           className="py-3"
                         >
-                          <div className="flex items-center gap-2 w-full">
-                            <Truck className="w-4 h-4 text-orange-500 shrink-0" />
+                          <div className="flex items-center gap-3 w-full">
+                            <div className="w-10 h-10 rounded-lg bg-orange-500/10 flex items-center justify-center shrink-0">
+                              <Truck className="w-5 h-5 text-orange-500" />
+                            </div>
                             <div className="flex-1 min-w-0">
-                              <span className="font-bold text-primary">{code}</span>
-                              <span className="text-xs text-muted-foreground ml-2 truncate">{desc}</span>
+                              <span className="font-bold text-sm block">{code}</span>
+                              <span className="text-xs text-muted-foreground block truncate">{desc}</span>
                             </div>
                             {vehicleCode === code && (
                               <Check className="w-4 h-4 text-primary shrink-0" />
@@ -431,28 +447,40 @@ export function FieldComboioForm({ user, onBack }: FieldComboioFormProps) {
               </Command>
             </PopoverContent>
           </Popover>
-          {vehicleDescription && (
-            <p className="text-xs text-muted-foreground mt-1">{vehicleDescription}</p>
-          )}
         </div>
       )}
 
-      {/* Local de Entrada */}
-      <div className={cn(
-        "rounded-xl p-4 border",
-        theme === 'dark' ? "bg-slate-800/80 border-slate-700" : "bg-white border-slate-200 shadow-sm"
-      )}>
-        <Label className="text-sm font-medium mb-2 block">Local de Entrada</Label>
-        <Select value={entryLocation} onValueChange={setEntryLocation}>
-          <SelectTrigger className="h-12 text-base font-semibold">
-            <SelectValue placeholder="Selecione o tanque..." />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="Tanque 01">Tanque 01</SelectItem>
-            <SelectItem value="Tanque 02">Tanque 02</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+      {/* Local - for tanque users show their tanque location; for comboio users show entry location */}
+      {isComboioUser ? (
+        <div className={cn(
+          "rounded-xl p-4 border",
+          theme === 'dark' ? "bg-slate-800/80 border-slate-700" : "bg-white border-slate-200 shadow-sm"
+        )}>
+          <Label className="text-sm font-medium mb-2 block">Local de Entrada</Label>
+          <Select value={entryLocation} onValueChange={setEntryLocation}>
+            <SelectTrigger className="h-12 text-base font-semibold">
+              <SelectValue placeholder="Selecione o tanque..." />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Tanque Canteiro 01">Tanque Canteiro 01</SelectItem>
+              <SelectItem value="Tanque Canteiro 02">Tanque Canteiro 02</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      ) : (
+        <div className={cn(
+          "rounded-xl p-4 border",
+          theme === 'dark' ? "bg-slate-800/80 border-slate-700" : "bg-white border-slate-200 shadow-sm"
+        )}>
+          <Label className="text-sm font-medium mb-2 block">Local</Label>
+          <div className={cn(
+            "h-12 flex items-center px-3 rounded-md border font-semibold",
+            theme === 'dark' ? "bg-slate-700 border-slate-600 text-white" : "bg-muted border-input"
+          )}>
+            {(user.assigned_locations || []).find(loc => loc.toLowerCase().includes('tanque')) || user.assigned_locations?.[0] || 'Não definido'}
+          </div>
+        </div>
+      )}
 
       {/* Quantity */}
       <div className={cn(
