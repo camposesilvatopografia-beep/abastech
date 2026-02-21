@@ -92,6 +92,39 @@ export function FieldComboioForm({ user, onBack }: FieldComboioFormProps) {
   // Vehicle search
   const [vehicleOpen, setVehicleOpen] = useState(false);
   const [vehicleSearch, setVehicleSearch] = useState('');
+
+  // Fetch comboio drivers (field_users assigned to comboio locations)
+  const [comboioDrivers, setComboioDrivers] = useState<{ name: string; locations: string[] }[]>([]);
+  useEffect(() => {
+    const fetchDrivers = async () => {
+      const { data } = await supabase
+        .from('field_users')
+        .select('name, assigned_locations')
+        .eq('active', true);
+      if (data) {
+        const drivers = data
+          .filter((u: any) => (u.assigned_locations || []).some((loc: string) => loc.toLowerCase().includes('comboio')))
+          .map((u: any) => ({ name: u.name, locations: u.assigned_locations || [] }));
+        setComboioDrivers(drivers);
+      }
+    };
+    fetchDrivers();
+  }, []);
+
+
+  // Helper: find driver name for a comboio vehicle code
+  const getDriverForVehicle = (code: string): string | null => {
+    const codeNum = code.match(/(\d+)/)?.[1]?.replace(/^0+/, '');
+    if (!codeNum) return null;
+    const driver = comboioDrivers.find(d => 
+      d.locations.some(loc => {
+        const locNum = loc.match(/(\d+)/)?.[1]?.replace(/^0+/, '');
+        return locNum === codeNum && loc.toLowerCase().includes('comboio');
+      })
+    );
+    return driver?.name || null;
+  };
+
   // Filter vehicles to only show "Tanque Comboio" category
   const comboioVehicles = useMemo(() => {
     if (!vehiclesData?.rows) return [];
@@ -397,9 +430,12 @@ export function FieldComboioForm({ user, onBack }: FieldComboioFormProps) {
                   <div className="flex items-center gap-2">
                     <Truck className="w-4 h-4 text-orange-500" />
                     <span className="font-bold">{vehicleCode}</span>
-                    {vehicleDescription && (
-                      <span className="text-xs text-muted-foreground">- {vehicleDescription}</span>
-                    )}
+                    {(() => {
+                      const driverName = getDriverForVehicle(vehicleCode);
+                      return driverName ? (
+                        <span className="text-xs text-muted-foreground">- {driverName}</span>
+                      ) : null;
+                    })()}
                   </div>
                 ) : (
                   "Selecione o Comboio..."
@@ -419,11 +455,11 @@ export function FieldComboioForm({ user, onBack }: FieldComboioFormProps) {
                   <CommandGroup>
                     {filteredVehicles.map((v: any, idx: number) => {
                       const code = String(v['Codigo'] || v['CODIGO'] || v['Código'] || '');
-                      const desc = String(v['Descricao'] || v['DESCRICAO'] || v['Descrição'] || v['Nome'] || '');
+                      const driverName = getDriverForVehicle(code);
                       return (
                         <CommandItem
                           key={`${code}-${idx}`}
-                          value={`${code} ${desc}`}
+                          value={`${code} ${driverName || ''}`}
                           onSelect={() => handleVehicleSelect(v)}
                           className="py-3"
                         >
@@ -433,7 +469,9 @@ export function FieldComboioForm({ user, onBack }: FieldComboioFormProps) {
                             </div>
                             <div className="flex-1 min-w-0">
                               <span className="font-bold text-sm block">{code}</span>
-                              <span className="text-xs text-muted-foreground block truncate">{desc}</span>
+                              {driverName && (
+                                <span className="text-xs text-muted-foreground block truncate">{driverName}</span>
+                              )}
                             </div>
                             {vehicleCode === code && (
                               <Check className="w-4 h-4 text-primary shrink-0" />
@@ -472,13 +510,16 @@ export function FieldComboioForm({ user, onBack }: FieldComboioFormProps) {
           "rounded-xl p-4 border",
           theme === 'dark' ? "bg-slate-800/80 border-slate-700" : "bg-white border-slate-200 shadow-sm"
         )}>
-          <Label className="text-sm font-medium mb-2 block">Local</Label>
-          <div className={cn(
-            "h-12 flex items-center px-3 rounded-md border font-semibold",
-            theme === 'dark' ? "bg-slate-700 border-slate-600 text-white" : "bg-muted border-input"
-          )}>
-            {(user.assigned_locations || []).find(loc => loc.toLowerCase().includes('tanque')) || user.assigned_locations?.[0] || 'Não definido'}
-          </div>
+          <Label className="text-sm font-medium mb-2 block">Local (Tanque de Saída)</Label>
+          <Select value={entryLocation} onValueChange={setEntryLocation}>
+            <SelectTrigger className="h-12 text-base font-semibold">
+              <SelectValue placeholder="Selecione o tanque..." />
+            </SelectTrigger>
+            <SelectContent className="z-50 bg-popover">
+              <SelectItem value="Tanque Canteiro 01">Tanque Canteiro 01</SelectItem>
+              <SelectItem value="Tanque Canteiro 02">Tanque Canteiro 02</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       )}
 
