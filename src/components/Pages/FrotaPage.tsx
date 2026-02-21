@@ -774,19 +774,6 @@ export function FrotaPage() {
                 <Button 
                   variant="outline" 
                   size="sm" 
-                  onClick={exportToPDF}
-                  className="bg-red-50 hover:bg-red-100 text-red-700 border-red-200"
-                >
-                  <FileText className="w-4 h-4 sm:mr-2" />
-                  <span className="hidden sm:inline">PDF</span>
-                </Button>
-                <Button variant="outline" size="sm" onClick={exportToExcel}>
-                  <FileSpreadsheet className="w-4 h-4 sm:mr-2" />
-                  <span className="hidden sm:inline">Excel</span>
-                </Button>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
                   onClick={() => setColumnConfigModalOpen(true)}
                   className="gap-2"
                 >
@@ -1442,37 +1429,15 @@ export function FrotaPage() {
                 </Button>
               </div>
 
-              {/* Lista Geral - PDF */}
-              <div className="bg-card rounded-lg border border-border p-5 space-y-3">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-red-100 flex items-center justify-center">
-                    <FileText className="w-4 h-4 text-red-700" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold">Lista Geral (PDF)</h3>
-                    <p className="text-xs text-muted-foreground">Todos os veículos/equipamentos</p>
-                  </div>
-                </div>
-                <Button
-                  size="sm"
-                  className="w-full gap-2"
-                  variant="outline"
-                  onClick={exportToPDF}
-                >
-                  <FileText className="w-4 h-4" />
-                  Exportar PDF
-                </Button>
-              </div>
-
-              {/* Lista Geral - Excel */}
+              {/* Exportar XLSX */}
               <div className="bg-card rounded-lg border border-border p-5 space-y-3">
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center">
                     <FileSpreadsheet className="w-4 h-4 text-green-700" />
                   </div>
                   <div>
-                    <h3 className="font-semibold">Lista Geral (Excel)</h3>
-                    <p className="text-xs text-muted-foreground">Exportar planilha com filtros aplicados</p>
+                    <h3 className="font-semibold">Exportar XLSX</h3>
+                    <p className="text-xs text-muted-foreground">Planilha com filtros aplicados</p>
                   </div>
                 </div>
                 <Button
@@ -1482,7 +1447,7 @@ export function FrotaPage() {
                   onClick={exportToExcel}
                 >
                   <FileSpreadsheet className="w-4 h-4" />
-                  Exportar Excel
+                  Exportar XLSX
                 </Button>
               </div>
             </div>
