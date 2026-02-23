@@ -382,37 +382,25 @@ export function VehicleConsumptionDetailTab({ data, refetch, loading }: VehicleC
 
   return (
     <div className="space-y-4">
-      {/* KPI Row */}
-      <div className="grid grid-cols-3 gap-3">
-        <div className="bg-card rounded-lg border border-border p-4">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-            <Fuel className="h-4 w-4" />
-            Total Diesel
-          </div>
-          <p className="text-2xl font-bold">{formatBR(metrics.totalLiters, 0)} L</p>
-          <p className="text-xs text-muted-foreground mt-1">{metrics.totalRecords} abastecimentos</p>
+      {/* KPI - Single card */}
+      <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-4">
+        <div className="flex items-center gap-2 text-sm font-medium text-destructive mb-1">
+          <Fuel className="h-4 w-4" />
+          Total Saída Diesel
         </div>
-
-        <div className="bg-card rounded-lg border border-border p-4">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-            <Gauge className="h-4 w-4" />
-            Equipamentos
+        <p className="text-2xl font-bold text-destructive">{formatBR(metrics.totalLiters, 0)} L</p>
+        <p className="text-xs text-muted-foreground mt-1">{metrics.totalRecords} abastecimentos</p>
+        <div className="flex items-center gap-4 mt-2 pt-2 border-t border-destructive/20">
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Gauge className="h-3.5 w-3.5 text-amber-500" />
+            <span><strong>{metrics.equipCount}</strong> Equipamentos</span>
+            {globalAvg.equipAvg > 0 && <span className="text-muted-foreground/70">({formatBR(globalAvg.equipAvg)} L/h)</span>}
           </div>
-          <p className="text-2xl font-bold">{metrics.equipCount}</p>
-          {globalAvg.equipAvg > 0 && (
-            <p className="text-xs text-muted-foreground mt-1">Média: {formatBR(globalAvg.equipAvg)} L/h</p>
-          )}
-        </div>
-
-        <div className="bg-card rounded-lg border border-border p-4">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-            <Truck className="h-4 w-4" />
-            Veículos
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Truck className="h-3.5 w-3.5 text-blue-500" />
+            <span><strong>{metrics.veicCount}</strong> Veículos</span>
+            {globalAvg.veicAvg > 0 && <span className="text-muted-foreground/70">({formatBR(globalAvg.veicAvg)} km/L)</span>}
           </div>
-          <p className="text-2xl font-bold">{metrics.veicCount}</p>
-          {globalAvg.veicAvg > 0 && (
-            <p className="text-xs text-muted-foreground mt-1">Média: {formatBR(globalAvg.veicAvg)} km/L</p>
-          )}
         </div>
       </div>
 
