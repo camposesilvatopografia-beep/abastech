@@ -74,6 +74,7 @@ import { format, startOfMonth, endOfMonth, isWithinInterval, subDays, startOfDay
 import { ptBR } from 'date-fns/locale';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { renderStandardHeader, getLogoBase64 } from '@/lib/pdfHeader';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { DatabaseHorimeterModal } from '@/components/Horimetros/DatabaseHorimeterModal';
@@ -463,91 +464,33 @@ export function HorimetrosPageDB() {
   const exportToPDF = async () => {
     const doc = new jsPDF('landscape');
     const pageWidth = doc.internal.pageSize.getWidth();
-    const margin = 12;
+    const margin = 14;
     const contentWidth = pageWidth - margin * 2;
 
-    // Load logos
-    const loadImageAsBase64 = async (url: string): Promise<string | null> => {
-      try {
-        const response = await fetch(url);
-        const blob = await response.blob();
-        return new Promise((resolve) => {
-          const reader = new FileReader();
-          reader.onloadend = () => resolve(reader.result as string);
-          reader.onerror = () => resolve(null);
-          reader.readAsDataURL(blob);
-        });
-      } catch { return null; }
-    };
+    // Use standard header
+    const logoBase64 = await getLogoBase64(obraSettings?.logo_url);
 
-    let obraLogoBase64: string | null = null;
-    let abastechLogoBase64: string | null = null;
-    try {
-      const [obraRes, abastechRes] = await Promise.all([
-        obraSettings?.logo_url ? loadImageAsBase64(obraSettings.logo_url) : Promise.resolve(null),
-        loadImageAsBase64('/logo-consorcio-header.png'),
-      ]);
-      obraLogoBase64 = obraRes;
-      abastechLogoBase64 = abastechRes;
-    } catch { /* ignore */ }
-
-    // ═══════════════════════════════════════════════════
-    // HEADER: Navy gradient bar with logos
-    // ═══════════════════════════════════════════════════
-    doc.setFillColor(15, 23, 42);
-    doc.rect(0, 0, pageWidth, 32, 'F');
-    // Red accent line
-    doc.setFillColor(220, 38, 38);
-    doc.rect(0, 32, pageWidth, 1.5, 'F');
-
-    // Obra logo
-    let logoX = margin;
-    if (obraLogoBase64) {
-      try { doc.addImage(obraLogoBase64, 'PNG', logoX, 4, 24, 24); logoX += 28; } catch { /* skip */ }
-    }
-
-    // Title
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.text('RELATÓRIO DE HORÍMETROS', logoX, 14);
-
-    // Subtitle - obra name
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(203, 213, 225);
-    doc.text(obraSettings?.nome || 'Gestão de Frotas', logoX, 22);
-
-    // Right side info
-    doc.setFontSize(8);
-    doc.setTextColor(148, 163, 184);
-    const rightX = pageWidth - margin;
-    let dateInfo = 'Todas as datas';
+    let dateInfo = 'Todo período';
     if (selectedDate) {
       dateInfo = format(selectedDate, 'dd/MM/yyyy');
     } else if (periodFilter !== 'todos' && dateRange) {
       dateInfo = `${format(dateRange.start, 'dd/MM/yyyy')} a ${format(dateRange.end, 'dd/MM/yyyy')}`;
     }
-    doc.text(`Período: ${dateInfo}`, rightX, 12, { align: 'right' });
-    doc.text(`Gerado: ${format(new Date(), 'dd/MM/yyyy HH:mm')}`, rightX, 18, { align: 'right' });
 
-    // Abastech logo bottom-right of header
-    if (abastechLogoBase64) {
-      try { doc.addImage(abastechLogoBase64, 'PNG', pageWidth - margin - 20, 22, 20, 8); } catch { /* skip */ }
-    }
+    let y = renderStandardHeader(doc, {
+      reportTitle: 'RELATÓRIO DE HORÍMETROS',
+      obraSettings,
+      logoBase64,
+      date: format(new Date(), 'dd/MM/yyyy HH:mm'),
+    });
 
-    let y = 38;
-
-    // ═══════════════════════════════════════════════════
-    // FILTER INFO BAR
-    // ═══════════════════════════════════════════════════
-    doc.setFillColor(241, 245, 249);
-    doc.roundedRect(margin, y, contentWidth, 8, 1, 1, 'F');
+    // Filter info bar
     doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(71, 85, 105);
-    
+
     const filterParts: string[] = [];
+    filterParts.push(`Período: ${dateInfo}`);
     if (companyFilter !== 'all') filterParts.push(`Empresa: ${companyFilter}`);
     if (vehicleFilter !== 'all') {
       const vehicle = vehicles.find(v => v.id === vehicleFilter);
@@ -555,13 +498,10 @@ export function HorimetrosPageDB() {
     }
     if (categoryFilter !== 'all') filterParts.push(`Categoria: ${categoryFilter}`);
     filterParts.push(`${readingsWithInterval.length} registros`);
-    
-    doc.text(filterParts.join('  •  '), margin + 4, y + 5.5);
-    y += 12;
+    doc.text(filterParts.join('  •  '), margin, y);
+    y += 6;
 
-    // ═══════════════════════════════════════════════════
-    // DATA TABLE
-    // ═══════════════════════════════════════════════════
+    // Data table
     const formatBR = (val: number | null | undefined): string => {
       if (val === null || val === undefined) return '-';
       const hasDecimals = val % 1 !== 0;
@@ -592,15 +532,11 @@ export function HorimetrosPageDB() {
       formatInterval((r as any).km_interval || 0),
     ]);
 
-    const tableMargin = margin + 4;
-    const tableWidth = contentWidth - 8;
-
     autoTable(doc, {
       head: [['Data', 'Veículo', 'Operador', 'Hor. Anterior', 'Hor. Atual', 'H.T.', 'KM Anterior', 'KM Atual', 'Total KM']],
       body: tableData,
       startY: y,
-      margin: { left: tableMargin, right: tableMargin },
-      tableWidth: tableWidth,
+      margin: { left: margin, right: margin },
       styles: { 
         fontSize: 8, 
         cellPadding: 2.5, 
@@ -610,7 +546,7 @@ export function HorimetrosPageDB() {
         lineWidth: 0.2,
       },
       headStyles: { 
-        fillColor: [15, 23, 42], 
+        fillColor: [55, 71, 95], 
         textColor: [255, 255, 255], 
         fontStyle: 'bold',
         fontSize: 8,
@@ -630,29 +566,16 @@ export function HorimetrosPageDB() {
         8: { halign: 'center', fontStyle: 'bold' },
       },
       didParseCell: (data) => {
-        // Highlight H.T. and Total KM columns with subtle color
         if (data.section === 'body' && (data.column.index === 5 || data.column.index === 8)) {
           const val = parseFloat(String(data.cell.raw).replace(/\./g, '').replace(',', '.'));
           if (!isNaN(val) && val < 0) {
-            data.cell.styles.textColor = [220, 38, 38]; // Red for negative
+            data.cell.styles.textColor = [220, 38, 38];
           }
         }
       },
     });
 
-    // ═══════════════════════════════════════════════════
-    // FOOTER: Totals summary
-    // ═══════════════════════════════════════════════════
-    const finalY = (doc as any).lastAutoTable.finalY || 50;
-    
-    doc.setFillColor(241, 245, 249);
-    doc.roundedRect(margin, finalY + 4, contentWidth, 10, 1, 1, 'F');
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(15, 23, 42);
-    doc.text(`Total de registros: ${readingsWithInterval.length}`, margin + 4, finalY + 10.5);
-
-    // Page footer
+    // Page footer on all pages
     const pageCount = doc.getNumberOfPages();
     for (let i = 1; i <= pageCount; i++) {
       doc.setPage(i);
