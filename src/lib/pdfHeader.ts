@@ -77,7 +77,7 @@ export function renderStandardHeader(
   const pw = doc.internal.pageSize.getWidth();
 
   // Navy background
-  doc.setFillColor(30, 41, 59);
+  doc.setFillColor(55, 71, 95);
   doc.rect(0, 0, pw, headerHeight, 'F');
 
   // Logo on left
@@ -118,14 +118,14 @@ export function renderStandardHeader(
 
   // Report title BELOW the header bar - centered and evident
   const titleY = headerHeight + 8;
-  doc.setTextColor(30, 41, 59);
+  doc.setTextColor(55, 71, 95);
   doc.setFontSize(13);
   doc.setFont('helvetica', 'bold');
   doc.text(reportTitle.toUpperCase(), pw / 2, titleY, { align: 'center' });
 
   // Underline below title (centered)
   const titleWidth = doc.getTextWidth(reportTitle.toUpperCase());
-  doc.setDrawColor(30, 41, 59);
+  doc.setDrawColor(55, 71, 95);
   doc.setLineWidth(0.5);
   doc.line((pw - titleWidth) / 2, titleY + 1.5, (pw + titleWidth) / 2, titleY + 1.5);
 
