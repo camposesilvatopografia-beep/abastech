@@ -382,10 +382,8 @@ export function FieldPage() {
         duration: 3000,
       });
       notifyOnline();
-      // Auto-sync when back online
-      setTimeout(() => {
-        syncPendingRecords();
-      }, 1000);
+      // Auto-sync immediately when back online
+      syncPendingRecords();
     };
     
     const handleOffline = () => {
@@ -396,12 +394,21 @@ export function FieldPage() {
       notifyOffline();
     };
 
+    // Auto-sync when app comes back to foreground (e.g., after camera, screen lock)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && navigator.onLine) {
+        syncPendingRecords();
+      }
+    };
+
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [syncPendingRecords, notifyOnline, notifyOffline]);
 
@@ -448,12 +455,12 @@ export function FieldPage() {
     checkPending();
     const interval = setInterval(checkPending, 15000);
 
-    // Auto-sync pending records periodically when online (every 30s)
+    // Auto-sync pending records periodically when online (every 15s)
     const autoSyncInterval = setInterval(() => {
       if (navigator.onLine && !isSyncing) {
         syncPendingRecords();
       }
-    }, 30000);
+    }, 15000);
 
     return () => {
       clearInterval(interval);
