@@ -1,7 +1,7 @@
-import { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { format, subDays, startOfDay, eachDayOfInterval } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { AlertTriangle, Check, Calendar, Filter, ListChecks, Eye, Copy, FileEdit, Loader2 } from 'lucide-react';
+import { AlertTriangle, Check, Calendar, Filter, ListChecks, Eye, Copy, FileEdit, Loader2, ChevronDown, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -35,6 +35,7 @@ export function MissingReadingsTab({ vehicles, readings, loading, refetch }: Mis
   const [searchFilter, setSearchFilter] = useState('');
   const [vehicleFilter, setVehicleFilter] = useState<string>('all');
   const [viewMode, setViewMode] = useState<'pendentes' | 'lancados' | 'todos'>('pendentes');
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
 
   // Modal state
   const [modalOpen, setModalOpen] = useState(false);
@@ -160,6 +161,36 @@ export function MissingReadingsTab({ vehicles, readings, loading, refetch }: Mis
     });
   }, [filteredVehicles, viewMode, vehicleStats]);
 
+  // Group vehicles by description (name) for collapsible sections
+  const groupedVehicles = useMemo(() => {
+    const groups = new Map<string, Vehicle[]>();
+    displayVehicles.forEach(v => {
+      const desc = v.name || 'Sem descrição';
+      if (!groups.has(desc)) groups.set(desc, []);
+      groups.get(desc)!.push(v);
+    });
+    const sorted = Array.from(groups.entries()).sort((a, b) => a[0].localeCompare(b[0], 'pt-BR'));
+    sorted.forEach(([, vehs]) => vehs.sort((a, b) => a.code.localeCompare(b.code)));
+    return sorted;
+  }, [displayVehicles]);
+
+  const toggleGroup = useCallback((desc: string) => {
+    setCollapsedGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(desc)) next.delete(desc);
+      else next.add(desc);
+      return next;
+    });
+  }, []);
+
+  const collapseAll = useCallback(() => {
+    setCollapsedGroups(new Set(groupedVehicles.map(([desc]) => desc)));
+  }, [groupedVehicles]);
+
+  const expandAll = useCallback(() => {
+    setCollapsedGroups(new Set());
+  }, []);
+
   // Total missing count
   const totalMissing = useMemo(() => {
     let count = 0;
@@ -168,7 +199,6 @@ export function MissingReadingsTab({ vehicles, readings, loading, refetch }: Mis
   }, [dateStats]);
 
   const findPreviousReading = useCallback((vehicleId: string, dateStr: string): HorimeterWithVehicle | null => {
-    // Find the most recent reading for this vehicle before dateStr
     const sorted = readings
       .filter(r => r.vehicle_id === vehicleId && r.reading_date < dateStr)
       .sort((a, b) => b.reading_date.localeCompare(a.reading_date));
@@ -221,7 +251,6 @@ export function MissingReadingsTab({ vehicles, readings, loading, refetch }: Mis
           const formattedDate = `${day}/${month}/${year}`;
           const fmtNum = (v: number) => v > 0 ? formatPtBRNumber(v, { decimals: 2 }) : '';
 
-          // Build semantic data matching the Horimetros sheet structure
           const semanticData: Record<string, string> = {
             'Data': formattedDate,
             'Veiculo': vehicle.code,
@@ -237,7 +266,6 @@ export function MissingReadingsTab({ vehicles, readings, loading, refetch }: Mis
             'Total Km': '0',
           };
 
-          // Try to get actual headers for fuzzy matching
           let rowData = semanticData;
           try {
             const sheetData = await getSheetData('Horimetros', { noCache: false });
@@ -260,7 +288,6 @@ export function MissingReadingsTab({ vehicles, readings, loading, refetch }: Mis
           });
           if (syncError) throw syncError;
           
-          // Mark as synced in DB
           if (insertedRecord?.id) {
             await supabase.from('horimeter_readings')
               .update({ synced_from_sheet: true })
@@ -325,63 +352,39 @@ export function MissingReadingsTab({ vehicles, readings, loading, refetch }: Mis
       <div className="bg-card rounded-lg border p-3 flex flex-wrap gap-2 items-center">
         <Filter className="w-4 h-4 text-muted-foreground" />
         
-        {/* Days back quick select */}
         <div className="flex gap-1">
           {[7, 14, 30].map(d => (
-            <Button
-              key={d}
-              variant={daysBack === d && !startDate ? 'default' : 'outline'}
-              size="sm"
-              className="h-7 px-2 text-xs"
-              onClick={() => { setDaysBack(d); setStartDate(undefined); setEndDate(undefined); }}
-            >
+            <Button key={d} variant={daysBack === d && !startDate ? 'default' : 'outline'} size="sm" className="h-7 px-2 text-xs"
+              onClick={() => { setDaysBack(d); setStartDate(undefined); setEndDate(undefined); }}>
               {d}d
             </Button>
           ))}
         </div>
 
-        {/* Custom period */}
         <Popover>
           <PopoverTrigger asChild>
             <Button variant={startDate ? 'default' : 'outline'} size="sm" className="h-7 text-xs gap-1">
               <Calendar className="w-3 h-3" />
-              {startDate && endDate 
-                ? `${format(startDate, 'dd/MM')} - ${format(endDate, 'dd/MM')}`
-                : 'Período'}
+              {startDate && endDate ? `${format(startDate, 'dd/MM')} - ${format(endDate, 'dd/MM')}` : 'Período'}
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-auto p-0 bg-background" align="start">
-            <CalendarComponent
-              mode="range"
+            <CalendarComponent mode="range"
               selected={startDate && endDate ? { from: startDate, to: endDate } : undefined}
-              onSelect={(range) => {
-                if (range?.from) setStartDate(range.from);
-                if (range?.to) setEndDate(range.to);
-              }}
-              locale={ptBR}
-              numberOfMonths={1}
-            />
+              onSelect={(range) => { if (range?.from) setStartDate(range.from); if (range?.to) setEndDate(range.to); }}
+              locale={ptBR} numberOfMonths={1} />
           </PopoverContent>
         </Popover>
 
         <div className="w-px h-6 bg-border" />
 
-        {/* Vehicle filter combobox */}
         <div className="w-[200px]">
-          <VehicleCombobox
-            vehicles={vehicleOptions}
-            value={vehicleFilter === 'all' ? '' : vehicleFilter}
-            onValueChange={(val) => setVehicleFilter(val || 'all')}
-            placeholder="Todos Veículos"
-            useIdAsValue
-            className="h-7 text-xs"
-          />
+          <VehicleCombobox vehicles={vehicleOptions} value={vehicleFilter === 'all' ? '' : vehicleFilter}
+            onValueChange={(val) => setVehicleFilter(val || 'all')} placeholder="Todos Veículos" useIdAsValue className="h-7 text-xs" />
         </div>
 
         <Select value={companyFilter} onValueChange={setCompanyFilter}>
-          <SelectTrigger className="h-7 w-[130px] text-xs">
-            <SelectValue placeholder="Empresa" />
-          </SelectTrigger>
+          <SelectTrigger className="h-7 w-[130px] text-xs"><SelectValue placeholder="Empresa" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todas Empresas</SelectItem>
             {companies.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
@@ -389,9 +392,7 @@ export function MissingReadingsTab({ vehicles, readings, loading, refetch }: Mis
         </Select>
 
         <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-          <SelectTrigger className="h-7 w-[130px] text-xs">
-            <SelectValue placeholder="Categoria" />
-          </SelectTrigger>
+          <SelectTrigger className="h-7 w-[130px] text-xs"><SelectValue placeholder="Categoria" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todas Categorias</SelectItem>
             {categories.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
@@ -399,9 +400,7 @@ export function MissingReadingsTab({ vehicles, readings, loading, refetch }: Mis
         </Select>
 
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="h-7 w-[100px] text-xs">
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
+          <SelectTrigger className="h-7 w-[100px] text-xs"><SelectValue placeholder="Status" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos</SelectItem>
             <SelectItem value="ativo">Ativos</SelectItem>
@@ -409,12 +408,7 @@ export function MissingReadingsTab({ vehicles, readings, loading, refetch }: Mis
           </SelectContent>
         </Select>
 
-        <Input
-          placeholder="Buscar veículo..."
-          value={searchFilter}
-          onChange={e => setSearchFilter(e.target.value)}
-          className="h-7 w-[140px] text-xs"
-        />
+        <Input placeholder="Buscar veículo..." value={searchFilter} onChange={e => setSearchFilter(e.target.value)} className="h-7 w-[140px] text-xs" />
 
         <div className="w-px h-6 bg-border" />
 
@@ -424,17 +418,16 @@ export function MissingReadingsTab({ vehicles, readings, loading, refetch }: Mis
             { key: 'lancados' as const, label: 'Lançados', icon: ListChecks, color: 'text-emerald-500' },
             { key: 'todos' as const, label: 'Todos', icon: Eye, color: 'text-blue-500' },
           ]).map(({ key, label, icon: Icon, color }) => (
-            <Button
-              key={key}
-              variant={viewMode === key ? 'default' : 'ghost'}
-              size="sm"
-              className={cn("h-7 text-xs gap-1", viewMode !== key && color)}
-              onClick={() => setViewMode(key)}
-            >
-              <Icon className="w-3 h-3" />
-              {label}
+            <Button key={key} variant={viewMode === key ? 'default' : 'ghost'} size="sm"
+              className={cn("h-7 text-xs gap-1", viewMode !== key && color)} onClick={() => setViewMode(key)}>
+              <Icon className="w-3 h-3" /> {label}
             </Button>
           ))}
+        </div>
+
+        <div className="flex gap-1">
+          <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={expandAll}>Expandir</Button>
+          <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={collapseAll}>Recolher</Button>
         </div>
       </div>
 
@@ -445,35 +438,18 @@ export function MissingReadingsTab({ vehicles, readings, loading, refetch }: Mis
             <table className="w-full text-xs">
               <thead>
                 <tr className="bg-muted/50">
-                  <th className="sticky left-0 z-20 bg-muted/90 backdrop-blur-sm px-3 py-2 text-left font-semibold border-r min-w-[160px]">
-                    Equipamento
-                  </th>
-                  <th className="px-2 py-2 text-center font-semibold border-r min-w-[40px]">
-                    ⚠️
-                  </th>
+                  <th className="sticky left-0 z-20 bg-muted/90 backdrop-blur-sm px-3 py-2 text-left font-semibold border-r min-w-[160px]">Equipamento</th>
+                  <th className="px-2 py-2 text-center font-semibold border-r min-w-[40px]">⚠️</th>
                   {dateRange.map(date => {
                     const dateStr = format(date, 'yyyy-MM-dd');
                     const stats = dateStats.get(dateStr);
                     const isToday = dateStr === format(new Date(), 'yyyy-MM-dd');
                     return (
-                      <th 
-                        key={dateStr}
-                        className={cn(
-                          "px-1 py-2 text-center font-medium border-r min-w-[65px]",
-                          isToday && "bg-primary/10"
-                        )}
-                      >
-                        <div className="text-[10px] text-muted-foreground">
-                          {format(date, 'EEE', { locale: ptBR })}
-                        </div>
-                        <div className={cn("font-semibold", isToday && "text-primary")}>
-                          {format(date, 'dd/MM')}
-                        </div>
+                      <th key={dateStr} className={cn("px-1 py-2 text-center font-medium border-r min-w-[65px]", isToday && "bg-primary/10")}>
+                        <div className="text-[10px] text-muted-foreground">{format(date, 'EEE', { locale: ptBR })}</div>
+                        <div className={cn("font-semibold", isToday && "text-primary")}>{format(date, 'dd/MM')}</div>
                         {stats && (
-                          <div className={cn(
-                            "text-[9px] mt-0.5 font-medium",
-                            stats.missing > 0 ? "text-red-500" : "text-emerald-500"
-                          )}>
+                          <div className={cn("text-[9px] mt-0.5 font-medium", stats.missing > 0 ? "text-red-500" : "text-emerald-500")}>
                             {stats.missing > 0 ? `${stats.missing} faltam` : '✓'}
                           </div>
                         )}
@@ -494,127 +470,89 @@ export function MissingReadingsTab({ vehicles, readings, loading, refetch }: Mis
                     </td>
                   </tr>
                 ) : (
-                  displayVehicles.map(vehicle => {
-                    const vStats = vehicleStats.get(vehicle.id);
+                  groupedVehicles.map(([description, groupVehicles]) => {
+                    const isCollapsed = collapsedGroups.has(description);
+                    let groupMissing = 0;
+                    groupVehicles.forEach(v => { const s = vehicleStats.get(v.id); if (s) groupMissing += s.missing; });
                     return (
-                      <tr key={vehicle.id} className="border-t hover:bg-muted/30 transition-colors">
-                        <td className="sticky left-0 z-10 bg-card px-3 py-1.5 border-r">
-                          <div className="font-semibold text-foreground">{vehicle.code}</div>
-                          <div className="text-[10px] text-muted-foreground truncate max-w-[140px]">
-                            {vehicle.name}
-                          </div>
-                        </td>
-                        <td className="px-2 py-1.5 text-center border-r">
-                          {vStats && vStats.missing > 0 ? (
-                            <Badge variant="destructive" className="text-[10px] px-1.5 py-0">
-                              {vStats.missing}
-                            </Badge>
-                          ) : (
-                            <span className="text-emerald-500 text-sm">✓</span>
-                          )}
-                        </td>
-                        {dateRange.map(date => {
-                          const dateStr = format(date, 'yyyy-MM-dd');
-                          const key = `${vehicle.id}|${dateStr}`;
-                          const reading = readingsMap.get(key);
-                          const isToday = dateStr === format(new Date(), 'yyyy-MM-dd');
-
-                          if (reading) {
-                            const val = reading.current_value;
-                            const km = (reading as any).current_km;
-                            const prevKm = (reading as any).previous_km;
-                            return (
-                              <td 
-                                key={dateStr}
-                                className={cn(
-                                  "px-1 py-1.5 text-center border-r",
-                                  isToday && "bg-primary/5"
-                                )}
-                                title={`Hor: ${formatBR(val)} | KM: ${formatBR(km || prevKm)}\nOperador: ${reading.operator || '-'}`}
-                              >
-                                <div className="text-emerald-600 dark:text-emerald-400 font-medium text-[10px]">
-                                  {val > 0 ? formatBR(val) : ''}
-                                </div>
-                                {km > 0 ? (
-                                  <div className="text-blue-500 text-[9px]">
-                                    {formatBR(km)}
-                                  </div>
-                                ) : prevKm > 0 ? (
-                                  <div className="text-blue-400/60 text-[9px] italic">
-                                    {formatBR(prevKm)}
-                                  </div>
-                                ) : null}
-                                {!val && !km && (
-                                  <span className="text-emerald-400 text-[10px]">✓</span>
-                                )}
-                              </td>
-                            );
-                          }
-
-                          // Missing - clickable → opens popover with options
-                          const popoverKey = `${vehicle.id}|${dateStr}`;
-                          const prevReading = findPreviousReading(vehicle.id, dateStr);
+                      <React.Fragment key={description}>
+                        <tr className="border-t bg-muted/60 cursor-pointer hover:bg-muted/80 transition-colors" onClick={() => toggleGroup(description)}>
+                          <td className="sticky left-0 z-10 bg-muted/90 backdrop-blur-sm px-3 py-1.5 border-r">
+                            <div className="flex items-center gap-1.5">
+                              {isCollapsed ? <ChevronRight className="w-3.5 h-3.5 text-muted-foreground shrink-0" /> : <ChevronDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" />}
+                              <span className="font-semibold text-foreground text-[11px]">{description}</span>
+                              <span className="text-[10px] text-muted-foreground ml-1">({groupVehicles.length})</span>
+                            </div>
+                          </td>
+                          <td className="px-2 py-1.5 text-center border-r">
+                            {groupMissing > 0 ? <Badge variant="destructive" className="text-[10px] px-1.5 py-0">{groupMissing}</Badge> : <span className="text-emerald-500 text-sm">✓</span>}
+                          </td>
+                          {dateRange.map(date => {
+                            const dateStr = format(date, 'yyyy-MM-dd');
+                            let dm = 0;
+                            groupVehicles.forEach(v => { if (!readingsMap.has(`${v.id}|${dateStr}`)) dm++; });
+                            return (<td key={dateStr} className="px-1 py-1.5 text-center border-r text-[10px]">{dm > 0 ? <span className="text-red-500 font-medium">{dm}</span> : <span className="text-emerald-500">✓</span>}</td>);
+                          })}
+                        </tr>
+                        {!isCollapsed && groupVehicles.map(vehicle => {
+                          const vStats = vehicleStats.get(vehicle.id);
                           return (
-                            <td 
-                              key={dateStr}
-                              className={cn(
-                                "px-1 py-1.5 text-center border-r",
-                                "bg-red-50/50 dark:bg-red-950/20",
-                                isToday && "bg-red-100/70 dark:bg-red-950/30"
-                              )}
-                            >
-                              <Popover 
-                                open={activePopover === popoverKey} 
-                                onOpenChange={(open) => !open && setActivePopover(null)}
-                              >
-                                <PopoverTrigger asChild>
-                                  <button
-                                    className="w-full h-full cursor-pointer hover:bg-red-100 dark:hover:bg-red-950/40 rounded transition-colors py-0.5"
-                                    onClick={() => handleCellClick(vehicle.id, dateStr)}
-                                    title={`Clique para lançar - ${vehicle.code} em ${format(date, 'dd/MM/yyyy')}`}
-                                  >
-                                    <div className="text-red-400 dark:text-red-600 text-lg leading-none">—</div>
-                                  </button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-56 p-2" align="center" side="bottom">
-                                  <div className="space-y-1">
-                                    <p className="text-xs font-semibold text-foreground mb-2 truncate">
-                                      {vehicle.code} — {format(date, 'dd/MM', { locale: ptBR })}
-                                    </p>
-                                    {prevReading && (
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="w-full justify-start gap-2 h-8 text-xs"
-                                        disabled={repeating}
-                                        onClick={() => handleRepeatPrevious(vehicle.id, dateStr)}
-                                      >
-                                        <Copy className="w-3.5 h-3.5 text-amber-500" />
-                                        <div className="text-left">
-                                          <div>Repetir anterior</div>
-                                          <div className="text-[10px] text-muted-foreground">
-                                            Hor: {formatBR(prevReading.current_value)}
-                                            {(prevReading as any).current_km > 0 && ` | KM: ${formatBR((prevReading as any).current_km)}`}
-                                          </div>
+                            <tr key={vehicle.id} className="border-t hover:bg-muted/30 transition-colors">
+                              <td className="sticky left-0 z-10 bg-card px-3 py-1.5 border-r pl-7">
+                                <div className="font-semibold text-foreground">{vehicle.code}</div>
+                              </td>
+                              <td className="px-2 py-1.5 text-center border-r">
+                                {vStats && vStats.missing > 0 ? <Badge variant="destructive" className="text-[10px] px-1.5 py-0">{vStats.missing}</Badge> : <span className="text-emerald-500 text-sm">✓</span>}
+                              </td>
+                              {dateRange.map(date => {
+                                const dateStr = format(date, 'yyyy-MM-dd');
+                                const key = `${vehicle.id}|${dateStr}`;
+                                const reading = readingsMap.get(key);
+                                const isToday = dateStr === format(new Date(), 'yyyy-MM-dd');
+                                if (reading) {
+                                  const val = reading.current_value;
+                                  const km = (reading as any).current_km;
+                                  const prevKm = (reading as any).previous_km;
+                                  return (
+                                    <td key={dateStr} className={cn("px-1 py-1.5 text-center border-r", isToday && "bg-primary/5")} title={`Hor: ${formatBR(val)} | KM: ${formatBR(km || prevKm)}\nOperador: ${reading.operator || '-'}`}>
+                                      <div className="text-emerald-600 dark:text-emerald-400 font-medium text-[10px]">{val > 0 ? formatBR(val) : ''}</div>
+                                      {km > 0 ? <div className="text-blue-500 text-[9px]">{formatBR(km)}</div> : prevKm > 0 ? <div className="text-blue-400/60 text-[9px] italic">{formatBR(prevKm)}</div> : null}
+                                      {!val && !km && <span className="text-emerald-400 text-[10px]">✓</span>}
+                                    </td>
+                                  );
+                                }
+                                const popoverKey = `${vehicle.id}|${dateStr}`;
+                                const prevReading = findPreviousReading(vehicle.id, dateStr);
+                                return (
+                                  <td key={dateStr} className={cn("px-1 py-1.5 text-center border-r", "bg-red-50/50 dark:bg-red-950/20", isToday && "bg-red-100/70 dark:bg-red-950/30")}>
+                                    <Popover open={activePopover === popoverKey} onOpenChange={(open) => !open && setActivePopover(null)}>
+                                      <PopoverTrigger asChild>
+                                        <button className="w-full h-full cursor-pointer hover:bg-red-100 dark:hover:bg-red-950/40 rounded transition-colors py-0.5" onClick={() => handleCellClick(vehicle.id, dateStr)} title={`Clique para lançar - ${vehicle.code} em ${format(date, 'dd/MM/yyyy')}`}>
+                                          <div className="text-red-400 dark:text-red-600 text-lg leading-none">—</div>
+                                        </button>
+                                      </PopoverTrigger>
+                                      <PopoverContent className="w-56 p-2" align="center" side="bottom">
+                                        <div className="space-y-1">
+                                          <p className="text-xs font-semibold text-foreground mb-2 truncate">{vehicle.code} — {format(date, 'dd/MM', { locale: ptBR })}</p>
+                                          {prevReading && (
+                                            <Button variant="ghost" size="sm" className="w-full justify-start gap-2 h-8 text-xs" disabled={repeating} onClick={() => handleRepeatPrevious(vehicle.id, dateStr)}>
+                                              <Copy className="w-3.5 h-3.5 text-amber-500" />
+                                              <div className="text-left"><div>Repetir anterior</div><div className="text-[10px] text-muted-foreground">Hor: {formatBR(prevReading.current_value)}{(prevReading as any).current_km > 0 && ` | KM: ${formatBR((prevReading as any).current_km)}`}</div></div>
+                                            </Button>
+                                          )}
+                                          <Button variant="ghost" size="sm" className="w-full justify-start gap-2 h-8 text-xs" onClick={() => handleOpenForm(vehicle.id, dateStr)}>
+                                            <FileEdit className="w-3.5 h-3.5 text-primary" /> Lançar manualmente
+                                          </Button>
                                         </div>
-                                      </Button>
-                                    )}
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="w-full justify-start gap-2 h-8 text-xs"
-                                      onClick={() => handleOpenForm(vehicle.id, dateStr)}
-                                    >
-                                      <FileEdit className="w-3.5 h-3.5 text-primary" />
-                                      Lançar manualmente
-                                    </Button>
-                                  </div>
-                                </PopoverContent>
-                              </Popover>
-                            </td>
+                                      </PopoverContent>
+                                    </Popover>
+                                  </td>
+                                );
+                              })}
+                            </tr>
                           );
                         })}
-                      </tr>
+                      </React.Fragment>
                     );
                   })
                 )}
