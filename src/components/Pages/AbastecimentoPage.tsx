@@ -2216,9 +2216,9 @@ export function AbastecimentoPage() {
               <Printer className="w-4 h-4 sm:mr-2" />
               <span className="hidden sm:inline">Imprimir</span>
             </Button>
-            <Button variant="outline" size="sm" onClick={exportPDF} disabled={isExporting}>
-              <FileText className={cn("w-4 h-4 sm:mr-2", isExporting && "animate-spin")} />
-              <span className="hidden sm:inline">{isExporting ? 'Exportando...' : 'PDF'}</span>
+            <Button variant="outline" size="sm" onClick={exportPDF} disabled={isExporting} className="gap-1.5">
+              <FileText className={cn("w-4 h-4", isExporting && "animate-spin")} />
+              <span className="hidden sm:inline">{isExporting ? 'Exportando...' : 'Exportar Relatório Geral'}</span>
             </Button>
           </div>
         </div>
@@ -2455,12 +2455,6 @@ export function AbastecimentoPage() {
             <div className="flex items-center justify-between flex-wrap gap-2">
               <h2 className="text-lg font-semibold bg-primary/10 px-4 py-2 rounded-lg">Detalhamento de Abastecimentos</h2>
               <div className="flex items-center gap-2">
-                {canCreateRecords && (
-                  <Button size="sm" onClick={() => openAdminModal('normal')} className="gap-2 bg-green-600 hover:bg-green-700">
-                    <Plus className="w-4 h-4" />
-                    Novo
-                  </Button>
-                )}
                 <Button onClick={exportDetailedPDF} disabled={isExporting} variant="outline" size="sm" className="gap-2">
                   <Download className="w-4 h-4" />
                   {isExporting ? 'Exportando...' : 'PDF'}
