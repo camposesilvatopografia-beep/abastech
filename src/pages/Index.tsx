@@ -43,16 +43,6 @@ const Index = () => {
     
     try {
       const userData = JSON.parse(stored);
-      const loginTime = new Date(userData.loginAt).getTime();
-      const now = Date.now();
-      const hoursElapsed = (now - loginTime) / (1000 * 60 * 60);
-      
-      if (hoursElapsed > 24) {
-        localStorage.removeItem('abastech_user');
-        navigate('/login');
-        return;
-      }
-      
       setCurrentUser({ id: userData.id, role: userData.role });
       
       // Fetch permissions
