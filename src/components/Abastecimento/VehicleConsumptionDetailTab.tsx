@@ -115,7 +115,7 @@ const isEquipmentCategory = (category: string): boolean => {
 export function VehicleConsumptionDetailTab({ data, refetch, loading }: VehicleConsumptionDetailTabProps) {
   const { settings } = useObraSettings();
   const [searchTerm, setSearchTerm] = useState('');
-  const [dateFilterType, setDateFilterType] = useState<DateFilterType>('month');
+  const [dateFilterType, setDateFilterType] = useState<DateFilterType>('today');
   const [startDate, setStartDate] = useState<Date | undefined>(subDays(new Date(), 30));
   const [endDate, setEndDate] = useState<Date | undefined>(new Date());
   const [expandedVehicles, setExpandedVehicles] = useState<Set<string>>(new Set());
@@ -383,7 +383,7 @@ export function VehicleConsumptionDetailTab({ data, refetch, loading }: VehicleC
   return (
     <div className="space-y-4">
       {/* KPI Row */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-3 gap-3">
         <div className="bg-card rounded-lg border border-border p-4">
           <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
             <Fuel className="h-4 w-4" />
@@ -413,20 +413,6 @@ export function VehicleConsumptionDetailTab({ data, refetch, loading }: VehicleC
           {globalAvg.veicAvg > 0 && (
             <p className="text-xs text-muted-foreground mt-1">Média: {formatBR(globalAvg.veicAvg)} km/L</p>
           )}
-        </div>
-
-        <div className={cn(
-          "rounded-lg border p-4",
-          metrics.divergent > 0 ? "bg-destructive/10 border-destructive/30" : "bg-card border-border"
-        )}>
-          <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
-            <AlertTriangle className={cn("h-4 w-4", metrics.divergent > 0 && "text-destructive")} />
-            Divergências
-          </div>
-          <p className={cn("text-2xl font-bold", metrics.divergent > 0 && "text-destructive")}>
-            {metrics.divergent}
-          </p>
-          <p className="text-xs text-muted-foreground mt-1">Consumo acima da média</p>
         </div>
       </div>
 
@@ -500,22 +486,6 @@ export function VehicleConsumptionDetailTab({ data, refetch, loading }: VehicleC
           )}
         </div>
 
-        <div className="h-6 w-px bg-border hidden sm:block" />
-
-        <div className="flex gap-1">
-          <span className="text-xs text-muted-foreground self-center mr-1">Ordenar:</span>
-          {([['code', 'Código'], ['liters', 'Litros'], ['consumption', 'Consumo']] as const).map(([key, label]) => (
-            <Button
-              key={key}
-              variant={sortBy === key ? 'secondary' : 'ghost'}
-              size="sm"
-              className="h-8 text-xs"
-              onClick={() => setSortBy(key)}
-            >
-              {label}
-            </Button>
-          ))}
-        </div>
 
         <div className="flex-1" />
 
