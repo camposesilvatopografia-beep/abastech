@@ -82,6 +82,9 @@ export function FieldPage() {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [pendingCount, setPendingCount] = useState(0);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [hasOldPending, setHasOldPending] = useState(false);
+  const [oldPendingCount, setOldPendingCount] = useState(0);
+  const [isForceSyncing, setIsForceSyncing] = useState(false);
   const [adminActiveLocation, setAdminActiveLocation] = useState<string>(() => {
     return localStorage.getItem(ADMIN_LOCATION_KEY) || '';
   });
@@ -411,6 +414,63 @@ export function FieldPage() {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [syncPendingRecords, notifyOnline, notifyOffline]);
+
+  // Check for OLD pending records (from previous days) - block new entries
+  const checkOldPendingRecords = useCallback(async () => {
+    if (!user) return;
+    const todayStr = new Date().toISOString().split('T')[0];
+    let oldCount = 0;
+
+    // 1. Check IndexedDB offline records from before today
+    if (offlineStorage.isSupported) {
+      try {
+        const records = await offlineStorage.getPendingRecords();
+        const oldRecords = records.filter(r => {
+          const recordDate = r.createdAt?.split('T')[0] || '';
+          return recordDate < todayStr;
+        });
+        oldCount += oldRecords.length;
+      } catch (err) {
+        console.warn('[FieldPage] Error checking old offline records:', err);
+      }
+    }
+
+    // 2. Check Supabase records not synced to sheet from before today
+    try {
+      const { count } = await supabase
+        .from('field_fuel_records')
+        .select('*', { count: 'exact', head: true })
+        .eq('synced_to_sheet', false)
+        .eq('user_id', user.id)
+        .lt('record_date', todayStr);
+      oldCount += count || 0;
+    } catch (err) {
+      console.warn('[FieldPage] Error checking old Supabase records:', err);
+    }
+
+    setOldPendingCount(oldCount);
+    setHasOldPending(oldCount > 0);
+
+    // Auto-force sync if online and has old pending
+    if (oldCount > 0 && navigator.onLine && !isSyncing && !isForceSyncing) {
+      setIsForceSyncing(true);
+      toast.warning(`${oldCount} registro(s) pendente(s) de dias anteriores. Sincronizando...`, { duration: 5000 });
+      await syncPendingRecords();
+      // Re-check after sync
+      setTimeout(() => {
+        checkOldPendingRecords();
+        setIsForceSyncing(false);
+      }, 2000);
+    }
+  }, [user, offlineStorage, isSyncing, isForceSyncing, syncPendingRecords]);
+
+  // Check old pending on mount and periodically
+  useEffect(() => {
+    if (!user) return;
+    checkOldPendingRecords();
+    const interval = setInterval(checkOldPendingRecords, 30000);
+    return () => clearInterval(interval);
+  }, [user, checkOldPendingRecords]);
 
   // Check pending records (both Supabase and IndexedDB) and notify
   useEffect(() => {
@@ -830,7 +890,83 @@ export function FieldPage() {
 
       {/* Content */}
       <main className="flex-1 overflow-auto">
-        {currentView === 'dashboard' && effectiveUser ? (
+        {/* Block form views when there are old pending records */}
+        {hasOldPending && currentView !== 'dashboard' && currentView !== 'fuel-registros' && currentView !== 'fuel-estoques' ? (
+          <div className="flex-1 flex items-center justify-center p-6">
+            <div className={cn(
+              "max-w-md w-full rounded-2xl p-8 text-center space-y-6 border shadow-xl",
+              theme === 'dark'
+                ? "bg-slate-800 border-red-500/30"
+                : "bg-white border-red-200"
+            )}>
+              <div className="mx-auto w-16 h-16 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+                <CloudOff className="w-8 h-8 text-red-500" />
+              </div>
+              <div>
+                <h2 className={cn(
+                  "text-xl font-bold mb-2",
+                  theme === 'dark' ? "text-white" : "text-slate-900"
+                )}>
+                  Sincronização Pendente
+                </h2>
+                <p className={cn(
+                  "text-sm",
+                  theme === 'dark' ? "text-slate-400" : "text-slate-500"
+                )}>
+                  Você possui <span className="font-bold text-red-500">{oldPendingCount} registro(s)</span> de dias anteriores aguardando sincronização. 
+                  Sincronize antes de fazer novos lançamentos.
+                </p>
+              </div>
+              
+              {!isOnline ? (
+                <div className={cn(
+                  "p-3 rounded-lg text-sm",
+                  theme === 'dark' ? "bg-red-900/20 text-red-300" : "bg-red-50 text-red-700"
+                )}>
+                  <CloudOff className="w-4 h-4 inline mr-2" />
+                  Você está offline. Conecte-se à internet para sincronizar.
+                </div>
+              ) : (
+                <Button
+                  onClick={async () => {
+                    setIsForceSyncing(true);
+                    await syncPendingRecords();
+                    setTimeout(() => {
+                      checkOldPendingRecords();
+                      setIsForceSyncing(false);
+                    }, 2000);
+                  }}
+                  disabled={isForceSyncing || isSyncing}
+                  className="w-full h-12 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-900 font-semibold text-base shadow-lg"
+                >
+                  {isForceSyncing || isSyncing ? (
+                    <>
+                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                      Sincronizando...
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="w-5 h-5 mr-2" />
+                      Sincronizar Agora
+                    </>
+                  )}
+                </Button>
+              )}
+              
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setCurrentView('dashboard')}
+                className={cn(
+                  "text-sm",
+                  theme === 'dark' ? "text-slate-400 hover:text-white" : "text-slate-500 hover:text-slate-900"
+                )}
+              >
+                Voltar ao Início
+              </Button>
+            </div>
+          </div>
+        ) : currentView === 'dashboard' && effectiveUser ? (
           <FieldDashboard 
             user={effectiveUser} 
             onNavigateToForm={() => setCurrentView('fuel-abastecer')}
