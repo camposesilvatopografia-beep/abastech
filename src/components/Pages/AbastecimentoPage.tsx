@@ -1339,8 +1339,8 @@ export function AbastecimentoPage() {
             valign: 'middle',
           },
           headStyles: {
-            fillColor: [153, 27, 27],
-            textColor: [255, 255, 255],
+            fillColor: [220, 220, 225],
+            textColor: [30, 30, 30],
             fontStyle: 'bold',
             fontSize: 9,
             halign: 'center',
@@ -1359,7 +1359,7 @@ export function AbastecimentoPage() {
             8: { cellWidth: 24, halign: 'center' },
             9: { cellWidth: 26, halign: 'center' },
           },
-          alternateRowStyles: { fillColor: [254, 242, 242] },
+          alternateRowStyles: { fillColor: [245, 245, 248] },
           margin: { left: 10, right: 10 },
         });
       });
@@ -1507,8 +1507,8 @@ export function AbastecimentoPage() {
               valign: 'middle',
             },
             headStyles: {
-              fillColor: [153, 27, 27],
-              textColor: [255, 255, 255],
+              fillColor: [220, 220, 225],
+              textColor: [30, 30, 30],
               fontStyle: 'bold',
               fontSize: 9,
               halign: 'center',
@@ -1526,7 +1526,7 @@ export function AbastecimentoPage() {
               7: { cellWidth: 25, halign: 'center' },
               8: { cellWidth: 21, halign: 'center', fontStyle: 'bold' },
             },
-            alternateRowStyles: { fillColor: [254, 242, 242] },
+            alternateRowStyles: { fillColor: [245, 245, 248] },
             margin: { left: 10, right: 10 },
             didParseCell: (data) => {
               if (data.row.index === saidasTableData.length - 1) {
@@ -1617,8 +1617,8 @@ export function AbastecimentoPage() {
               valign: 'middle',
             },
             headStyles: {
-              fillColor: [22, 101, 52],
-              textColor: [255, 255, 255],
+              fillColor: [220, 220, 225],
+              textColor: [30, 30, 30],
               fontStyle: 'bold',
               fontSize: 9,
               halign: 'center',
@@ -1808,8 +1808,8 @@ export function AbastecimentoPage() {
             valign: 'middle',
           },
           headStyles: {
-            fillColor: [153, 27, 27],
-            textColor: [255, 255, 255],
+            fillColor: [220, 220, 225],
+            textColor: [30, 30, 30],
             fontStyle: 'bold',
             fontSize: 9,
             halign: 'center',
@@ -1827,7 +1827,7 @@ export function AbastecimentoPage() {
             7: { cellWidth: 25, halign: 'center' },
             8: { cellWidth: 21, halign: 'center', fontStyle: 'bold' },
           },
-          alternateRowStyles: { fillColor: [254, 242, 242] },
+          alternateRowStyles: { fillColor: [245, 245, 248] },
           margin: { left: 10, right: 10 },
           didParseCell: (data) => {
             // Style the totals row (last row)

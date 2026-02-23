@@ -76,7 +76,7 @@ function renderNavyHeader(
   headerHeight = 25
 ) {
   const pageWidth = doc.internal.pageSize.getWidth();
-  doc.setFillColor(30, 41, 59);
+  doc.setFillColor(55, 71, 95);
   doc.rect(0, 0, pageWidth, headerHeight, 'F');
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(14);
@@ -208,7 +208,7 @@ export async function exportMobilizacaoPDF(
     body: summaryRows,
     theme: 'grid',
     styles: { fontSize: 7, cellPadding: 2 },
-    headStyles: { fillColor: [30, 41, 59], textColor: 255, fontStyle: 'bold', fontSize: 8 },
+    headStyles: { fillColor: [220, 220, 225], textColor: [30, 30, 30], fontStyle: 'bold', fontSize: 8 },
     columnStyles: {
       0: { cellWidth: 55, fontStyle: 'bold' },
       1: { cellWidth: 65 },
@@ -241,7 +241,7 @@ export async function exportMobilizacaoPDF(
   doc.addPage();
   let currentY = 15;
 
-  doc.setFillColor(30, 41, 59);
+  doc.setFillColor(55, 71, 95);
   doc.rect(0, 0, pageWidth, 18, 'F');
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(11);
@@ -319,7 +319,7 @@ export async function exportEfetivoPDF(
 
   // ─── Navy Blue Header ───
   const headerH = logoBase64 ? 30 : 28;
-  doc.setFillColor(30, 41, 59);
+  doc.setFillColor(55, 71, 95);
   doc.rect(0, 0, pageWidth, headerH, 'F');
 
   // Accent bar
@@ -537,8 +537,8 @@ export async function exportEfetivoPDF(
       overflow: 'linebreak',
     },
     headStyles: {
-      fillColor: [30, 41, 59],
-      textColor: [255, 255, 255],
+      fillColor: [220, 220, 225],
+      textColor: [30, 30, 30],
       fontStyle: 'bold',
       fontSize: headerFontSize,
       halign: 'center',
@@ -752,7 +752,7 @@ export async function exportMobilizadosPDF(
     body: summaryRows,
     theme: 'grid',
     styles: { fontSize: 7, cellPadding: 2 },
-    headStyles: { fillColor: [30, 41, 59], textColor: 255, fontStyle: 'bold', fontSize: 8 },
+    headStyles: { fillColor: [220, 220, 225], textColor: [30, 30, 30], fontStyle: 'bold', fontSize: 8 },
     columnStyles: {
       0: { cellWidth: 65, fontStyle: 'bold' },
       1: { cellWidth: 80 },
@@ -781,7 +781,7 @@ export async function exportMobilizadosPDF(
   doc.addPage();
   let currentY = 15;
 
-  doc.setFillColor(30, 41, 59);
+  doc.setFillColor(55, 71, 95);
   doc.rect(0, 0, pageWidth, 18, 'F');
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(11);
@@ -797,7 +797,7 @@ export async function exportMobilizadosPDF(
       if (currentY > pageHeight - 40) { doc.addPage(); currentY = 15; }
 
       // Company header
-      doc.setFillColor(30, 41, 59);
+      doc.setFillColor(55, 71, 95);
       doc.rect(14, currentY, pageWidth - 28, 8, 'F');
       doc.setTextColor(255, 255, 255);
       doc.setFontSize(10);
@@ -930,7 +930,7 @@ export async function exportDesmobilizadosPDF(
     body: summaryRows,
     theme: 'grid',
     styles: { fontSize: 7, cellPadding: 2 },
-    headStyles: { fillColor: [153, 27, 27], textColor: 255, fontStyle: 'bold', fontSize: 8 },
+    headStyles: { fillColor: [220, 220, 225], textColor: [30, 30, 30], fontStyle: 'bold', fontSize: 8 },
     columnStyles: {
       0: { cellWidth: 60, fontStyle: 'bold' },
       1: { cellWidth: 70 },
@@ -938,7 +938,7 @@ export async function exportDesmobilizadosPDF(
       3: { cellWidth: 25, halign: 'center' },
     },
     margin: { left: 14, right: 14 },
-    alternateRowStyles: { fillColor: [254, 242, 242] },
+    alternateRowStyles: { fillColor: [245, 245, 248] },
     didParseCell: (data) => {
       if (data.row.index === summaryRows.length - 1) {
         data.cell.styles.fillColor = [153, 27, 27];
@@ -1014,7 +1014,7 @@ export async function exportDesmobilizadosPDF(
             4: { cellWidth: 25, halign: 'center' },
           },
           margin: { left: 14, right: 14 },
-          alternateRowStyles: { fillColor: [254, 242, 242] },
+          alternateRowStyles: { fillColor: [245, 245, 248] },
         });
 
         currentY = (doc as any).lastAutoTable.finalY + 5;
