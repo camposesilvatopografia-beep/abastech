@@ -974,15 +974,19 @@ export function AbastecimentoPage() {
     return { entries, total };
   }, [saneamentoFilteredData]);
 
-  // Entries data - filter by supplier entries and group by location (Tanque 01, Tanque 02)
+  // Entries data - filter ONLY external supplier entries (Cavalo Marinho, Ipiranga, etc.)
   const entradasData = useMemo(() => {
+    const internalKeywords = ['comboio', 'transferencia', 'transferência', 'interno', 'interna'];
     const entries = data.rows.filter(row => {
-      const tipo = String(row['TIPO'] || '').toLowerCase();
       const fornecedor = String(row['FORNECEDOR'] || '').trim();
-      return (tipo.includes('entrada') || tipo.includes('recebimento') || tipo.includes('compra') || fornecedor);
+      if (!fornecedor) return false;
+      const fornecedorLower = fornecedor.toLowerCase();
+      // Exclude internal/comboio transfers
+      if (internalKeywords.some(kw => fornecedorLower.includes(kw))) return false;
+      return true;
     });
 
-    // Group by entry location (Tanque)
+    // Group by supplier
     const byLocation: Record<string, { registros: any[]; total: number }> = {};
     
     entries.forEach(row => {
