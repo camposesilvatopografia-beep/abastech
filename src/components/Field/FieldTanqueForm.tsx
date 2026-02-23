@@ -133,14 +133,30 @@ export function FieldTanqueForm({ user, onBack }: FieldTanqueFormProps) {
     setIsSaving(true);
 
     try {
+      const now = new Date();
+      const recordDate = format(now, 'yyyy-MM-dd');
+      const recordTime = format(now, 'HH:mm:ss');
+
+      // Check for duplicates before saving
+      const { checkDuplicateFuelRecord } = await import('@/lib/deduplication');
+      const duplicate = await checkDuplicateFuelRecord({
+        vehicle_code: selectedLocation,
+        record_date: recordDate,
+        fuel_quantity: qty,
+        record_type: 'entrada',
+        record_time: recordTime.substring(0, 5),
+      });
+
+      if (duplicate) {
+        toast.warning(`Registro duplicado detectado! Já existe uma entrada idêntica às ${duplicate.record_time} para este tanque.`, { duration: 5000 });
+        setIsSaving(false);
+        return;
+      }
+
       let photoPumpUrl: string | null = null;
       if (photoPump) {
         photoPumpUrl = await uploadPhoto(photoPump, 'tanque');
       }
-
-      const now = new Date();
-      const recordDate = format(now, 'yyyy-MM-dd');
-      const recordTime = format(now, 'HH:mm:ss');
 
       const parsedPrice = unitPrice ? unitPrice / 100 : null;
 
