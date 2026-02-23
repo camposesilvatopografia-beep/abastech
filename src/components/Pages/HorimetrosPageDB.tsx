@@ -372,7 +372,10 @@ export function HorimetrosPageDB() {
 
   // Missing vehicles (no reading on reference date)
   const missingVehicles = useMemo(() => {
-    return vehicles.filter(v => !vehiclesWithReadingsOnDate.has(v.id));
+    return vehicles.filter(v => 
+      !vehiclesWithReadingsOnDate.has(v.id) && 
+      v.category?.toLowerCase() !== 'outros'
+    );
   }, [vehicles, vehiclesWithReadingsOnDate]);
 
   const handleRefresh = useCallback(async () => {

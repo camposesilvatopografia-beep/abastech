@@ -77,6 +77,8 @@ export function MissingReadingsTab({ vehicles, readings, loading, refetch }: Mis
   // Filtered vehicles
   const filteredVehicles = useMemo(() => {
     return vehicles.filter(v => {
+      // Exclude "Outros" category
+      if (v.category?.toLowerCase() === 'outros') return false;
       if (companyFilter !== 'all' && v.company?.toLowerCase() !== companyFilter.toLowerCase()) return false;
       if (categoryFilter !== 'all' && v.category?.toLowerCase() !== categoryFilter.toLowerCase()) return false;
       if (statusFilter !== 'all' && v.status?.toLowerCase() !== statusFilter.toLowerCase()) return false;
