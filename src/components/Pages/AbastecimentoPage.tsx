@@ -2487,21 +2487,21 @@ export function AbastecimentoPage() {
                     <TableHead>Combustível</TableHead>
                     <TableHead className="text-right">Quantidade</TableHead>
                     <TableHead>Local</TableHead>
-                    <TableHead className="text-right">Valor</TableHead>
+                    
                     {canCreateRecords && <TableHead className="w-20 text-center">Ações</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {loading ? (
                     <TableRow>
-                      <TableCell colSpan={canCreateRecords ? 9 : 8} className="text-center py-8">
+                      <TableCell colSpan={canCreateRecords ? 8 : 7} className="text-center py-8">
                         <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-muted-foreground" />
                         Carregando dados...
                       </TableCell>
                     </TableRow>
                   ) : filteredRows.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={canCreateRecords ? 9 : 8} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={canCreateRecords ? 8 : 7} className="text-center py-8 text-muted-foreground">
                         Nenhum registro encontrado
                       </TableCell>
                     </TableRow>
@@ -2519,9 +2519,6 @@ export function AbastecimentoPage() {
                           {parseNumber(row['QUANTIDADE']).toLocaleString('pt-BR')} L
                         </TableCell>
                         <TableCell>{row['LOCAL']}</TableCell>
-                        <TableCell className="text-right">
-                          R$ {parseNumber(row['VALOR TOTAL']).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                        </TableCell>
                         {canCreateRecords && (
                           <TableCell className="text-center">
                             <div className="flex items-center justify-center gap-1">
