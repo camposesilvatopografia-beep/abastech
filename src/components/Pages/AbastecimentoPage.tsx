@@ -1269,7 +1269,7 @@ export function AbastecimentoPage() {
         });
         
         doc.setTextColor(60, 60, 60);
-        doc.setFontSize(9);
+        doc.setFontSize(10);
         doc.text(`${groupData.rows.length} registros | Total: ${fmtBR(groupData.totalLiters, 0)} L`, 14, startY);
         
         // Build table body
@@ -1317,15 +1317,22 @@ export function AbastecimentoPage() {
           head: [['Data', 'Hora', 'Veículo', 'Motorista', 'Empresa', 'Qtd (L)', 'Hor/Km Ant.', 'Hor/Km Atual', 'Intervalo', 'Consumo']],
           body,
           theme: 'grid',
-          headStyles: { fillColor: [30, 41, 59], fontSize: 7, halign: 'center' },
-          styles: { fontSize: 6.5 },
+          headStyles: { fillColor: [30, 41, 59], fontSize: 9, halign: 'center', cellPadding: 3 },
+          styles: { fontSize: 8.5, cellPadding: 2.5 },
           columnStyles: {
-            5: { halign: 'right' },
-            6: { halign: 'right' },
-            7: { halign: 'right' },
-            8: { halign: 'right' },
-            9: { halign: 'right' },
+            0: { cellWidth: 22 },
+            1: { cellWidth: 14 },
+            2: { cellWidth: 22 },
+            3: { cellWidth: 'auto' },
+            4: { cellWidth: 28 },
+            5: { halign: 'right', cellWidth: 18 },
+            6: { halign: 'right', cellWidth: 24 },
+            7: { halign: 'right', cellWidth: 24 },
+            8: { halign: 'right', cellWidth: 22 },
+            9: { halign: 'right', cellWidth: 24 },
           },
+          alternateRowStyles: { fillColor: [245, 247, 250] },
+          margin: { left: 10, right: 10 },
         });
       });
       
@@ -1462,8 +1469,8 @@ export function AbastecimentoPage() {
             ]],
             body: saidasTableData,
             styles: { 
-              fontSize: 8,
-              cellPadding: 2,
+              fontSize: 9,
+              cellPadding: 3,
             },
             headStyles: { 
               fillColor: [180, 50, 50],
@@ -1471,17 +1478,19 @@ export function AbastecimentoPage() {
               fontStyle: 'bold',
               halign: 'center',
               valign: 'middle',
+              fontSize: 9,
+              cellPadding: 3,
             },
             columnStyles: {
               0: { cellWidth: 10, halign: 'center' },
               1: { cellWidth: 25 },
-              2: { cellWidth: 45 },
-              3: { cellWidth: 45 },
-              4: { cellWidth: 25, halign: 'right' },
+              2: { cellWidth: 'auto' },
+              3: { cellWidth: 'auto' },
+              4: { cellWidth: 26, halign: 'right' },
               5: { cellWidth: 28, halign: 'right' },
               6: { cellWidth: 28, halign: 'right' },
-              7: { cellWidth: 22, halign: 'right' },
-              8: { cellWidth: 22, halign: 'right' },
+              7: { cellWidth: 24, halign: 'right' },
+              8: { cellWidth: 24, halign: 'right' },
             },
             alternateRowStyles: {
               fillColor: [255, 245, 245]
@@ -1493,6 +1502,7 @@ export function AbastecimentoPage() {
               }
             },
             theme: 'grid',
+            margin: { left: 10, right: 10 },
           });
           
           currentY = (doc as any).lastAutoTable?.finalY + 10 || currentY + 50;
