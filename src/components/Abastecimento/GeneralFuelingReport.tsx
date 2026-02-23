@@ -185,7 +185,7 @@ export function GeneralFuelingReport({ data, refetch, loading }: GeneralFuelingR
     });
 
     Object.values(groups).forEach(g => {
-      g.records.sort((a, b) => b.dateObj.getTime() - a.dateObj.getTime());
+      g.records.sort((a, b) => (a.description || '').localeCompare(b.description || '', 'pt-BR'));
     });
 
     return groups;
@@ -253,7 +253,7 @@ export function GeneralFuelingReport({ data, refetch, loading }: GeneralFuelingR
         startY: startY + 6,
         head: [['Data', 'Hora', 'Veículo', 'Motorista', 'Empresa', 'Qtd (L)', 'Hor/Km Ant.', 'Hor/Km Atual', 'Intervalo', 'Consumo']],
         body: groupData.records
-          .sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime())
+          .sort((a, b) => (a.description || '').localeCompare(b.description || '', 'pt-BR'))
           .map(r => [
             r.date, r.time, r.vehicleCode,
             r.operator || '-', r.company || '-',

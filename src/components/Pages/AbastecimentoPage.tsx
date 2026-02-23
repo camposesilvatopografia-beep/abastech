@@ -1287,8 +1287,9 @@ export function AbastecimentoPage() {
         // Build table body
         const body = groupData.rows
           .sort((a, b) => {
-            const dA = String(a['DATA'] || ''); const dB = String(b['DATA'] || '');
-            return dA.localeCompare(dB);
+            const descA = String(a['DESCRICAO'] || a['DESCRIÇÃO'] || '');
+            const descB = String(b['DESCRICAO'] || b['DESCRIÇÃO'] || '');
+            return descA.localeCompare(descB, 'pt-BR');
           })
           .map(row => {
             const cat = String(row['CATEGORIA'] || '').toLowerCase();

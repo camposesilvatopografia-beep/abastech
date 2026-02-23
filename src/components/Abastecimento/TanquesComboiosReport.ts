@@ -67,8 +67,7 @@ function isEntradaRecord(row: FuelRecord): boolean {
   return tipo.includes('entrada') || fornecedor.length > 0 || localEntrada.length > 0;
 }
 
-function sortRecords(records: FuelRecord[], sortByDescription?: boolean): FuelRecord[] {
-  if (!sortByDescription) return records;
+function sortRecords(records: FuelRecord[], _sortByDescription?: boolean): FuelRecord[] {
   return [...records].sort((a, b) =>
     String(a['DESCRICAO'] || a['DESCRIÇÃO'] || '').localeCompare(
       String(b['DESCRICAO'] || b['DESCRIÇÃO'] || ''),
