@@ -940,13 +940,29 @@ export function AbastecimentoPage() {
     return veiculoMap;
   }, [filteredRows]);
 
-  // Saneamento data - filter for "Obra Saneamento"
+  // Saneamento data - filter for "Obra Saneamento" checking multiple columns
   const saneamentoFilteredData = useMemo(() => {
     return data.rows.filter(row => {
       const obra = String(row['OBRA'] || row['Obra'] || '').toLowerCase();
-      return obra.includes('saneamento');
+      const local = String(row['LOCAL'] || '').toLowerCase();
+      const empresa = String(row['EMPRESA'] || '').toLowerCase();
+      const observacao = String(row['OBSERVAÇÃO'] || row['OBSERVACAO'] || '').toLowerCase();
+      const isSaneamento = obra.includes('saneamento') || local.includes('saneamento') || empresa.includes('saneamento') || observacao.includes('saneamento');
+      if (!isSaneamento) return false;
+
+      // Apply date filter
+      const dateStr = String(row['DATA'] || '');
+      if (!dateStr) return true;
+      const parts = dateStr.split('/');
+      if (parts.length === 3) {
+        const d = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+        if (isValid(d) && dateRange) {
+          return isWithinInterval(d, { start: startOfDay(dateRange.start), end: endOfDay(dateRange.end) });
+        }
+      }
+      return true;
     });
-  }, [data.rows]);
+  }, [data.rows, dateRange]);
 
   // Saneamento summary by vehicle
   const saneamentoSummary = useMemo(() => {
@@ -2628,19 +2644,17 @@ export function AbastecimentoPage() {
                 <h2 className="text-lg font-semibold">Abastecimentos - Obra Saneamento</h2>
                 <Badge variant="outline">{saneamentoFilteredData.length} registros</Badge>
               </div>
-              {canCreateRecords && (
-                <Button size="sm" onClick={() => openAdminModal('normal')} className="gap-2 bg-green-600 hover:bg-green-700">
-                  <Plus className="w-4 h-4" />
-                  Novo
-                </Button>
-              )}
+              <Button size="sm" onClick={() => openAdminModal('normal')} className="gap-2 bg-green-600 hover:bg-green-700">
+                <Plus className="w-4 h-4" />
+                Novo
+              </Button>
             </div>
 
             {saneamentoFilteredData.length === 0 ? (
               <div className="bg-card rounded-lg border border-border p-8 text-center">
                 <Droplet className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
                 <h3 className="font-semibold text-lg mb-2">Nenhum registro encontrado</h3>
-                <p className="text-muted-foreground">Não há registros de abastecimento para Obra Saneamento.</p>
+                <p className="text-muted-foreground">Não há registros de abastecimento para Obra Saneamento no período selecionado.</p>
               </div>
             ) : (
               <div className="bg-card rounded-lg border border-border overflow-hidden">
@@ -2648,18 +2662,22 @@ export function AbastecimentoPage() {
                   <TableHeader>
                     <TableRow className="bg-muted/50">
                       <TableHead>Data</TableHead>
+                      <TableHead>Hora</TableHead>
                       <TableHead>Veículo</TableHead>
+                      <TableHead>Motorista</TableHead>
                       <TableHead className="text-center">Diesel (L)</TableHead>
                       <TableHead className="text-center">Arla (L)</TableHead>
                       <TableHead>Local</TableHead>
-                      {canCreateRecords && <TableHead className="w-20 text-center">Ações</TableHead>}
+                      <TableHead className="w-20 text-center">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {saneamentoFilteredData.map((row, index) => (
                       <TableRow key={row._rowIndex || index}>
                         <TableCell>{String(row['DATA'] || '-')}</TableCell>
+                        <TableCell>{String(row['HORA'] || '-')}</TableCell>
                         <TableCell className="font-medium">{String(row['VEICULO'] || '-')}</TableCell>
+                        <TableCell>{String(row['MOTORISTA'] || row['OPERADOR'] || '-')}</TableCell>
                         <TableCell className="text-center font-medium">
                           {parseNumber(row['QUANTIDADE']).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                         </TableCell>
@@ -2667,20 +2685,18 @@ export function AbastecimentoPage() {
                           {parseNumber(row['QUANTIDADE DE ARLA']) > 0 ? parseNumber(row['QUANTIDADE DE ARLA']).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '-'}
                         </TableCell>
                         <TableCell>{String(row['LOCAL'] || '-')}</TableCell>
-                        {canCreateRecords && (
-                          <TableCell className="text-center">
-                            <div className="flex items-center justify-center gap-1">
-                              <Button variant="ghost" size="icon" className="h-7 w-7" title="Editar"
-                                onClick={() => { setEditingRecord(row); setShowEditModal(true); }}>
-                                <Edit2 className="h-4 w-4 text-blue-500" />
-                              </Button>
-                              <Button variant="ghost" size="icon" className="h-7 w-7" title="Excluir"
-                                onClick={() => { setDeletingRecord(row); setShowDeleteConfirm(true); }}>
-                                <Trash2 className="h-4 w-4 text-destructive" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                        )}
+                        <TableCell className="text-center">
+                          <div className="flex items-center justify-center gap-1">
+                            <Button variant="ghost" size="icon" className="h-7 w-7" title="Editar"
+                              onClick={() => { setEditingRecord(row); setShowEditModal(true); }}>
+                              <Edit2 className="h-4 w-4 text-blue-500" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-7 w-7" title="Excluir"
+                              onClick={() => { setDeletingRecord(row); setShowDeleteConfirm(true); }}>
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </div>
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
