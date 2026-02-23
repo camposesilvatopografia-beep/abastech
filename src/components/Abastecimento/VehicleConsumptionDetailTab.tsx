@@ -87,6 +87,8 @@ interface VehicleRecord {
   consumption: number;
   location: string;
   operator: string;
+  observations: string;
+  isBrokenHorimeter: boolean;
 }
 
 interface VehicleSummary {
@@ -151,24 +153,29 @@ export function VehicleConsumptionDetailTab({ data, refetch, loading }: VehicleC
 
       const category = String(row['CATEGORIA'] || '').toUpperCase();
       const isEquipment = isEquipmentCategory(category);
+      const observations = String(row['OBSERVACAO'] || row['OBSERVAÇÕES'] || row['OBS'] || row['OBSERVACOES'] || '');
+      const isBrokenHorimeter = observations.toUpperCase().includes('QUEBRADO');
       const horimeterPrevious = parseNumber(row['HORIMETRO ANTERIOR']);
       const horimeterCurrent = parseNumber(row['HORIMETRO ATUAL']);
       const kmPrevious = parseNumber(row['KM ANTERIOR']);
       const kmCurrent = parseNumber(row['KM ATUAL']);
       const fuelQuantity = parseNumber(row['QUANTIDADE']);
       // Only compute interval if both previous and current are > 0 (avoid inflated values when previous is missing)
-      const horimeterInterval = (horimeterPrevious > 0 && horimeterCurrent > horimeterPrevious) ? horimeterCurrent - horimeterPrevious : 0;
-      const kmInterval = (kmPrevious > 0 && kmCurrent > kmPrevious) ? kmCurrent - kmPrevious : 0;
+      const horimeterInterval = isBrokenHorimeter ? 0 : ((horimeterPrevious > 0 && horimeterCurrent > horimeterPrevious) ? horimeterCurrent - horimeterPrevious : 0);
+      const kmInterval = isBrokenHorimeter ? 0 : ((kmPrevious > 0 && kmCurrent > kmPrevious) ? kmCurrent - kmPrevious : 0);
 
       let consumption = 0;
-      if (isEquipment && horimeterInterval > 0 && fuelQuantity > 0) consumption = fuelQuantity / horimeterInterval;
-      else if (!isEquipment && kmInterval > 0 && fuelQuantity > 0) consumption = kmInterval / fuelQuantity;
+      if (!isBrokenHorimeter) {
+        if (isEquipment && horimeterInterval > 0 && fuelQuantity > 0) consumption = fuelQuantity / horimeterInterval;
+        else if (!isEquipment && kmInterval > 0 && fuelQuantity > 0) consumption = kmInterval / fuelQuantity;
+      }
 
       const record: VehicleRecord = {
         date: dateStr, time: String(row['HORA'] || ''), dateObj, fuelQuantity,
         horimeterPrevious, horimeterCurrent, kmPrevious, kmCurrent,
         horimeterInterval, kmInterval, consumption,
         location: String(row['LOCAL'] || ''), operator: String(row['OPERADOR'] || ''),
+        observations, isBrokenHorimeter,
       };
 
       if (!vehicleMap.has(vehicleCode)) {
@@ -313,14 +320,17 @@ export function VehicleConsumptionDetailTab({ data, refetch, loading }: VehicleC
     autoTable(doc, {
       startY: startY + 10,
       head: headers,
-      body: v.records.map(r => [
-        r.date, r.time, formatBR(r.fuelQuantity),
-        v.isEquipment ? formatBR(r.horimeterPrevious) : formatBR(r.kmPrevious, 0),
-        v.isEquipment ? formatBR(r.horimeterCurrent) : formatBR(r.kmCurrent, 0),
-        v.isEquipment ? (r.horimeterInterval > 0 ? formatBR(r.horimeterInterval) : '-') : (r.kmInterval > 0 ? formatBR(r.kmInterval, 0) : '-'),
-        r.consumption > 0 ? formatBR(r.consumption) : '-',
-        r.location || '-',
-      ]),
+      body: v.records.map(r => {
+        const brokenLabel = '⚠ QUEBRADO';
+        return [
+          r.date, r.time, formatBR(r.fuelQuantity),
+          r.isBrokenHorimeter ? brokenLabel : (v.isEquipment ? formatBR(r.horimeterPrevious) : formatBR(r.kmPrevious, 0)),
+          r.isBrokenHorimeter ? brokenLabel : (v.isEquipment ? formatBR(r.horimeterCurrent) : formatBR(r.kmCurrent, 0)),
+          r.isBrokenHorimeter ? 'N/A' : (v.isEquipment ? (r.horimeterInterval > 0 ? formatBR(r.horimeterInterval) : '-') : (r.kmInterval > 0 ? formatBR(r.kmInterval, 0) : '-')),
+          r.isBrokenHorimeter ? 'N/A' : (r.consumption > 0 ? formatBR(r.consumption) : '-'),
+          r.location || '-',
+        ];
+      }),
       theme: 'grid',
       headStyles: { fillColor: [30, 41, 59], fontSize: 8 },
       styles: { fontSize: 7 },
@@ -591,27 +601,27 @@ export function VehicleConsumptionDetailTab({ data, refetch, loading }: VehicleC
                                       v.isEquipment ? r.consumption > avg * 1.3 : r.consumption < avg * 0.7
                                     );
                                     return (
-                                      <TableRow key={i} className={cn(isRecordHigh && "bg-destructive/5")}>
+                                      <TableRow key={i} className={cn(isRecordHigh && "bg-destructive/5", r.isBrokenHorimeter && "bg-orange-50 dark:bg-orange-950/20")}>
                                         <TableCell className="text-xs">{r.date}</TableCell>
                                         <TableCell className="text-xs">{r.time}</TableCell>
                                         <TableCell className="text-xs text-right font-mono">{formatBR(r.fuelQuantity)}</TableCell>
                                         <TableCell className="text-xs text-right font-mono">
-                                          {v.isEquipment ? formatBR(r.horimeterPrevious) : formatBR(r.kmPrevious, 0)}
+                                          {r.isBrokenHorimeter ? <span className="text-orange-600 font-semibold">⚠ QUEBRADO</span> : (v.isEquipment ? formatBR(r.horimeterPrevious) : formatBR(r.kmPrevious, 0))}
                                         </TableCell>
                                         <TableCell className="text-xs text-right font-mono">
-                                          {v.isEquipment ? formatBR(r.horimeterCurrent) : formatBR(r.kmCurrent, 0)}
+                                          {r.isBrokenHorimeter ? <span className="text-orange-600 font-semibold">⚠ QUEBRADO</span> : (v.isEquipment ? formatBR(r.horimeterCurrent) : formatBR(r.kmCurrent, 0))}
                                         </TableCell>
                                         <TableCell className="text-xs text-right font-mono font-medium">
-                                          {v.isEquipment
+                                          {r.isBrokenHorimeter ? <span className="text-orange-600 font-semibold">N/A</span> : (v.isEquipment
                                             ? (r.horimeterInterval > 0 ? formatBR(r.horimeterInterval) : '-')
-                                            : (r.kmInterval > 0 ? formatBR(r.kmInterval, 0) : '-')
+                                            : (r.kmInterval > 0 ? formatBR(r.kmInterval, 0) : '-'))
                                           }
                                         </TableCell>
                                         <TableCell className={cn(
                                           "text-xs text-right font-mono font-bold",
-                                          isRecordHigh ? "text-destructive" : r.consumption > 0 ? "text-emerald-600 dark:text-emerald-400" : ""
+                                          r.isBrokenHorimeter ? "text-orange-600" : isRecordHigh ? "text-destructive" : r.consumption > 0 ? "text-emerald-600 dark:text-emerald-400" : ""
                                         )}>
-                                          {r.consumption > 0 ? formatBR(r.consumption) : '-'}
+                                          {r.isBrokenHorimeter ? 'N/A' : (r.consumption > 0 ? formatBR(r.consumption) : '-')}
                                         </TableCell>
                                         <TableCell className="text-xs text-muted-foreground">{r.location || '-'}</TableCell>
                                       </TableRow>

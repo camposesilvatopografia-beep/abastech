@@ -133,13 +133,17 @@ function buildFuelTableData(records: FuelRecord[]) {
     const kmAnterior = parseNumber(row['KM ANTERIOR'] || row['KM_ANTERIOR'] || 0);
     const kmAtual = parseNumber(row['KM ATUAL'] || row['KM_ATUAL'] || 0);
 
+    // Detect broken horimeter/odometer from observations
+    const obs = String(row['OBSERVACAO'] || row['OBSERVAÇÕES'] || row['OBS'] || row['OBSERVACOES'] || '').toUpperCase();
+    const isBroken = obs.includes('QUEBRADO');
+
     const usaKm = kmAtual > 0 || kmAnterior > 0;
     const anterior = usaKm ? kmAnterior : horAnterior;
     const atual = usaKm ? kmAtual : horAtual;
     const intervalo = atual - anterior;
 
     let consumo = 0;
-    if (qty > 0 && intervalo > 0) {
+    if (!isBroken && qty > 0 && intervalo > 0) {
       consumo = usaKm ? intervalo / qty : qty / intervalo;
       totalConsumo += consumo;
       countConsumo++;
@@ -147,15 +151,17 @@ function buildFuelTableData(records: FuelRecord[]) {
 
     totalDiesel += qty;
 
+    const brokenLabel = '⚠ QUEBRADO';
+
     return [
       String(index + 1),
       String(row['VEICULO'] || ''),
       String(row['DESCRICAO'] || row['DESCRIÇÃO'] || ''),
       String(row['MOTORISTA'] || ''),
-      anterior > 0 ? fmtPtBR(anterior) : '-',
-      atual > 0 ? fmtPtBR(atual) : '-',
-      intervalo > 0 ? fmtPtBR(intervalo) : '-',
-      consumo > 0 ? fmtPtBR(consumo) : '-',
+      isBroken ? brokenLabel : (anterior > 0 ? fmtPtBR(anterior) : '-'),
+      isBroken ? brokenLabel : (atual > 0 ? fmtPtBR(atual) : '-'),
+      isBroken ? brokenLabel : (intervalo > 0 ? fmtPtBR(intervalo) : '-'),
+      isBroken ? brokenLabel : (consumo > 0 ? fmtPtBR(consumo) : '-'),
       qty > 0 ? qty.toLocaleString('pt-BR', { minimumFractionDigits: 0 }) : '-',
     ];
   });
@@ -213,6 +219,12 @@ function renderSaidasTable(doc: jsPDF, records: FuelRecord[], currentY: number, 
         data.cell.styles.fontStyle = 'bold';
         data.cell.styles.fillColor = [220, 200, 200];
         data.cell.styles.fontSize = 9;
+      }
+      // Highlight broken horimeter cells in orange
+      const cellText = String(data.cell.raw || '');
+      if (cellText.includes('QUEBRADO') || (cellText === 'N/A' && data.row.index < body.length - 1)) {
+        data.cell.styles.textColor = [200, 100, 0];
+        data.cell.styles.fontStyle = 'bold';
       }
     },
   });
