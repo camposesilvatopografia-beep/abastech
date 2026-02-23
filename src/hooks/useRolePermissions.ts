@@ -70,9 +70,22 @@ export const MODULE_GROUPS: { label: string; modules: string[] }[] = [
   },
 ];
 
+const CACHE_KEY_ROLE = 'abastech_role_permissions_cache';
+const CACHE_KEY_USER = 'abastech_user_permissions_cache';
+
 export function useRolePermissions() {
-  const [permissions, setPermissions] = useState<RolePermission[]>([]);
-  const [userPermissions, setUserPermissions] = useState<UserPermission[]>([]);
+  const [permissions, setPermissions] = useState<RolePermission[]>(() => {
+    try {
+      const cached = localStorage.getItem(CACHE_KEY_ROLE);
+      return cached ? JSON.parse(cached) : [];
+    } catch { return []; }
+  });
+  const [userPermissions, setUserPermissions] = useState<UserPermission[]>(() => {
+    try {
+      const cached = localStorage.getItem(CACHE_KEY_USER);
+      return cached ? JSON.parse(cached) : [];
+    } catch { return []; }
+  });
   const [loading, setLoading] = useState(true);
 
   const fetchPermissions = useCallback(async () => {
@@ -85,10 +98,18 @@ export function useRolePermissions() {
 
       if (roleRes.error) throw roleRes.error;
       if (userRes.error) throw userRes.error;
-      setPermissions((roleRes.data as any[]) || []);
-      setUserPermissions((userRes.data as any[]) || []);
+      const roleData = (roleRes.data as any[]) || [];
+      const userData = (userRes.data as any[]) || [];
+      setPermissions(roleData);
+      setUserPermissions(userData);
+      // Cache for offline use
+      try {
+        localStorage.setItem(CACHE_KEY_ROLE, JSON.stringify(roleData));
+        localStorage.setItem(CACHE_KEY_USER, JSON.stringify(userData));
+      } catch {}
     } catch (err) {
       console.error('Error fetching permissions:', err);
+      // Keep cached values (initialized from localStorage)
     } finally {
       setLoading(false);
     }
