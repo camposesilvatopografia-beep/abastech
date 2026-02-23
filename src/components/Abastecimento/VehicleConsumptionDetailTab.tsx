@@ -528,21 +528,20 @@ export function VehicleConsumptionDetailTab({ data, refetch, loading }: VehicleC
           <Table>
             <TableHeader>
               <TableRow className="bg-primary/10">
-                <TableHead className="font-semibold text-primary w-8"></TableHead>
-                <TableHead className="font-semibold text-primary">Veículo</TableHead>
-                <TableHead className="font-semibold text-primary">Descrição</TableHead>
-                <TableHead className="text-right font-semibold text-primary">Litros</TableHead>
-                <TableHead className="text-right font-semibold text-primary">Hor./Km Ant.</TableHead>
-                <TableHead className="text-right font-semibold text-primary">Hor./Km Atual</TableHead>
-                <TableHead className="text-right font-semibold text-primary">Intervalo</TableHead>
-                <TableHead className="text-right font-semibold text-primary">Consumo Médio</TableHead>
+                <TableHead className="font-semibold text-primary text-xs w-8 px-2"></TableHead>
+                <TableHead className="font-semibold text-primary text-xs px-2">Veículo</TableHead>
+                <TableHead className="font-semibold text-primary text-xs px-2">Descrição</TableHead>
+                <TableHead className="text-right font-semibold text-primary text-xs px-2">Litros</TableHead>
+                <TableHead className="text-right font-semibold text-primary text-xs px-2">Hor./Km Ant.</TableHead>
+                <TableHead className="text-right font-semibold text-primary text-xs px-2">Hor./Km Atual</TableHead>
+                <TableHead className="text-right font-semibold text-primary text-xs px-2">Intervalo</TableHead>
+                <TableHead className="text-right font-semibold text-primary text-xs px-2">Consumo</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredSummaries.map((v) => {
                 const status = getDivergenceStatus(v);
                 const isExpanded = expandedVehicles.has(v.vehicleCode);
-                // Get latest record for current/previous values
                 const latest = v.records.length > 0 ? v.records[0] : null;
                 return (
                   <Fragment key={v.vehicleCode}>
@@ -554,36 +553,36 @@ export function VehicleConsumptionDetailTab({ data, refetch, loading }: VehicleC
                           )}
                           onClick={() => toggleVehicle(v.vehicleCode)}
                         >
-                          <TableCell className="w-8">
-                            {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+                          <TableCell className="w-8 px-2 py-2">
+                            {isExpanded ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />}
                           </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
+                          <TableCell className="px-2 py-2">
+                            <div className="flex items-center gap-1.5">
                               {v.isEquipment ? (
-                                <Gauge className="h-4 w-4 text-amber-500 shrink-0" />
+                                <Gauge className="h-3.5 w-3.5 text-amber-500 shrink-0" />
                               ) : (
-                                <Truck className="h-4 w-4 text-blue-500 shrink-0" />
+                                <Truck className="h-3.5 w-3.5 text-blue-500 shrink-0" />
                               )}
-                              <span className="font-bold">{v.vehicleCode}</span>
+                              <span className="font-bold text-xs">{v.vehicleCode}</span>
                             </div>
                           </TableCell>
-                          <TableCell>
-                            <span className="text-sm">{v.vehicleDescription || '-'}</span>
+                          <TableCell className="px-2 py-2">
+                            <span className="text-xs">{v.vehicleDescription || '-'}</span>
                           </TableCell>
-                          <TableCell className="text-right font-mono font-medium">
+                          <TableCell className="text-right font-mono text-xs font-medium px-2 py-2">
                             {formatBR(v.totalLiters, 0)} L
                           </TableCell>
-                          <TableCell className="text-right font-mono text-xs text-muted-foreground">
+                          <TableCell className="text-right font-mono text-xs text-muted-foreground px-2 py-2">
                             {latest ? (v.isEquipment ? formatBR(latest.horimeterPrevious) : formatBR(latest.kmPrevious, 0)) : '-'}
                           </TableCell>
-                          <TableCell className="text-right font-mono text-xs">
+                          <TableCell className="text-right font-mono text-xs px-2 py-2">
                             {latest ? (v.isEquipment ? formatBR(latest.horimeterCurrent) : formatBR(latest.kmCurrent, 0)) : '-'}
                           </TableCell>
-                          <TableCell className="text-right font-mono">
+                          <TableCell className="text-right font-mono text-xs px-2 py-2">
                             {v.isEquipment ? `${formatBR(v.totalHours)} h` : `${formatBR(v.totalKm, 0)} km`}
                           </TableCell>
                           <TableCell className={cn(
-                            "text-right font-mono font-bold text-base",
+                            "text-right font-mono font-bold text-xs px-2 py-2",
                             status === 'high' && "text-destructive",
                             status === 'low' && "text-emerald-600 dark:text-emerald-400",
                             status === 'normal' && "text-foreground",
