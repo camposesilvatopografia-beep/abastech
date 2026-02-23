@@ -386,7 +386,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
   // Voice recognition
   const voice = useVoiceRecognition();
 
-  // Fetch oil types and lubricants from database
+  // Fetch oil types and lubricants from database (with offline cache)
   useEffect(() => {
     const fetchOilTypes = async () => {
       try {
@@ -398,9 +398,13 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         
         if (!error && data) {
           setOilTypes(data);
+          offlineStorage.cacheData('oil_types', data).catch(() => {});
         }
       } catch (err) {
         console.error('Error fetching oil types:', err);
+        // Offline fallback
+        const cached = await offlineStorage.getCachedData<typeof oilTypes>('oil_types');
+        if (cached) setOilTypes(cached);
       }
     };
     
@@ -414,9 +418,12 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         
         if (!error && data) {
           setLubricants(data);
+          offlineStorage.cacheData('lubricants', data).catch(() => {});
         }
       } catch (err) {
         console.error('Error fetching lubricants:', err);
+        const cached = await offlineStorage.getCachedData<typeof lubricants>('lubricants');
+        if (cached) setLubricants(cached);
       }
     };
     
@@ -430,9 +437,12 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         
         if (!error && data) {
           setSuppliers(data);
+          offlineStorage.cacheData('suppliers', data).catch(() => {});
         }
       } catch (err) {
         console.error('Error fetching suppliers:', err);
+        const cached = await offlineStorage.getCachedData<typeof suppliers>('suppliers');
+        if (cached) setSuppliers(cached);
       }
     };
     
@@ -1170,9 +1180,51 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
           setLastFuelRecords([]);
         }
       }
+      // Cache the fetched values for offline use
+      if (valueToShow > 0) {
+        const cacheKey = `prev_horimeter_${vehicleCode}`;
+        const cacheData = {
+          horimeterPrevious: isVehicle ? '' : formatBrazilianNumber(valueToShow),
+          kmPrevious: isVehicle ? formatBrazilianNumber(valueToShow) : (bestKmValue > 0 ? formatBrazilianNumber(bestKmValue) : ''),
+          horimeterPreviousDate: bestDateTime ? bestDateTime.toLocaleString('pt-BR', {
+            day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
+          }) : '',
+          bestSource,
+          cachedAt: Date.now(),
+        };
+        offlineStorage.cacheData(cacheKey, cacheData).catch(() => {});
+      }
     } catch (err) {
       console.error('Error fetching previous horimeter:', err);
-      toast.error('Erro ao buscar horímetro anterior');
+      
+      // Offline fallback: try cached values
+      try {
+        const cacheKey = `prev_horimeter_${vehicleCode}`;
+        const cached = await offlineStorage.getCachedData<{
+          horimeterPrevious: string;
+          kmPrevious: string;
+          horimeterPreviousDate: string;
+          bestSource: string;
+          cachedAt: number;
+        }>(cacheKey);
+        
+        if (cached) {
+          const isVehicleCat = (options?.vehicleCategory || '').toUpperCase() === 'VEICULO';
+          const cachedValue = isVehicleCat ? cached.kmPrevious : cached.horimeterPrevious;
+          if (cachedValue) {
+            setHorimeterPrevious(cachedValue);
+            setHorimeterPreviousDate(cached.horimeterPreviousDate || '');
+            if (isVehicleCat && cached.kmPrevious) {
+              setKmPrevious(cached.kmPrevious);
+            }
+            toast.info(`📱 Usando dados em cache (${cached.bestSource}): ${cachedValue}`, { duration: 3000 });
+          }
+        } else {
+          toast.warning('Sem conexão. Horímetro anterior não disponível offline.');
+        }
+      } catch {
+        toast.warning('Sem conexão. Horímetro anterior não disponível.');
+      }
     }
   };
 
