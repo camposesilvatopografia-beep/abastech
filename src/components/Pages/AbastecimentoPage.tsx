@@ -3344,6 +3344,40 @@ export function AbastecimentoPage() {
                 />
               </div>
 
+              {/* Photos Section */}
+              {(editingRecord['FOTO BOMBA'] || editingRecord['FOTO HORIMETRO']) && (
+                <div className="space-y-3">
+                  <h4 className="text-sm font-semibold flex items-center gap-2">
+                    <Image className="w-4 h-4" />
+                    Fotos
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {editingRecord['FOTO BOMBA'] && String(editingRecord['FOTO BOMBA']).trim() && (
+                      <div className="space-y-2">
+                        <span className="text-xs text-muted-foreground">Foto Bomba</span>
+                        <img
+                          src={String(editingRecord['FOTO BOMBA'])}
+                          alt="Foto Bomba"
+                          className="w-full h-48 object-cover rounded-lg border border-border"
+                          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                        />
+                      </div>
+                    )}
+                    {editingRecord['FOTO HORIMETRO'] && String(editingRecord['FOTO HORIMETRO']).trim() && (
+                      <div className="space-y-2">
+                        <span className="text-xs text-muted-foreground">Foto Horímetro</span>
+                        <img
+                          src={String(editingRecord['FOTO HORIMETRO'])}
+                          alt="Foto Horímetro"
+                          className="w-full h-48 object-cover rounded-lg border border-border"
+                          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* Action Buttons */}
               <div className="flex justify-end gap-3 pt-4 border-t">
                 <Button
