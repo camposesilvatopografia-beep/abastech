@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   Package2,
   Camera,
@@ -34,6 +34,7 @@ import { cn } from '@/lib/utils';
 import { useTheme } from '@/hooks/useTheme';
 import { useFieldSettings, playSuccessSound, vibrateDevice } from '@/hooks/useFieldSettings';
 import { format } from 'date-fns';
+import { useFormPersistence } from '@/hooks/useFormPersistence';
 
 const removeAccents = (text: string): string => {
   return text.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -70,6 +71,26 @@ export function FieldTanqueForm({ user, onBack }: FieldTanqueFormProps) {
   const [photoPump, setPhotoPump] = useState<File | null>(null);
   const [photoPumpPreview, setPhotoPumpPreview] = useState<string | null>(null);
   const photoPumpInputRef = useRef<HTMLInputElement>(null);
+
+  // Persist form state to survive mobile camera round-trips
+  const getFormState = useCallback(() => ({
+    selectedLocation, fuelQuantity, unitPrice, supplier, invoiceNumber, observations,
+  }), [selectedLocation, fuelQuantity, unitPrice, supplier, invoiceNumber, observations]);
+
+  const restoreFormState = useCallback((state: Record<string, any>) => {
+    if (state.selectedLocation) setSelectedLocation(state.selectedLocation);
+    if (state.fuelQuantity) setFuelQuantity(state.fuelQuantity);
+    if (state.unitPrice) setUnitPrice(state.unitPrice);
+    if (state.supplier) setSupplier(state.supplier);
+    if (state.invoiceNumber) setInvoiceNumber(state.invoiceNumber);
+    if (state.observations) setObservations(state.observations);
+  }, []);
+
+  const { saveState: saveFormState, clearState: clearFormState } = useFormPersistence(
+    `tanque_form_${user.id}`,
+    getFormState,
+    restoreFormState
+  );
 
   // Suppliers from DB
   const [suppliers, setSuppliers] = useState<{ id: string; name: string }[]>([]);
@@ -254,6 +275,7 @@ export function FieldTanqueForm({ user, onBack }: FieldTanqueFormProps) {
       if (settings.soundEnabled) playSuccessSound();
       if (settings.vibrationEnabled) vibrateDevice();
 
+      clearFormState();
       setShowSuccess(true);
       setTimeout(() => {
         setShowSuccess(false);
@@ -447,7 +469,7 @@ export function FieldTanqueForm({ user, onBack }: FieldTanqueFormProps) {
             <Button
               variant="outline"
               className="w-full h-20 flex flex-col gap-1 border-2 border-dashed border-emerald-300 dark:border-emerald-600 hover:bg-emerald-100/50"
-              onClick={() => photoPumpInputRef.current?.click()}
+              onClick={() => { saveFormState(); photoPumpInputRef.current?.click(); }}
             >
               <Camera className="w-6 h-6 text-emerald-500" />
               <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">Tirar Foto</span>
