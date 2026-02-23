@@ -446,16 +446,18 @@ export function VehicleConsumptionDetailTab({ data, refetch, loading }: VehicleC
                 <TableHead className="font-semibold text-primary">Veículo</TableHead>
                 <TableHead className="font-semibold text-primary">Descrição</TableHead>
                 <TableHead className="text-right font-semibold text-primary">Litros</TableHead>
-                <TableHead className="text-right font-semibold text-primary">Horas/Km</TableHead>
+                <TableHead className="text-right font-semibold text-primary">Hor./Km Ant.</TableHead>
+                <TableHead className="text-right font-semibold text-primary">Hor./Km Atual</TableHead>
+                <TableHead className="text-right font-semibold text-primary">Intervalo</TableHead>
                 <TableHead className="text-right font-semibold text-primary">Consumo Médio</TableHead>
-                <TableHead className="text-center font-semibold text-primary">Abast.</TableHead>
-                <TableHead className="text-center font-semibold text-primary">Status</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredSummaries.map((v) => {
                 const status = getDivergenceStatus(v);
                 const isExpanded = expandedVehicles.has(v.vehicleCode);
+                // Get latest record for current/previous values
+                const latest = v.records.length > 0 ? v.records[0] : null;
                 return (
                   <Fragment key={v.vehicleCode}>
                         <TableRow 
@@ -470,20 +472,26 @@ export function VehicleConsumptionDetailTab({ data, refetch, loading }: VehicleC
                             {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
                           </TableCell>
                           <TableCell>
-                            <span className="font-bold">{v.vehicleCode}</span>
-                          </TableCell>
-                          <TableCell>
                             <div className="flex items-center gap-2">
                               {v.isEquipment ? (
                                 <Gauge className="h-4 w-4 text-amber-500 shrink-0" />
                               ) : (
                                 <Truck className="h-4 w-4 text-blue-500 shrink-0" />
                               )}
-                              <span className="text-sm">{v.vehicleDescription || '-'}</span>
+                              <span className="font-bold">{v.vehicleCode}</span>
                             </div>
+                          </TableCell>
+                          <TableCell>
+                            <span className="text-sm">{v.vehicleDescription || '-'}</span>
                           </TableCell>
                           <TableCell className="text-right font-mono font-medium">
                             {formatBR(v.totalLiters, 0)} L
+                          </TableCell>
+                          <TableCell className="text-right font-mono text-xs text-muted-foreground">
+                            {latest ? (v.isEquipment ? formatBR(latest.horimeterPrevious) : formatBR(latest.kmPrevious, 0)) : '-'}
+                          </TableCell>
+                          <TableCell className="text-right font-mono text-xs">
+                            {latest ? (v.isEquipment ? formatBR(latest.horimeterCurrent) : formatBR(latest.kmCurrent, 0)) : '-'}
                           </TableCell>
                           <TableCell className="text-right font-mono">
                             {v.isEquipment ? `${formatBR(v.totalHours)} h` : `${formatBR(v.totalKm, 0)} km`}
@@ -495,21 +503,6 @@ export function VehicleConsumptionDetailTab({ data, refetch, loading }: VehicleC
                             status === 'normal' && "text-foreground",
                           )}>
                             {v.avgConsumption > 0 ? `${formatBR(v.avgConsumption)} ${v.consumptionUnit}` : '-'}
-                          </TableCell>
-                          <TableCell className="text-center">{v.recordCount}</TableCell>
-                          <TableCell className="text-center">
-                            {status === 'high' ? (
-                              <Badge variant="destructive" className="text-xs gap-1">
-                                <AlertTriangle className="h-3 w-3" />
-                                Alto
-                              </Badge>
-                            ) : status === 'low' ? (
-                              <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 text-xs">
-                                Baixo
-                              </Badge>
-                            ) : (
-                              <Badge variant="secondary" className="text-xs">Normal</Badge>
-                            )}
                           </TableCell>
                         </TableRow>
                         {isExpanded && (
