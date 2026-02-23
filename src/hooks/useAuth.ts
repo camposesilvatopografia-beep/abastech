@@ -20,17 +20,7 @@ export function useAuth() {
       if (stored) {
         const userData = JSON.parse(stored) as AuthUser;
         
-        // Check if login is still valid (24 hours)
-        const loginTime = new Date(userData.loginAt).getTime();
-        const now = Date.now();
-        const hoursElapsed = (now - loginTime) / (1000 * 60 * 60);
-        
-        if (hoursElapsed > 24) {
-          localStorage.removeItem('abastech_user');
-          setUser(null);
-        } else {
-          setUser(userData);
-        }
+        setUser(userData);
       } else {
         setUser(null);
       }
