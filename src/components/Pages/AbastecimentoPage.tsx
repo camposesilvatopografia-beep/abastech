@@ -97,6 +97,9 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useObraSettings } from '@/hooks/useObraSettings';
@@ -217,6 +220,7 @@ export function AbastecimentoPage() {
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
   const [showAdminRecordModal, setShowAdminRecordModal] = useState(false);
   const [adminPresetMode, setAdminPresetMode] = useState<AdminPresetMode>('normal');
+  const [adminPresetLocation, setAdminPresetLocation] = useState<string>('');
   const [editingRecord, setEditingRecord] = useState<any>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showHorimeterModal, setShowHorimeterModal] = useState(false);
@@ -337,8 +341,9 @@ export function AbastecimentoPage() {
            user.role === 'admin';
   }, [user]);
 
-  const openAdminModal = useCallback((mode: AdminPresetMode = 'normal') => {
+  const openAdminModal = useCallback((mode: AdminPresetMode = 'normal', location?: string) => {
     setAdminPresetMode(mode);
+    setAdminPresetLocation(location || '');
     setShowAdminRecordModal(true);
   }, []);
 
@@ -2177,6 +2182,27 @@ export function AbastecimentoPage() {
                     </div>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger className="gap-2 cursor-pointer">
+                      <MapPin className="w-4 h-4 text-teal-600" />
+                      <div>
+                        <div className="font-medium">Entrar como Local</div>
+                      </div>
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent className="w-52">
+                      {['Tanque Canteiro 01', 'Tanque Canteiro 02', 'Comboio 01', 'Comboio 02', 'Comboio 03'].map(loc => (
+                        <DropdownMenuItem
+                          key={loc}
+                          onClick={() => openAdminModal('location', loc)}
+                          className="gap-2 cursor-pointer"
+                        >
+                          <MapPin className={cn("w-3.5 h-3.5", loc.includes('Comboio') ? "text-orange-500" : "text-blue-500")} />
+                          <span className="text-sm">{loc}</span>
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuSubContent>
+                  </DropdownMenuSub>
+                  <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={() => setShowHorimeterModal(true)} className="gap-2 cursor-pointer">
                     <Gauge className="w-4 h-4 text-purple-600" />
                     <div>
@@ -3146,6 +3172,7 @@ export function AbastecimentoPage() {
           onOpenChange={setShowAdminRecordModal}
           onSuccess={() => refetch()}
           presetMode={adminPresetMode}
+          presetLocation={adminPresetLocation}
         />
       )}
 
