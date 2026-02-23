@@ -110,7 +110,15 @@ export function GeneralFuelingReport({ data, refetch, loading }: GeneralFuelingR
     }
   }, [dateFilterType, startDate, endDate]);
 
-  // Group records by location
+  // Classify location into unified groups
+  const classifyLocation = (loc: string): string => {
+    const l = loc.toLowerCase();
+    if (l.includes('tanque') || l.includes('canteiro')) return 'Tanques';
+    if (l.includes('comboio')) return 'Comboios';
+    return loc;
+  };
+
+  // Group records by unified location category
   const groupedByLocation = useMemo(() => {
     const groups: Record<string, { records: FuelingRecord[]; totalLiters: number }> = {};
 
@@ -125,11 +133,11 @@ export function GeneralFuelingReport({ data, refetch, loading }: GeneralFuelingR
         if (!isWithinInterval(dateObj, { start: startOfDay(dateRange.start), end: endOfDay(dateRange.end) })) return;
       }
 
-      // Skip entries from external suppliers (those go to "Entradas" tab)
       const tipo = String(row['TIPO'] || '').toLowerCase();
       if (tipo.includes('entrada') || tipo.includes('recebimento')) return;
 
-      const location = String(row['LOCAL'] || 'Não informado').trim();
+      const rawLocation = String(row['LOCAL'] || 'Não informado').trim();
+      const location = classifyLocation(rawLocation);
       const category = String(row['CATEGORIA'] || '').toUpperCase();
       const isEquipment = isEquipmentCategory(category);
       const horimeterPrevious = parseNumber(row['HORIMETRO ANTERIOR']);
@@ -165,7 +173,7 @@ export function GeneralFuelingReport({ data, refetch, loading }: GeneralFuelingR
         interval, intervalUnit,
         consumption, consumptionUnit,
         isEquipment,
-        location,
+        location: rawLocation,
       };
 
       if (!groups[location]) {
@@ -175,7 +183,6 @@ export function GeneralFuelingReport({ data, refetch, loading }: GeneralFuelingR
       groups[location].totalLiters += fuelQuantity;
     });
 
-    // Sort records within each group by date descending
     Object.values(groups).forEach(g => {
       g.records.sort((a, b) => b.dateObj.getTime() - a.dateObj.getTime());
     });
@@ -183,21 +190,18 @@ export function GeneralFuelingReport({ data, refetch, loading }: GeneralFuelingR
     return groups;
   }, [data.rows, dateRange]);
 
-  // Separate into Tanques and Comboios
+  // Separate into Tanques, Comboios and Others
   const locationGroups = useMemo(() => {
     const tanques: [string, typeof groupedByLocation[string]][] = [];
     const comboios: [string, typeof groupedByLocation[string]][] = [];
     const others: [string, typeof groupedByLocation[string]][] = [];
 
     Object.entries(groupedByLocation).forEach(([loc, data]) => {
-      const locLower = loc.toLowerCase();
-      if (locLower.includes('tanque')) tanques.push([loc, data]);
-      else if (locLower.includes('comboio')) comboios.push([loc, data]);
+      if (loc === 'Tanques') tanques.push([loc, data]);
+      else if (loc === 'Comboios') comboios.push([loc, data]);
       else others.push([loc, data]);
     });
 
-    tanques.sort((a, b) => a[0].localeCompare(b[0]));
-    comboios.sort((a, b) => a[0].localeCompare(b[0]));
     others.sort((a, b) => a[0].localeCompare(b[0]));
 
     return { tanques, comboios, others };
