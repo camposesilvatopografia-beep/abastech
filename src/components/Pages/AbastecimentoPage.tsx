@@ -2488,6 +2488,7 @@ export function AbastecimentoPage() {
                     <TableHead className="text-right">Quantidade</TableHead>
                     <TableHead className="text-right">Hor/Km Anterior</TableHead>
                     <TableHead className="text-right">Hor/Km Atual</TableHead>
+                    <TableHead className="text-right">Consumo</TableHead>
                     <TableHead>Local</TableHead>
                     {canCreateRecords && <TableHead className="w-20 text-center">Ações</TableHead>}
                   </TableRow>
@@ -2495,14 +2496,14 @@ export function AbastecimentoPage() {
                 <TableBody>
                   {loading ? (
                     <TableRow>
-                      <TableCell colSpan={canCreateRecords ? 10 : 9} className="text-center py-8">
+                      <TableCell colSpan={canCreateRecords ? 11 : 10} className="text-center py-8">
                         <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-muted-foreground" />
                         Carregando dados...
                       </TableCell>
                     </TableRow>
                   ) : filteredRows.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={canCreateRecords ? 10 : 9} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={canCreateRecords ? 11 : 10} className="text-center py-8 text-muted-foreground">
                         Nenhum registro encontrado
                       </TableCell>
                     </TableRow>
@@ -2532,6 +2533,18 @@ export function AbastecimentoPage() {
                             ? parseNumber(row['HORIMETRO ATUAL'] || row['HOR_ATUAL'] || 0)
                             : parseNumber(row['KM ATUAL'] || row['KM_ATUAL'] || 0);
                           const suffix = isEquip ? 'h' : ' km';
+                          const intervalo = atual > 0 && anterior > 0 ? atual - anterior : 0;
+                          const qtd = parseNumber(row['QUANTIDADE']);
+                          let consumo = '';
+                          if (intervalo > 0 && qtd > 0) {
+                            if (isEquip) {
+                              // Equipamento: L/h = quantidade / intervalo horimetro
+                              consumo = (qtd / intervalo).toFixed(2) + ' L/h';
+                            } else {
+                              // Veículo: km/L = intervalo km / quantidade
+                              consumo = (intervalo / qtd).toFixed(2) + ' km/L';
+                            }
+                          }
                           return (
                             <>
                               <TableCell className="text-right">
@@ -2539,6 +2552,9 @@ export function AbastecimentoPage() {
                               </TableCell>
                               <TableCell className="text-right">
                                 {atual > 0 ? `${atual.toLocaleString('pt-BR')}${suffix}` : '-'}
+                              </TableCell>
+                              <TableCell className="text-right font-medium">
+                                {consumo || '-'}
                               </TableCell>
                             </>
                           );
