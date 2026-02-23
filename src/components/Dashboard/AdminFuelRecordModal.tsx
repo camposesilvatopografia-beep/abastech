@@ -22,6 +22,7 @@ import {
   ChevronDown,
   ChevronUp,
   CalendarIcon,
+  CircleOff,
 } from 'lucide-react';
 import { Calendar } from '@/components/ui/calendar';
 import {
@@ -59,6 +60,7 @@ import {
 } from '@/components/ui/collapsible';
 import { VehicleCombobox } from '@/components/ui/vehicle-combobox';
 import { CurrencyInput } from '@/components/ui/currency-input';
+import { Checkbox } from '@/components/ui/checkbox';
 import { parsePtBRNumber, formatPtBRNumber } from '@/lib/ptBRNumber';
 import { supabase } from '@/integrations/supabase/client';
 import { useSheetData } from '@/hooks/useGoogleSheets';
@@ -103,7 +105,7 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess, presetMode
   const [arlaQuantity, setArlaQuantity] = useState<number | null>(null);
   const [location, setLocation] = useState('Tanque Canteiro 01');
   const [observations, setObservations] = useState('');
-  
+  const [horimeterBroken, setHorimeterBroken] = useState(false);
   // Equipment-specific fields
   const [oilType, setOilType] = useState('');
   const [oilQuantity, setOilQuantity] = useState('');
@@ -282,6 +284,7 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess, presetMode
     setArlaQuantity(null);
     setLocation('Tanque Canteiro 01');
     setObservations('');
+    setHorimeterBroken(false);
     setOilType('');
     setOilQuantity('');
     setFilterBlowQuantity('');
@@ -1042,6 +1045,37 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess, presetMode
                 )}
               </div>
 
+              {/* Horímetro/Odômetro Quebrado */}
+              <div className="flex items-center space-x-3 p-3 bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800 rounded-lg">
+                <Checkbox
+                  id="horimeter-broken"
+                  checked={horimeterBroken}
+                  onCheckedChange={(checked) => {
+                    const val = checked === true;
+                    setHorimeterBroken(val);
+                    if (val) {
+                      setHorimeterCurrent(null);
+                      setKmCurrent(null);
+                      // Append broken note to observations if not already there
+                      const brokenNote = 'HORÍMETRO/ODÔMETRO QUEBRADO';
+                      if (!observations.includes(brokenNote)) {
+                        setObservations(prev => prev ? `${prev} | ${brokenNote}` : brokenNote);
+                      }
+                    } else {
+                      // Remove broken note from observations
+                      setObservations(prev => prev.replace(/\s*\|\s*HORÍMETRO\/ODÔMETRO QUEBRADO|HORÍMETRO\/ODÔMETRO QUEBRADO\s*\|\s*|HORÍMETRO\/ODÔMETRO QUEBRADO/g, '').trim());
+                    }
+                  }}
+                />
+                <label
+                  htmlFor="horimeter-broken"
+                  className="flex items-center gap-2 text-sm font-medium text-orange-700 dark:text-orange-300 cursor-pointer select-none"
+                >
+                  <CircleOff className="h-4 w-4" />
+                  Horímetro / Odômetro quebrado (não é possível registrar leitura)
+                </label>
+              </div>
+
               {/* Horimeter with validation */}
               <TooltipProvider>
                 <div className="grid grid-cols-2 gap-4">
@@ -1056,13 +1090,14 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess, presetMode
                       decimals={2}
                       placeholder="0,00"
                       className="border-amber-300 focus:border-amber-500"
+                      disabled={horimeterBroken}
                     />
                   </div>
                   <div className="space-y-2">
                     <Label className="flex items-center gap-2">
                       <Gauge className="h-4 w-4 text-amber-500" />
                       Horímetro Atual
-                      {horimeterValidation.status !== 'neutral' && (
+                      {horimeterValidation.status !== 'neutral' && !horimeterBroken && (
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <span>{getValidationIcon(horimeterValidation.status)}</span>
@@ -1077,13 +1112,15 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess, presetMode
                       value={horimeterCurrent}
                       onChange={setHorimeterCurrent}
                       decimals={2}
-                      placeholder="0,00"
+                      placeholder={horimeterBroken ? "Equipamento quebrado" : "0,00"}
                       className={cn(
                         "border-amber-300 focus:border-amber-500",
-                        horimeterValidation.status === 'error' && "border-red-500 focus:border-red-600",
-                        horimeterValidation.status === 'warning' && "border-yellow-500 focus:border-yellow-600",
-                        horimeterValidation.status === 'success' && "border-green-500 focus:border-green-600"
+                        horimeterBroken && "opacity-50 cursor-not-allowed",
+                        !horimeterBroken && horimeterValidation.status === 'error' && "border-red-500 focus:border-red-600",
+                        !horimeterBroken && horimeterValidation.status === 'warning' && "border-yellow-500 focus:border-yellow-600",
+                        !horimeterBroken && horimeterValidation.status === 'success' && "border-green-500 focus:border-green-600"
                       )}
+                      disabled={horimeterBroken}
                     />
                   </div>
                 </div>
@@ -1101,13 +1138,14 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess, presetMode
                       decimals={2}
                       placeholder="0,00"
                       className="border-blue-300 focus:border-blue-500"
+                      disabled={horimeterBroken}
                     />
                   </div>
                   <div className="space-y-2">
                     <Label className="flex items-center gap-2">
                       <Clock className="h-4 w-4 text-blue-500" />
                       KM Atual
-                      {kmValidation.status !== 'neutral' && (
+                      {kmValidation.status !== 'neutral' && !horimeterBroken && (
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <span>{getValidationIcon(kmValidation.status)}</span>
@@ -1122,13 +1160,15 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess, presetMode
                       value={kmCurrent}
                       onChange={setKmCurrent}
                       decimals={2}
-                      placeholder="0,00"
+                      placeholder={horimeterBroken ? "Equipamento quebrado" : "0,00"}
                       className={cn(
                         "border-blue-300 focus:border-blue-500",
-                        kmValidation.status === 'error' && "border-red-500 focus:border-red-600",
-                        kmValidation.status === 'warning' && "border-yellow-500 focus:border-yellow-600",
-                        kmValidation.status === 'success' && "border-green-500 focus:border-green-600"
+                        horimeterBroken && "opacity-50 cursor-not-allowed",
+                        !horimeterBroken && kmValidation.status === 'error' && "border-red-500 focus:border-red-600",
+                        !horimeterBroken && kmValidation.status === 'warning' && "border-yellow-500 focus:border-yellow-600",
+                        !horimeterBroken && kmValidation.status === 'success' && "border-green-500 focus:border-green-600"
                       )}
+                      disabled={horimeterBroken}
                     />
                   </div>
                 </div>
