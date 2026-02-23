@@ -184,6 +184,72 @@ async function enrichHorimeterRecord(data: Record<string, any>): Promise<Record<
 }
 
 /**
+ * Global sync lock to prevent concurrent syncs from multiple components.
+ * Uses localStorage timestamp to coordinate across component instances.
+ */
+export function acquireSyncLockGlobal(): boolean {
+  const lockKey = 'abastech_sync_lock';
+  const now = Date.now();
+  const existing = localStorage.getItem(lockKey);
+  
+  if (existing) {
+    const lockTime = parseInt(existing, 10);
+    // If lock is older than 60 seconds, consider it stale
+    if (now - lockTime < 60000) {
+      return false; // Lock is held
+    }
+  }
+  
+  localStorage.setItem(lockKey, now.toString());
+  return true;
+}
+
+export function releaseSyncLockGlobal() {
+  localStorage.removeItem('abastech_sync_lock');
+}
+
+/**
+ * Check if a record is already in the DB (dedup before insert).
+ */
+async function isDuplicateInDB(data: Record<string, any>): Promise<boolean> {
+  if (!data.vehicle_code || !data.record_date) return false;
+  
+  try {
+    const query = supabase
+      .from('field_fuel_records')
+      .select('id, record_time', { count: 'exact', head: false })
+      .eq('vehicle_code', data.vehicle_code)
+      .eq('record_date', data.record_date)
+      .eq('fuel_quantity', data.fuel_quantity ?? 0);
+
+    if (data.record_type) {
+      query.eq('record_type', data.record_type);
+    }
+
+    const { data: existing } = await query;
+    if (!existing || existing.length === 0) return false;
+
+    // Check time proximity (within 5 minutes)
+    const recordTime = data.record_time || '00:00';
+    const [h, m] = recordTime.split(':').map(Number);
+    const mins = (isNaN(h) ? 0 : h) * 60 + (isNaN(m) ? 0 : m);
+
+    for (const rec of existing) {
+      const rt = rec.record_time || '00:00';
+      const [rh, rm] = rt.split(':').map(Number);
+      const rmins = (isNaN(rh) ? 0 : rh) * 60 + (isNaN(rm) ? 0 : rm);
+      if (Math.abs(mins - rmins) <= 5) {
+        console.log(`[OfflineSync] Duplicate detected for ${data.vehicle_code} at ${data.record_date} ${recordTime}`);
+        return true;
+      }
+    }
+    return false;
+  } catch {
+    return false; // Don't block on errors
+  }
+}
+
+/**
  * Syncs all pending offline records to Supabase and Google Sheets.
  * Enriches each record with fresh DB data before inserting.
  * Returns { synced, failed } counts.
@@ -199,8 +265,14 @@ export async function syncAllOfflineRecords(userId: string): Promise<{ synced: n
     try {
       switch (record.type) {
         case 'fuel_record':
-          // Enrich with fresh DB data before sync
+          // Check for duplicates before inserting
           record.data = await enrichFuelRecord(record.data, userId);
+          if (await isDuplicateInDB(record.data)) {
+            console.log(`[OfflineSync] Skipping duplicate offline fuel record`);
+            await offlineDB.deleteRecord(record.id);
+            synced++; // Count as handled
+            continue;
+          }
           await syncFuelRecord(record);
           break;
         case 'horimeter_reading':
@@ -265,6 +337,15 @@ async function syncFuelRecord(record: OfflineRecord) {
 
   if (error) throw error;
 
+  // Mark as synced optimistically BEFORE sheet call (prevents FieldPage from re-syncing)
+  if (savedRecord?.id) {
+    await supabase
+      .from('field_fuel_records')
+      .update({ synced_to_sheet: true })
+      .eq('id', savedRecord.id)
+      .eq('synced_to_sheet', false);
+  }
+
   // Sync to Google Sheets
   try {
     const [year, month, day] = (data.record_date || '').split('-');
@@ -305,14 +386,22 @@ async function syncFuelRecord(record: OfflineRecord) {
       body: { action: 'create', sheetName: 'AbastecimentoCanteiro01', data: sheetData },
     });
 
-    if (!response.error && savedRecord?.id) {
+    if (response.error && savedRecord?.id) {
+      // Revert optimistic flag on failure
       await supabase
         .from('field_fuel_records')
-        .update({ synced_to_sheet: true })
+        .update({ synced_to_sheet: false })
         .eq('id', savedRecord.id);
     }
   } catch (syncErr) {
     console.warn('[OfflineSync] Sheet sync failed for fuel record (DB saved):', syncErr);
+    // Revert optimistic flag
+    if (savedRecord?.id) {
+      await supabase
+        .from('field_fuel_records')
+        .update({ synced_to_sheet: false })
+        .eq('id', savedRecord.id);
+    }
   }
 }
 
