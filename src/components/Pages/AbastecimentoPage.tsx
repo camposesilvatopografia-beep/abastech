@@ -2461,42 +2461,43 @@ export function AbastecimentoPage() {
             <div className="bg-card rounded-lg border border-border overflow-hidden">
               <Table>
                 <TableHeader>
-                  <TableRow className="bg-primary/10">
-                    <TableHead className="font-semibold text-primary">Data</TableHead>
-                    <TableHead className="font-semibold text-primary">Hora</TableHead>
-                    <TableHead className="font-semibold text-primary">Veículo</TableHead>
-                    <TableHead className="font-semibold text-primary">Motorista</TableHead>
-                    <TableHead className="text-right font-semibold text-primary">Quantidade</TableHead>
-                    <TableHead className="text-right font-semibold text-primary">Hor/Km Anterior</TableHead>
-                    <TableHead className="text-right font-semibold text-primary">Hor/Km Atual</TableHead>
-                    <TableHead className="text-right font-semibold text-primary">Consumo</TableHead>
-                    <TableHead className="font-semibold text-primary">Local</TableHead>
-                    {canCreateRecords && <TableHead className="w-20 text-center font-semibold text-primary">Ações</TableHead>}
+                   <TableRow className="bg-primary/10">
+                     <TableHead className="font-semibold text-primary text-xs">Data</TableHead>
+                     <TableHead className="font-semibold text-primary text-xs">Hora</TableHead>
+                     <TableHead className="font-semibold text-primary text-xs">Veículo</TableHead>
+                     <TableHead className="font-semibold text-primary text-xs">Motorista</TableHead>
+                     <TableHead className="text-right font-semibold text-primary text-xs">Qtd (L)</TableHead>
+                     <TableHead className="text-right font-semibold text-primary text-xs">Hor/Km Ant.</TableHead>
+                     <TableHead className="text-right font-semibold text-primary text-xs">Hor/Km Atual</TableHead>
+                     <TableHead className="text-right font-semibold text-primary text-xs">Intervalo</TableHead>
+                     <TableHead className="text-right font-semibold text-primary text-xs">Consumo</TableHead>
+                     <TableHead className="font-semibold text-primary text-xs">Local</TableHead>
+                     {canCreateRecords && <TableHead className="w-20 text-center font-semibold text-primary text-xs">Ações</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {loading ? (
                     <TableRow>
-                      <TableCell colSpan={canCreateRecords ? 10 : 9} className="text-center py-8">
+                      <TableCell colSpan={canCreateRecords ? 11 : 10} className="text-center py-8">
                         <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-muted-foreground" />
                         Carregando dados...
                       </TableCell>
                     </TableRow>
                   ) : filteredRows.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={canCreateRecords ? 10 : 9} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={canCreateRecords ? 11 : 10} className="text-center py-8 text-muted-foreground">
                         Nenhum registro encontrado
                       </TableCell>
                     </TableRow>
                   ) : (
                     filteredRows.slice(0, 100).map((row, index) => (
                       <TableRow key={row._rowIndex || index}>
-                        <TableCell>{row['DATA']}</TableCell>
-                        <TableCell>{row['HORA']}</TableCell>
-                        <TableCell className="font-medium">{row['VEICULO']}</TableCell>
-                        <TableCell>{row['MOTORISTA']}</TableCell>
-                        <TableCell className="text-right font-medium">
-                          {parseNumber(row['QUANTIDADE']).toLocaleString('pt-BR')} L
+                        <TableCell className="text-xs">{row['DATA']}</TableCell>
+                        <TableCell className="text-xs">{row['HORA']}</TableCell>
+                        <TableCell className="text-xs font-bold text-primary">{row['VEICULO']}</TableCell>
+                        <TableCell className="text-xs">{row['MOTORISTA']}</TableCell>
+                        <TableCell className="text-right text-xs font-mono font-medium">
+                          {parseNumber(row['QUANTIDADE']).toLocaleString('pt-BR')}
                         </TableCell>
                         {(() => {
                           const cat = String(row['CATEGORIA'] || row['Categoria'] || '').toLowerCase();
@@ -2516,28 +2517,29 @@ export function AbastecimentoPage() {
                           let consumo = '';
                           if (intervalo > 0 && qtd > 0) {
                             if (isEquip) {
-                              // Equipamento: L/h = quantidade / intervalo horimetro
                               consumo = (qtd / intervalo).toFixed(2) + ' L/h';
                             } else {
-                              // Veículo: km/L = intervalo km / quantidade
                               consumo = (intervalo / qtd).toFixed(2) + ' km/L';
                             }
                           }
                           return (
                             <>
-                              <TableCell className="text-right">
+                              <TableCell className="text-right text-xs font-mono text-muted-foreground">
                                 {anterior > 0 ? `${anterior.toLocaleString('pt-BR')}${suffix}` : '-'}
                               </TableCell>
-                              <TableCell className="text-right">
+                              <TableCell className="text-right text-xs font-mono">
                                 {atual > 0 ? `${atual.toLocaleString('pt-BR')}${suffix}` : '-'}
                               </TableCell>
-                              <TableCell className="text-right font-medium">
+                              <TableCell className="text-right text-xs font-mono">
+                                {intervalo > 0 ? `${intervalo.toLocaleString('pt-BR', { minimumFractionDigits: isEquip ? 2 : 0 })} ${isEquip ? 'h' : 'km'}` : '-'}
+                              </TableCell>
+                              <TableCell className="text-right text-xs font-mono font-bold text-primary">
                                 {consumo || '-'}
                               </TableCell>
                             </>
                           );
                         })()}
-                        <TableCell>{row['LOCAL']}</TableCell>
+                        <TableCell className="text-xs">{row['LOCAL']}</TableCell>
                         {canCreateRecords && (
                           <TableCell className="text-center">
                             <div className="flex items-center justify-center gap-1">
