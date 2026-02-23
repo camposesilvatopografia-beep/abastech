@@ -2,6 +2,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { renderStandardHeader, getLogoBase64 } from '@/lib/pdfHeader';
 
 interface VehicleData {
   codigo: string;
@@ -135,7 +136,7 @@ function classifyCompanies(
 // MOBILIZAÇÃO PDF
 // ═══════════════════════════════════════════════════════════════════════
 
-export function exportMobilizacaoPDF(
+export async function exportMobilizacaoPDF(
   vehicles: VehicleData[],
   selectedDate: Date,
   obraSettings?: ObraSettings | null
@@ -144,18 +145,19 @@ export function exportMobilizacaoPDF(
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
 
-  renderNavyHeader(
-    doc,
-    obraSettings?.nome?.toUpperCase() || 'CONSÓRCIO AERO MARAGOGI',
-    'MOBILIZAÇÃO DE EQUIPAMENTOS',
-    `ATUALIZADO EM: ${format(selectedDate, 'dd/MM/yyyy')}`
-  );
+  const logoBase64 = await getLogoBase64(obraSettings?.logo_url);
+  const startY = renderStandardHeader(doc, {
+    reportTitle: 'MOBILIZAÇÃO DE EQUIPAMENTOS',
+    obraSettings,
+    logoBase64,
+    date: format(selectedDate, 'dd/MM/yyyy'),
+  });
 
   // Subtitle
   doc.setTextColor(30, 41, 59);
   doc.setFontSize(11);
   doc.setFont('helvetica', 'bold');
-  doc.text('RESUMO GERAL DOS EQUIPAMENTOS ATIVOS POR GRUPO X EMPRESA', 14, 35);
+  doc.text('RESUMO GERAL DOS EQUIPAMENTOS ATIVOS POR GRUPO X EMPRESA', 14, startY);
 
   // Build summary: description x empresa
   const summaryMap = new Map<string, Map<string, { total: number; mobilizado: number }>>();
@@ -201,7 +203,7 @@ export function exportMobilizacaoPDF(
   ]);
 
   autoTable(doc, {
-    startY: 40,
+    startY: startY + 6,
     head: [['DESCRIÇÃO', 'EMPRESA', 'NECESSIDADE', 'MOBILIZADO', 'A MOBILIZAR']],
     body: summaryRows,
     theme: 'grid',
@@ -681,7 +683,7 @@ export async function exportEfetivoPDF(
 // MOBILIZADOS PDF - Equipment with status mobilizado/ativo
 // ═══════════════════════════════════════════════════════════════════════
 
-export function exportMobilizadosPDF(
+export async function exportMobilizadosPDF(
   vehicles: VehicleData[],
   selectedDate: Date,
   obraSettings?: ObraSettings | null
@@ -695,18 +697,19 @@ export function exportMobilizadosPDF(
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
 
-  renderNavyHeader(
-    doc,
-    obraSettings?.nome?.toUpperCase() || 'CONSÓRCIO AERO MARAGOGI',
-    'RELATÓRIO DE EQUIPAMENTOS MOBILIZADOS',
-    `${format(selectedDate, 'dd/MM/yyyy')} — Total: ${mobilized.length} equipamentos`
-  );
+  const logoBase64 = await getLogoBase64(obraSettings?.logo_url);
+  const startY = renderStandardHeader(doc, {
+    reportTitle: 'EQUIPAMENTOS MOBILIZADOS',
+    obraSettings,
+    logoBase64,
+    date: `${format(selectedDate, 'dd/MM/yyyy')} — Total: ${mobilized.length}`,
+  });
 
   // ─── Summary by Company ───
   doc.setTextColor(30, 41, 59);
   doc.setFontSize(11);
   doc.setFont('helvetica', 'bold');
-  doc.text('RESUMO POR EMPRESA', 14, 35);
+  doc.text('RESUMO POR EMPRESA', 14, startY);
 
   const companyMap = new Map<string, Map<string, VehicleData[]>>();
   mobilized.forEach(v => {
@@ -855,7 +858,7 @@ export function exportMobilizadosPDF(
 // DESMOBILIZADOS PDF - Equipment with status desmobilizado/inativo
 // ═══════════════════════════════════════════════════════════════════════
 
-export function exportDesmobilizadosPDF(
+export async function exportDesmobilizadosPDF(
   vehicles: VehicleData[],
   selectedDate: Date,
   obraSettings?: ObraSettings | null
@@ -866,25 +869,26 @@ export function exportDesmobilizadosPDF(
   });
 
   if (demobilized.length === 0) {
-    return false; // Signal no data
+    return false;
   }
 
   const doc = new jsPDF('landscape');
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
 
-  renderNavyHeader(
-    doc,
-    obraSettings?.nome?.toUpperCase() || 'CONSÓRCIO AERO MARAGOGI',
-    'RELATÓRIO DE EQUIPAMENTOS DESMOBILIZADOS',
-    `${format(selectedDate, 'dd/MM/yyyy')} — Total: ${demobilized.length} equipamentos`
-  );
+  const logoBase64 = await getLogoBase64(obraSettings?.logo_url);
+  const startY = renderStandardHeader(doc, {
+    reportTitle: 'EQUIPAMENTOS DESMOBILIZADOS',
+    obraSettings,
+    logoBase64,
+    date: `${format(selectedDate, 'dd/MM/yyyy')} — Total: ${demobilized.length}`,
+  });
 
   // ─── Summary by Company ───
   doc.setTextColor(30, 41, 59);
   doc.setFontSize(11);
   doc.setFont('helvetica', 'bold');
-  doc.text('RESUMO POR EMPRESA', 14, 35);
+  doc.text('RESUMO POR EMPRESA', 14, startY);
 
   const companyMap = new Map<string, Map<string, VehicleData[]>>();
   demobilized.forEach(v => {

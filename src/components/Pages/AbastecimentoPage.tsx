@@ -76,6 +76,7 @@ import { ptBR } from 'date-fns/locale';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
+import { renderStandardHeader, getLogoBase64 } from '@/lib/pdfHeader';
 import { toast } from 'sonner';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -1204,7 +1205,7 @@ export function AbastecimentoPage() {
   }, [resumoPorEmpresa]);
 
   // Export detailed PDF with filters - grouped by location (Tanques) WITH SIGNATURE
-  const exportDetailedPDF = useCallback(() => {
+  const exportDetailedPDF = useCallback(async () => {
     setIsExporting(true);
     
     try {
@@ -1213,6 +1214,9 @@ export function AbastecimentoPage() {
       const pageHeight = doc.internal.pageSize.getHeight();
       
       let currentY = 15;
+      
+      // Load logo once before loop
+      const logoBase64 = await getLogoBase64(obraSettings?.logo_url);
       
       // Iterate through each location (Tanque 01, Tanque 02, etc.)
       const locations = Object.keys(resumoPorLocal.recordsByLocal).sort();
@@ -1232,30 +1236,16 @@ export function AbastecimentoPage() {
           currentY = 15;
         }
         
-        // Header - Navy blue bar
-        doc.setFillColor(30, 41, 59);
-        doc.rect(0, 0, pageWidth, 18, 'F');
-        
-        // Header with obra name
-        doc.setFontSize(10);
-        doc.setFont('helvetica', 'normal');
-        doc.setTextColor(255, 255, 255);
-        const obraInfo = obraSettings?.nome || 'Sistema de Gestão de Frotas';
-        doc.text(obraInfo, 14, 12);
-        
-        // Title for this location
-        doc.setFontSize(14);
-        doc.setFont('helvetica', 'bold');
-        doc.text(local.toUpperCase(), pageWidth / 2, 12, { align: 'center' });
-        
-        // Date range on the right
-        doc.setFontSize(9);
-        doc.setFont('helvetica', 'normal');
-        const dateRangeText = `${format(dateRange.start, 'dd/MM/yyyy')} a ${format(dateRange.end, 'dd/MM/yyyy')}`;
-        doc.text(dateRangeText, pageWidth - 14, 12, { align: 'right' });
+        // Standard Header
+        const startY = renderStandardHeader(doc, {
+          reportTitle: `ABASTECIMENTO — ${local.toUpperCase()}`,
+          obraSettings,
+          logoBase64,
+          date: `${format(dateRange.start, 'dd/MM/yyyy')} a ${format(dateRange.end, 'dd/MM/yyyy')}`,
+        });
         
         doc.setTextColor(0, 0, 0);
-        currentY = 28;
+        currentY = startY;
         
         // Prepare table data with consumption calculation
         let totalDiesel = 0;
@@ -1393,7 +1383,7 @@ export function AbastecimentoPage() {
 
   // Export to PDF (simple) - same format as detailed, grouped by location WITH SIGNATURE
   // Now includes stock summary at top and separates exits/entries
-  const exportPDF = useCallback(() => {
+  const exportPDF = useCallback(async () => {
     setIsExporting(true);
     
     try {
@@ -1402,6 +1392,7 @@ export function AbastecimentoPage() {
       const pageHeight = doc.internal.pageSize.getHeight();
       
       let currentY = 15;
+      const logoBase64 = await getLogoBase64(obraSettings?.logo_url);
       
       // Iterate through each location (Tanque 01, Tanque 02, etc.)
       const locations = Object.keys(resumoPorLocal.recordsByLocal).sort();
@@ -1432,30 +1423,16 @@ export function AbastecimentoPage() {
           currentY = 15;
         }
         
-        // Header - Navy blue bar
-        doc.setFillColor(30, 41, 59);
-        doc.rect(0, 0, pageWidth, 18, 'F');
-        
-        // Header with obra name
-        doc.setFontSize(10);
-        doc.setFont('helvetica', 'normal');
-        doc.setTextColor(255, 255, 255);
-        const obraInfo = obraSettings?.nome || 'Sistema de Gestão de Frotas';
-        doc.text(obraInfo, 14, 12);
-        
-        // Title for this location
-        doc.setFontSize(14);
-        doc.setFont('helvetica', 'bold');
-        doc.text(local.toUpperCase(), pageWidth / 2, 12, { align: 'center' });
-        
-        // Date range on the right
-        doc.setFontSize(9);
-        doc.setFont('helvetica', 'normal');
-        const dateRangeText = `${format(dateRange.start, 'dd/MM/yyyy')} a ${format(dateRange.end, 'dd/MM/yyyy')}`;
-        doc.text(dateRangeText, pageWidth - 14, 12, { align: 'right' });
+        // Standard Header
+        const startY = renderStandardHeader(doc, {
+          reportTitle: `ABASTECIMENTO — ${local.toUpperCase()}`,
+          obraSettings,
+          logoBase64,
+          date: `${format(dateRange.start, 'dd/MM/yyyy')} a ${format(dateRange.end, 'dd/MM/yyyy')}`,
+        });
         
         doc.setTextColor(0, 0, 0);
-        currentY = 26;
+        currentY = startY;
         
         // ========== SAÍDAS TABLE ==========
         if (sortedSaidas.length > 0) {
@@ -1694,7 +1671,7 @@ export function AbastecimentoPage() {
   }, [resumoPorLocal, dateRange, obraSettings, getResponsibleForLocation]);
 
   // Export PDF by Company (Empresa) - unified table without category separation
-  const exportPDFPorEmpresa = useCallback(() => {
+  const exportPDFPorEmpresa = useCallback(async () => {
     setIsExporting(true);
     
     try {
@@ -1702,6 +1679,7 @@ export function AbastecimentoPage() {
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
       const empresas = Object.keys(resumoPorEmpresa).sort();
+      const logoBase64 = await getLogoBase64(obraSettings?.logo_url);
       
       empresas.forEach((empresa, empresaIndex) => {
         const empresaData = resumoPorEmpresa[empresa];
@@ -1737,29 +1715,16 @@ export function AbastecimentoPage() {
         
         let currentY = 20;
         
-        // Header - Navy blue bar
-        doc.setFillColor(30, 41, 59);
-        doc.rect(0, 0, pageWidth, 18, 'F');
-        
-        // Header with obra name and company
-        doc.setFontSize(10);
-        doc.setFont('helvetica', 'normal');
-        doc.setTextColor(255, 255, 255);
-        const obraInfo = obraSettings?.nome || 'Sistema de Gestão de Frotas';
-        doc.text(obraInfo, 14, 12);
-        
-        doc.setFontSize(14);
-        doc.setFont('helvetica', 'bold');
-        doc.text(`Relatório - ${empresa.toUpperCase()}`, pageWidth / 2, 12, { align: 'center' });
-        
-        // Date range on the right
-        doc.setFontSize(9);
-        doc.setFont('helvetica', 'normal');
-        const dateRangeText = `${format(dateRange.start, 'dd/MM/yyyy')} a ${format(dateRange.end, 'dd/MM/yyyy')}`;
-        doc.text(dateRangeText, pageWidth - 14, 12, { align: 'right' });
+        // Standard Header
+        const startY = renderStandardHeader(doc, {
+          reportTitle: `RELATÓRIO — ${empresa.toUpperCase()}`,
+          obraSettings,
+          logoBase64,
+          date: `${format(dateRange.start, 'dd/MM/yyyy')} a ${format(dateRange.end, 'dd/MM/yyyy')}`,
+        });
         
         doc.setTextColor(0, 0, 0);
-        currentY = 26;
+        currentY = startY;
         
         // Prepare table data with consumption calculation - unified table
         let totalDiesel = 0;
@@ -1921,31 +1886,24 @@ export function AbastecimentoPage() {
   }, [getStockDataFromSheet, estoqueCanteiro01Data, estoqueCanteiro02Data, estoqueComboio01Data, estoqueComboio02Data, estoqueComboio03Data, startDate]);
 
   // Export General PDF with Summary (Resumo Geral) - Format like the reference image
-  const exportPDFResumoGeral = useCallback(() => {
+  const exportPDFResumoGeral = useCallback(async () => {
     setIsExporting(true);
     
     try {
       const doc = new jsPDF('landscape');
       const pageWidth = doc.internal.pageSize.getWidth();
       const targetDate = format(new Date(), 'dd/MM/yyyy');
+      const logoBase64 = await getLogoBase64(obraSettings?.logo_url);
       
-      // Navy header bar
-      doc.setFillColor(30, 41, 59);
-      doc.rect(0, 0, pageWidth, 22, 'F');
-      
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(14);
-      doc.setFont('helvetica', 'bold');
-      const headerTitle = obraSettings?.nome ? `${obraSettings.nome} - RESUMO GERAL` : 'RESUMO GERAL DE ESTOQUES';
-      doc.text(headerTitle.toUpperCase(), pageWidth / 2, 10, { align: 'center' });
-      
-      doc.setFontSize(9);
-      doc.setFont('helvetica', 'normal');
-      const subTitle = obraSettings?.cidade ? `${obraSettings.cidade} | ${targetDate}` : targetDate;
-      doc.text(subTitle, pageWidth / 2, 18, { align: 'center' });
+      const startY = renderStandardHeader(doc, {
+        reportTitle: 'RESUMO GERAL DE ESTOQUES',
+        obraSettings,
+        logoBase64,
+        date: targetDate,
+      });
       
       doc.setTextColor(0, 0, 0);
-      let currentY = 30;
+      let currentY = startY;
       
       // Collect stock data for all locations
       const canteiro01 = getStockDataFromSheet(estoqueCanteiro01Data, targetDate);
@@ -2711,30 +2669,28 @@ export function AbastecimentoPage() {
           const totalQuantidade = entradasData.entries.reduce((sum, row) => sum + parseNumber(row['QUANTIDADE']), 0);
           const totalValor = entradasData.entries.reduce((sum, row) => sum + parseNumber(row['VALOR TOTAL']), 0);
 
-          const exportEntradasPDF = () => {
+          const exportEntradasPDF = async () => {
             try {
               const doc = new jsPDF('landscape');
               const pageWidth = doc.internal.pageSize.getWidth();
+              const logoBase64 = await getLogoBase64(obraSettings?.logo_url);
+              const periodLabel = startDate && endDate
+                ? `${format(startDate, 'dd/MM/yyyy')} a ${format(endDate, 'dd/MM/yyyy')}`
+                : startDate ? `A partir de ${format(startDate, 'dd/MM/yyyy')}` : endDate ? `Até ${format(endDate!, 'dd/MM/yyyy')}` : format(new Date(), 'dd/MM/yyyy');
               
-              doc.setFontSize(14);
-              doc.setFont('helvetica', 'bold');
-              const title = obraSettings?.nome ? `${obraSettings.nome} - ENTRADAS DE COMBUSTÍVEL` : 'ENTRADAS DE COMBUSTÍVEL';
-              doc.text(title.toUpperCase(), pageWidth / 2, 12, { align: 'center' });
-              
-              if (startDate || endDate) {
-                doc.setFontSize(9);
-                doc.setFont('helvetica', 'normal');
-                const periodLabel = startDate && endDate
-                  ? `Período: ${format(startDate, 'dd/MM/yyyy')} a ${format(endDate, 'dd/MM/yyyy')}`
-                  : startDate ? `A partir de: ${format(startDate, 'dd/MM/yyyy')}` : `Até: ${format(endDate!, 'dd/MM/yyyy')}`;
-                doc.text(periodLabel, pageWidth / 2, 18, { align: 'center' });
-              }
+              const startY = renderStandardHeader(doc, {
+                reportTitle: 'ENTRADAS DE COMBUSTÍVEL',
+                obraSettings,
+                logoBase64,
+                date: periodLabel,
+              });
 
+              doc.setTextColor(0, 0, 0);
               doc.setFontSize(10);
               doc.setFont('helvetica', 'bold');
-              doc.text(`Total de Entradas: ${totalEntradas}`, 14, 26);
-              doc.text(`Quantidade Total: ${totalQuantidade.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} L`, 14, 32);
-              doc.text(`Valor Total: R$ ${totalValor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 14, 38);
+              doc.text(`Total de Entradas: ${totalEntradas}`, 14, startY);
+              doc.text(`Quantidade Total: ${totalQuantidade.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} L`, 14, startY + 6);
+              doc.text(`Valor Total: R$ ${totalValor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 14, startY + 12);
 
               const tableRows = entradasData.entries.map(row => {
                 const qtd = parseNumber(row['QUANTIDADE']);
@@ -2753,7 +2709,7 @@ export function AbastecimentoPage() {
               });
 
               autoTable(doc, {
-                startY: 44,
+                startY: startY + 18,
                 head: [['Data', 'Hora', 'Fornecedor', 'Local', 'Quantidade (L)', 'NF', 'Valor Unit.', 'Valor Total']],
                 body: tableRows,
                 theme: 'grid',

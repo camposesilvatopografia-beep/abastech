@@ -27,6 +27,7 @@ import { cn } from '@/lib/utils';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { useObraSettings } from '@/hooks/useObraSettings';
+import { renderStandardHeader, getLogoBase64 } from '@/lib/pdfHeader';
 
 interface GeneralFuelingReportProps {
   data: {
@@ -218,11 +219,12 @@ export function GeneralFuelingReport({ data, refetch, loading }: GeneralFuelingR
     });
   };
 
-  const exportPDF = () => {
+  const exportPDF = async () => {
     const doc = new jsPDF('landscape');
     const pw = doc.internal.pageSize.getWidth();
-    const ph = doc.internal.pageSize.getHeight();
     let isFirstPage = true;
+
+    const logoBase64 = await getLogoBase64(settings?.logo_url);
 
     const allGroups = [
       ...locationGroups.tanques,
@@ -234,29 +236,21 @@ export function GeneralFuelingReport({ data, refetch, loading }: GeneralFuelingR
       if (!isFirstPage) doc.addPage();
       isFirstPage = false;
 
-      // Header
-      doc.setFillColor(30, 41, 59);
-      doc.rect(0, 0, pw, 24, 'F');
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(13);
-      doc.setFont('helvetica', 'bold');
-      doc.text(`RELATÓRIO GERAL DE ABASTECIMENTO — ${location.toUpperCase()}`, pw / 2, 10, { align: 'center' });
-      if (settings?.nome) {
-        doc.setFontSize(8);
-        doc.setFont('helvetica', 'normal');
-        doc.text(`${settings.nome}${settings.cidade ? ` - ${settings.cidade}` : ''}`, pw / 2, 17, { align: 'center' });
-      }
-      if (dateRange.start && dateRange.end) {
-        doc.setFontSize(7);
-        doc.text(`Período: ${format(dateRange.start, 'dd/MM/yyyy')} a ${format(dateRange.end, 'dd/MM/yyyy')}`, pw / 2, 22, { align: 'center' });
-      }
+      const startY = renderStandardHeader(doc, {
+        reportTitle: `RELATÓRIO GERAL — ${location.toUpperCase()}`,
+        obraSettings: settings,
+        logoBase64,
+        date: dateRange.start && dateRange.end
+          ? `${format(dateRange.start, 'dd/MM/yyyy')} a ${format(dateRange.end, 'dd/MM/yyyy')}`
+          : format(new Date(), 'dd/MM/yyyy'),
+      });
 
       doc.setTextColor(60, 60, 60);
       doc.setFontSize(9);
-      doc.text(`${groupData.records.length} registros | Total: ${formatBR(groupData.totalLiters, 0)} L`, 14, 32);
+      doc.text(`${groupData.records.length} registros | Total: ${formatBR(groupData.totalLiters, 0)} L`, 14, startY);
 
       autoTable(doc, {
-        startY: 38,
+        startY: startY + 6,
         head: [['Data', 'Hora', 'Veículo', 'Motorista', 'Empresa', 'Qtd (L)', 'Hor/Km Ant.', 'Hor/Km Atual', 'Intervalo', 'Consumo']],
         body: groupData.records
           .sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime())
