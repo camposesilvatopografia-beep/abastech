@@ -1,4 +1,4 @@
-import { useState, useMemo, Fragment } from 'react';
+import { useState, useMemo, useEffect, Fragment } from 'react';
 import { format, isValid, isWithinInterval, startOfDay, endOfDay, subDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
@@ -13,6 +13,8 @@ import {
   Download,
   RefreshCw,
   Search,
+  X,
+  FileText,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -27,6 +29,13 @@ import {
 } from '@/components/ui/table';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -111,6 +120,7 @@ export function VehicleConsumptionDetailTab({ data, refetch, loading }: VehicleC
   const [endDate, setEndDate] = useState<Date | undefined>(new Date());
   const [expandedVehicles, setExpandedVehicles] = useState<Set<string>>(new Set());
   const [sortBy, setSortBy] = useState<'code' | 'consumption' | 'liters'>('code');
+  const [selectedVehicle, setSelectedVehicle] = useState<string>('all');
 
   const dateRange = useMemo(() => {
     const today = new Date();
@@ -187,6 +197,9 @@ export function VehicleConsumptionDetailTab({ data, refetch, loading }: VehicleC
 
   const filteredSummaries = useMemo(() => {
     let result = vehicleSummaries;
+    if (selectedVehicle && selectedVehicle !== 'all') {
+      result = result.filter(v => v.vehicleCode === selectedVehicle);
+    }
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       result = result.filter(v =>
@@ -200,7 +213,21 @@ export function VehicleConsumptionDetailTab({ data, refetch, loading }: VehicleC
       return a.vehicleCode.localeCompare(b.vehicleCode);
     });
     return result;
-  }, [vehicleSummaries, searchTerm, sortBy]);
+  }, [vehicleSummaries, searchTerm, sortBy, selectedVehicle]);
+
+  // Auto-expand when a specific vehicle is selected
+  useEffect(() => {
+    if (selectedVehicle && selectedVehicle !== 'all') {
+      setExpandedVehicles(new Set([selectedVehicle]));
+    }
+  }, [selectedVehicle]);
+
+  // Available vehicles for dropdown
+  const vehicleOptions = useMemo(() => {
+    return vehicleSummaries
+      .map(v => ({ code: v.vehicleCode, label: `${v.vehicleCode} - ${v.vehicleDescription || 'Sem descrição'}` }))
+      .sort((a, b) => a.code.localeCompare(b.code));
+  }, [vehicleSummaries]);
 
   // Compute global average per type for divergence detection
   const globalAvg = useMemo(() => {
@@ -250,6 +277,55 @@ export function VehicleConsumptionDetailTab({ data, refetch, loading }: VehicleC
       next.has(code) ? next.delete(code) : next.add(code);
       return next;
     });
+  };
+
+  const exportVehiclePDF = (v: VehicleSummary) => {
+    const doc = new jsPDF('landscape');
+    const pw = doc.internal.pageSize.getWidth();
+    doc.setFillColor(30, 41, 59);
+    doc.rect(0, 0, pw, 28, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`HISTÓRICO DE CONSUMO - ${v.vehicleCode}`, pw / 2, 10, { align: 'center' });
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(v.vehicleDescription || '', pw / 2, 17, { align: 'center' });
+    if (settings?.nome) {
+      doc.setFontSize(8);
+      doc.text(`${settings.nome}${settings.cidade ? ` - ${settings.cidade}` : ''}`, pw / 2, 23, { align: 'center' });
+    }
+
+    doc.setTextColor(60, 60, 60);
+    doc.setFontSize(9);
+    const periodText = dateRange.start && dateRange.end
+      ? `Período: ${format(dateRange.start, 'dd/MM/yyyy')} a ${format(dateRange.end, 'dd/MM/yyyy')}`
+      : 'Todos os registros';
+    doc.text(periodText, 14, 36);
+    doc.text(`Total: ${formatBR(v.totalLiters)} L | ${v.recordCount} abast. | Consumo Médio: ${formatBR(v.avgConsumption)} ${v.consumptionUnit}`, 14, 42);
+    doc.text(`${v.isEquipment ? 'Total Horas' : 'Total Km'}: ${v.isEquipment ? formatBR(v.totalHours) + ' h' : formatBR(v.totalKm, 0) + ' km'}`, 14, 48);
+
+    const headers = v.isEquipment
+      ? [['Data', 'Hora', 'Litros', 'Hor. Ant.', 'Hor. Atual', 'Δ Horas', 'L/h', 'Local']]
+      : [['Data', 'Hora', 'Litros', 'Km Ant.', 'Km Atual', 'Δ Km', 'km/L', 'Local']];
+
+    autoTable(doc, {
+      startY: 54,
+      head: headers,
+      body: v.records.map(r => [
+        r.date, r.time, formatBR(r.fuelQuantity),
+        v.isEquipment ? formatBR(r.horimeterPrevious) : formatBR(r.kmPrevious, 0),
+        v.isEquipment ? formatBR(r.horimeterCurrent) : formatBR(r.kmCurrent, 0),
+        v.isEquipment ? (r.horimeterInterval > 0 ? formatBR(r.horimeterInterval) : '-') : (r.kmInterval > 0 ? formatBR(r.kmInterval, 0) : '-'),
+        r.consumption > 0 ? formatBR(r.consumption) : '-',
+        r.location || '-',
+      ]),
+      theme: 'grid',
+      headStyles: { fillColor: [30, 41, 59], fontSize: 8 },
+      styles: { fontSize: 7 },
+      columnStyles: { 2: { halign: 'right' }, 3: { halign: 'right' }, 4: { halign: 'right' }, 5: { halign: 'right' }, 6: { halign: 'right' } },
+    });
+    doc.save(`consumo-${v.vehicleCode}-${format(new Date(), 'yyyy-MM-dd')}.pdf`);
   };
 
   const exportToPDF = () => {
@@ -394,6 +470,31 @@ export function VehicleConsumptionDetailTab({ data, refetch, loading }: VehicleC
 
         <div className="h-6 w-px bg-border hidden sm:block" />
 
+        {/* Vehicle filter dropdown */}
+        <div className="flex items-center gap-1">
+          <Truck className="h-3.5 w-3.5 text-muted-foreground" />
+          <Select value={selectedVehicle} onValueChange={setSelectedVehicle}>
+            <SelectTrigger className="h-8 w-48 text-xs bg-background border-border z-50">
+              <SelectValue placeholder="Todos os veículos" />
+            </SelectTrigger>
+            <SelectContent className="bg-popover border-border z-[9999] max-h-60">
+              <SelectItem value="all" className="text-xs">Todos os veículos</SelectItem>
+              {vehicleOptions.map(opt => (
+                <SelectItem key={opt.code} value={opt.code} className="text-xs">
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {selectedVehicle !== 'all' && (
+            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => setSelectedVehicle('all')}>
+              <X className="h-3.5 w-3.5" />
+            </Button>
+          )}
+        </div>
+
+        <div className="h-6 w-px bg-border hidden sm:block" />
+
         <div className="flex gap-1">
           <span className="text-xs text-muted-foreground self-center mr-1">Ordenar:</span>
           {([['code', 'Código'], ['liters', 'Litros'], ['consumption', 'Consumo']] as const).map(([key, label]) => (
@@ -421,10 +522,18 @@ export function VehicleConsumptionDetailTab({ data, refetch, loading }: VehicleC
           />
         </div>
 
-        <Button variant="outline" size="sm" className="h-8 text-xs gap-1" onClick={exportToPDF}>
-          <Download className="h-3.5 w-3.5" />
-          PDF
-        </Button>
+        {/* PDF export: single vehicle or all */}
+        {selectedVehicle !== 'all' && filteredSummaries.length === 1 ? (
+          <Button variant="outline" size="sm" className="h-8 text-xs gap-1" onClick={() => exportVehiclePDF(filteredSummaries[0])}>
+            <FileText className="h-3.5 w-3.5" />
+            PDF Veículo
+          </Button>
+        ) : (
+          <Button variant="outline" size="sm" className="h-8 text-xs gap-1" onClick={exportToPDF}>
+            <Download className="h-3.5 w-3.5" />
+            PDF
+          </Button>
+        )}
         <Button variant="outline" size="sm" className="h-8 text-xs gap-1" onClick={() => refetch()} disabled={loading}>
           <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
         </Button>
