@@ -2245,7 +2245,7 @@ export function AbastecimentoPage() {
         </div>
 
         {/* Metric Cards - Responsive Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           <MetricCard
             title="REGISTROS NO PERÍODO"
             value={additionalMetrics.registros.toString()}
@@ -2462,8 +2462,8 @@ export function AbastecimentoPage() {
 
         {activeTab === 'detalhamento' && (
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold">Detalhamento de Abastecimentos</h2>
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <h2 className="text-lg font-semibold bg-primary/10 px-4 py-2 rounded-lg">Detalhamento de Abastecimentos</h2>
               <div className="flex items-center gap-2">
                 {canCreateRecords && (
                   <Button size="sm" onClick={() => openAdminModal('normal')} className="gap-2 bg-green-600 hover:bg-green-700">
@@ -2481,31 +2481,30 @@ export function AbastecimentoPage() {
             <div className="bg-card rounded-lg border border-border overflow-hidden">
               <Table>
                 <TableHeader>
-                  <TableRow className="bg-muted/50">
-                    <TableHead>Data</TableHead>
-                    <TableHead>Hora</TableHead>
-                    <TableHead>Veículo</TableHead>
-                    <TableHead>Motorista</TableHead>
-                    <TableHead>Combustível</TableHead>
-                    <TableHead className="text-right">Quantidade</TableHead>
-                    <TableHead className="text-right">Hor/Km Anterior</TableHead>
-                    <TableHead className="text-right">Hor/Km Atual</TableHead>
-                    <TableHead className="text-right">Consumo</TableHead>
-                    <TableHead>Local</TableHead>
-                    {canCreateRecords && <TableHead className="w-20 text-center">Ações</TableHead>}
+                  <TableRow className="bg-primary/10">
+                    <TableHead className="font-semibold text-primary">Data</TableHead>
+                    <TableHead className="font-semibold text-primary">Hora</TableHead>
+                    <TableHead className="font-semibold text-primary">Veículo</TableHead>
+                    <TableHead className="font-semibold text-primary">Motorista</TableHead>
+                    <TableHead className="text-right font-semibold text-primary">Quantidade</TableHead>
+                    <TableHead className="text-right font-semibold text-primary">Hor/Km Anterior</TableHead>
+                    <TableHead className="text-right font-semibold text-primary">Hor/Km Atual</TableHead>
+                    <TableHead className="text-right font-semibold text-primary">Consumo</TableHead>
+                    <TableHead className="font-semibold text-primary">Local</TableHead>
+                    {canCreateRecords && <TableHead className="w-20 text-center font-semibold text-primary">Ações</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {loading ? (
                     <TableRow>
-                      <TableCell colSpan={canCreateRecords ? 11 : 10} className="text-center py-8">
+                      <TableCell colSpan={canCreateRecords ? 10 : 9} className="text-center py-8">
                         <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-muted-foreground" />
                         Carregando dados...
                       </TableCell>
                     </TableRow>
                   ) : filteredRows.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={canCreateRecords ? 11 : 10} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={canCreateRecords ? 10 : 9} className="text-center py-8 text-muted-foreground">
                         Nenhum registro encontrado
                       </TableCell>
                     </TableRow>
@@ -2516,9 +2515,6 @@ export function AbastecimentoPage() {
                         <TableCell>{row['HORA']}</TableCell>
                         <TableCell className="font-medium">{row['VEICULO']}</TableCell>
                         <TableCell>{row['MOTORISTA']}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline">{row['TIPO DE COMBUSTIVEL']}</Badge>
-                        </TableCell>
                         <TableCell className="text-right font-medium">
                           {parseNumber(row['QUANTIDADE']).toLocaleString('pt-BR')} L
                         </TableCell>
@@ -2759,10 +2755,10 @@ export function AbastecimentoPage() {
           return (
             <div className="space-y-4">
               <div className="flex items-center justify-between flex-wrap gap-2">
-                <div className="flex items-center gap-2">
+                <h2 className="text-lg font-semibold bg-primary/10 px-4 py-2 rounded-lg flex items-center gap-2">
                   <TrendingUp className="w-5 h-5 text-success" />
-                  <h2 className="text-lg font-semibold">Entradas de Combustível</h2>
-                </div>
+                  Entradas de Combustível
+                </h2>
                 <Button size="sm" variant="outline" className="gap-1" onClick={exportEntradasPDF}>
                   <FileSpreadsheet className="w-4 h-4" />
                   Exportar PDF
@@ -2796,15 +2792,15 @@ export function AbastecimentoPage() {
                 <div className="bg-card rounded-lg border border-border overflow-hidden">
                   <Table>
                     <TableHeader>
-                      <TableRow className="bg-muted/50">
-                        <TableHead>Data</TableHead>
-                        <TableHead>Hora</TableHead>
-                        <TableHead>Fornecedor</TableHead>
-                        <TableHead>Local</TableHead>
-                        <TableHead className="text-right">Quantidade (L)</TableHead>
-                        <TableHead>NF</TableHead>
-                        <TableHead className="text-right">Valor Unit.</TableHead>
-                        <TableHead className="text-right">Valor Total</TableHead>
+                      <TableRow className="bg-primary/10">
+                        <TableHead className="font-semibold text-primary">Data</TableHead>
+                        <TableHead className="font-semibold text-primary">Hora</TableHead>
+                        <TableHead className="font-semibold text-primary">Fornecedor</TableHead>
+                        <TableHead className="font-semibold text-primary">Local</TableHead>
+                        <TableHead className="text-right font-semibold text-primary">Quantidade (L)</TableHead>
+                        <TableHead className="font-semibold text-primary">NF</TableHead>
+                        <TableHead className="text-right font-semibold text-primary">Valor Unit.</TableHead>
+                        <TableHead className="text-right font-semibold text-primary">Valor Total</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
