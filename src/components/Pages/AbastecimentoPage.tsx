@@ -494,9 +494,21 @@ export function AbastecimentoPage() {
           formattedDate = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
         }
         
-        let query = supabase.from('field_fuel_records').delete().eq('vehicle_code', vehicleCode).eq('record_date', formattedDate);
+        // Find matching DB record to also delete related requests
+        let query = supabase.from('field_fuel_records').select('id').eq('vehicle_code', vehicleCode).eq('record_date', formattedDate);
         if (recordTime) query = query.eq('record_time', recordTime);
-        const { error: dbError } = await query;
+        const { data: matchingRecords } = await query;
+        
+        if (matchingRecords && matchingRecords.length > 0) {
+          // Delete related requests first
+          for (const rec of matchingRecords) {
+            await supabase.from('field_record_requests').delete().eq('record_id', rec.id);
+          }
+        }
+        
+        let deleteQuery = supabase.from('field_fuel_records').delete().eq('vehicle_code', vehicleCode).eq('record_date', formattedDate);
+        if (recordTime) deleteQuery = deleteQuery.eq('record_time', recordTime);
+        const { error: dbError } = await deleteQuery;
         if (dbError) console.warn('Aviso: Planilha excluída, mas falha ao remover do banco:', dbError);
       }
       

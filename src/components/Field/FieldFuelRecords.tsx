@@ -145,8 +145,8 @@ export function FieldFuelRecords({ user, onBack }: FieldFuelRecordsProps) {
         const dateBR = recordDate.toLocaleDateString('pt-BR');
         const timeShort = deletingRecord.record_time?.substring(0, 5) || '';
         const recordVehicle = deletingRecord.vehicle_code.toUpperCase().replace(/\s/g, '');
+        const recordQty = deletingRecord.fuel_quantity;
         
-        // Try all possible sheet names where records could exist
         const sheetsToSearch = ['AbastecimentoCanteiro01'];
         
         let deleted = false;
@@ -162,13 +162,14 @@ export function FieldFuelRecords({ user, onBack }: FieldFuelRecordsProps) {
                 const rowDate = String(row['DATA'] || row['Data'] || '').trim();
                 const rowTime = String(row['HORA'] || row['Hora'] || '').trim();
                 const rowVehicle = String(row['CODIGO'] || row['Codigo'] || row['Código'] || row['VEICULO'] || row['Veiculo'] || row['Veículo'] || '').toUpperCase().replace(/\s/g, '');
+                const rowQty = parseFloat(String(row['QUANTIDADE'] || row['Quantidade'] || '0').replace(/\./g, '').replace(',', '.'));
                 
-                // Match by date + time + vehicle code
                 const dateMatch = rowDate === dateBR;
-                const timeMatch = rowTime === timeShort;
+                const timeMatch = rowTime === timeShort || !timeShort;
                 const vehicleMatch = rowVehicle === recordVehicle || rowVehicle.includes(recordVehicle) || recordVehicle.includes(rowVehicle);
+                const qtyMatch = Math.abs(rowQty - recordQty) < 0.5;
                 
-                return dateMatch && timeMatch && vehicleMatch;
+                return dateMatch && vehicleMatch && (timeMatch || qtyMatch);
               });
               
               if (matchIdx >= 0) {
@@ -190,6 +191,13 @@ export function FieldFuelRecords({ user, onBack }: FieldFuelRecordsProps) {
         }
       } catch (sheetErr) {
         console.error('Sheet delete error (continuing with DB delete):', sheetErr);
+      }
+
+      // Also delete related requests
+      try {
+        await supabase.from('field_record_requests').delete().eq('record_id', deletingRecord.id);
+      } catch (reqErr) {
+        console.warn('Could not delete related requests:', reqErr);
       }
 
       const { error } = await supabase
