@@ -82,6 +82,7 @@ import { MaintenanceRankingTab } from '@/components/Maintenance/MaintenanceRanki
 import { MaintenanceDuplicatesTab } from '@/components/Maintenance/MaintenanceDuplicatesTab';
 import { OSPhotoUpload } from '@/components/Maintenance/OSPhotoUpload';
 import { useObraSettings } from '@/hooks/useObraSettings';
+import { useRealtimeSync } from '@/hooks/useRealtimeSync';
 
 const ORDEM_SERVICO_SHEET = 'Ordem_Servico';
 
@@ -314,7 +315,15 @@ export function ManutencaoPage() {
     fetchMechanics();
   }, []);
 
-  // Real-time subscription for service orders
+  // Real-time subscription for service orders (broadcast + postgres changes)
+  const { broadcast } = useRealtimeSync({
+    onSyncEvent: (event) => {
+      if (['service_order_updated'].includes(event.type)) {
+        fetchOrders();
+      }
+    },
+  });
+
   useEffect(() => {
     const channel = supabase
       .channel('service-orders-changes')
@@ -327,7 +336,7 @@ export function ManutencaoPage() {
         },
         (payload) => {
           console.log('Real-time update:', payload);
-          fetchOrders(); // Refetch on any change
+          fetchOrders();
         }
       )
       .subscribe();
@@ -1234,6 +1243,7 @@ export function ManutencaoPage() {
       }
 
       setIsModalOpen(false);
+      broadcast('service_order_updated');
       fetchOrders();
     } catch (err) {
       console.error('Error saving order:', err);
@@ -1259,6 +1269,7 @@ export function ManutencaoPage() {
       syncOrderDeleteFromSheet(order.vehicle_code, (order as any).entry_date || order.order_date);
       
       toast.success('Ordem de serviço excluída!');
+      broadcast('service_order_updated');
       fetchOrders();
     } catch (err) {
       console.error('Error deleting order:', err);
@@ -1353,6 +1364,7 @@ export function ManutencaoPage() {
       if (error) throw error;
       
       toast.success(`Status alterado para ${status}!`);
+      broadcast('service_order_updated');
       fetchOrders();
       
       // If preventive OS is finalized, schedule next maintenance in calendar

@@ -305,7 +305,7 @@ export function AbastecimentoPage() {
   }, [refetch, refetchGeral, refetchComboio01, refetchComboio02, refetchComboio03, refetchCanteiro01, refetchCanteiro02]);
 
   // Subscribe to Supabase realtime changes - auto-refresh when field sends data
-  useRealtimeSync({
+  const { broadcast } = useRealtimeSync({
     onSyncEvent: (event) => {
       console.log('[Abastecimento] Received sync event:', event.type);
       if (['fuel_record_created', 'fuel_record_updated', 'fuel_record_deleted', 'stock_updated'].includes(event.type)) {
@@ -449,6 +449,7 @@ export function AbastecimentoPage() {
       toast.success('Registro atualizado com sucesso!');
       setExpandedRowId(null);
       setInlineEditData(null);
+      broadcast('fuel_record_updated', { vehicleCode });
       refetch();
     } catch (err) {
       console.error('Error updating record:', err);
@@ -499,6 +500,7 @@ export function AbastecimentoPage() {
       toast.success('Registro excluído com sucesso!');
       setShowDeleteConfirm(false);
       setDeletingRecord(null);
+      broadcast('fuel_record_deleted', { vehicleCode });
       refetch();
     } catch (err) {
       console.error('Error deleting record:', err);
