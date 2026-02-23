@@ -68,18 +68,46 @@ import { useRealtimeSync } from '@/hooks/useRealtimeSync';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
-export type AdminPresetMode = 'normal' | 'comboio' | 'tanque_diesel' | 'tanque_arla';
+export type AdminPresetMode = 'normal' | 'comboio' | 'tanque_diesel' | 'tanque_arla' | 'location';
 
 interface AdminFuelRecordModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess?: () => void;
   presetMode?: AdminPresetMode;
+  presetLocation?: string;
 }
 
 type QuickEntryMode = 'normal' | 'arla_only' | 'lubrication_only' | 'filter_blow_only' | 'oil_only';
 
-export function AdminFuelRecordModal({ open, onOpenChange, onSuccess, presetMode = 'normal' }: AdminFuelRecordModalProps) {
+// Determine form behavior based on location
+function getLocationConfig(loc: string): { 
+  allowedTypes: ('saida' | 'entrada')[];
+  defaultType: 'saida' | 'entrada';
+  label: string;
+  locationField: string;
+} {
+  const l = loc.toLowerCase();
+  if (l.includes('comboio')) {
+    return { 
+      allowedTypes: ['saida', 'entrada'], 
+      defaultType: 'saida', 
+      label: loc,
+      locationField: loc,
+    };
+  }
+  if (l.includes('tanque') || l.includes('canteiro')) {
+    return { 
+      allowedTypes: ['saida'], 
+      defaultType: 'saida', 
+      label: loc,
+      locationField: loc,
+    };
+  }
+  return { allowedTypes: ['saida', 'entrada'], defaultType: 'saida', label: loc, locationField: loc };
+}
+
+export function AdminFuelRecordModal({ open, onOpenChange, onSuccess, presetMode = 'normal', presetLocation }: AdminFuelRecordModalProps) {
   const { data: vehiclesData } = useSheetData('Veiculo');
   const [isSaving, setIsSaving] = useState(false);
   const { broadcast } = useRealtimeSync();
@@ -261,9 +289,16 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess, presetMode
         setRecordType('entrada');
         setFuelType('Arla');
         setEntryLocation('Tanque Canteiro 01');
+      } else if (presetMode === 'location' && presetLocation) {
+        const config = getLocationConfig(presetLocation);
+        setRecordType(config.defaultType);
+        setLocation(config.locationField);
+        if (config.defaultType === 'entrada') {
+          setEntryLocation(config.locationField);
+        }
       }
     }
-  }, [open, presetMode]);
+  }, [open, presetMode, presetLocation]);
 
   const resetForm = () => {
     setQuickEntryMode('normal');
@@ -304,9 +339,13 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess, presetMode
       case 'comboio': return 'Carregar Comboio';
       case 'tanque_diesel': return 'Carregar Tanque de Diesel';
       case 'tanque_arla': return 'Carregar Tanque de Arla';
+      case 'location': return `Lançamento — ${presetLocation || 'Local'}`;
       default: return 'Novo Apontamento (Admin)';
     }
   };
+
+  // Location mode config
+  const locationConfig = presetMode === 'location' && presetLocation ? getLocationConfig(presetLocation) : null;
 
   // Transform vehicles for combobox
   const vehicleOptions = useMemo(() => {
@@ -779,11 +818,20 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess, presetMode
             </div>
           </div>
 
-          {/* Record Type - hidden when using preset modes */}
-          {presetMode === 'normal' && (
+          {/* Record Type - shown for normal and location modes */}
+          {(presetMode === 'normal' || presetMode === 'location') && (
           <div className="space-y-2">
+            {presetMode === 'location' && locationConfig && (
+              <div className="flex items-center gap-2 p-2.5 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg mb-2">
+                <MapPin className="h-4 w-4 text-blue-600" />
+                <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                  Operando como: <strong>{locationConfig.label}</strong>
+                </span>
+              </div>
+            )}
             <Label>Tipo de Registro</Label>
             <div className="flex gap-2">
+              {(!locationConfig || locationConfig.allowedTypes.includes('saida')) && (
               <Button
                 type="button"
                 variant={recordType === 'saida' ? 'default' : 'outline'}
@@ -795,6 +843,8 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess, presetMode
               >
                 Saída
               </Button>
+              )}
+              {(!locationConfig || locationConfig.allowedTypes.includes('entrada')) && (
               <Button
                 type="button"
                 variant={recordType === 'entrada' ? 'default' : 'outline'}
@@ -806,6 +856,7 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess, presetMode
               >
                 Entrada
               </Button>
+              )}
             </div>
           </div>
           )}
@@ -1247,8 +1298,8 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess, presetMode
                     <MapPin className="h-4 w-4" />
                     Local
                   </Label>
-                  <Select value={location} onValueChange={setLocation}>
-                    <SelectTrigger>
+                  <Select value={location} onValueChange={setLocation} disabled={presetMode === 'location'}>
+                    <SelectTrigger className={cn(presetMode === 'location' && "opacity-70")}>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
