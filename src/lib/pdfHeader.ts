@@ -116,18 +116,18 @@ export function renderStandardHeader(
   doc.setFont('helvetica', 'normal');
   doc.text(date, pw - 14, 10, { align: 'right' });
 
-  // Report title BELOW the header bar - more evident
+  // Report title BELOW the header bar - centered and evident
   const titleY = headerHeight + 8;
   doc.setTextColor(30, 41, 59);
   doc.setFontSize(13);
   doc.setFont('helvetica', 'bold');
-  doc.text(reportTitle.toUpperCase(), 14, titleY);
+  doc.text(reportTitle.toUpperCase(), pw / 2, titleY, { align: 'center' });
 
-  // Underline below title
+  // Underline below title (centered)
   const titleWidth = doc.getTextWidth(reportTitle.toUpperCase());
   doc.setDrawColor(30, 41, 59);
   doc.setLineWidth(0.5);
-  doc.line(14, titleY + 1.5, 14 + titleWidth, titleY + 1.5);
+  doc.line((pw - titleWidth) / 2, titleY + 1.5, (pw + titleWidth) / 2, titleY + 1.5);
 
   return titleY + 8;
 }
