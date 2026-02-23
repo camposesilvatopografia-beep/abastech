@@ -1326,24 +1326,40 @@ export function AbastecimentoPage() {
         
         autoTable(doc, {
           startY: startY + 6,
-          head: [['Data', 'Hora', 'Veículo', 'Motorista', 'Empresa', 'Qtd (L)', 'Hor/Km Ant.', 'Hor/Km Atual', 'Intervalo', 'Consumo']],
+          head: [['Data', 'Hora', 'Veículo', 'Motorista', 'Empresa', 'Qtd (L)', 'Hor/Km\nAnt.', 'Hor/Km\nAtual', 'Intervalo\n(h/km)', 'Consumo\n(L/h ou km/L)']],
           body,
           theme: 'grid',
-          headStyles: { fillColor: [30, 41, 59], fontSize: 9, halign: 'center', cellPadding: 3 },
-          styles: { fontSize: 8.5, cellPadding: 2.5 },
+          styles: {
+            fontSize: 9,
+            cellPadding: 3,
+            lineColor: [200, 200, 210],
+            lineWidth: 0.25,
+            overflow: 'linebreak',
+            halign: 'center',
+            valign: 'middle',
+          },
+          headStyles: {
+            fillColor: [153, 27, 27],
+            textColor: [255, 255, 255],
+            fontStyle: 'bold',
+            fontSize: 9,
+            halign: 'center',
+            valign: 'middle',
+            minCellHeight: 11,
+          },
           columnStyles: {
             0: { cellWidth: 22 },
             1: { cellWidth: 14 },
-            2: { cellWidth: 22 },
-            3: { cellWidth: 'auto' },
+            2: { cellWidth: 24 },
+            3: { cellWidth: 'auto', overflow: 'linebreak' },
             4: { cellWidth: 28 },
-            5: { halign: 'right', cellWidth: 18 },
-            6: { halign: 'right', cellWidth: 24 },
-            7: { halign: 'right', cellWidth: 24 },
-            8: { halign: 'right', cellWidth: 22 },
-            9: { halign: 'right', cellWidth: 24 },
+            5: { cellWidth: 20, halign: 'center', fontStyle: 'bold' },
+            6: { cellWidth: 24, halign: 'center' },
+            7: { cellWidth: 24, halign: 'center' },
+            8: { cellWidth: 24, halign: 'center' },
+            9: { cellWidth: 26, halign: 'center' },
           },
-          alternateRowStyles: { fillColor: [245, 247, 250] },
+          alternateRowStyles: { fillColor: [254, 242, 242] },
           margin: { left: 10, right: 10 },
         });
       });
@@ -1469,52 +1485,55 @@ export function AbastecimentoPage() {
           autoTable(doc, {
             startY: currentY,
             head: [[
-              '', 
+              '#', 
               'Código', 
               'Descrição', 
               'Motorista/Operador', 
               'Hor/Km\nAnterior', 
               'Hor/Km\nAtual', 
               'Intervalo\n(h/km)', 
-              'Consumo', 
-              'Qtd Diesel'
+              'Consumo\n(L/h ou km/L)', 
+              'Qtd Diesel\n(Litros)'
             ]],
             body: saidasTableData,
-            styles: { 
+            theme: 'grid',
+            styles: {
               fontSize: 9,
               cellPadding: 3,
-            },
-            headStyles: { 
-              fillColor: [180, 50, 50],
-              textColor: [255, 255, 255],
-              fontStyle: 'bold',
+              lineColor: [200, 200, 210],
+              lineWidth: 0.25,
+              overflow: 'linebreak',
               halign: 'center',
               valign: 'middle',
+            },
+            headStyles: {
+              fillColor: [153, 27, 27],
+              textColor: [255, 255, 255],
+              fontStyle: 'bold',
               fontSize: 9,
-              cellPadding: 3,
+              halign: 'center',
+              valign: 'middle',
+              minCellHeight: 11,
             },
             columnStyles: {
-              0: { cellWidth: 10, halign: 'center' },
-              1: { cellWidth: 25 },
-              2: { cellWidth: 'auto' },
-              3: { cellWidth: 'auto' },
-              4: { cellWidth: 26, halign: 'right' },
-              5: { cellWidth: 28, halign: 'right' },
-              6: { cellWidth: 28, halign: 'right' },
-              7: { cellWidth: 24, halign: 'right' },
-              8: { cellWidth: 24, halign: 'right' },
+              0: { cellWidth: 12, halign: 'center' },
+              1: { cellWidth: 28, halign: 'center' },
+              2: { cellWidth: 58, halign: 'center', overflow: 'linebreak' },
+              3: { cellWidth: 52, halign: 'center', overflow: 'linebreak' },
+              4: { cellWidth: 28, halign: 'center' },
+              5: { cellWidth: 28, halign: 'center' },
+              6: { cellWidth: 25, halign: 'center' },
+              7: { cellWidth: 25, halign: 'center' },
+              8: { cellWidth: 21, halign: 'center', fontStyle: 'bold' },
             },
-            alternateRowStyles: {
-              fillColor: [255, 245, 245]
-            },
+            alternateRowStyles: { fillColor: [254, 242, 242] },
+            margin: { left: 10, right: 10 },
             didParseCell: (data) => {
               if (data.row.index === saidasTableData.length - 1) {
                 data.cell.styles.fontStyle = 'bold';
                 data.cell.styles.fillColor = [230, 220, 220];
               }
             },
-            theme: 'grid',
-            margin: { left: 10, right: 10 },
           });
           
           currentY = (doc as any).lastAutoTable?.finalY + 10 || currentY + 50;
@@ -1585,34 +1604,41 @@ export function AbastecimentoPage() {
           
           autoTable(doc, {
             startY: currentY,
-            head: [['', 'Data', thirdColumnHeader, 'Quantidade']],
+            head: [['#', 'Data', thirdColumnHeader, 'Quantidade\n(Litros)']],
             body: entradasTableData,
-            styles: { 
+            theme: 'grid',
+            styles: {
               fontSize: 9,
               cellPadding: 3,
+              lineColor: [200, 200, 210],
+              lineWidth: 0.25,
+              overflow: 'linebreak',
+              halign: 'center',
+              valign: 'middle',
             },
-            headStyles: { 
-              fillColor: [34, 139, 34],
+            headStyles: {
+              fillColor: [22, 101, 52],
               textColor: [255, 255, 255],
               fontStyle: 'bold',
+              fontSize: 9,
               halign: 'center',
+              valign: 'middle',
+              minCellHeight: 11,
             },
             columnStyles: {
               0: { cellWidth: 15, halign: 'center' },
-              1: { cellWidth: 30 },
-              2: { cellWidth: 80 },
-              3: { cellWidth: 40, halign: 'right' },
+              1: { cellWidth: 30, halign: 'center' },
+              2: { cellWidth: 80, halign: 'center', overflow: 'linebreak' },
+              3: { cellWidth: 40, halign: 'center', fontStyle: 'bold' },
             },
-            alternateRowStyles: {
-              fillColor: [245, 255, 245]
-            },
+            alternateRowStyles: { fillColor: [240, 253, 244] },
+            margin: { left: 10, right: 10 },
             didParseCell: (data) => {
               if (data.row.index === entradasTableData.length - 1) {
                 data.cell.styles.fontStyle = 'bold';
-                data.cell.styles.fillColor = [220, 240, 220];
+                data.cell.styles.fillColor = [200, 235, 210];
               }
             },
-            theme: 'grid',
           });
           
           currentY = (doc as any).lastAutoTable?.finalY + 10 || currentY + 50;
@@ -1760,44 +1786,49 @@ export function AbastecimentoPage() {
         autoTable(doc, {
           startY: currentY,
           head: [[
-            '', 
-            'Veículo', 
+            '#', 
+            'Código', 
             'Descrição', 
             'Motorista/Operador', 
-            'Hor./Km.\nAnterior', 
-            'Hor./Km.\nAtual', 
+            'Hor/Km\nAnterior', 
+            'Hor/Km\nAtual', 
             'Intervalo\n(h/km)', 
-            'Consumo', 
-            'Qtd.\nDiesel'
+            'Consumo\n(L/h ou km/L)', 
+            'Qtd Diesel\n(Litros)'
           ]],
           body: tableData,
-          styles: { 
-            fontSize: 8,
-            cellPadding: 2,
-          },
-          headStyles: { 
-            fillColor: [30, 41, 59],
-            textColor: [255, 255, 255],
-            fontStyle: 'bold',
+          theme: 'grid',
+          styles: {
+            fontSize: 9,
+            cellPadding: 3,
+            lineColor: [200, 200, 210],
+            lineWidth: 0.25,
+            overflow: 'linebreak',
             halign: 'center',
             valign: 'middle',
           },
+          headStyles: {
+            fillColor: [153, 27, 27],
+            textColor: [255, 255, 255],
+            fontStyle: 'bold',
+            fontSize: 9,
+            halign: 'center',
+            valign: 'middle',
+            minCellHeight: 11,
+          },
           columnStyles: {
             0: { cellWidth: 12, halign: 'center' },
-            1: { cellWidth: 28 },
-            2: { cellWidth: 42 },
-            3: { cellWidth: 48 },
-            4: { cellWidth: 26, halign: 'right' },
-            5: { cellWidth: 26, halign: 'right' },
-            6: { cellWidth: 24, halign: 'right' },
-            7: { cellWidth: 22, halign: 'right' },
-            8: { cellWidth: 20, halign: 'right' },
+            1: { cellWidth: 28, halign: 'center' },
+            2: { cellWidth: 58, halign: 'center', overflow: 'linebreak' },
+            3: { cellWidth: 52, halign: 'center', overflow: 'linebreak' },
+            4: { cellWidth: 28, halign: 'center' },
+            5: { cellWidth: 28, halign: 'center' },
+            6: { cellWidth: 25, halign: 'center' },
+            7: { cellWidth: 25, halign: 'center' },
+            8: { cellWidth: 21, halign: 'center', fontStyle: 'bold' },
           },
-          alternateRowStyles: {
-            fillColor: [250, 250, 250]
-          },
-          theme: 'grid',
-          margin: { left: 14, right: 14 },
+          alternateRowStyles: { fillColor: [254, 242, 242] },
+          margin: { left: 10, right: 10 },
           didParseCell: (data) => {
             // Style the totals row (last row)
             if (data.row.index === tableData.length - 1) {
