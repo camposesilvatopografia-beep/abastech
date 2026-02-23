@@ -3228,7 +3228,7 @@ export function AbastecimentoPage() {
                     <label className="text-xs text-muted-foreground">Quantidade (L)</label>
                     <Input
                       type="text"
-                      value={String(editingRecord['QUANTIDADE'] || '')}
+                      value={String(editingRecord['QUANTIDADE'] ?? '')}
                       onChange={(e) => setEditingRecord({
                         ...editingRecord,
                         'QUANTIDADE': e.target.value
@@ -3240,7 +3240,7 @@ export function AbastecimentoPage() {
                     <label className="text-xs text-muted-foreground">Horímetro Anterior</label>
                     <Input
                       type="text"
-                      value={String(editingRecord['HORIMETRO ANTERIOR'] || '')}
+                      value={String(editingRecord['HORIMETRO ANTERIOR'] ?? '')}
                       onChange={(e) => setEditingRecord({
                         ...editingRecord,
                         'HORIMETRO ANTERIOR': e.target.value
@@ -3252,7 +3252,7 @@ export function AbastecimentoPage() {
                     <label className="text-xs text-muted-foreground">Horímetro Atual</label>
                     <Input
                       type="text"
-                      value={String(editingRecord['HORIMETRO ATUAL'] || '')}
+                      value={String(editingRecord['HORIMETRO ATUAL'] ?? '')}
                       onChange={(e) => setEditingRecord({
                         ...editingRecord,
                         'HORIMETRO ATUAL': e.target.value
@@ -3264,7 +3264,7 @@ export function AbastecimentoPage() {
                     <label className="text-xs text-muted-foreground">Motorista</label>
                     <Input
                       type="text"
-                      value={String(editingRecord['MOTORISTA'] || '')}
+                      value={String(editingRecord['MOTORISTA'] ?? '')}
                       onChange={(e) => setEditingRecord({
                         ...editingRecord,
                         'MOTORISTA': e.target.value
@@ -3276,7 +3276,7 @@ export function AbastecimentoPage() {
                     <label className="text-xs text-muted-foreground">KM Anterior</label>
                     <Input
                       type="text"
-                      value={String(editingRecord['KM ANTERIOR'] || '')}
+                      value={String(editingRecord['KM ANTERIOR'] ?? '')}
                       onChange={(e) => setEditingRecord({
                         ...editingRecord,
                         'KM ANTERIOR': e.target.value
@@ -3288,7 +3288,7 @@ export function AbastecimentoPage() {
                     <label className="text-xs text-muted-foreground">KM Atual</label>
                     <Input
                       type="text"
-                      value={String(editingRecord['KM ATUAL'] || '')}
+                      value={String(editingRecord['KM ATUAL'] ?? '')}
                       onChange={(e) => setEditingRecord({
                         ...editingRecord,
                         'KM ATUAL': e.target.value
@@ -3300,7 +3300,7 @@ export function AbastecimentoPage() {
                     <label className="text-xs text-muted-foreground">Quantidade ARLA</label>
                     <Input
                       type="text"
-                      value={String(editingRecord['QUANTIDADE DE ARLA'] || '')}
+                      value={String(editingRecord['QUANTIDADE DE ARLA'] ?? '')}
                       onChange={(e) => setEditingRecord({
                         ...editingRecord,
                         'QUANTIDADE DE ARLA': e.target.value
@@ -3311,7 +3311,7 @@ export function AbastecimentoPage() {
                   <div className="space-y-2">
                     <label className="text-xs text-muted-foreground">Local</label>
                     <Select
-                      value={String(editingRecord['LOCAL'] || '')}
+                      value={String(editingRecord['LOCAL'] ?? '')}
                       onValueChange={(value) => setEditingRecord({
                         ...editingRecord,
                         'LOCAL': value
