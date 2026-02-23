@@ -3,6 +3,7 @@ import autoTable from 'jspdf-autotable';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import * as XLSX from 'xlsx';
+import { getLogoBase64, renderStandardHeader } from '@/lib/pdfHeader';
 
 // ─── Types ─────────────────────────────────────────────────────────────
 
@@ -13,6 +14,7 @@ interface FuelRecord {
 interface ObraSettings {
   nome?: string;
   cidade?: string;
+  logo_url?: string | null;
 }
 
 export interface StockSummary {
@@ -105,34 +107,16 @@ const FUEL_COL_STYLES: Record<number, any> = {
   8: { cellWidth: 21, halign: 'center', fontStyle: 'bold' },
 };
 
-// ─── Header ────────────────────────────────────────────────────────────
+// ─── Header (uses standard header with logo) ──────────────────────────
 
-function renderHeader(doc: jsPDF, title: string, selectedDate: Date, obraSettings?: ObraSettings | null): number {
-  const pageWidth = doc.internal.pageSize.getWidth();
-
-  // Navy gradient header
-  doc.setFillColor(15, 23, 42);
-  doc.rect(0, 0, pageWidth, 28, 'F');
-
-  // Accent line
-  doc.setFillColor(59, 130, 246);
-  doc.rect(0, 28, pageWidth, 1.5, 'F');
-
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(13);
-  doc.setFont('helvetica', 'bold');
-  doc.text(obraSettings?.nome?.toUpperCase() || 'CONSÓRCIO AERO MARAGOGI', pageWidth / 2, 10, { align: 'center' });
-
-  doc.setFontSize(10);
-  doc.text(title, pageWidth / 2, 17, { align: 'center' });
-
-  doc.setFontSize(8);
-  doc.setFont('helvetica', 'normal');
+function renderHeader(doc: jsPDF, title: string, selectedDate: Date, obraSettings?: ObraSettings | null, logoBase64?: string | null): number {
   const dateStr = format(selectedDate, "dd 'de' MMMM 'de' yyyy", { locale: ptBR });
-  const cityStr = obraSettings?.cidade ? `${obraSettings.cidade} — ${dateStr}` : dateStr;
-  doc.text(cityStr, pageWidth / 2, 24, { align: 'center' });
-
-  return 35; // Y position after header
+  return renderStandardHeader(doc, {
+    reportTitle: title,
+    obraSettings: obraSettings ? { nome: obraSettings.nome, cidade: obraSettings.cidade, logo_url: obraSettings.logo_url } : undefined,
+    logoBase64,
+    date: dateStr,
+  });
 }
 
 // ─── Fuel Data Tables ──────────────────────────────────────────────────
@@ -413,8 +397,9 @@ function renderTanquesPage(
   selectedDate: Date,
   obraSettings?: ObraSettings | null,
   sortByDescription?: boolean,
+  logoBase64?: string | null,
 ) {
-  let currentY = renderHeader(doc, 'RELATÓRIO GERAL DOS TANQUES', selectedDate, obraSettings);
+  let currentY = renderHeader(doc, 'RELATÓRIO GERAL DOS TANQUES', selectedDate, obraSettings, logoBase64);
   const pageHeight = doc.internal.pageSize.getHeight();
 
   // Separate Saídas and Entradas
@@ -446,8 +431,9 @@ function renderComboiosPage(
   selectedDate: Date,
   obraSettings?: ObraSettings | null,
   sortByDescription?: boolean,
+  logoBase64?: string | null,
 ) {
-  let currentY = renderHeader(doc, 'RELATÓRIO GERAL DOS COMBOIOS', selectedDate, obraSettings);
+  let currentY = renderHeader(doc, 'RELATÓRIO GERAL DOS COMBOIOS', selectedDate, obraSettings, logoBase64);
   const pageHeight = doc.internal.pageSize.getHeight();
 
   // Separate Saídas and Entradas
@@ -473,7 +459,7 @@ function renderComboiosPage(
 // ═══════════════════════════════════════════════════════════════════════
 
 /** PDF: Relatório dos Tanques — with stock summary */
-export function exportTanquesPDF(
+export async function exportTanquesPDF(
   rows: FuelRecord[],
   selectedDate: Date,
   stockData: TanquesComboiosStockData,
@@ -481,14 +467,15 @@ export function exportTanquesPDF(
   sortByDescription?: boolean
 ) {
   const doc = new jsPDF('landscape');
+  const logoBase64 = await getLogoBase64(obraSettings?.logo_url);
   const tanqueRecords = filterByType(rows, 'tanque');
-  renderTanquesPage(doc, tanqueRecords, stockData, selectedDate, obraSettings, sortByDescription);
+  renderTanquesPage(doc, tanqueRecords, stockData, selectedDate, obraSettings, sortByDescription, logoBase64);
   addPageFooters(doc);
   doc.save(`Relatorio_Tanques_${format(selectedDate, 'dd-MM-yyyy')}.pdf`);
 }
 
 /** PDF: Relatório dos Comboios — with stock summary */
-export function exportComboiosPDF(
+export async function exportComboiosPDF(
   rows: FuelRecord[],
   selectedDate: Date,
   stockData: TanquesComboiosStockData,
@@ -496,14 +483,15 @@ export function exportComboiosPDF(
   sortByDescription?: boolean
 ) {
   const doc = new jsPDF('landscape');
+  const logoBase64 = await getLogoBase64(obraSettings?.logo_url);
   const comboioRecords = filterByType(rows, 'comboio');
-  renderComboiosPage(doc, comboioRecords, stockData, selectedDate, obraSettings, sortByDescription);
+  renderComboiosPage(doc, comboioRecords, stockData, selectedDate, obraSettings, sortByDescription, logoBase64);
   addPageFooters(doc);
   doc.save(`Relatorio_Comboios_${format(selectedDate, 'dd-MM-yyyy')}.pdf`);
 }
 
 /** PDF: Tanques + Comboios — Combined report */
-export function exportTanquesComboiosPDF(
+export async function exportTanquesComboiosPDF(
   rows: FuelRecord[],
   selectedDate: Date,
   stockData: TanquesComboiosStockData,
@@ -511,14 +499,15 @@ export function exportTanquesComboiosPDF(
   sortByDescription?: boolean
 ) {
   const doc = new jsPDF('landscape');
+  const logoBase64 = await getLogoBase64(obraSettings?.logo_url);
 
   const tanqueRecords = filterByType(rows, 'tanque');
   const comboioRecords = filterByType(rows, 'comboio');
 
-  renderTanquesPage(doc, tanqueRecords, stockData, selectedDate, obraSettings, sortByDescription);
+  renderTanquesPage(doc, tanqueRecords, stockData, selectedDate, obraSettings, sortByDescription, logoBase64);
 
   doc.addPage();
-  renderComboiosPage(doc, comboioRecords, stockData, selectedDate, obraSettings, sortByDescription);
+  renderComboiosPage(doc, comboioRecords, stockData, selectedDate, obraSettings, sortByDescription, logoBase64);
 
   addPageFooters(doc);
   doc.save(`Tanques_Comboios_${format(selectedDate, 'dd-MM-yyyy')}.pdf`);
