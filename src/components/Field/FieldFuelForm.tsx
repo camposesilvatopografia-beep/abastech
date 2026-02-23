@@ -576,6 +576,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
       }
     };
     reader.readAsDataURL(file);
+    if (e.target) e.target.value = '';
   };
 
   const removePhoto = (type: 'pump' | 'horimeter' | 'invoice') => {
@@ -2706,18 +2707,24 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
               <Label className="text-sm text-rose-600 dark:text-rose-400">Foto Bomba</Label>
               <div className="relative">
                 <input
+                  ref={photoPumpInputRef}
                   type="file"
                   accept="image/*"
                   capture="environment"
                   onChange={(e) => {
                     const file = e.target.files?.[0];
                     if (file) setPhotoPump(file);
+                    if (e.target) e.target.value = '';
                   }}
                   className="hidden"
-                  id="photo-pump"
                 />
-                <label
-                  htmlFor="photo-pump"
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    photoPumpInputRef.current?.click();
+                  }}
                   className={cn(
                     "flex flex-col items-center justify-center w-full h-24 rounded-xl border-2 border-dashed cursor-pointer transition-all",
                     photoPump
@@ -2736,11 +2743,15 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                       <span className="text-xs text-muted-foreground">Tirar foto</span>
                     </div>
                   )}
-                </label>
+                </button>
                 {photoPump && (
                   <button
                     type="button"
-                    onClick={() => setPhotoPump(null)}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setPhotoPump(null);
+                    }}
                     className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center shadow-md"
                   >
                     <X className="w-4 h-4" />
@@ -2755,18 +2766,24 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                 <Label className="text-sm text-rose-600 dark:text-rose-400">{isVehicleCategory ? 'Foto KM' : 'Foto Horímetro'}</Label>
                 <div className="relative">
                   <input
+                    ref={photoHorimeterInputRef}
                     type="file"
                     accept="image/*"
                     capture="environment"
                     onChange={(e) => {
                       const file = e.target.files?.[0];
                       if (file) setPhotoHorimeter(file);
+                      if (e.target) e.target.value = '';
                     }}
                     className="hidden"
-                    id="photo-horimeter"
                   />
-                  <label
-                    htmlFor="photo-horimeter"
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      photoHorimeterInputRef.current?.click();
+                    }}
                     className={cn(
                       "flex flex-col items-center justify-center w-full h-24 rounded-xl border-2 border-dashed cursor-pointer transition-all",
                       photoHorimeter
@@ -2785,11 +2802,15 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                         <span className="text-xs text-muted-foreground">Tirar foto</span>
                       </div>
                     )}
-                  </label>
+                  </button>
                   {photoHorimeter && (
                     <button
                       type="button"
-                      onClick={() => setPhotoHorimeter(null)}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setPhotoHorimeter(null);
+                      }}
                       className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center shadow-md"
                     >
                       <X className="w-4 h-4" />
