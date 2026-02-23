@@ -2486,22 +2486,23 @@ export function AbastecimentoPage() {
                     <TableHead>Motorista</TableHead>
                     <TableHead>Combustível</TableHead>
                     <TableHead className="text-right">Quantidade</TableHead>
+                    <TableHead className="text-right">Hor/Km Anterior</TableHead>
+                    <TableHead className="text-right">Hor/Km Atual</TableHead>
                     <TableHead>Local</TableHead>
-                    
                     {canCreateRecords && <TableHead className="w-20 text-center">Ações</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {loading ? (
                     <TableRow>
-                      <TableCell colSpan={canCreateRecords ? 8 : 7} className="text-center py-8">
+                      <TableCell colSpan={canCreateRecords ? 10 : 9} className="text-center py-8">
                         <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-muted-foreground" />
                         Carregando dados...
                       </TableCell>
                     </TableRow>
                   ) : filteredRows.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={canCreateRecords ? 8 : 7} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={canCreateRecords ? 10 : 9} className="text-center py-8 text-muted-foreground">
                         Nenhum registro encontrado
                       </TableCell>
                     </TableRow>
@@ -2518,6 +2519,30 @@ export function AbastecimentoPage() {
                         <TableCell className="text-right font-medium">
                           {parseNumber(row['QUANTIDADE']).toLocaleString('pt-BR')} L
                         </TableCell>
+                        {(() => {
+                          const cat = String(row['CATEGORIA'] || row['Categoria'] || '').toLowerCase();
+                          const isEquip = cat.includes('equipamento') || cat.includes('máquina') || cat.includes('maquina') ||
+                            cat.includes('escavadeira') || cat.includes('retro') || cat.includes('pá carregadeira') ||
+                            cat.includes('pa carregadeira') || cat.includes('trator') || cat.includes('rolo') ||
+                            cat.includes('motoniveladora') || cat.includes('gerador');
+                          const anterior = isEquip
+                            ? parseNumber(row['HORIMETRO ANTERIOR'] || row['HOR_ANTERIOR'] || 0)
+                            : parseNumber(row['KM ANTERIOR'] || row['KM_ANTERIOR'] || 0);
+                          const atual = isEquip
+                            ? parseNumber(row['HORIMETRO ATUAL'] || row['HOR_ATUAL'] || 0)
+                            : parseNumber(row['KM ATUAL'] || row['KM_ATUAL'] || 0);
+                          const suffix = isEquip ? 'h' : ' km';
+                          return (
+                            <>
+                              <TableCell className="text-right">
+                                {anterior > 0 ? `${anterior.toLocaleString('pt-BR')}${suffix}` : '-'}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                {atual > 0 ? `${atual.toLocaleString('pt-BR')}${suffix}` : '-'}
+                              </TableCell>
+                            </>
+                          );
+                        })()}
                         <TableCell>{row['LOCAL']}</TableCell>
                         {canCreateRecords && (
                           <TableCell className="text-center">
