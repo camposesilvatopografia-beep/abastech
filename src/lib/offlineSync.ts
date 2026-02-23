@@ -319,7 +319,7 @@ async function syncFuelRecord(record: OfflineRecord) {
     location: data.location || null,
     observations: data.observations || null,
     user_id: record.userId,
-    synced_to_sheet: false,
+    synced_to_sheet: true, // Insert as synced to prevent FieldPage race condition
     category: data.category || null,
     company: data.company || null,
     oil_type: data.oil_type || null,
@@ -336,15 +336,6 @@ async function syncFuelRecord(record: OfflineRecord) {
   }).select('id').single();
 
   if (error) throw error;
-
-  // Mark as synced optimistically BEFORE sheet call (prevents FieldPage from re-syncing)
-  if (savedRecord?.id) {
-    await supabase
-      .from('field_fuel_records')
-      .update({ synced_to_sheet: true })
-      .eq('id', savedRecord.id)
-      .eq('synced_to_sheet', false);
-  }
 
   // Sync to Google Sheets
   try {

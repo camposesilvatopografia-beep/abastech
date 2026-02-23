@@ -1710,7 +1710,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         photo_horimeter_url: photoHorimeterUrl,
         record_date: now.toISOString().split('T')[0],
         record_time: recordTime,
-        synced_to_sheet: false,
+        synced_to_sheet: true, // Insert as synced when online to prevent FieldPage re-sync race
         // Equipment fields
         oil_type: oilType || null,
         oil_quantity: oilQuantity ?? null,
@@ -1774,16 +1774,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
 
       if (error) throw error;
 
-      // Mark as synced optimistically BEFORE calling sheet (prevents FieldPage from re-syncing)
-      if (savedRecord) {
-        await supabase
-          .from('field_fuel_records')
-          .update({ synced_to_sheet: true })
-          .eq('id', savedRecord.id)
-          .eq('synced_to_sheet', false);
-      }
-
-      // Sync to Google Sheets
+      // Sync to Google Sheets (record already inserted with synced_to_sheet=true)
       toast.info('Sincronizando com planilha...');
       const syncSuccess = await syncToGoogleSheets({
         date: recordDate,
