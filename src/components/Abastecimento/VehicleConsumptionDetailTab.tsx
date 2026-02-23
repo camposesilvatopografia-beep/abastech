@@ -155,12 +155,13 @@ export function VehicleConsumptionDetailTab({ data, refetch, loading }: VehicleC
       const kmPrevious = parseNumber(row['KM ANTERIOR']);
       const kmCurrent = parseNumber(row['KM ATUAL']);
       const fuelQuantity = parseNumber(row['QUANTIDADE']);
-      const horimeterInterval = horimeterCurrent > horimeterPrevious ? horimeterCurrent - horimeterPrevious : 0;
-      const kmInterval = kmCurrent > kmPrevious ? kmCurrent - kmPrevious : 0;
+      // Only compute interval if both previous and current are > 0 (avoid inflated values when previous is missing)
+      const horimeterInterval = (horimeterPrevious > 0 && horimeterCurrent > horimeterPrevious) ? horimeterCurrent - horimeterPrevious : 0;
+      const kmInterval = (kmPrevious > 0 && kmCurrent > kmPrevious) ? kmCurrent - kmPrevious : 0;
 
       let consumption = 0;
-      if (isEquipment && horimeterInterval > 0) consumption = fuelQuantity / horimeterInterval;
-      else if (!isEquipment && fuelQuantity > 0) consumption = kmInterval / fuelQuantity;
+      if (isEquipment && horimeterInterval > 0 && fuelQuantity > 0) consumption = fuelQuantity / horimeterInterval;
+      else if (!isEquipment && kmInterval > 0 && fuelQuantity > 0) consumption = kmInterval / fuelQuantity;
 
       const record: VehicleRecord = {
         date: dateStr, time: String(row['HORA'] || ''), dateObj, fuelQuantity,
@@ -187,8 +188,14 @@ export function VehicleConsumptionDetailTab({ data, refetch, loading }: VehicleC
     });
 
     vehicleMap.forEach(s => {
-      if (s.isEquipment) s.avgConsumption = s.totalHours > 0 ? s.totalLiters / s.totalHours : 0;
-      else s.avgConsumption = s.totalLiters > 0 ? s.totalKm / s.totalLiters : 0;
+      // Calculate average only from records with valid intervals
+      const validRecords = s.records.filter(r => r.consumption > 0);
+      if (validRecords.length > 0) {
+        const sumConsumption = validRecords.reduce((acc, r) => acc + r.consumption, 0);
+        s.avgConsumption = sumConsumption / validRecords.length;
+      } else {
+        s.avgConsumption = 0;
+      }
       s.records.sort((a, b) => b.dateObj.getTime() - a.dateObj.getTime());
     });
 
