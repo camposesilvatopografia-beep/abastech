@@ -1322,7 +1322,7 @@ export function FrotaPage() {
                   size="sm"
                   className="w-full gap-2"
                   variant="outline"
-                  onClick={() => {
+                  onClick={async () => {
                     const allVehicles = filteredRows.map(row => ({
                       codigo: getRowValue(row as any, ['CODIGO', 'Codigo', 'codigo', 'VEICULO', 'Veiculo', 'veiculo']),
                       descricao: getRowValue(row as any, ['DESCRICAO', 'DESCRIÇÃO', 'Descricao', 'descrição', 'descricao']),
@@ -1330,7 +1330,7 @@ export function FrotaPage() {
                       categoria: getRowValue(row as any, ['CATEGORIA', 'Categoria', 'categoria', 'TIPO', 'Tipo', 'tipo']),
                       status: getRowValue(row as any, ['STATUS', 'Status', 'status']) || 'ativo',
                     }));
-                    exportMobilizacaoPDF(allVehicles, selectedDate, obraSettings);
+                    await exportMobilizacaoPDF(allVehicles, selectedDate, obraSettings);
                     toast.success('PDF de Mobilização gerado!');
                   }}
                 >
@@ -1376,7 +1376,7 @@ export function FrotaPage() {
                   size="sm"
                   className="w-full gap-2"
                   variant="outline"
-                  onClick={() => {
+                  onClick={async () => {
                     const allVehicles = filteredRows.map(row => ({
                       codigo: getRowValue(row as any, ['CODIGO', 'Codigo', 'codigo', 'VEICULO', 'Veiculo', 'veiculo']),
                       descricao: getRowValue(row as any, ['DESCRICAO', 'DESCRIÇÃO', 'Descricao', 'descrição', 'descricao']),
@@ -1384,7 +1384,7 @@ export function FrotaPage() {
                       categoria: getRowValue(row as any, ['CATEGORIA', 'Categoria', 'categoria', 'TIPO', 'Tipo', 'tipo']),
                       status: getRowValue(row as any, ['STATUS', 'Status', 'status']) || 'ativo',
                     }));
-                    exportMobilizadosPDF(allVehicles, selectedDate, obraSettings);
+                    await exportMobilizadosPDF(allVehicles, selectedDate, obraSettings);
                     toast.success('PDF de Mobilizados gerado!');
                   }}
                 >
@@ -1408,7 +1408,7 @@ export function FrotaPage() {
                   size="sm"
                   className="w-full gap-2"
                   variant="outline"
-                  onClick={() => {
+                  onClick={async () => {
                     const allVehicles = filteredRows.map(row => ({
                       codigo: getRowValue(row as any, ['CODIGO', 'Codigo', 'codigo', 'VEICULO', 'Veiculo', 'veiculo']),
                       descricao: getRowValue(row as any, ['DESCRICAO', 'DESCRIÇÃO', 'Descricao', 'descrição', 'descricao']),
@@ -1416,7 +1416,7 @@ export function FrotaPage() {
                       categoria: getRowValue(row as any, ['CATEGORIA', 'Categoria', 'categoria', 'TIPO', 'Tipo', 'tipo']),
                       status: getRowValue(row as any, ['STATUS', 'Status', 'status']) || 'ativo',
                     }));
-                    const result = exportDesmobilizadosPDF(allVehicles, selectedDate, obraSettings);
+                    const result = await exportDesmobilizadosPDF(allVehicles, selectedDate, obraSettings);
                     if (result === false) {
                       toast.info('Nenhum equipamento desmobilizado encontrado.');
                     } else {

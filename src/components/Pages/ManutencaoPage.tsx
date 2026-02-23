@@ -71,6 +71,7 @@ import { ptBR } from 'date-fns/locale';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
+import { renderStandardHeader, getLogoBase64 } from '@/lib/pdfHeader';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { supabase } from '@/integrations/supabase/client';
@@ -1913,27 +1914,18 @@ export function ManutencaoPage() {
   };
 
   // Export list to PDF
-  const exportListToPDF = () => {
+  const exportListToPDF = async () => {
     const doc = new jsPDF('landscape');
     const pageWidth = doc.internal.pageSize.getWidth();
+    const logoBase64 = await getLogoBase64(obraSettings?.logo_url);
     
-    // Navy header bar (matching system theme)
-    doc.setFillColor(30, 41, 59);
-    doc.rect(0, 0, pageWidth, 25, 'F');
+    const startY = renderStandardHeader(doc, {
+      reportTitle: 'ORDENS DE SERVIÇO',
+      obraSettings,
+      logoBase64,
+    });
     
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(255, 255, 255);
-    const headerTitle = obraSettings?.nome ? `${obraSettings.nome} - ORDENS DE SERVIÇO` : 'RELATÓRIO DE ORDENS DE SERVIÇO';
-    doc.text(headerTitle.toUpperCase(), pageWidth / 2, 12, { align: 'center' });
-    
-    if (obraSettings?.cidade) {
-      doc.setFontSize(9);
-      doc.setFont('helvetica', 'normal');
-      doc.text(obraSettings.cidade, pageWidth / 2, 20, { align: 'center' });
-    }
-    
-    let y = 35;
+    let y = startY;
     
     // Filters info
     doc.setFontSize(10);

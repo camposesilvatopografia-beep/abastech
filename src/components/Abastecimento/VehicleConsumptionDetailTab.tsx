@@ -40,6 +40,7 @@ import { cn } from '@/lib/utils';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { useObraSettings } from '@/hooks/useObraSettings';
+import { renderStandardHeader, getLogoBase64 } from '@/lib/pdfHeader';
 
 interface VehicleConsumptionDetailTabProps {
   data: {
@@ -286,38 +287,31 @@ export function VehicleConsumptionDetailTab({ data, refetch, loading }: VehicleC
     });
   };
 
-  const exportVehiclePDF = (v: VehicleSummary) => {
+  const exportVehiclePDF = async (v: VehicleSummary) => {
     const doc = new jsPDF('landscape');
-    const pw = doc.internal.pageSize.getWidth();
-    doc.setFillColor(30, 41, 59);
-    doc.rect(0, 0, pw, 28, 'F');
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.text(`HISTÓRICO DE CONSUMO - ${v.vehicleCode}`, pw / 2, 10, { align: 'center' });
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    doc.text(v.vehicleDescription || '', pw / 2, 17, { align: 'center' });
-    if (settings?.nome) {
-      doc.setFontSize(8);
-      doc.text(`${settings.nome}${settings.cidade ? ` - ${settings.cidade}` : ''}`, pw / 2, 23, { align: 'center' });
-    }
+    const logoBase64 = await getLogoBase64(settings?.logo_url);
+    const periodText = dateRange.start && dateRange.end
+      ? `${format(dateRange.start, 'dd/MM/yyyy')} a ${format(dateRange.end, 'dd/MM/yyyy')}`
+      : format(new Date(), 'dd/MM/yyyy');
+
+    const startY = renderStandardHeader(doc, {
+      reportTitle: `HISTÓRICO DE CONSUMO — ${v.vehicleCode}`,
+      obraSettings: settings,
+      logoBase64,
+      date: periodText,
+    });
 
     doc.setTextColor(60, 60, 60);
     doc.setFontSize(9);
-    const periodText = dateRange.start && dateRange.end
-      ? `Período: ${format(dateRange.start, 'dd/MM/yyyy')} a ${format(dateRange.end, 'dd/MM/yyyy')}`
-      : 'Todos os registros';
-    doc.text(periodText, 14, 36);
-    doc.text(`Total: ${formatBR(v.totalLiters)} L | ${v.recordCount} abast. | Consumo Médio: ${formatBR(v.avgConsumption)} ${v.consumptionUnit}`, 14, 42);
-    doc.text(`${v.isEquipment ? 'Total Horas' : 'Total Km'}: ${v.isEquipment ? formatBR(v.totalHours) + ' h' : formatBR(v.totalKm, 0) + ' km'}`, 14, 48);
+    doc.text(`${v.vehicleDescription || ''} | Total: ${formatBR(v.totalLiters)} L | ${v.recordCount} abast. | Consumo Médio: ${formatBR(v.avgConsumption)} ${v.consumptionUnit}`, 14, startY);
+    doc.text(`${v.isEquipment ? 'Total Horas' : 'Total Km'}: ${v.isEquipment ? formatBR(v.totalHours) + ' h' : formatBR(v.totalKm, 0) + ' km'}`, 14, startY + 5);
 
     const headers = v.isEquipment
       ? [['Data', 'Hora', 'Litros', 'Hor. Ant.', 'Hor. Atual', 'Δ Horas', 'L/h', 'Local']]
       : [['Data', 'Hora', 'Litros', 'Km Ant.', 'Km Atual', 'Δ Km', 'km/L', 'Local']];
 
     autoTable(doc, {
-      startY: 54,
+      startY: startY + 10,
       head: headers,
       body: v.records.map(r => [
         r.date, r.time, formatBR(r.fuelQuantity),
@@ -335,27 +329,22 @@ export function VehicleConsumptionDetailTab({ data, refetch, loading }: VehicleC
     doc.save(`consumo-${v.vehicleCode}-${format(new Date(), 'yyyy-MM-dd')}.pdf`);
   };
 
-  const exportToPDF = () => {
+  const exportToPDF = async () => {
     const doc = new jsPDF('landscape');
-    const pw = doc.internal.pageSize.getWidth();
-    doc.setFillColor(30, 41, 59);
-    doc.rect(0, 0, pw, 24, 'F');
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.text('MONITORAMENTO DE CONSUMO', pw / 2, 10, { align: 'center' });
-    if (settings?.nome) {
-      doc.setFontSize(9);
-      doc.setFont('helvetica', 'normal');
-      doc.text(`${settings.nome}${settings.cidade ? ` - ${settings.cidade}` : ''}`, pw / 2, 17, { align: 'center' });
-    }
+    const logoBase64 = await getLogoBase64(settings?.logo_url);
+
+    const startY = renderStandardHeader(doc, {
+      reportTitle: 'MONITORAMENTO DE CONSUMO',
+      obraSettings: settings,
+      logoBase64,
+    });
 
     doc.setTextColor(60, 60, 60);
     doc.setFontSize(9);
-    doc.text(`Total: ${formatBR(metrics.totalLiters)} L | ${metrics.total} veículos | ${metrics.totalRecords} abast.`, 14, 32);
+    doc.text(`Total: ${formatBR(metrics.totalLiters)} L | ${metrics.total} veículos | ${metrics.totalRecords} abast.`, 14, startY);
 
     autoTable(doc, {
-      startY: 38,
+      startY: startY + 6,
       head: [['Veículo', 'Descrição', 'Tipo', 'Litros', 'Horas/Km', 'Consumo Médio', 'Status']],
       body: filteredSummaries.map(s => [
         s.vehicleCode, s.vehicleDescription,
