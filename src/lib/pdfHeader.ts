@@ -108,20 +108,28 @@ export function renderStandardHeader(
   if (obraSettings?.cidade) {
     doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');
-    doc.text(`📍 ${obraSettings.cidade}`, textStartX, 16);
+    doc.text(obraSettings.cidade, textStartX, 16);
   }
-
-  // Report title
-  doc.setFontSize(11);
-  doc.setFont('helvetica', 'bold');
-  doc.text(reportTitle.toUpperCase(), textStartX, obraSettings?.cidade ? 24 : 18);
 
   // Date on right
   doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
-  doc.text(`📅 ${date}`, pw - 14, 10, { align: 'right' });
+  doc.text(date, pw - 14, 10, { align: 'right' });
 
-  return headerHeight + 6;
+  // Report title BELOW the header bar - more evident
+  const titleY = headerHeight + 8;
+  doc.setTextColor(30, 41, 59);
+  doc.setFontSize(13);
+  doc.setFont('helvetica', 'bold');
+  doc.text(reportTitle.toUpperCase(), 14, titleY);
+
+  // Underline below title
+  const titleWidth = doc.getTextWidth(reportTitle.toUpperCase());
+  doc.setDrawColor(30, 41, 59);
+  doc.setLineWidth(0.5);
+  doc.line(14, titleY + 1.5, 14 + titleWidth, titleY + 1.5);
+
+  return titleY + 8;
 }
 
 /**
