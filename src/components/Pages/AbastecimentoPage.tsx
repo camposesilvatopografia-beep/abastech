@@ -90,7 +90,7 @@ const SHEET_NAME = 'AbastecimentoCanteiro01';
 const GERAL_SHEET = 'Geral';
 const SANEAMENTO_STOCK_SHEET = 'EstoqueObraSaneamento';
 
-import { Package2, Wrench, BarChart, Fuel as FuelIcon, Gauge } from 'lucide-react';
+import { Package2, Wrench, BarChart, Fuel as FuelIcon, Gauge, Layers } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -101,6 +101,7 @@ import {
 import { useObraSettings } from '@/hooks/useObraSettings';
 import { HorimeterCorrectionsTab } from '@/components/Abastecimento/HorimeterCorrectionsTab';
 import { VehicleConsumptionDetailTab } from '@/components/Abastecimento/VehicleConsumptionDetailTab';
+import { GeneralFuelingReport } from '@/components/Abastecimento/GeneralFuelingReport';
 import { exportTanquesComboiosPDF, exportTanquesComboiosXLSX, exportTanquesPDF, exportTanquesXLSX, exportComboiosPDF, exportComboiosXLSX, type TanquesComboiosStockData } from '@/components/Abastecimento/TanquesComboiosReport';
 import { ReportsTab } from '@/components/Abastecimento/ReportsTab';
 
@@ -108,6 +109,7 @@ const TABS = [
   { id: 'painel', label: 'Estoque', icon: Package2 },
   
   { id: 'detalhamento', label: 'Lançamentos', icon: List },
+  { id: 'relatorio-geral', label: 'Geral', icon: Layers },
   { id: 'consumo', label: 'Consumo', icon: BarChart },
   { id: 'saneamento', label: 'Saneamento', icon: Droplet },
   { id: 'entradas', label: 'Entradas', icon: ArrowDownUp },
@@ -2838,6 +2840,14 @@ export function AbastecimentoPage() {
             </div>
           );
         })()}
+
+        {activeTab === 'relatorio-geral' && (
+          <GeneralFuelingReport
+            data={data}
+            refetch={refetch}
+            loading={loading}
+          />
+        )}
 
         {activeTab === 'consumo' && (
           <VehicleConsumptionDetailTab
