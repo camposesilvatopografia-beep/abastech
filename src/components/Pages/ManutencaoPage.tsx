@@ -1991,20 +1991,46 @@ export function ManutencaoPage() {
       head: [['Nº OS', 'Veículo', 'Empresa', 'Problema', 'Mecânico', 'Entrada', 'T. Parado', 'Status']],
       body: tableData,
       startY: y,
-      styles: { fontSize: 7, cellPadding: 2, overflow: 'linebreak' },
-      headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255] },
-      alternateRowStyles: { fillColor: [248, 249, 250] },
+      styles: { 
+        fontSize: 7, 
+        cellPadding: 2.5, 
+        overflow: 'linebreak',
+        font: 'helvetica',
+        textColor: [30, 41, 59],
+        lineColor: [226, 232, 240],
+        lineWidth: 0.2,
+      },
+      headStyles: { 
+        fillColor: [55, 71, 95], 
+        textColor: [255, 255, 255], 
+        fontStyle: 'bold',
+        fontSize: 8,
+        cellPadding: 3,
+      },
+      alternateRowStyles: { fillColor: [248, 250, 252] },
       columnStyles: {
-        0: { cellWidth: 18 },  // Nº OS
-        1: { cellWidth: 18 },  // Veículo
-        2: { cellWidth: 20 },  // Empresa
-        3: { cellWidth: 'auto', overflow: 'linebreak' },  // Problema - quebra automática
-        4: { cellWidth: 22 },  // Mecânico
-        5: { cellWidth: 24 },  // Entrada
-        6: { cellWidth: 18 },  // T. Parado
-        7: { cellWidth: 22 },  // Status
+        0: { cellWidth: 18 },
+        1: { cellWidth: 18, fontStyle: 'bold' },
+        2: { cellWidth: 20 },
+        3: { cellWidth: 'auto', overflow: 'linebreak' },
+        4: { cellWidth: 22 },
+        5: { cellWidth: 24, halign: 'center' },
+        6: { cellWidth: 18, halign: 'center' },
+        7: { cellWidth: 22, halign: 'center' },
       },
     });
+
+    // Page footer on all pages
+    const pageCount = doc.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      const pageH = doc.internal.pageSize.getHeight();
+      doc.setFontSize(7);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(148, 163, 184);
+      doc.text('AbasTech — Sistema de Gestão de Frotas', 14, pageH - 6);
+      doc.text(`Página ${i} de ${pageCount}`, pageWidth - 14, pageH - 6, { align: 'right' });
+    }
 
     const fileName = companyFilter !== 'all' 
       ? `ordens_servico_${companyFilter.replace(/\s+/g, '_')}_${format(new Date(), 'yyyyMMdd')}.pdf`
