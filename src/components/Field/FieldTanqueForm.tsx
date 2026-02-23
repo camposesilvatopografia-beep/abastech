@@ -213,7 +213,7 @@ export function FieldTanqueForm({ user, onBack }: FieldTanqueFormProps) {
         invoice_number: invoiceNumber,
         photo_pump_url: photoPumpUrl,
         photo_horimeter_url: null,
-        synced_to_sheet: false,
+        synced_to_sheet: navigator.onLine,
       };
 
       const { data: insertedData, error } = await supabase
@@ -226,68 +226,49 @@ export function FieldTanqueForm({ user, onBack }: FieldTanqueFormProps) {
 
       const recordId = insertedData?.id;
 
-      // Mark as synced optimistically BEFORE sheet call
-      if (recordId) {
-        await supabase
-          .from('field_fuel_records')
-          .update({ synced_to_sheet: true } as any)
-          .eq('id', recordId)
-          .eq('synced_to_sheet', false);
-      }
-
-      // Sync to Google Sheets immediately if online
-      if (navigator.onLine) {
+      // Sync to Google Sheets using buildFuelSheetData for consistency
+      if (navigator.onLine && recordId) {
         try {
+          const { buildFuelSheetData } = await import('@/lib/fuelSheetMapping');
           const dateBR = now.toLocaleDateString('pt-BR');
-          const { error: sheetError } = await supabase.functions.invoke('google-sheets', {
-            body: {
-              action: 'append',
-              sheetName: 'AbastecimentoCanteiro01',
-              values: [[
-                dateBR,
-                recordTime.substring(0, 5),
-                'ENTRADA',
-                selectedLocation,
-                removeAccents(selectedLocation),
-                'Tanque Canteiro',
-                removeAccents(user.name),
-                '',
-                '',
-                '', '', '', '',
-                fuelQuantity,
-                'Diesel',
-                '',
-                selectedLocation,
-                `[CARREGAR TANQUE] Fornecedor: ${supplier || 'N/A'}${invoiceNumber ? ` | NF: ${invoiceNumber}` : ''}`,
-              ]],
-            },
+          const sheetData = buildFuelSheetData({
+            id: recordId,
+            date: dateBR,
+            time: recordTime.substring(0, 5),
+            recordType: 'entrada',
+            category: 'Tanque Canteiro',
+            vehicleCode: selectedLocation,
+            vehicleDescription: removeAccents(selectedLocation),
+            operatorName: removeAccents(user.name),
+            company: '',
+            workSite: '',
+            horimeterPrevious: 0,
+            horimeterCurrent: 0,
+            kmPrevious: 0,
+            kmCurrent: 0,
+            fuelQuantity: qty,
+            fuelType: 'Diesel',
+            location: selectedLocation,
+            arlaQuantity: 0,
+            observations: `[CARREGAR TANQUE] Fornecedor: ${supplier || 'N/A'}${invoiceNumber ? ` | NF: ${invoiceNumber}` : ''}`,
+            supplier,
+            invoiceNumber,
+            unitPrice: parsedPrice || 0,
           });
 
-          if (sheetError && recordId) {
-            // Revert optimistic sync flag on failure
-            await supabase
-              .from('field_fuel_records')
-              .update({ synced_to_sheet: false } as any)
-              .eq('id', recordId);
+          const { error: sheetError } = await supabase.functions.invoke('google-sheets', {
+            body: { action: 'create', sheetName: 'AbastecimentoCanteiro01', data: sheetData },
+          });
+
+          if (sheetError) {
+            console.error('Sheet sync error:', sheetError);
+            await supabase.from('field_fuel_records').update({ synced_to_sheet: false }).eq('id', recordId);
           }
         } catch (sheetErr) {
           console.error('Sheet sync error:', sheetErr);
-          // Revert optimistic sync flag
-          if (recordId) {
-            await supabase
-              .from('field_fuel_records')
-              .update({ synced_to_sheet: false } as any)
-              .eq('id', recordId);
-          }
+          await supabase.from('field_fuel_records').update({ synced_to_sheet: false }).eq('id', recordId);
         }
-      } else {
-        // Offline - revert the optimistic flag
-        if (recordId) {
-          await supabase
-            .from('field_fuel_records')
-            .update({ synced_to_sheet: false } as any)
-            .eq('id', recordId);
-        }
+      } else if (!navigator.onLine) {
         toast.info('Sem conexão. Será sincronizado quando voltar online.');
       }
 

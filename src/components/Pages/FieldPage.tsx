@@ -552,12 +552,12 @@ export function FieldPage() {
     checkPending();
     const interval = setInterval(checkPending, 15000);
 
-    // Auto-sync pending records periodically when online (every 15s)
+    // Auto-sync pending records periodically when online (every 30s to avoid race conditions)
     const autoSyncInterval = setInterval(() => {
       if (navigator.onLine && !isSyncing) {
         syncPendingRecords();
       }
-    }, 15000);
+    }, 30000);
 
     return () => {
       clearInterval(interval);
