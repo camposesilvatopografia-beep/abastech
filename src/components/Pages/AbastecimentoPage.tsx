@@ -1210,176 +1210,132 @@ export function AbastecimentoPage() {
     
     try {
       const doc = new jsPDF('landscape');
-      const pageWidth = doc.internal.pageSize.getWidth();
-      const pageHeight = doc.internal.pageSize.getHeight();
-      
-      let currentY = 15;
-      
-      // Load logo once before loop
       const logoBase64 = await getLogoBase64(obraSettings?.logo_url);
       
-      // Iterate through each location (Tanque 01, Tanque 02, etc.)
-      const locations = Object.keys(resumoPorLocal.recordsByLocal).sort();
+      // Helper to classify location into unified groups (same as Geral tab)
+      const classifyLoc = (loc: string): string => {
+        const l = loc.toLowerCase();
+        if (l.includes('tanque') || l.includes('canteiro')) return 'Tanques';
+        if (l.includes('comboio')) return 'Comboios';
+        return loc;
+      };
       
-      locations.forEach((local, locationIndex) => {
-        const records = resumoPorLocal.recordsByLocal[local];
-        if (!records || records.length === 0) return;
+      // Helper to check equipment category
+      const isEquipCat = (cat: string): boolean => {
+        const c = cat?.toLowerCase() || '';
+        return c.includes('equipamento') || c.includes('máquina') || c.includes('maquina') ||
+          c.includes('trator') || c.includes('retroescavadeira') || c.includes('escavadeira') ||
+          c.includes('pá carregadeira') || c.includes('rolo') || c.includes('motoniveladora') ||
+          c.includes('compactador') || c.includes('gerador');
+      };
+      
+      const fmtBR = (v: number, dec = 2) => v.toLocaleString('pt-BR', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+      
+      // Group filtered rows by unified location (Tanques, Comboios, etc.)
+      const groups: Record<string, { rows: Record<string, any>[]; totalLiters: number }> = {};
+      
+      filteredRows.forEach(row => {
+        const tipo = String(row['TIPO'] || '').toLowerCase();
+        if (tipo.includes('entrada') || tipo.includes('recebimento')) return;
         
-        // Sort records by description for better organization
-        const sortedRecords = [...records].sort((a, b) => 
-          (a.descricao || '').localeCompare(b.descricao || '', 'pt-BR')
-        );
+        const rawLocal = String(row['LOCAL'] || 'Não informado').trim();
+        const group = classifyLoc(rawLocal);
+        const qty = parseNumber(row['QUANTIDADE']);
         
-        // Add new page for each location after the first
-        if (locationIndex > 0) {
-          doc.addPage();
-          currentY = 15;
-        }
+        if (!groups[group]) groups[group] = { rows: [], totalLiters: 0 };
+        groups[group].rows.push(row);
+        groups[group].totalLiters += qty;
+      });
+      
+      // Order: Tanques first, then Comboios, then others
+      const orderedGroups: [string, typeof groups[string]][] = [];
+      if (groups['Tanques']) orderedGroups.push(['Tanques', groups['Tanques']]);
+      if (groups['Comboios']) orderedGroups.push(['Comboios', groups['Comboios']]);
+      Object.entries(groups).forEach(([k, v]) => {
+        if (k !== 'Tanques' && k !== 'Comboios') orderedGroups.push([k, v]);
+      });
+      
+      let isFirstPage = true;
+      
+      orderedGroups.forEach(([location, groupData]) => {
+        if (!isFirstPage) doc.addPage();
+        isFirstPage = false;
         
-        // Standard Header
         const startY = renderStandardHeader(doc, {
-          reportTitle: `ABASTECIMENTO — ${local.toUpperCase()}`,
+          reportTitle: `LANÇAMENTOS — ${location.toUpperCase()}`,
           obraSettings,
           logoBase64,
           date: `${format(dateRange.start, 'dd/MM/yyyy')} a ${format(dateRange.end, 'dd/MM/yyyy')}`,
         });
         
-        doc.setTextColor(0, 0, 0);
-        currentY = startY;
+        doc.setTextColor(60, 60, 60);
+        doc.setFontSize(9);
+        doc.text(`${groupData.rows.length} registros | Total: ${fmtBR(groupData.totalLiters, 0)} L`, 14, startY);
         
-        // Prepare table data with consumption calculation
-        let totalDiesel = 0;
-        let totalConsumo = 0;
-        let countConsumo = 0;
-        
-        const tableData = sortedRecords.map((record, index) => {
-          // Determine if using km or hours based on data
-          const usaKm = record.kmAtual > 0 || record.kmAnterior > 0;
-          const anterior = usaKm ? record.kmAnterior : record.horAnterior;
-          const atual = usaKm ? record.kmAtual : record.horAtual;
-          const intervalo = atual - anterior;
-          
-          // Calculate consumption (km/l or l/h)
-          let consumo = 0;
-          if (record.quantidade > 0 && intervalo > 0) {
-            if (usaKm) {
-              // km/l = intervalo / quantidade
-              consumo = intervalo / record.quantidade;
-            } else {
-              // l/h = quantidade / intervalo
-              consumo = record.quantidade / intervalo;
-            }
-            totalConsumo += consumo;
-            countConsumo++;
-          }
-          
-          totalDiesel += record.quantidade;
-          
-          return [
-            (index + 1).toString() + '.',
-            record.codigo,
-            record.descricao,
-            record.motorista,
-            anterior > 0 ? anterior.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-',
-            atual > 0 ? atual.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-',
-            intervalo > 0 ? intervalo.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-',
-            consumo > 0 ? consumo.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0,00',
-            record.quantidade.toLocaleString('pt-BR', { minimumFractionDigits: 0 })
-          ];
-        });
-        
-        // Add totals row
-        const mediaConsumo = countConsumo > 0 ? totalConsumo / countConsumo : 0;
-        tableData.push([
-          '',
-          '',
-          '',
-          'TOTAL',
-          '',
-          '',
-          '',
-          mediaConsumo > 0 ? `Média: ${mediaConsumo.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-',
-          totalDiesel.toLocaleString('pt-BR', { minimumFractionDigits: 0 })
-        ]);
+        // Build table body
+        const body = groupData.rows
+          .sort((a, b) => {
+            const dA = String(a['DATA'] || ''); const dB = String(b['DATA'] || '');
+            return dA.localeCompare(dB);
+          })
+          .map(row => {
+            const cat = String(row['CATEGORIA'] || '').toLowerCase();
+            const isEquip = isEquipCat(cat);
+            const horPrev = parseNumber(row['HORIMETRO ANTERIOR']);
+            const horCurr = parseNumber(row['HORIMETRO ATUAL']);
+            const kmPrev = parseNumber(row['KM ANTERIOR']);
+            const kmCurr = parseNumber(row['KM ATUAL']);
+            const qty = parseNumber(row['QUANTIDADE']);
+            
+            const horInterval = (horPrev > 0 && horCurr > horPrev) ? horCurr - horPrev : 0;
+            const kmInterval = (kmPrev > 0 && kmCurr > kmPrev) ? kmCurr - kmPrev : 0;
+            const interval = isEquip ? horInterval : kmInterval;
+            const intervalUnit = isEquip ? 'h' : 'km';
+            
+            let consumption = 0;
+            if (isEquip && horInterval > 0 && qty > 0) consumption = qty / horInterval;
+            else if (!isEquip && kmInterval > 0 && qty > 0) consumption = kmInterval / qty;
+            const consumptionUnit = isEquip ? 'L/h' : 'km/L';
+            
+            return [
+              row['DATA'], row['HORA'], row['VEICULO'],
+              row['MOTORISTA'] || '-', row['EMPRESA'] || '-',
+              fmtBR(qty, 0),
+              isEquip
+                ? (horPrev > 0 ? fmtBR(horPrev, 1) : '-')
+                : (kmPrev > 0 ? fmtBR(kmPrev, 0) : '-'),
+              isEquip
+                ? (horCurr > 0 ? fmtBR(horCurr, 1) : '-')
+                : (kmCurr > 0 ? fmtBR(kmCurr, 0) : '-'),
+              interval > 0 ? `${fmtBR(interval, isEquip ? 2 : 0)} ${intervalUnit}` : '-',
+              consumption > 0 ? `${fmtBR(consumption)} ${consumptionUnit}` : '-',
+            ];
+          });
         
         autoTable(doc, {
-          startY: currentY,
-          head: [[
-            '', 
-            'Código', 
-            'Descrição', 
-            'Motorista/Operador', 
-            'Hor/Km\nAnterior', 
-            'Hor/Km\nAtual', 
-            'Intervalo\n(h/km)', 
-            'Consumo', 
-            'Qtd Diesel'
-          ]],
-          body: tableData,
-          styles: { 
-            fontSize: 8,
-            cellPadding: 2,
-          },
-          headStyles: { 
-            fillColor: [30, 41, 59],
-            textColor: [255, 255, 255],
-            fontStyle: 'bold',
-            halign: 'center',
-            valign: 'middle',
-          },
-          columnStyles: {
-            0: { cellWidth: 10, halign: 'center' },
-            1: { cellWidth: 25 },
-            2: { cellWidth: 45 },
-            3: { cellWidth: 45 },
-            4: { cellWidth: 25, halign: 'right' },
-            5: { cellWidth: 28, halign: 'right' },
-            6: { cellWidth: 28, halign: 'right' },
-            7: { cellWidth: 22, halign: 'right' },
-            8: { cellWidth: 22, halign: 'right' },
-          },
-          alternateRowStyles: {
-            fillColor: [245, 245, 245]
-          },
-          didParseCell: (data) => {
-            // Style the totals row (last row)
-            if (data.row.index === tableData.length - 1) {
-              data.cell.styles.fontStyle = 'bold';
-              data.cell.styles.fillColor = [230, 230, 230];
-            }
-          },
+          startY: startY + 6,
+          head: [['Data', 'Hora', 'Veículo', 'Motorista', 'Empresa', 'Qtd (L)', 'Hor/Km Ant.', 'Hor/Km Atual', 'Intervalo', 'Consumo']],
+          body,
           theme: 'grid',
+          headStyles: { fillColor: [30, 41, 59], fontSize: 7, halign: 'center' },
+          styles: { fontSize: 6.5 },
+          columnStyles: {
+            5: { halign: 'right' },
+            6: { halign: 'right' },
+            7: { halign: 'right' },
+            8: { halign: 'right' },
+            9: { halign: 'right' },
+          },
         });
-        
-        // Get final Y position after table
-        const finalY = (doc as any).lastAutoTable?.finalY || currentY + 100;
-        
-        // Add responsible person section at bottom of each location page
-        const signatureY = Math.max(finalY + 20, pageHeight - 35);
-        
-        // Get the responsible person for this location
-        const responsibleName = getResponsibleForLocation(local);
-        
-        // Responsible person label - centered, no signature line
-        doc.setFontSize(11);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(30, 41, 59);
-        doc.text(`Responsável: ${responsibleName}`, pageWidth / 2, signatureY, { align: 'center' });
-        
-        // Location label below
-        doc.setFontSize(9);
-        doc.setFont('helvetica', 'normal');
-        doc.setTextColor(100, 100, 100);
-        doc.text(`(${local})`, pageWidth / 2, signatureY + 6, { align: 'center' });
       });
       
-      doc.save(`relatorio_abastecimento_${format(new Date(), 'yyyyMMdd_HHmmss')}.pdf`);
+      doc.save(`lancamentos-abastecimento-${format(new Date(), 'yyyy-MM-dd')}.pdf`);
     } catch (error) {
       console.error('Error exporting PDF:', error);
     } finally {
       setIsExporting(false);
     }
-  }, [resumoPorLocal, dateRange]);
+  }, [filteredRows, dateRange, obraSettings]);
 
   // Export to PDF (simple) - same format as detailed, grouped by location WITH SIGNATURE
   // Now includes stock summary at top and separates exits/entries
