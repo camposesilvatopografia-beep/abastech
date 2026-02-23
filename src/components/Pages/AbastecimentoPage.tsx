@@ -110,7 +110,7 @@ const TABS = [
   { id: 'painel', label: 'Estoque', icon: Package2 },
   
   { id: 'detalhamento', label: 'Lançamentos', icon: List },
-  { id: 'relatorio-geral', label: 'Geral', icon: Layers },
+  
   { id: 'consumo', label: 'Consumo', icon: BarChart },
   { id: 'saneamento', label: 'Saneamento', icon: Droplet },
   { id: 'entradas', label: 'Entradas', icon: ArrowDownUp },
@@ -2771,13 +2771,6 @@ export function AbastecimentoPage() {
           );
         })()}
 
-        {activeTab === 'relatorio-geral' && (
-          <GeneralFuelingReport
-            data={data}
-            refetch={refetch}
-            loading={loading}
-          />
-        )}
 
         {activeTab === 'consumo' && (
           <VehicleConsumptionDetailTab
