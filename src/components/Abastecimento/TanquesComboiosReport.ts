@@ -174,15 +174,13 @@ function renderSaidasTable(doc: jsPDF, records: FuelRecord[], currentY: number, 
     currentY = 15;
   }
 
-  // Section title - centered
-  const sectionPw = doc.internal.pageSize.getWidth();
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(30, 41, 59);
-  doc.text(`SAÍDAS (Abastecimentos) — ${records.length} registros`, sectionPw / 2, currentY + 4, { align: 'center' });
-  currentY += 10;
+  const { body, totalDiesel } = buildFuelTableData(records);
 
-  const { body } = buildFuelTableData(records);
+  // Add total row
+  body.push([
+    '', '', '', '', '', '', '', 'TOTAL',
+    totalDiesel > 0 ? totalDiesel.toLocaleString('pt-BR', { minimumFractionDigits: 0 }) + ' L' : '-',
+  ]);
 
   autoTable(doc, {
     startY: currentY,
@@ -210,12 +208,12 @@ function renderSaidasTable(doc: jsPDF, records: FuelRecord[], currentY: number, 
     },
     columnStyles: FUEL_COL_STYLES,
     margin: { left: PAGE_MARGIN, right: PAGE_MARGIN },
-    alternateRowStyles: { fillColor: [254, 242, 242] },
+    alternateRowStyles: { fillColor: [255, 255, 255] },
     didParseCell: (data) => {
       if (data.row.index === body.length - 1) {
         data.cell.styles.fontStyle = 'bold';
         data.cell.styles.fillColor = [220, 200, 200];
-        data.cell.styles.fontSize = 8;
+        data.cell.styles.fontSize = 9;
       }
     },
   });
