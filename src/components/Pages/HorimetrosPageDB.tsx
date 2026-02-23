@@ -87,6 +87,7 @@ import { HorimeterCardView } from '@/components/Horimetros/HorimeterCardView';
 import { HorimeterDBCorrectionsTab } from '@/components/Horimetros/HorimeterDBCorrectionsTab';
 import { BatchEditModal } from '@/components/Horimetros/BatchEditModal';
 import { MissingReadingsTab } from '@/components/Horimetros/MissingReadingsTab';
+import { useRealtimeRefresh } from '@/hooks/useRealtimeSync';
 
 const TABS = [
   { id: 'registros', label: 'Registros', icon: List },
@@ -125,6 +126,12 @@ export function HorimetrosPageDB() {
   const { readings, loading: readingsLoading, refetch: refetchReadings, deleteReading } = useHorimeterReadings();
   const { toast } = useToast();
   const { settings: obraSettings } = useObraSettings();
+
+  // Listen for realtime horimeter updates from other devices
+  useRealtimeRefresh(() => {
+    refetchReadings();
+    refetchVehicles();
+  }, ['horimeter_updated']);
   
   // Column configuration
   const { 
