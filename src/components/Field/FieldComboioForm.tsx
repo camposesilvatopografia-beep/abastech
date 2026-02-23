@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   Truck,
   Camera,
@@ -50,6 +50,7 @@ import { CurrencyInput } from '@/components/ui/currency-input';
 import { useTheme } from '@/hooks/useTheme';
 import { useFieldSettings, playSuccessSound, vibrateDevice } from '@/hooks/useFieldSettings';
 import { format } from 'date-fns';
+import { useFormPersistence } from '@/hooks/useFormPersistence';
 
 // Remove accents for spreadsheet compatibility
 const removeAccents = (text: string): string => {
@@ -98,6 +99,25 @@ export function FieldComboioForm({ user, onBack }: FieldComboioFormProps) {
   // Vehicle search
   const [vehicleOpen, setVehicleOpen] = useState(false);
   const [vehicleSearch, setVehicleSearch] = useState('');
+
+  // Persist form state to survive mobile camera round-trips
+  const getFormState = useCallback(() => ({
+    vehicleCode, vehicleDescription, company, fuelQuantity, entryLocation,
+  }), [vehicleCode, vehicleDescription, company, fuelQuantity, entryLocation]);
+
+  const restoreFormState = useCallback((state: Record<string, any>) => {
+    if (state.vehicleCode) setVehicleCode(state.vehicleCode);
+    if (state.vehicleDescription) setVehicleDescription(state.vehicleDescription);
+    if (state.company) setCompany(state.company);
+    if (state.fuelQuantity) setFuelQuantity(state.fuelQuantity);
+    if (state.entryLocation) setEntryLocation(state.entryLocation);
+  }, []);
+
+  const { saveState: saveFormState, clearState: clearFormState } = useFormPersistence(
+    `comboio_form_${user.id}`,
+    getFormState,
+    restoreFormState
+  );
 
   // Fetch comboio drivers (field_users assigned to comboio locations)
   const [comboioDrivers, setComboioDrivers] = useState<{ name: string; locations: string[] }[]>([]);
@@ -378,6 +398,7 @@ export function FieldComboioForm({ user, onBack }: FieldComboioFormProps) {
       if (settings.soundEnabled) playSuccessSound();
       if (settings.vibrationEnabled) vibrateDevice();
 
+      clearFormState();
       setShowSuccess(true);
       setTimeout(() => {
         setShowSuccess(false);
@@ -617,7 +638,7 @@ export function FieldComboioForm({ user, onBack }: FieldComboioFormProps) {
             <Button
               variant="outline"
               className="w-full h-20 flex flex-col gap-1 border-2 border-dashed border-emerald-300 dark:border-emerald-600 hover:bg-emerald-100/50"
-              onClick={() => photoPumpInputRef.current?.click()}
+              onClick={() => { saveFormState(); photoPumpInputRef.current?.click(); }}
             >
               <Camera className="w-6 h-6 text-emerald-500" />
               <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">Tirar Foto</span>

@@ -70,6 +70,7 @@ import { CurrencyInput } from '@/components/ui/currency-input';
 import logoAbastech from '@/assets/logo-abastech.png';
 import { useFieldSettings, playSuccessSound, vibrateDevice } from '@/hooks/useFieldSettings';
 import { useOfflineStorage } from '@/hooks/useOfflineStorage';
+import { useFormPersistence } from '@/hooks/useFormPersistence';
 import { QRCodeScanner } from './QRCodeScanner';
 
 interface RequiredFields {
@@ -287,6 +288,62 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
   
   // Quantity in words (for Entrada)
   const [quantityInWords, setQuantityInWords] = useState('');
+
+  // Persist form state to survive mobile camera round-trips
+  const getFormState = useCallback(() => ({
+    recordType, quickEntryMode, vehicleCode, vehicleDescription, category, company,
+    operatorName, workSite, horimeterPrevious, horimeterCurrent, kmPrevious, kmCurrent,
+    fuelQuantity, fuelType, arlaQuantity, location, observations,
+    oilType, oilQuantity, filterBlow, filterBlowQuantity, lubricant,
+    supplier, invoiceNumber, unitPrice, entryLocation, quantityInWords,
+    comboioFuelType, showComboioChoice, showQuickOptions,
+  }), [
+    recordType, quickEntryMode, vehicleCode, vehicleDescription, category, company,
+    operatorName, workSite, horimeterPrevious, horimeterCurrent, kmPrevious, kmCurrent,
+    fuelQuantity, fuelType, arlaQuantity, location, observations,
+    oilType, oilQuantity, filterBlow, filterBlowQuantity, lubricant,
+    supplier, invoiceNumber, unitPrice, entryLocation, quantityInWords,
+    comboioFuelType, showComboioChoice, showQuickOptions,
+  ]);
+
+  const restoreFormState = useCallback((state: Record<string, any>) => {
+    if (state.vehicleCode) setVehicleCode(state.vehicleCode);
+    if (state.vehicleDescription) setVehicleDescription(state.vehicleDescription);
+    if (state.category) setCategory(state.category);
+    if (state.company) setCompany(state.company);
+    if (state.recordType) setRecordType(state.recordType);
+    if (state.quickEntryMode) setQuickEntryMode(state.quickEntryMode);
+    if (state.operatorName) setOperatorName(state.operatorName);
+    if (state.workSite) setWorkSite(state.workSite);
+    if (state.horimeterPrevious) setHorimeterPrevious(state.horimeterPrevious);
+    if (state.horimeterCurrent != null) setHorimeterCurrent(state.horimeterCurrent);
+    if (state.kmPrevious) setKmPrevious(state.kmPrevious);
+    if (state.kmCurrent != null) setKmCurrent(state.kmCurrent);
+    if (state.fuelQuantity != null) setFuelQuantity(state.fuelQuantity);
+    if (state.fuelType) setFuelType(state.fuelType);
+    if (state.arlaQuantity != null) setArlaQuantity(state.arlaQuantity);
+    if (state.location) setLocation(state.location);
+    if (state.observations) setObservations(state.observations);
+    if (state.oilType) setOilType(state.oilType);
+    if (state.oilQuantity != null) setOilQuantity(state.oilQuantity);
+    if (state.filterBlow) setFilterBlow(state.filterBlow);
+    if (state.filterBlowQuantity != null) setFilterBlowQuantity(state.filterBlowQuantity);
+    if (state.lubricant) setLubricant(state.lubricant);
+    if (state.supplier) setSupplier(state.supplier);
+    if (state.invoiceNumber) setInvoiceNumber(state.invoiceNumber);
+    if (state.unitPrice != null) setUnitPrice(state.unitPrice);
+    if (state.entryLocation) setEntryLocation(state.entryLocation);
+    if (state.quantityInWords) setQuantityInWords(state.quantityInWords);
+    if (state.comboioFuelType) setComboioFuelType(state.comboioFuelType);
+    if (state.showComboioChoice) setShowComboioChoice(state.showComboioChoice);
+    if (state.showQuickOptions) setShowQuickOptions(state.showQuickOptions);
+  }, []);
+
+  const { saveState: saveFormState, clearState: clearFormState } = useFormPersistence(
+    `fuel_form_${user.id}`,
+    getFormState,
+    restoreFormState
+  );
 
   // Format number to Brazilian format (1.234,56)
   const formatBrazilianNumber = (value: string | number): string => {
@@ -1847,6 +1904,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
     if (photoHorimeterInputRef.current) photoHorimeterInputRef.current.value = '';
     if (ocrInputRef.current) ocrInputRef.current.value = '';
     if (quantityOcrInputRef.current) quantityOcrInputRef.current.value = '';
+    clearFormState();
   };
 
   // Determine user location type
@@ -2723,6 +2781,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
+                    saveFormState();
                     photoPumpInputRef.current?.click();
                   }}
                   className={cn(
@@ -2782,6 +2841,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
+                      saveFormState();
                       photoHorimeterInputRef.current?.click();
                     }}
                     className={cn(
