@@ -161,11 +161,7 @@ function buildFuelTableData(records: FuelRecord[]) {
     ];
   });
 
-  body.push([
-    '', '', '', 'TOTAL',
-    '', '', '', '',
-    totalDiesel > 0 ? totalDiesel.toLocaleString('pt-BR', { minimumFractionDigits: 0 }) + ' L' : '-',
-  ]);
+  // No total row - removed as requested
 
   return { body, totalDiesel };
 }
@@ -178,11 +174,12 @@ function renderSaidasTable(doc: jsPDF, records: FuelRecord[], currentY: number, 
     currentY = 15;
   }
 
-  // Section title
+  // Section title - centered
+  const sectionPw = doc.internal.pageSize.getWidth();
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(30, 41, 59);
-  doc.text(`SAÍDAS (Abastecimentos) — ${records.length} registros`, PAGE_MARGIN, currentY + 4);
+  doc.text(`SAÍDAS (Abastecimentos) — ${records.length} registros`, sectionPw / 2, currentY + 4, { align: 'center' });
   currentY += 10;
 
   const { body } = buildFuelTableData(records);
