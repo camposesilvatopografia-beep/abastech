@@ -253,15 +253,32 @@ export function FieldComboioForm({ user, onBack }: FieldComboioFormProps) {
     setIsSaving(true);
 
     try {
+      const now = new Date();
+      const recordDate = format(now, 'yyyy-MM-dd');
+      const recordTime = format(now, 'HH:mm:ss');
+
+      // Check for duplicates before saving
+      const { checkDuplicateFuelRecord } = await import('@/lib/deduplication');
+      const duplicate = await checkDuplicateFuelRecord({
+        vehicle_code: vehicleCode,
+        record_date: recordDate,
+        fuel_quantity: qty,
+        record_type: recordType,
+        record_time: recordTime.substring(0, 5),
+      });
+
+      if (duplicate) {
+        toast.warning(`Registro duplicado detectado! Já existe um lançamento idêntico às ${duplicate.record_time} para este veículo.`, { duration: 5000 });
+        setIsSaving(false);
+        return;
+      }
+
       // Upload photo if exists
       let photoPumpUrl: string | null = null;
       if (photoPump) {
         photoPumpUrl = await uploadPhoto(photoPump, 'comboio');
       }
 
-      const now = new Date();
-      const recordDate = format(now, 'yyyy-MM-dd');
-      const recordTime = format(now, 'HH:mm:ss');
       // Use user's assigned comboio location for LOCAL column
       const userComboioLocation = (user.assigned_locations || []).find(loc => 
         loc.toLowerCase().includes('comboio')
