@@ -101,6 +101,7 @@ export function FieldTanqueForm({ user, onBack }: FieldTanqueFormProps) {
     };
     reader.readAsDataURL(file);
     setPhotoPump(file);
+    if (e.target) e.target.value = '';
   };
 
   const uploadPhoto = async (file: File, path: string): Promise<string | null> => {

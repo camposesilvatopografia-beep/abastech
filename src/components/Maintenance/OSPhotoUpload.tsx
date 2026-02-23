@@ -127,7 +127,11 @@ export function OSPhotoUpload({
                 <button
                   type="button"
                   disabled={isUploading}
-                  onClick={() => fileInputRefs.current[slot.key]?.click()}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    fileInputRefs.current[slot.key]?.click();
+                  }}
                   className={cn(
                     "w-full h-20 rounded-lg border-2 border-dashed border-muted-foreground/30",
                     "flex flex-col items-center justify-center gap-0.5",
