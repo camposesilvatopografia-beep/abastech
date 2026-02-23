@@ -43,7 +43,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { useFieldSettings } from '@/hooks/useFieldSettings';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { useOfflineStorage } from '@/hooks/useOfflineStorage';
-import { syncAllOfflineRecords, cacheReferenceData } from '@/lib/offlineSync';
+import { syncAllOfflineRecords, cacheReferenceData, acquireSyncLockGlobal, releaseSyncLockGlobal } from '@/lib/offlineSync';
 import {
   Popover,
   PopoverContent,
@@ -308,6 +308,12 @@ export function FieldPage() {
   const syncPendingRecords = useCallback(async () => {
     if (!user || isSyncing) return;
     
+    // Acquire global lock to prevent concurrent syncs from multiple components
+    if (!acquireSyncLockGlobal()) {
+      console.log('[FieldPage] Sync lock held by another component, skipping');
+      return;
+    }
+    
     setIsSyncing(true);
     let totalSynced = 0;
     
@@ -332,11 +338,34 @@ export function FieldPage() {
 
       if (pendingRecords && pendingRecords.length > 0) {
         let sheetSynced = 0;
+        const { buildFuelSheetData, dbRecordToSheetRecord } = await import('@/lib/fuelSheetMapping');
+        
         for (const record of pendingRecords) {
           try {
+            // Re-verify the record is still unsynced (prevents race conditions)
+            const { data: freshRecord } = await supabase
+              .from('field_fuel_records')
+              .select('synced_to_sheet')
+              .eq('id', record.id)
+              .single();
             
+            if (freshRecord?.synced_to_sheet) {
+              console.log(`[FieldPage] Record ${record.id} already synced, skipping`);
+              continue;
+            }
             
-            const { buildFuelSheetData, dbRecordToSheetRecord } = await import('@/lib/fuelSheetMapping');
+            // Mark as synced BEFORE sending to sheet (optimistic lock)
+            const { error: updateError } = await supabase
+              .from('field_fuel_records')
+              .update({ synced_to_sheet: true })
+              .eq('id', record.id)
+              .eq('synced_to_sheet', false); // Only update if still false (atomic check)
+            
+            if (updateError) {
+              console.warn(`[FieldPage] Failed to lock record ${record.id}, skipping`);
+              continue;
+            }
+
             const sheetRecord = dbRecordToSheetRecord(record);
             const sheetData = buildFuelSheetData(sheetRecord);
 
@@ -344,15 +373,22 @@ export function FieldPage() {
               body: { action: 'create', sheetName: 'AbastecimentoCanteiro01', data: sheetData },
             });
 
-            if (!response.error) {
+            if (response.error) {
+              // Revert the flag if sheet sync failed
               await supabase
                 .from('field_fuel_records')
-                .update({ synced_to_sheet: true })
+                .update({ synced_to_sheet: false })
                 .eq('id', record.id);
+            } else {
               sheetSynced++;
             }
           } catch (syncErr) {
             console.warn(`[FieldPage] Failed to sync record ${record.id} to sheet:`, syncErr);
+            // Revert the flag on error
+            await supabase
+              .from('field_fuel_records')
+              .update({ synced_to_sheet: false })
+              .eq('id', record.id);
           }
         }
         totalSynced += sheetSynced;
@@ -373,6 +409,7 @@ export function FieldPage() {
       toast.error('Erro ao sincronizar registros pendentes');
       notifySyncError();
     } finally {
+      releaseSyncLockGlobal();
       setIsSyncing(false);
     }
   }, [user, isSyncing, notifySyncComplete, notifySyncError, offlineStorage]);

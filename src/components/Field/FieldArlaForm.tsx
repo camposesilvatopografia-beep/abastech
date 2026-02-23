@@ -55,6 +55,7 @@ export function FieldArlaForm({ user, onBack }: FieldArlaFormProps) {
   const { broadcast } = useRealtimeSync();
 
   const [isSaving, setIsSaving] = useState(false);
+  const isSavingRef = useRef(false);
   const [showSuccess, setShowSuccess] = useState(false);
 
   // Form state
@@ -132,8 +133,12 @@ export function FieldArlaForm({ user, onBack }: FieldArlaFormProps) {
   };
 
   const handleSubmit = async () => {
+    if (isSavingRef.current) return;
+    isSavingRef.current = true;
+    try { await handleSubmitInner(); } finally { isSavingRef.current = false; }
+  };
+  const handleSubmitInner = async () => {
     if (!selectedLocation) {
-      toast.error('Selecione o local do tanque');
       return;
     }
     const qty = parseInt(arlaQuantity, 10);
@@ -195,6 +200,15 @@ export function FieldArlaForm({ user, onBack }: FieldArlaFormProps) {
 
       const recordId = insertedData?.id;
 
+      // Mark as synced optimistically BEFORE sheet call
+      if (recordId) {
+        await supabase
+          .from('field_fuel_records')
+          .update({ synced_to_sheet: true } as any)
+          .eq('id', recordId)
+          .eq('synced_to_sheet', false);
+      }
+
       // Sync to Google Sheets immediately if online
       if (navigator.onLine) {
         try {
@@ -223,23 +237,28 @@ export function FieldArlaForm({ user, onBack }: FieldArlaFormProps) {
             },
           });
 
-          if (!sheetError && recordId) {
+          if (sheetError && recordId) {
             await supabase
               .from('field_fuel_records')
-              .update({ synced_to_sheet: true } as any)
+              .update({ synced_to_sheet: false } as any)
               .eq('id', recordId);
           }
         } catch (sheetErr) {
           console.error('Sheet sync error:', sheetErr);
-          setTimeout(async () => {
-            try {
-              await supabase.functions.invoke('sync-pending-fuel', {});
-            } catch (retryErr) {
-              console.error('Background retry failed:', retryErr);
-            }
-          }, 5000);
+          if (recordId) {
+            await supabase
+              .from('field_fuel_records')
+              .update({ synced_to_sheet: false } as any)
+              .eq('id', recordId);
+          }
         }
       } else {
+        if (recordId) {
+          await supabase
+            .from('field_fuel_records')
+            .update({ synced_to_sheet: false } as any)
+            .eq('id', recordId);
+        }
         toast.info('Sem conexão. Será sincronizado quando voltar online.');
       }
 

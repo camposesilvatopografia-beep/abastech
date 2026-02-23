@@ -59,6 +59,7 @@ export function FieldTanqueForm({ user, onBack }: FieldTanqueFormProps) {
   const { broadcast } = useRealtimeSync();
 
   const [isSaving, setIsSaving] = useState(false);
+  const isSavingRef = useRef(false);
   const [showSuccess, setShowSuccess] = useState(false);
 
   // Form state
@@ -142,8 +143,12 @@ export function FieldTanqueForm({ user, onBack }: FieldTanqueFormProps) {
   };
 
   const handleSubmit = async () => {
+    if (isSavingRef.current) return;
+    isSavingRef.current = true;
+    try { await handleSubmitInner(); } finally { isSavingRef.current = false; }
+  };
+  const handleSubmitInner = async () => {
     if (!selectedLocation) {
-      toast.error('Selecione o local do tanque');
       return;
     }
     const qty = parseInt(fuelQuantity, 10);
@@ -221,6 +226,15 @@ export function FieldTanqueForm({ user, onBack }: FieldTanqueFormProps) {
 
       const recordId = insertedData?.id;
 
+      // Mark as synced optimistically BEFORE sheet call
+      if (recordId) {
+        await supabase
+          .from('field_fuel_records')
+          .update({ synced_to_sheet: true } as any)
+          .eq('id', recordId)
+          .eq('synced_to_sheet', false);
+      }
+
       // Sync to Google Sheets immediately if online
       if (navigator.onLine) {
         try {
@@ -249,24 +263,31 @@ export function FieldTanqueForm({ user, onBack }: FieldTanqueFormProps) {
             },
           });
 
-          if (!sheetError && recordId) {
+          if (sheetError && recordId) {
+            // Revert optimistic sync flag on failure
             await supabase
               .from('field_fuel_records')
-              .update({ synced_to_sheet: true } as any)
+              .update({ synced_to_sheet: false } as any)
               .eq('id', recordId);
           }
         } catch (sheetErr) {
           console.error('Sheet sync error:', sheetErr);
-          // Background retry via edge function
-          setTimeout(async () => {
-            try {
-              await supabase.functions.invoke('sync-pending-fuel', {});
-            } catch (retryErr) {
-              console.error('Background retry failed:', retryErr);
-            }
-          }, 5000);
+          // Revert optimistic sync flag
+          if (recordId) {
+            await supabase
+              .from('field_fuel_records')
+              .update({ synced_to_sheet: false } as any)
+              .eq('id', recordId);
+          }
         }
       } else {
+        // Offline - revert the optimistic flag
+        if (recordId) {
+          await supabase
+            .from('field_fuel_records')
+            .update({ synced_to_sheet: false } as any)
+            .eq('id', recordId);
+        }
         toast.info('Sem conexão. Será sincronizado quando voltar online.');
       }
 

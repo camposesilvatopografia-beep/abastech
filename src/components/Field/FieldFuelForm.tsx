@@ -193,6 +193,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
   // Real-time sync broadcast
   const { broadcast } = useRealtimeSync();
   const [isSaving, setIsSaving] = useState(false);
+  const isSavingRef = useRef(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [activeVoiceField, setActiveVoiceField] = useState<string | null>(null);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
@@ -1464,9 +1465,18 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
     }
   };
 
-  // Save record
+  // Save record - use ref to prevent double-submits from fast taps
   const handleSave = async () => {
-    // Quick entry mode validation - simplified
+    if (isSavingRef.current) return;
+    isSavingRef.current = true;
+    try {
+      await handleSaveInner();
+    } finally {
+      isSavingRef.current = false;
+    }
+  };
+  
+  const handleSaveInner = async () => {
     if (quickEntryMode !== 'normal') {
       if (!vehicleCode) {
         toast.error('Selecione o veículo');
@@ -1764,6 +1774,15 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
 
       if (error) throw error;
 
+      // Mark as synced optimistically BEFORE calling sheet (prevents FieldPage from re-syncing)
+      if (savedRecord) {
+        await supabase
+          .from('field_fuel_records')
+          .update({ synced_to_sheet: true })
+          .eq('id', savedRecord.id)
+          .eq('synced_to_sheet', false);
+      }
+
       // Sync to Google Sheets
       toast.info('Sincronizando com planilha...');
       const syncSuccess = await syncToGoogleSheets({
@@ -1800,11 +1819,11 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         entryLocation,
       });
 
-      // Update sync status in database
-      if (syncSuccess && savedRecord) {
+      // Revert if sheet sync failed
+      if (!syncSuccess && savedRecord) {
         await supabase
           .from('field_fuel_records')
-          .update({ synced_to_sheet: true })
+          .update({ synced_to_sheet: false })
           .eq('id', savedRecord.id);
       }
 
