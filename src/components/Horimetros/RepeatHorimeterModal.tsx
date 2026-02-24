@@ -63,6 +63,7 @@ export function RepeatHorimeterModal({
   const [lastReadings, setLastReadings] = useState<LastReading[]>([]);
   const [selectedVehicles, setSelectedVehicles] = useState<Set<string>>(new Set());
   const [results, setResults] = useState<{ success: number; failed: number } | null>(null);
+  const [failedVehicleIds, setFailedVehicleIds] = useState<Set<string>>(new Set());
 
   // Load last readings for vehicles missing on selected date
   const loadMissingVehicles = useCallback(async () => {
@@ -164,6 +165,7 @@ export function RepeatHorimeterModal({
       loadMissingVehicles();
     } else {
       setResults(null);
+      setFailedVehicleIds(new Set());
       setLastReadings([]);
       setSelectedVehicles(new Set());
     }
@@ -236,10 +238,10 @@ export function RepeatHorimeterModal({
     const dateStr = format(selectedDate, 'yyyy-MM-dd');
     let success = 0;
     let failed = 0;
+    const newFailedIds = new Set<string>();
 
     for (const reading of toRepeat) {
       try {
-        // Insert into DB
         const { data: inserted, error } = await supabase
           .from('horimeter_readings')
           .insert({
@@ -258,13 +260,11 @@ export function RepeatHorimeterModal({
 
         if (error) throw error;
 
-        // Sync to Google Sheets
         try {
           const sheetRow = await buildSheetRow(reading, dateStr);
           await supabase.functions.invoke('google-sheets', {
             body: { action: 'create', sheetName: 'Horimetros', data: sheetRow },
           });
-          // Mark as synced
           if (inserted?.id) {
             await supabase.from('horimeter_readings')
               .update({ synced_from_sheet: true })
@@ -278,18 +278,31 @@ export function RepeatHorimeterModal({
       } catch (err) {
         console.error(`Failed to repeat ${reading.vehicleCode}:`, err);
         failed++;
+        newFailedIds.add(reading.vehicleId);
       }
     }
 
     setResults({ success, failed });
+    setFailedVehicleIds(newFailedIds);
     setIsSaving(false);
+    
+    if (failed > 0) {
+      // Auto-select only the failed ones for retry
+      setSelectedVehicles(newFailedIds);
+    }
     
     if (success > 0) {
       toast({
         title: 'Horímetros repetidos',
-        description: `${success} registro(s) criado(s)${failed > 0 ? `, ${failed} falha(s)` : ''}`,
+        description: `${success} registro(s) criado(s)${failed > 0 ? `, ${failed} falha(s) — selecione "Tentar Novamente" para repetir os que falharam` : ''}`,
       });
       onSuccess?.();
+    } else if (failed > 0) {
+      toast({
+        title: 'Falha ao repetir',
+        description: `${failed} registro(s) falharam. Tente novamente.`,
+        variant: 'destructive',
+      });
     }
   };
 
@@ -344,8 +357,16 @@ export function RepeatHorimeterModal({
             "p-3 rounded-lg flex items-center gap-2 text-sm",
             results.failed === 0 ? "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300" : "bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300"
           )}>
-            <CheckCircle2 className="w-4 h-4" />
-            {results.success} registro(s) criado(s){results.failed > 0 && `, ${results.failed} falha(s)`}
+            {results.failed === 0 ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+            <span className="flex-1">
+              {results.success} registro(s) criado(s){results.failed > 0 && `, ${results.failed} falha(s)`}
+            </span>
+            {results.failed > 0 && (
+              <Button size="sm" variant="outline" onClick={handleSave} disabled={isSaving} className="gap-1 text-xs">
+                <Repeat className="w-3 h-3" />
+                Tentar Novamente ({failedVehicleIds.size})
+              </Button>
+            )}
           </div>
         )}
 
