@@ -97,7 +97,6 @@ import { useRealtimeRefresh } from '@/hooks/useRealtimeSync';
 const TABS = [
   { id: 'registros', label: 'Registros', icon: List },
   { id: 'pendencias', label: 'Pendências', icon: AlertTriangle },
-  { id: 'correcoes', label: 'Correções', icon: Wrench },
 ];
 const DEFAULT_HORIMETER_COLUMNS: ColumnConfig[] = [
   { key: 'select', label: 'Seleção', visible: true, order: 0 },
