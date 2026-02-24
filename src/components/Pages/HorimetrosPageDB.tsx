@@ -290,10 +290,11 @@ export function HorimetrosPageDB() {
         matchesVehicle = reading.vehicle_id === vehicleFilter;
       }
 
-      // Status filter - filter by vehicle status
+      // Status filter - filter by vehicle status (null/undefined = ativo)
       let matchesStatus = true;
       if (statusFilter !== 'all') {
-        matchesStatus = reading.vehicle?.status?.toLowerCase() === statusFilter.toLowerCase();
+        const vehicleStatus = reading.vehicle?.status?.toLowerCase() || 'ativo';
+        matchesStatus = vehicleStatus === statusFilter.toLowerCase();
       }
 
       // Date filter - period range or single date
