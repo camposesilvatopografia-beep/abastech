@@ -20,6 +20,7 @@ import {
   ChevronLeft,
   ChevronDown,
   ChevronUp,
+  Repeat,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -51,6 +52,7 @@ import { ptBR } from 'date-fns/locale';
 import { useTheme } from '@/hooks/useTheme';
 import { useFieldSettings, playSuccessSound, vibrateDevice } from '@/hooks/useFieldSettings';
 import { useOfflineStorage } from '@/hooks/useOfflineStorage';
+import { RepeatHorimeterModal } from '@/components/Horimetros/RepeatHorimeterModal';
 
 interface FieldUser {
   id: string;
@@ -160,6 +162,7 @@ export function FieldHorimeterForm({ user, onBack }: FieldHorimeterFormProps) {
   const offlineStorage = useOfflineStorage(user.id);
   const isDark = theme === 'dark';
   const [subView, setSubView] = useState<'menu' | 'form' | 'records' | 'pendencias'>('menu');
+  const [showRepeatModal, setShowRepeatModal] = useState(false);
   const [prefillVehicleId, setPrefillVehicleId] = useState('');
   const [prefillDate, setPrefillDate] = useState('');
   const [allReadings, setAllReadings] = useState<HorimeterReading[]>([]);
@@ -869,7 +872,28 @@ export function FieldHorimeterForm({ user, onBack }: FieldHorimeterFormProps) {
             </div>
             <ArrowRight className="w-5 h-5 opacity-60 shrink-0" />
           </button>
+
+          <button
+            onClick={() => setShowRepeatModal(true)}
+            className="w-full flex items-center gap-4 p-4 rounded-2xl bg-gradient-to-r from-slate-500 to-slate-700 text-white shadow-lg shadow-slate-500/30 active:scale-[0.98] transition-transform text-left"
+          >
+            <div className="w-14 h-14 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center shrink-0">
+              <Repeat className="w-7 h-7" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <span className="text-base font-bold block">Repetir Horímetro</span>
+              <span className="text-xs opacity-80">Dia sem trabalho — repetir últimos valores</span>
+            </div>
+            <ArrowRight className="w-5 h-5 opacity-60 shrink-0" />
+          </button>
         </div>
+
+        <RepeatHorimeterModal
+          open={showRepeatModal}
+          onOpenChange={setShowRepeatModal}
+          vehicles={vehicles}
+          operator={user.name}
+        />
       </div>
     );
   }

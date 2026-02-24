@@ -30,6 +30,7 @@ import {
   LayoutList,
   Wrench,
   List,
+  Repeat,
 } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Button } from '@/components/ui/button';
@@ -88,6 +89,7 @@ import { HorimeterCardView } from '@/components/Horimetros/HorimeterCardView';
 import { HorimeterDBCorrectionsTab } from '@/components/Horimetros/HorimeterDBCorrectionsTab';
 import { BatchEditModal } from '@/components/Horimetros/BatchEditModal';
 import { MissingReadingsTab } from '@/components/Horimetros/MissingReadingsTab';
+import { RepeatHorimeterModal } from '@/components/Horimetros/RepeatHorimeterModal';
 import { useRealtimeRefresh } from '@/hooks/useRealtimeSync';
 
 const TABS = [
@@ -164,6 +166,7 @@ export function HorimetrosPageDB() {
   const [selectionModeActive, setSelectionModeActive] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
+  const [showRepeatModal, setShowRepeatModal] = useState(false);
   
   // View mode - auto-detect based on device
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
@@ -673,6 +676,16 @@ export function HorimetrosPageDB() {
               <Pencil className="w-4 h-4 mr-2" />
               <span className="hidden sm:inline">Edição Lote</span>
               <span className="sm:hidden">Editar</span>
+            </Button>
+
+            <Button 
+              variant="outline"
+              onClick={() => setShowRepeatModal(true)}
+              className="order-first lg:order-last"
+            >
+              <Repeat className="w-4 h-4 mr-2" />
+              <span className="hidden sm:inline">Repetir</span>
+              <span className="sm:hidden">Repetir</span>
             </Button>
             
             <Button 
@@ -1379,6 +1392,14 @@ export function HorimetrosPageDB() {
       <BatchEditModal
         open={showBatchEditModal}
         onOpenChange={setShowBatchEditModal}
+        onSuccess={refetchReadings}
+      />
+
+      {/* Repeat Horimeter Modal */}
+      <RepeatHorimeterModal
+        open={showRepeatModal}
+        onOpenChange={setShowRepeatModal}
+        vehicles={vehicles}
         onSuccess={refetchReadings}
       />
     </div>
