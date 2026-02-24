@@ -1038,6 +1038,7 @@ export function HorimeterDBCorrectionsTab({ readings, refetch, loading }: Horime
                               value={editData?.horimeterPrevious ?? null}
                               onChange={(val) => setEditData(prev => prev ? {...prev, horimeterPrevious: val} : null)}
                               decimals={2}
+                              minDecimals={1}
                               className="w-24 text-right"
                             />
                           ) : (
@@ -1050,6 +1051,7 @@ export function HorimeterDBCorrectionsTab({ readings, refetch, loading }: Horime
                               value={editData?.horimeterCurrent ?? null}
                               onChange={(val) => setEditData(prev => prev ? {...prev, horimeterCurrent: val} : null)}
                               decimals={2}
+                              minDecimals={1}
                               className="w-24 text-right"
                             />
                           ) : (

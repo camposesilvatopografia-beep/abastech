@@ -2789,10 +2789,11 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
           </div>
           
           <CurrencyInput
-            placeholder="0,00"
+            placeholder="0,0"
             value={horimeterCurrent}
             onChange={setHorimeterCurrent}
             decimals={2}
+            minDecimals={1}
             className="h-14 text-2xl text-center font-bold border-2 border-emerald-300 dark:border-emerald-600 bg-white dark:bg-slate-900 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 dark:focus:ring-emerald-800 shadow-md"
           />
           

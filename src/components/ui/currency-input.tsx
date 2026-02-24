@@ -5,6 +5,8 @@ interface CurrencyInputProps extends Omit<React.InputHTMLAttributes<HTMLInputEle
   value: number | null;
   onChange: (value: number | null) => void;
   decimals?: number;
+  /** Minimum decimals to display (e.g. 1 shows 8.150,5 instead of 8.150,50). Defaults to same as decimals. */
+  minDecimals?: number;
   allowNegative?: boolean;
   minValue?: number;
   maxValue?: number;
@@ -26,11 +28,12 @@ interface CurrencyInputProps extends Omit<React.InputHTMLAttributes<HTMLInputEle
  * - Dot (.) as thousand separator
  */
 const CurrencyInput = React.forwardRef<HTMLInputElement, CurrencyInputProps>(
-  ({ 
+   ({ 
     className, 
     value, 
     onChange, 
     decimals = 2,
+    minDecimals,
     allowNegative = false,
     minValue,
     maxValue,
@@ -38,6 +41,7 @@ const CurrencyInput = React.forwardRef<HTMLInputElement, CurrencyInputProps>(
     prefix = "",
     ...props 
   }, ref) => {
+    const displayMinDecimals = minDecimals ?? decimals;
     
     // Format number to pt-BR display string
     const formatDisplay = React.useCallback((num: number | null): string => {
@@ -48,7 +52,7 @@ const CurrencyInput = React.forwardRef<HTMLInputElement, CurrencyInputProps>(
       const rounded = Math.round(num * factor) / factor;
       
       const formatted = rounded.toLocaleString("pt-BR", {
-        minimumFractionDigits: decimals,
+        minimumFractionDigits: displayMinDecimals,
         maximumFractionDigits: decimals,
       });
       

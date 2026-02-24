@@ -887,7 +887,8 @@ export function DatabaseHorimeterModal({
                           value={previousHorimeterValue}
                           onChange={setPreviousHorimeterValue}
                           decimals={2}
-                          placeholder="0,00"
+                          minDecimals={1}
+                          placeholder="0,0"
                           className="h-6 text-center text-xs font-semibold text-amber-600 bg-transparent border-amber-300 p-0"
                         />
                       ) : (
@@ -931,7 +932,8 @@ export function DatabaseHorimeterModal({
                     value={horimeterValue}
                     onChange={setHorimeterValue}
                     decimals={2}
-                    placeholder="0,00"
+                    minDecimals={1}
+                    placeholder="0,0"
                     className="font-mono text-lg h-12 border-amber-200 dark:border-amber-800 focus-visible:ring-amber-500"
                   />
                   {(horimeterValue ?? 0) > 0 && previousHorimeter > 0 && (

@@ -1191,7 +1191,8 @@ export function FieldHorimeterForm({ user, onBack }: FieldHorimeterFormProps) {
             <CurrencyInput
               value={horimeterValue}
               onChange={setHorimeterValue}
-              placeholder="0,00"
+              placeholder="0,0"
+              minDecimals={1}
               className={cn(
                 "h-12 text-lg font-bold",
                 isDark ? "bg-slate-700 border-slate-600 text-white" : ""
@@ -1236,7 +1237,8 @@ export function FieldHorimeterForm({ user, onBack }: FieldHorimeterFormProps) {
             <CurrencyInput
               value={kmValue}
               onChange={setKmValue}
-              placeholder="0,00"
+              placeholder="0,0"
+              minDecimals={1}
               className={cn(
                 "h-12 text-lg font-bold",
                 isDark ? "bg-slate-700 border-slate-600 text-white" : ""
