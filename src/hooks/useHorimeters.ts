@@ -466,7 +466,7 @@ export function useHorimeterReadings(vehicleId?: string) {
         try {
           // Find the row in the sheet by matching vehicle code and old date
           const { data: sheetData } = await supabase.functions.invoke('google-sheets', {
-            body: { action: 'getData', sheetName: 'Horimetros' },
+            body: { action: 'getData', sheetName: 'Horimetros', noCache: true },
           });
           
           const rows = sheetData?.rows || [];
@@ -474,9 +474,21 @@ export function useHorimeterReadings(vehicleId?: string) {
           const [oldYear, oldMonth, oldDay] = oldDate.split('-');
           const oldFormattedDate = `${oldDay}/${oldMonth}/${oldYear}`;
           
+          // Use normalized matching to find vehicle and date columns
+          const norm = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[\s_.]/g, '');
+          const findCol = (row: any, candidates: string[]) => {
+            for (const c of candidates) {
+              const normC = norm(c);
+              for (const key of Object.keys(row)) {
+                if (norm(key) === normC) return String(row[key] || '').trim();
+              }
+            }
+            return '';
+          };
+          
           const rowIndex = rows.findIndex((row: any) => {
-            const rowVehicle = String(row.Veiculo || row.VEICULO || '').trim();
-            const rowDate = String(row.Data || row.DATA || row[' Data'] || '').trim();
+            const rowVehicle = findCol(row, ['Veiculo', 'VEICULO', 'Veículo']);
+            const rowDate = findCol(row, ['Data', 'DATA']);
             return rowVehicle === vehicle.code && rowDate === oldFormattedDate;
           });
           
@@ -583,16 +595,28 @@ export function useHorimeterReadings(vehicleId?: string) {
         (async () => {
           try {
             const { data: sheetData } = await supabase.functions.invoke('google-sheets', {
-              body: { action: 'getData', sheetName: 'Horimetros' },
+              body: { action: 'getData', sheetName: 'Horimetros', noCache: true },
             });
             
             const rows = sheetData?.rows || [];
             const [year, month, day] = readingToDelete.reading_date.split('-');
             const formattedDate = `${day}/${month}/${year}`;
             
+            // Use normalized matching to find vehicle and date columns
+            const norm = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[\s_.]/g, '');
+            const findCol = (row: any, candidates: string[]) => {
+              for (const c of candidates) {
+                const normC = norm(c);
+                for (const key of Object.keys(row)) {
+                  if (norm(key) === normC) return String(row[key] || '').trim();
+                }
+              }
+              return '';
+            };
+            
             const rowIndex = rows.findIndex((row: any) => {
-              const rowVehicle = String(row.Veiculo || row.VEICULO || '').trim();
-              const rowDate = String(row.Data || row.DATA || row[' Data'] || '').trim();
+              const rowVehicle = findCol(row, ['Veiculo', 'VEICULO', 'Veículo']);
+              const rowDate = findCol(row, ['Data', 'DATA']);
               return rowVehicle === readingToDelete.vehicle.code && rowDate === formattedDate;
             });
             

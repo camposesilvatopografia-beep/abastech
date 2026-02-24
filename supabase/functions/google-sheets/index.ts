@@ -609,18 +609,28 @@ serve(async (req) => {
           throw new Error("No headers found in sheet");
         }
 
+        // Read the existing row to preserve values not included in the update
+        const existingRowData = await fetchSheetValues(
+          accessToken, sheetId, formatRange(sheetName, `A${rowIndex}:ZZ${rowIndex}`)
+        );
+        const existingValues = existingRowData?.[0] || [];
+
         const normalizeU = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[\s_.]/g, '');
         const dataByNormalizedU = new Map<string, string>();
         for (const [k, v] of Object.entries(data)) {
           dataByNormalizedU.set(normalizeU(k), String(v ?? ''));
         }
-        const updateValues = updateHeaderRow.map((header: string) => {
+        const updateValues = updateHeaderRow.map((header: string, colIdx: number) => {
+          // 1. Exact match from data
           if (data[header] !== undefined) return data[header];
+          // 2. Trimmed match
           const trimmed = String(header).trim();
           if (data[trimmed] !== undefined) return data[trimmed];
+          // 3. Normalized match
           const norm = normalizeU(header);
           if (dataByNormalizedU.has(norm)) return dataByNormalizedU.get(norm);
-          return "";
+          // 4. Preserve existing value instead of blanking
+          return existingValues[colIdx] ?? "";
         });
         await updateRow(accessToken, sheetId, formatRange(sheetName, `A${rowIndex}`), updateValues);
 
