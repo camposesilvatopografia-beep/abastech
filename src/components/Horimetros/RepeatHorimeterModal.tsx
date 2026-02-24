@@ -72,53 +72,82 @@ export function RepeatHorimeterModal({
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
       
       // Get vehicles that already have readings on this date
-      const { data: existingReadings } = await supabase
+      const { data: existingReadings, error: existErr } = await supabase
         .from('horimeter_readings')
         .select('vehicle_id')
         .eq('reading_date', dateStr);
       
+      if (existErr) {
+        console.error('Error fetching existing readings:', existErr);
+      }
+      
       const existingVehicleIds = new Set((existingReadings || []).map(r => r.vehicle_id));
       
+      console.log(`[RepeatHorimeter] Date: ${dateStr}, existing readings: ${existingVehicleIds.size}, total vehicles: ${vehicles.length}`);
+      
       // Filter to active vehicles without readings, excluding "outros" category
-      let targetVehicles = vehicles.filter(v => 
-        !existingVehicleIds.has(v.id) && 
-        v.status?.toLowerCase() === 'ativo' &&
-        v.category?.toLowerCase() !== 'outros'
-      );
+      let targetVehicles = vehicles.filter(v => {
+        const isActive = !v.status || v.status.toLowerCase() === 'ativo';
+        const notOutros = !v.category || v.category.toLowerCase() !== 'outros';
+        const noReading = !existingVehicleIds.has(v.id);
+        return isActive && notOutros && noReading;
+      });
       
       if (singleVehicleId) {
         targetVehicles = targetVehicles.filter(v => v.id === singleVehicleId);
       }
 
-      // Get last readings for these vehicles
+      console.log(`[RepeatHorimeter] Target vehicles without reading: ${targetVehicles.length}`);
+
+      // Get last readings for all target vehicles in batches (avoid N+1)
       const readings: LastReading[] = [];
+      const batchSize = 30;
       
-      for (const vehicle of targetVehicles) {
-        const { data: lastReading } = await supabase
-          .from('horimeter_readings')
-          .select('current_value, current_km, reading_date, operator')
-          .eq('vehicle_id', vehicle.id)
-          .lt('reading_date', dateStr)
-          .order('reading_date', { ascending: false })
-          .limit(1)
-          .single();
+      for (let i = 0; i < targetVehicles.length; i += batchSize) {
+        const batch = targetVehicles.slice(i, i + batchSize);
+        const vehicleIds = batch.map(v => v.id);
         
-        if (lastReading && lastReading.current_value > 0) {
-          readings.push({
-            vehicleId: vehicle.id,
-            vehicleCode: vehicle.code,
-            vehicleName: vehicle.name,
-            currentValue: lastReading.current_value,
-            currentKm: lastReading.current_km,
-            readingDate: lastReading.reading_date,
-            operator: lastReading.operator,
-            category: vehicle.category,
-            company: vehicle.company,
-          });
+        // Get ALL readings before the selected date for this batch of vehicles
+        const { data: allReadings, error: readErr } = await supabase
+          .from('horimeter_readings')
+          .select('vehicle_id, current_value, current_km, reading_date, operator')
+          .in('vehicle_id', vehicleIds)
+          .lt('reading_date', dateStr)
+          .order('reading_date', { ascending: false });
+        
+        if (readErr) {
+          console.error('Error fetching batch readings:', readErr);
+          continue;
+        }
+        
+        // Group by vehicle and take the most recent one
+        const latestByVehicle = new Map<string, typeof allReadings[0]>();
+        for (const reading of (allReadings || [])) {
+          if (!latestByVehicle.has(reading.vehicle_id)) {
+            latestByVehicle.set(reading.vehicle_id, reading);
+          }
+        }
+        
+        for (const vehicle of batch) {
+          const lastReading = latestByVehicle.get(vehicle.id);
+          if (lastReading && Number(lastReading.current_value) > 0) {
+            readings.push({
+              vehicleId: vehicle.id,
+              vehicleCode: vehicle.code,
+              vehicleName: vehicle.name,
+              currentValue: Number(lastReading.current_value),
+              currentKm: lastReading.current_km ? Number(lastReading.current_km) : null,
+              readingDate: lastReading.reading_date,
+              operator: lastReading.operator,
+              category: vehicle.category,
+              company: vehicle.company,
+            });
+          }
         }
       }
       
       readings.sort((a, b) => a.vehicleCode.localeCompare(b.vehicleCode));
+      console.log(`[RepeatHorimeter] Found ${readings.length} vehicles with previous readings to repeat`);
       setLastReadings(readings);
       setSelectedVehicles(new Set(readings.map(r => r.vehicleId)));
     } catch (err) {
