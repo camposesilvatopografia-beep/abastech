@@ -149,7 +149,7 @@ export function HorimetrosPageDB() {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
-  const [periodFilter, setPeriodFilter] = useState('hoje');
+  const [periodFilter, setPeriodFilter] = useState('ultimo');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [companyFilter, setCompanyFilter] = useState<string>('all');
   const [vehicleFilter, setVehicleFilter] = useState<string>('all');
@@ -221,11 +221,25 @@ export function HorimetrosPageDB() {
     setPeriodFilter('todos');
   };
 
+  // Find the latest date that has readings
+  const latestReadingDate = useMemo(() => {
+    if (readings.length === 0) return new Date();
+    let maxDate = '';
+    for (const r of readings) {
+      if (r.reading_date > maxDate) maxDate = r.reading_date;
+    }
+    return maxDate ? new Date(maxDate + 'T12:00:00') : new Date();
+  }, [readings]);
+
   // Get date range based on period filter
   const dateRange = useMemo(() => {
     const today = startOfDay(new Date());
     
     switch (periodFilter) {
+      case 'ultimo': {
+        const d = startOfDay(latestReadingDate);
+        return { start: d, end: endOfDay(d) };
+      }
       case 'hoje':
         return { start: today, end: endOfDay(today) };
       case 'ontem':
@@ -246,7 +260,7 @@ export function HorimetrosPageDB() {
       default:
         return null;
     }
-  }, [periodFilter, startDate, endDate]);
+  }, [periodFilter, startDate, endDate, latestReadingDate]);
 
   // Filtered readings
   const filteredReadings = useMemo(() => {
@@ -372,6 +386,7 @@ export function HorimetrosPageDB() {
   // Get the reference date for missing vehicles calculation
   const referenceDate = useMemo(() => {
     if (selectedDate) return selectedDate;
+    if (periodFilter === 'ultimo') return latestReadingDate;
     if (periodFilter === 'hoje') return new Date();
     if (periodFilter === 'ontem') return subDays(new Date(), 1);
     if (periodFilter === 'personalizado' && endDate) return endDate;
@@ -854,6 +869,21 @@ export function HorimetrosPageDB() {
             <Calendar className="w-4 h-4 text-primary" />
             <span className="text-sm font-medium">Data:</span>
             
+            {/* Último Lançamento button */}
+            <Button
+              variant={periodFilter === 'ultimo' && !selectedDate ? 'default' : 'outline'}
+              size="sm"
+              className="h-7 px-3 text-xs"
+              onClick={() => {
+                setPeriodFilter('ultimo');
+                setSelectedDate(undefined);
+                setStartDate(undefined);
+                setEndDate(undefined);
+              }}
+            >
+              Último ({format(latestReadingDate, 'dd/MM')})
+            </Button>
+
             {/* Hoje button */}
             <Button
               variant={periodFilter === 'hoje' && !selectedDate ? 'default' : 'outline'}
