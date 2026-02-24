@@ -841,11 +841,16 @@ export function HorimetrosPageDB() {
             <Button 
               variant="outline"
               onClick={() => setShowRepeatModal(true)}
-              className="order-first lg:order-last"
+              className="order-first lg:order-last relative"
             >
               <Repeat className="w-4 h-4 mr-2" />
               <span className="hidden sm:inline">Repetir</span>
               <span className="sm:hidden">Repetir</span>
+              {missingVehicles.length > 0 && (
+                <span className="absolute -top-2 -right-2 bg-amber-500 text-white text-[10px] font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1">
+                  {missingVehicles.length}
+                </span>
+              )}
             </Button>
             
             <Button 
@@ -919,7 +924,7 @@ export function HorimetrosPageDB() {
         </div>
 
         {/* Metrics - 5 Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div 
             className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg px-4 py-3 cursor-pointer hover:bg-red-100 dark:hover:bg-red-950/50 transition-colors"
             onClick={() => setShowKpiDetail('registros')}
@@ -956,14 +961,6 @@ export function HorimetrosPageDB() {
             <p className="text-[10px] text-amber-500 dark:text-amber-400">Clique p/ detalhes</p>
           </div>
           
-          <div 
-            className="bg-muted border rounded-lg px-4 py-3 cursor-pointer hover:bg-muted/80 transition-colors"
-            onClick={() => setShowKpiDetail('manutencao')}
-          >
-            <p className="text-xs font-semibold text-muted-foreground">Em Manutenção</p>
-            <p className="text-2xl font-bold text-foreground">{metrics.emManutencao}</p>
-            <p className="text-[10px] text-muted-foreground">Clique p/ detalhes</p>
-          </div>
         </div>
 
         {/* Tabs */}
