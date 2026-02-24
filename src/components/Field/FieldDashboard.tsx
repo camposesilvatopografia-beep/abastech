@@ -472,16 +472,17 @@ export function FieldDashboard({ user, onNavigateToForm, onNavigateToFuelMenu, o
             return recordLoc.includes(normalizedLoc) || normalizedLoc.includes(recordLoc);
           });
           
-          if (affectsUser || affectsLocation) {
-            // Show visual indicator for admin updates
+          // DELETE events only send the id (no user_id/location), so always refetch
+          if (eventType === 'DELETE') {
+            triggerUpdatePulse('Registro excluído');
+            fetchTodayRecords();
+            refreshStockCards();
+          } else if (affectsUser || affectsLocation) {
             if (eventType === 'INSERT') {
               triggerUpdatePulse('Novo registro adicionado');
             } else if (eventType === 'UPDATE') {
               triggerUpdatePulse('Registro atualizado');
-            } else if (eventType === 'DELETE') {
-              triggerUpdatePulse('Registro excluído');
             }
-            
             fetchTodayRecords();
             refreshStockCards();
           }
