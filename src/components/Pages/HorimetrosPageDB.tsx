@@ -1355,9 +1355,6 @@ export function HorimetrosPageDB() {
                       <span className="ml-2 text-primary">({selectedIds.size} selecionados)</span>
                     )}
                   </span>
-                  <span className="text-muted-foreground hidden sm:inline">
-                    Intervalo: <strong className="text-green-600">+{metrics.totalInterval.toLocaleString('pt-BR')}</strong>
-                  </span>
                 </div>
                 
                 {/* Pagination Controls */}
