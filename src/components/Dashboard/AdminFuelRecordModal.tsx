@@ -687,7 +687,7 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess, presetMode
       const sheetData: Record<string, any> = {
         'DATA': formattedDate,
         'HORA': recordTime,
-        'TIPO': recordType === 'entrada' && quickEntryMode === 'normal' ? 'Entrada' : 'Saída',
+        'TIPO': recordType === 'entrada' && quickEntryMode === 'normal' ? 'Entrada' : 'Saida',
         'VEICULO': dbRecord.vehicle_code,
         'DESCRICAO': dbRecord.vehicle_description,
         'CATEGORIA': dbRecord.category,
