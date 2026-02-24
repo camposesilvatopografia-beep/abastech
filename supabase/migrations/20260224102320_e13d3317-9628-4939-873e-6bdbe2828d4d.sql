@@ -1,0 +1,1 @@
+ALTER TABLE public.field_fuel_records REPLICA IDENTITY FULL;
