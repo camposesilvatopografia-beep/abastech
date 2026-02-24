@@ -506,6 +506,7 @@ export function BatchEditModal({ open, onOpenChange, onSuccess }: BatchEditModal
                           value={reading.edited_previous ?? reading.original_previous}
                           onChange={(val) => updateEditableReading(reading.id, 'edited_previous', val)}
                           disabled={reading.isSaving}
+                          minDecimals={1}
                           className={cn(
                             "h-9 text-sm font-mono",
                             reading.edited_previous !== null && reading.edited_previous !== reading.original_previous 
@@ -525,6 +526,7 @@ export function BatchEditModal({ open, onOpenChange, onSuccess }: BatchEditModal
                           value={reading.edited_current ?? reading.original_current}
                           onChange={(val) => updateEditableReading(reading.id, 'edited_current', val)}
                           disabled={reading.isSaving}
+                          minDecimals={1}
                           className={cn(
                             "h-9 text-sm font-mono",
                             reading.edited_current !== null && reading.edited_current !== reading.original_current 
@@ -544,6 +546,7 @@ export function BatchEditModal({ open, onOpenChange, onSuccess }: BatchEditModal
                           value={reading.edited_previous_km ?? reading.original_previous_km ?? 0}
                           onChange={(val) => updateEditableReading(reading.id, 'edited_previous_km', val)}
                           disabled={reading.isSaving}
+                          minDecimals={1}
                           className={cn(
                             "h-9 text-sm font-mono",
                             reading.edited_previous_km !== null && reading.edited_previous_km !== reading.original_previous_km 
@@ -563,6 +566,7 @@ export function BatchEditModal({ open, onOpenChange, onSuccess }: BatchEditModal
                           value={reading.edited_current_km ?? reading.original_current_km ?? 0}
                           onChange={(val) => updateEditableReading(reading.id, 'edited_current_km', val)}
                           disabled={reading.isSaving}
+                          minDecimals={1}
                           className={cn(
                             "h-9 text-sm font-mono",
                             reading.edited_current_km !== null && reading.edited_current_km !== reading.original_current_km 

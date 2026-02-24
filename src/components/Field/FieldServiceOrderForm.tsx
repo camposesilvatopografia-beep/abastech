@@ -939,7 +939,8 @@ export function FieldServiceOrderForm({ user, onBack }: FieldServiceOrderFormPro
             <CurrencyInput
               value={form.horimeter_current}
               onChange={v => setForm(prev => ({ ...prev, horimeter_current: v }))}
-              placeholder="0,00"
+              placeholder="0,0"
+              minDecimals={1}
               className={inputClass}
             />
           </div>
@@ -948,7 +949,8 @@ export function FieldServiceOrderForm({ user, onBack }: FieldServiceOrderFormPro
             <CurrencyInput
               value={form.km_current}
               onChange={v => setForm(prev => ({ ...prev, km_current: v }))}
-              placeholder="0,00"
+              placeholder="0,0"
+              minDecimals={1}
               className={inputClass}
             />
           </div>
