@@ -374,8 +374,10 @@ export function HorimetrosPageDB() {
     if (selectedDate) return selectedDate;
     if (periodFilter === 'hoje') return new Date();
     if (periodFilter === 'ontem') return subDays(new Date(), 1);
+    if (periodFilter === 'personalizado' && endDate) return endDate;
+    if (periodFilter === 'personalizado' && startDate) return startDate;
     return new Date();
-  }, [selectedDate, periodFilter]);
+  }, [selectedDate, periodFilter, startDate, endDate]);
 
   // Vehicles with readings on the reference date
   const vehiclesWithReadingsOnDate = useMemo(() => {
@@ -389,12 +391,13 @@ export function HorimetrosPageDB() {
     return vehicleIds;
   }, [readings, referenceDate]);
 
-  // Missing vehicles (no reading on reference date)
+  // Missing vehicles (active, not "outros", no reading on reference date)
   const missingVehicles = useMemo(() => {
-    return vehicles.filter(v => 
-      !vehiclesWithReadingsOnDate.has(v.id) && 
-      v.category?.toLowerCase() !== 'outros'
-    );
+    return vehicles.filter(v => {
+      const isActive = !v.status || v.status.toLowerCase() === 'ativo';
+      const notOutros = !v.category || v.category.toLowerCase() !== 'outros';
+      return isActive && notOutros && !vehiclesWithReadingsOnDate.has(v.id);
+    });
   }, [vehicles, vehiclesWithReadingsOnDate]);
 
   const handleRefresh = useCallback(async () => {
