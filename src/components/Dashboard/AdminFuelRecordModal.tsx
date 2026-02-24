@@ -1138,8 +1138,8 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess, presetMode
                     <CurrencyInput
                       value={horimeterPrevious}
                       onChange={setHorimeterPrevious}
-                      decimals={2}
-                      placeholder="0,00"
+                      decimals={1}
+                      placeholder="0,0"
                       className="border-amber-300 focus:border-amber-500"
                       disabled={horimeterBroken}
                     />
@@ -1162,8 +1162,8 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess, presetMode
                     <CurrencyInput
                       value={horimeterCurrent}
                       onChange={setHorimeterCurrent}
-                      decimals={2}
-                      placeholder={horimeterBroken ? "Equipamento quebrado" : "0,00"}
+                      decimals={1}
+                      placeholder={horimeterBroken ? "Equipamento quebrado" : "0,0"}
                       className={cn(
                         "border-amber-300 focus:border-amber-500",
                         horimeterBroken && "opacity-50 cursor-not-allowed",
@@ -1186,8 +1186,8 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess, presetMode
                     <CurrencyInput
                       value={kmPrevious}
                       onChange={setKmPrevious}
-                      decimals={2}
-                      placeholder="0,00"
+                      decimals={1}
+                      placeholder="0,0"
                       className="border-blue-300 focus:border-blue-500"
                       disabled={horimeterBroken}
                     />
@@ -1210,8 +1210,8 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess, presetMode
                     <CurrencyInput
                       value={kmCurrent}
                       onChange={setKmCurrent}
-                      decimals={2}
-                      placeholder={horimeterBroken ? "Equipamento quebrado" : "0,00"}
+                      decimals={1}
+                      placeholder={horimeterBroken ? "Equipamento quebrado" : "0,0"}
                       className={cn(
                         "border-blue-300 focus:border-blue-500",
                         horimeterBroken && "opacity-50 cursor-not-allowed",

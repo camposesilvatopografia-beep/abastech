@@ -506,6 +506,7 @@ export function BatchEditModal({ open, onOpenChange, onSuccess }: BatchEditModal
                           value={reading.edited_previous ?? reading.original_previous}
                           onChange={(val) => updateEditableReading(reading.id, 'edited_previous', val)}
                           disabled={reading.isSaving}
+                          decimals={1}
                           minDecimals={1}
                           className={cn(
                             "h-9 text-sm font-mono",
@@ -526,6 +527,7 @@ export function BatchEditModal({ open, onOpenChange, onSuccess }: BatchEditModal
                           value={reading.edited_current ?? reading.original_current}
                           onChange={(val) => updateEditableReading(reading.id, 'edited_current', val)}
                           disabled={reading.isSaving}
+                          decimals={1}
                           minDecimals={1}
                           className={cn(
                             "h-9 text-sm font-mono",
@@ -546,6 +548,7 @@ export function BatchEditModal({ open, onOpenChange, onSuccess }: BatchEditModal
                           value={reading.edited_previous_km ?? reading.original_previous_km ?? 0}
                           onChange={(val) => updateEditableReading(reading.id, 'edited_previous_km', val)}
                           disabled={reading.isSaving}
+                          decimals={1}
                           minDecimals={1}
                           className={cn(
                             "h-9 text-sm font-mono",
@@ -566,6 +569,7 @@ export function BatchEditModal({ open, onOpenChange, onSuccess }: BatchEditModal
                           value={reading.edited_current_km ?? reading.original_current_km ?? 0}
                           onChange={(val) => updateEditableReading(reading.id, 'edited_current_km', val)}
                           disabled={reading.isSaving}
+                          decimals={1}
                           minDecimals={1}
                           className={cn(
                             "h-9 text-sm font-mono",
