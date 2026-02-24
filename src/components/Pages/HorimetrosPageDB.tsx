@@ -31,6 +31,8 @@ import {
   Wrench,
   List,
   Repeat,
+  MessageCircle,
+  Filter,
 } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Button } from '@/components/ui/button';
@@ -167,6 +169,10 @@ export function HorimetrosPageDB() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [showRepeatModal, setShowRepeatModal] = useState(false);
+  // KPI detail modals
+  const [showKpiDetail, setShowKpiDetail] = useState<'registros' | 'mobilizados' | 'lancados' | 'manutencao' | null>(null);
+  // Missing modal category filter
+  const [missingCategoryFilter, setMissingCategoryFilter] = useState<string>('all');
   
   // View mode - auto-detect based on device
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
@@ -415,6 +421,84 @@ export function HorimetrosPageDB() {
       return isActive && notOutros && !vehiclesWithReadingsOnDate.has(v.id);
     });
   }, [vehicles, vehiclesWithReadingsOnDate]);
+
+  // KPI detail lists
+  const mobilizedVehiclesList = useMemo(() => {
+    return vehicles.filter(v => {
+      const isActive = !v.status || v.status.toLowerCase() === 'ativo';
+      const notOutros = !v.category || v.category.toLowerCase() !== 'outros';
+      return isActive && notOutros;
+    }).sort((a, b) => a.code.localeCompare(b.code));
+  }, [vehicles]);
+
+  const maintenanceVehiclesList = useMemo(() => {
+    return vehicles.filter(v => {
+      const s = v.status?.toLowerCase() || '';
+      return s.includes('manuten') || s.includes('manutençã') || s === 'manutenção';
+    }).sort((a, b) => a.code.localeCompare(b.code));
+  }, [vehicles]);
+
+  const launchedVehiclesList = useMemo(() => {
+    const dateStr = format(referenceDate, 'yyyy-MM-dd');
+    return readings
+      .filter(r => r.reading_date === dateStr)
+      .sort((a, b) => (a.vehicle?.code || '').localeCompare(b.vehicle?.code || ''));
+  }, [readings, referenceDate]);
+
+  const filteredMissingVehicles = useMemo(() => {
+    if (missingCategoryFilter === 'all') return missingVehicles;
+    return missingVehicles.filter(v => v.category?.toLowerCase() === missingCategoryFilter.toLowerCase());
+  }, [missingVehicles, missingCategoryFilter]);
+
+  const missingCategories = useMemo(() => {
+    const cats = new Set<string>();
+    missingVehicles.forEach(v => { if (v.category) cats.add(v.category); });
+    return Array.from(cats).sort();
+  }, [missingVehicles]);
+
+  const exportMissingPDF = async (vehiclesList: typeof missingVehicles, filterLabel?: string) => {
+    const doc = new jsPDF('portrait');
+    const margin = 14;
+    const logoBase64 = await getLogoBase64(obraSettings?.logo_url);
+    let y = renderStandardHeader(doc, {
+      reportTitle: 'VEÍCULOS SEM REGISTRO DE HORÍMETRO',
+      obraSettings, logoBase64,
+      date: format(new Date(), 'dd/MM/yyyy HH:mm'),
+    });
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(71, 85, 105);
+    doc.text(`Data: ${format(referenceDate, 'dd/MM/yyyy')}  •  ${vehiclesList.length} veículo(s)${filterLabel ? `  •  ${filterLabel}` : ''}`, margin, y);
+    y += 6;
+    autoTable(doc, {
+      head: [['#', 'Código', 'Descrição', 'Categoria', 'Empresa']],
+      body: vehiclesList.map((v, i) => [i + 1, v.code, v.name, v.category || '-', v.company || '-']),
+      startY: y, margin: { left: margin, right: margin },
+      styles: { fontSize: 8, cellPadding: 2.5, font: 'helvetica', textColor: [30, 41, 59], lineColor: [226, 232, 240], lineWidth: 0.2 },
+      headStyles: { fillColor: [220, 220, 225], textColor: [30, 41, 59], fontStyle: 'bold', fontSize: 8, halign: 'center', cellPadding: 3 },
+      alternateRowStyles: { fillColor: [248, 250, 252] },
+      columnStyles: { 0: { halign: 'center', cellWidth: 10 }, 1: { fontStyle: 'bold' } },
+    });
+    const pageCount = doc.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      const pH = doc.internal.pageSize.getHeight();
+      doc.setFontSize(7); doc.setTextColor(148, 163, 184);
+      doc.text('AbasTech — Sistema de Gestão de Frotas', margin, pH - 6);
+      doc.text(`Página ${i} de ${pageCount}`, doc.internal.pageSize.getWidth() - margin, pH - 6, { align: 'right' });
+    }
+    doc.save(`faltantes_${format(referenceDate, 'yyyy-MM-dd')}${filterLabel ? '_' + filterLabel.replace(/\s+/g, '_') : ''}.pdf`);
+  };
+
+  const exportMissingWhatsApp = (vehiclesList: typeof missingVehicles, filterLabel?: string) => {
+    const dateStr = format(referenceDate, 'dd/MM/yyyy');
+    let msg = `⚠️ *VEÍCULOS SEM HORÍMETRO - ${dateStr}*${filterLabel ? ` (${filterLabel})` : ''}\n\n📊 Total: *${vehiclesList.length}* veículo(s)\n\n`;
+    const byCategory = new Map<string, typeof vehiclesList>();
+    vehiclesList.forEach(v => { const cat = v.category || 'Sem categoria'; if (!byCategory.has(cat)) byCategory.set(cat, []); byCategory.get(cat)!.push(v); });
+    for (const [cat, vehs] of byCategory) { msg += `*${cat}* (${vehs.length})\n`; vehs.forEach(v => { msg += `  • ${v.code} - ${v.name}\n`; }); msg += '\n'; }
+    msg += `_AbasTech - ${format(new Date(), 'dd/MM/yyyy HH:mm')}_`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
+  };
 
   const handleRefresh = useCallback(async () => {
     await Promise.all([refetchVehicles(), refetchReadings()]);
@@ -792,43 +876,51 @@ export function HorimetrosPageDB() {
           </div>
         </div>
 
-        {/* Metrics - 5 Cards matching reference layout */}
+        {/* Metrics - 5 Cards */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-          {/* Total Registros */}
-          <div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg px-4 py-3">
+          <div 
+            className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg px-4 py-3 cursor-pointer hover:bg-red-100 dark:hover:bg-red-950/50 transition-colors"
+            onClick={() => setShowKpiDetail('registros')}
+          >
             <p className="text-xs font-semibold text-red-600 dark:text-red-400">Total Registros</p>
             <p className="text-2xl font-bold text-red-700 dark:text-red-300">{metrics.registros}</p>
+            <p className="text-[10px] text-red-500 dark:text-red-400">Clique p/ detalhes</p>
           </div>
           
-          {/* Cadastrados / Mobilizados */}
-          <div className="bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800 rounded-lg px-4 py-3">
+          <div 
+            className="bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800 rounded-lg px-4 py-3 cursor-pointer hover:bg-orange-100 dark:hover:bg-orange-950/50 transition-colors"
+            onClick={() => setShowKpiDetail('mobilizados')}
+          >
             <p className="text-xs font-semibold text-orange-600 dark:text-orange-400">Cadastrados</p>
             <p className="text-2xl font-bold text-orange-700 dark:text-orange-300">{metrics.mobilizados}</p>
-            <p className="text-[10px] text-orange-500 dark:text-orange-400">Mobilizados</p>
+            <p className="text-[10px] text-orange-500 dark:text-orange-400">Clique p/ detalhes</p>
           </div>
           
-          {/* Lançados */}
-          <div className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-lg px-4 py-3">
+          <div 
+            className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-lg px-4 py-3 cursor-pointer hover:bg-emerald-100 dark:hover:bg-emerald-950/50 transition-colors"
+            onClick={() => setShowKpiDetail('lancados')}
+          >
             <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">Lançados</p>
             <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-300">{vehiclesWithReadingsOnDate.size}</p>
-            <p className="text-[10px] text-emerald-500 dark:text-emerald-400">Com horímetro/km</p>
+            <p className="text-[10px] text-emerald-500 dark:text-emerald-400">Clique p/ detalhes</p>
           </div>
           
-          {/* Faltantes */}
           <div 
             className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg px-4 py-3 cursor-pointer hover:bg-amber-100 dark:hover:bg-amber-950/50 transition-colors"
-            onClick={() => setShowMissingModal(true)}
+            onClick={() => { setMissingCategoryFilter('all'); setShowMissingModal(true); }}
           >
             <p className="text-xs font-semibold text-amber-600 dark:text-amber-400">Faltantes</p>
             <p className="text-2xl font-bold text-amber-700 dark:text-amber-300">{missingVehicles.length}</p>
             <p className="text-[10px] text-amber-500 dark:text-amber-400">Clique p/ detalhes</p>
           </div>
           
-          {/* Em Manutenção */}
-          <div className="bg-muted border rounded-lg px-4 py-3">
+          <div 
+            className="bg-muted border rounded-lg px-4 py-3 cursor-pointer hover:bg-muted/80 transition-colors"
+            onClick={() => setShowKpiDetail('manutencao')}
+          >
             <p className="text-xs font-semibold text-muted-foreground">Em Manutenção</p>
             <p className="text-2xl font-bold text-foreground">{metrics.emManutencao}</p>
-            <p className="text-[10px] text-muted-foreground">{metrics.emManutencao} reg. • Detalhes</p>
+            <p className="text-[10px] text-muted-foreground">Clique p/ detalhes</p>
           </div>
         </div>
 
@@ -1371,42 +1463,72 @@ export function HorimetrosPageDB() {
         moduleName="Horímetros"
       />
 
-      {/* Missing Vehicles Modal */}
+      {/* Missing Vehicles Modal - Enhanced */}
       <Dialog open={showMissingModal} onOpenChange={setShowMissingModal}>
-        <DialogContent className="max-w-lg max-h-[80vh] overflow-hidden flex flex-col">
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-hidden flex flex-col">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-red-600">
+            <DialogTitle className="flex items-center gap-2 text-amber-600">
               <AlertTriangle className="w-5 h-5" />
               Veículos sem Registro - {format(referenceDate, 'dd/MM/yyyy')}
             </DialogTitle>
           </DialogHeader>
           
+          {/* Category filter + export buttons */}
+          <div className="flex flex-wrap gap-2 items-center pb-3 border-b">
+            <Filter className="w-4 h-4 text-muted-foreground" />
+            <Select value={missingCategoryFilter} onValueChange={setMissingCategoryFilter}>
+              <SelectTrigger className="w-[180px] h-8">
+                <SelectValue placeholder="Filtrar categoria" />
+              </SelectTrigger>
+              <SelectContent className="bg-background">
+                <SelectItem value="all">Todas ({missingVehicles.length})</SelectItem>
+                {missingCategories.map(cat => {
+                  const count = missingVehicles.filter(v => v.category === cat).length;
+                  return <SelectItem key={cat} value={cat}>{cat} ({count})</SelectItem>;
+                })}
+              </SelectContent>
+            </Select>
+            
+            <div className="ml-auto flex gap-2">
+              <Button variant="outline" size="sm" onClick={() => exportMissingPDF(filteredMissingVehicles, missingCategoryFilter !== 'all' ? missingCategoryFilter : undefined)}>
+                <FileText className="w-4 h-4 mr-1" /> PDF
+              </Button>
+              <Button variant="outline" size="sm" className="text-emerald-600 hover:text-emerald-700" onClick={() => exportMissingWhatsApp(filteredMissingVehicles, missingCategoryFilter !== 'all' ? missingCategoryFilter : undefined)}>
+                <MessageCircle className="w-4 h-4 mr-1" /> WhatsApp
+              </Button>
+            </div>
+          </div>
+          
           <div className="flex-1 overflow-auto">
-            {missingVehicles.length === 0 ? (
+            {filteredMissingVehicles.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
-                <Users className="w-12 h-12 mx-auto mb-2 text-green-500" />
-                <p>Todos os veículos possuem registro para esta data!</p>
+                <Users className="w-12 h-12 mx-auto mb-2 text-emerald-500" />
+                <p>Todos os veículos possuem registro{missingCategoryFilter !== 'all' ? ` (${missingCategoryFilter})` : ''}!</p>
               </div>
             ) : (
               <div className="space-y-2">
-                <p className="text-sm text-muted-foreground mb-4">
-                  {missingVehicles.length} veículo(s) sem apontamento de horímetro:
+                <p className="text-sm text-muted-foreground">
+                  {filteredMissingVehicles.length} veículo(s) sem apontamento
                 </p>
                 <div className="rounded-lg border overflow-hidden">
                   <Table>
                     <TableHeader>
                       <TableRow>
+                        <TableHead className="w-10">#</TableHead>
                         <TableHead>Código</TableHead>
                         <TableHead>Descrição</TableHead>
                         <TableHead>Categoria</TableHead>
+                        <TableHead>Empresa</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {missingVehicles.map(v => (
+                      {filteredMissingVehicles.map((v, i) => (
                         <TableRow key={v.id}>
-                          <TableCell className="font-medium">{v.code}</TableCell>
-                          <TableCell>{v.name}</TableCell>
-                          <TableCell>{v.category || '-'}</TableCell>
+                          <TableCell className="text-xs text-muted-foreground">{i + 1}</TableCell>
+                          <TableCell className="font-bold text-orange-600 dark:text-orange-400">{v.code}</TableCell>
+                          <TableCell className="text-sm">{v.name}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground">{v.category || '-'}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground">{v.company || '-'}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -1420,6 +1542,116 @@ export function HorimetrosPageDB() {
             <Button variant="outline" onClick={() => setShowMissingModal(false)}>
               Fechar
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* KPI Detail Modal */}
+      <Dialog open={!!showKpiDetail} onOpenChange={(open) => { if (!open) setShowKpiDetail(null); }}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle>
+              {showKpiDetail === 'registros' && `Registros do Período (${readingsWithInterval.length})`}
+              {showKpiDetail === 'mobilizados' && `Veículos Mobilizados (${mobilizedVehiclesList.length})`}
+              {showKpiDetail === 'lancados' && `Lançados em ${format(referenceDate, 'dd/MM/yyyy')} (${launchedVehiclesList.length})`}
+              {showKpiDetail === 'manutencao' && `Em Manutenção (${maintenanceVehiclesList.length})`}
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="flex-1 overflow-auto">
+            {showKpiDetail === 'registros' && (
+              <div className="rounded-lg border overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>#</TableHead>
+                      <TableHead>Data</TableHead>
+                      <TableHead>Veículo</TableHead>
+                      <TableHead>Descrição</TableHead>
+                      <TableHead className="text-right">Hor. Atual</TableHead>
+                      <TableHead className="text-right">H.T.</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {readingsWithInterval.slice(0, 100).map((r, i) => (
+                      <TableRow key={r.id}>
+                        <TableCell className="text-xs text-muted-foreground">{i + 1}</TableCell>
+                        <TableCell className="text-sm">{format(new Date(r.reading_date + 'T00:00:00'), 'dd/MM/yyyy')}</TableCell>
+                        <TableCell className="font-bold text-orange-600 dark:text-orange-400">{r.vehicle?.code}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">{r.vehicle?.name}</TableCell>
+                        <TableCell className="text-right">{formatNumericBR(r.current_value)}</TableCell>
+                        <TableCell className={cn("text-right font-medium", r.interval > 0 ? "text-emerald-600" : r.interval < 0 ? "text-red-600" : "")}>
+                          {r.interval !== 0 ? formatNumericBR(r.interval) : '-'}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+                {readingsWithInterval.length > 100 && (
+                  <p className="text-xs text-muted-foreground p-2 text-center">Mostrando 100 de {readingsWithInterval.length} registros</p>
+                )}
+              </div>
+            )}
+            
+            {(showKpiDetail === 'mobilizados' || showKpiDetail === 'manutencao') && (
+              <div className="rounded-lg border overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>#</TableHead>
+                      <TableHead>Código</TableHead>
+                      <TableHead>Descrição</TableHead>
+                      <TableHead>Categoria</TableHead>
+                      <TableHead>Empresa</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {(showKpiDetail === 'mobilizados' ? mobilizedVehiclesList : maintenanceVehiclesList).map((v, i) => (
+                      <TableRow key={v.id}>
+                        <TableCell className="text-xs text-muted-foreground">{i + 1}</TableCell>
+                        <TableCell className="font-bold text-orange-600 dark:text-orange-400">{v.code}</TableCell>
+                        <TableCell className="text-sm">{v.name}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">{v.category || '-'}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">{v.company || '-'}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+            
+            {showKpiDetail === 'lancados' && (
+              <div className="rounded-lg border overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>#</TableHead>
+                      <TableHead>Veículo</TableHead>
+                      <TableHead>Descrição</TableHead>
+                      <TableHead>Operador</TableHead>
+                      <TableHead className="text-right">Hor. Atual</TableHead>
+                      <TableHead className="text-right">KM Atual</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {launchedVehiclesList.map((r, i) => (
+                      <TableRow key={r.id}>
+                        <TableCell className="text-xs text-muted-foreground">{i + 1}</TableCell>
+                        <TableCell className="font-bold text-orange-600 dark:text-orange-400">{r.vehicle?.code}</TableCell>
+                        <TableCell className="text-sm">{r.vehicle?.name}</TableCell>
+                        <TableCell className="text-sm">{r.operator || '-'}</TableCell>
+                        <TableCell className="text-right">{formatNumericBR(r.current_value)}</TableCell>
+                        <TableCell className="text-right text-blue-600">{formatNumericBR((r as any).current_km)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </div>
+          
+          <div className="flex justify-end pt-4 border-t">
+            <Button variant="outline" onClick={() => setShowKpiDetail(null)}>Fechar</Button>
           </div>
         </DialogContent>
       </Dialog>
