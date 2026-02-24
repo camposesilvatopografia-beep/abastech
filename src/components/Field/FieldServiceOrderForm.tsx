@@ -940,6 +940,7 @@ export function FieldServiceOrderForm({ user, onBack }: FieldServiceOrderFormPro
               value={form.horimeter_current}
               onChange={v => setForm(prev => ({ ...prev, horimeter_current: v }))}
               placeholder="0,0"
+              decimals={1}
               minDecimals={1}
               className={inputClass}
             />
@@ -950,6 +951,7 @@ export function FieldServiceOrderForm({ user, onBack }: FieldServiceOrderFormPro
               value={form.km_current}
               onChange={v => setForm(prev => ({ ...prev, km_current: v }))}
               placeholder="0,0"
+              decimals={1}
               minDecimals={1}
               className={inputClass}
             />

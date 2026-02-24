@@ -886,7 +886,7 @@ export function DatabaseHorimeterModal({
                         <CurrencyInput
                           value={previousHorimeterValue}
                           onChange={setPreviousHorimeterValue}
-                          decimals={2}
+                          decimals={1}
                           minDecimals={1}
                           placeholder="0,0"
                           className="h-6 text-center text-xs font-semibold text-amber-600 bg-transparent border-amber-300 p-0"
@@ -901,7 +901,7 @@ export function DatabaseHorimeterModal({
                         <CurrencyInput
                           value={previousKmValue}
                           onChange={setPreviousKmValue}
-                          decimals={2}
+                          decimals={1}
                           minDecimals={1}
                           placeholder="0,0"
                           className="h-6 text-center text-xs font-semibold text-blue-600 bg-transparent border-blue-300 p-0"
@@ -932,7 +932,7 @@ export function DatabaseHorimeterModal({
                     id="horimeter"
                     value={horimeterValue}
                     onChange={setHorimeterValue}
-                    decimals={2}
+                    decimals={1}
                     minDecimals={1}
                     placeholder="0,0"
                     className="font-mono text-lg h-12 border-amber-200 dark:border-amber-800 focus-visible:ring-amber-500"
@@ -955,7 +955,7 @@ export function DatabaseHorimeterModal({
                     id="km"
                     value={kmValue}
                     onChange={setKmValue}
-                    decimals={2}
+                    decimals={1}
                     minDecimals={1}
                     placeholder="0,0"
                     className="font-mono text-lg h-12 border-blue-200 dark:border-blue-800 focus-visible:ring-blue-500"

@@ -1192,6 +1192,7 @@ export function FieldHorimeterForm({ user, onBack }: FieldHorimeterFormProps) {
               value={horimeterValue}
               onChange={setHorimeterValue}
               placeholder="0,0"
+              decimals={1}
               minDecimals={1}
               className={cn(
                 "h-12 text-lg font-bold",
@@ -1238,6 +1239,7 @@ export function FieldHorimeterForm({ user, onBack }: FieldHorimeterFormProps) {
               value={kmValue}
               onChange={setKmValue}
               placeholder="0,0"
+              decimals={1}
               minDecimals={1}
               className={cn(
                 "h-12 text-lg font-bold",

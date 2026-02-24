@@ -2948,7 +2948,7 @@ export function ManutencaoPage() {
                     setFormData({ ...formData, horimeter_current: val });
                     validateHorimeter(val);
                   }}
-                  decimals={2}
+                  decimals={1}
                   className={horimeterWarning ? 'border-amber-500' : ''}
                 />
                 {horimeterWarning && (
