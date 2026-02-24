@@ -303,7 +303,6 @@ export function FieldDashboard({ user, onNavigateToForm, onNavigateToFuelMenu, o
     };
     loadRecords();
 
-    // Poll every 10 seconds to ensure data is fresh
     const pollInterval = setInterval(() => {
       if (document.visibilityState === 'visible' && !isDeletingRef.current) {
         fetchTodayRecords();
@@ -359,6 +358,18 @@ export function FieldDashboard({ user, onNavigateToForm, onNavigateToFuelMenu, o
       ref?.refetch();
     });
   }, []);
+
+  // Force full refresh when app becomes visible (PWA returning from background)
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible' && !isDeletingRef.current) {
+        fetchTodayRecords();
+        refreshStockCards();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [fetchTodayRecords, refreshStockCards]);
 
   // Calculate local KPIs by location from Supabase records (instant updates)
   const localKPIsByLocation = useMemo(() => {
