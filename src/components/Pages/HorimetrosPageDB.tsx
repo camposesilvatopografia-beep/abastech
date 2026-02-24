@@ -346,6 +346,18 @@ export function HorimetrosPageDB() {
     });
   }, [filteredReadings]);
 
+  // Detect duplicate readings: same vehicle + same date appearing 2+ times
+  const duplicateKeys = useMemo(() => {
+    const countMap = new Map<string, number>();
+    readingsWithInterval.forEach(r => {
+      const key = `${r.vehicle_id}_${r.reading_date}`;
+      countMap.set(key, (countMap.get(key) || 0) + 1);
+    });
+    const dupes = new Set<string>();
+    countMap.forEach((count, key) => { if (count >= 2) dupes.add(key); });
+    return dupes;
+  }, [readingsWithInterval]);
+
   // Pagination calculations
   const totalPages = Math.ceil(readingsWithInterval.length / rowsPerPage);
   const paginatedReadings = useMemo(() => {
@@ -1328,7 +1340,14 @@ export function HorimetrosPageDB() {
                         {(currentPage - 1) * rowsPerPage + index + 1}
                       </TableCell>
                       <TableCell className="text-sm">
-                        {format(new Date(reading.reading_date + 'T00:00:00'), 'dd/MM/yyyy')}
+                        <div className="flex items-center gap-1.5">
+                          {format(new Date(reading.reading_date + 'T00:00:00'), 'dd/MM/yyyy')}
+                          {duplicateKeys.has(`${reading.vehicle_id}_${reading.reading_date}`) && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-400 border border-red-200 dark:border-red-800">
+                              DUPLICADO
+                            </span>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell className="font-bold text-orange-600 dark:text-orange-400">{reading.vehicle?.code}</TableCell>
                       <TableCell className="text-sm text-muted-foreground truncate max-w-[180px]">{reading.vehicle?.name || '-'}</TableCell>
