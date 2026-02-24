@@ -404,9 +404,11 @@ export function RepeatHorimeterModal({
                   key={r.vehicleId}
                   className={cn(
                     "flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors",
-                    selectedVehicles.has(r.vehicleId) 
-                      ? "bg-primary/5 border border-primary/20" 
-                      : "hover:bg-muted/50"
+                    failedVehicleIds.has(r.vehicleId)
+                      ? "bg-destructive/10 border border-destructive/30"
+                      : selectedVehicles.has(r.vehicleId) 
+                        ? "bg-primary/5 border border-primary/20" 
+                        : "hover:bg-muted/50"
                   )}
                 >
                   <Checkbox
@@ -415,7 +417,10 @@ export function RepeatHorimeterModal({
                   />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="font-mono font-bold text-sm">{r.vehicleCode}</span>
+                      {failedVehicleIds.has(r.vehicleId) && (
+                        <AlertCircle className="w-3.5 h-3.5 text-destructive shrink-0" />
+                      )}
+                      <span className={cn("font-mono font-bold text-sm", failedVehicleIds.has(r.vehicleId) && "text-destructive")}>{r.vehicleCode}</span>
                       <span className="text-xs text-muted-foreground truncate">{r.vehicleName}</span>
                     </div>
                     <div className="flex gap-3 text-xs text-muted-foreground mt-0.5">
