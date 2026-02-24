@@ -98,7 +98,7 @@ function getLocationConfig(loc: string): {
   }
   if (l.includes('tanque') || l.includes('canteiro')) {
     return { 
-      allowedTypes: ['saida'], 
+      allowedTypes: ['saida', 'entrada'], 
       defaultType: 'saida', 
       label: loc,
       locationField: loc,
@@ -293,9 +293,7 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess, presetMode
         const config = getLocationConfig(presetLocation);
         setRecordType(config.defaultType);
         setLocation(config.locationField);
-        if (config.defaultType === 'entrada') {
-          setEntryLocation(config.locationField);
-        }
+        setEntryLocation(config.locationField);
       }
     }
   }, [open, presetMode, presetLocation]);
@@ -1457,8 +1455,8 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess, presetMode
                     <MapPin className="h-4 w-4 text-blue-600" />
                     Local de Entrada *
                   </Label>
-                  <Select value={entryLocation} onValueChange={setEntryLocation}>
-                    <SelectTrigger className="h-12 text-base border-2 border-blue-300 dark:border-blue-700 bg-background font-medium">
+                  <Select value={entryLocation} onValueChange={setEntryLocation} disabled={presetMode === 'location'}>
+                    <SelectTrigger className={cn("h-12 text-base border-2 border-blue-300 dark:border-blue-700 bg-background font-medium", presetMode === 'location' && "opacity-70")}>
                       <SelectValue placeholder="Selecione o local" />
                     </SelectTrigger>
                     <SelectContent className="bg-popover border-2 border-border">
