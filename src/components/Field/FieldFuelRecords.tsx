@@ -113,7 +113,7 @@ export function FieldFuelRecords({ user, onBack }: FieldFuelRecordsProps) {
     fetchRecords();
   }, [fetchRecords]);
 
-  // Realtime subscription
+  // Realtime subscription — optimistically remove deleted records
   useEffect(() => {
     const channel = supabase
       .channel('field_fuel_records_realtime')
@@ -124,7 +124,13 @@ export function FieldFuelRecords({ user, onBack }: FieldFuelRecordsProps) {
           schema: 'public',
           table: 'field_fuel_records',
         },
-        () => {
+        (payload) => {
+          if (payload.eventType === 'DELETE') {
+            const deletedId = (payload.old as Record<string, any>)?.id;
+            if (deletedId) {
+              setRecords(prev => prev.filter(r => r.id !== deletedId));
+            }
+          }
           fetchRecords();
         }
       )

@@ -457,27 +457,31 @@ export function FieldDashboard({ user, onNavigateToForm, onNavigateToFuelMenu, o
           table: 'field_fuel_records',
         },
         (payload) => {
-          // Refresh on any changes to fuel records (including admin edits)
           const newRecord = payload.new as Record<string, any> | null;
           const oldRecord = payload.old as Record<string, any> | null;
           const eventType = payload.eventType;
           
+          // DELETE events only send the id — optimistically remove from state + refetch
+          if (eventType === 'DELETE') {
+            const deletedId = oldRecord?.id;
+            if (deletedId) {
+              setTodayRecords(prev => prev.filter(r => r.id !== deletedId));
+            }
+            triggerUpdatePulse('Registro excluído');
+            fetchTodayRecords();
+            refreshStockCards();
+            return;
+          }
+          
           // Check if this affects current user
           const affectsUser = newRecord?.user_id === user.id || oldRecord?.user_id === user.id;
-          
-          // Check if this affects any of user's assigned locations
           const affectsLocation = user.assigned_locations?.some(loc => {
             const normalizedLoc = loc.toLowerCase();
             const recordLoc = (newRecord?.location || oldRecord?.location || '').toLowerCase();
             return recordLoc.includes(normalizedLoc) || normalizedLoc.includes(recordLoc);
           });
           
-          // DELETE events only send the id (no user_id/location), so always refetch
-          if (eventType === 'DELETE') {
-            triggerUpdatePulse('Registro excluído');
-            fetchTodayRecords();
-            refreshStockCards();
-          } else if (affectsUser || affectsLocation) {
+          if (affectsUser || affectsLocation) {
             if (eventType === 'INSERT') {
               triggerUpdatePulse('Novo registro adicionado');
             } else if (eventType === 'UPDATE') {
