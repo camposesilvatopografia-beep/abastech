@@ -421,17 +421,31 @@ export function HorimetrosPageDB() {
     return new Date();
   }, [selectedDate, periodFilter, startDate, endDate]);
 
-  // Vehicles with readings on the reference date
+  // Set of mobilized vehicle IDs (for KPI filtering)
+  const mobilizedVehicleIds = useMemo(() => {
+    const isExcludedCompany = (company: string | null) => {
+      if (!company) return false;
+      return company.toLowerCase().includes('saneamento');
+    };
+    return new Set(vehicles.filter(v => {
+      const isActive = !v.status || v.status.toLowerCase() === 'ativo';
+      const notOutros = !v.category || v.category.toLowerCase() !== 'outros';
+      const notExcluded = !isExcludedCompany(v.company);
+      return isActive && notOutros && notExcluded;
+    }).map(v => v.id));
+  }, [vehicles]);
+
+  // Vehicles with readings on the reference date (only mobilized)
   const vehiclesWithReadingsOnDate = useMemo(() => {
     const dateStr = format(referenceDate, 'yyyy-MM-dd');
     const vehicleIds = new Set<string>();
     readings.forEach(r => {
-      if (r.reading_date === dateStr) {
+      if (r.reading_date === dateStr && mobilizedVehicleIds.has(r.vehicle_id)) {
         vehicleIds.add(r.vehicle_id);
       }
     });
     return vehicleIds;
-  }, [readings, referenceDate]);
+  }, [readings, referenceDate, mobilizedVehicleIds]);
 
   // Missing vehicles (active, not "outros", no reading on reference date)
   const missingVehicles = useMemo(() => {
@@ -471,9 +485,9 @@ export function HorimetrosPageDB() {
   const launchedVehiclesList = useMemo(() => {
     const dateStr = format(referenceDate, 'yyyy-MM-dd');
     return readings
-      .filter(r => r.reading_date === dateStr)
+      .filter(r => r.reading_date === dateStr && mobilizedVehicleIds.has(r.vehicle_id))
       .sort((a, b) => (a.vehicle?.code || '').localeCompare(b.vehicle?.code || ''));
-  }, [readings, referenceDate]);
+  }, [readings, referenceDate, mobilizedVehicleIds]);
 
   const filteredMissingVehicles = useMemo(() => {
     let filtered = missingVehicles;
@@ -950,7 +964,7 @@ export function HorimetrosPageDB() {
             className="bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800 rounded-lg px-4 py-3 cursor-pointer hover:bg-orange-100 dark:hover:bg-orange-950/50 transition-colors"
             onClick={() => setShowKpiDetail('mobilizados')}
           >
-            <p className="text-xs font-semibold text-orange-600 dark:text-orange-400">Cadastrados</p>
+            <p className="text-xs font-semibold text-orange-600 dark:text-orange-400">Mobilizados</p>
             <p className="text-2xl font-bold text-orange-700 dark:text-orange-300">{metrics.mobilizados}</p>
             <p className="text-[10px] text-orange-500 dark:text-orange-400">Clique p/ detalhes</p>
           </div>
