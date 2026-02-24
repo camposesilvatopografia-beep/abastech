@@ -170,8 +170,9 @@ export function HorimetrosPageDB() {
   const [showRepeatModal, setShowRepeatModal] = useState(false);
   // KPI detail modals
   const [showKpiDetail, setShowKpiDetail] = useState<'registros' | 'mobilizados' | 'lancados' | 'manutencao' | null>(null);
-  // Missing modal category filter
+  // Missing modal filters
   const [missingCategoryFilter, setMissingCategoryFilter] = useState<string>('all');
+  const [missingDescriptionFilter, setMissingDescriptionFilter] = useState<string>('all');
   
   // View mode - auto-detect based on device
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
@@ -367,11 +368,19 @@ export function HorimetrosPageDB() {
       if (r.current_value === 0) zerados++;
     });
 
-    // Mobilized = active vehicles (not "outros")
+    // Helper: exclude "Obra Saneamento" company
+    const isExcludedCompany = (company: string | null) => {
+      if (!company) return false;
+      const lower = company.toLowerCase();
+      return lower.includes('saneamento');
+    };
+
+    // Mobilized = active vehicles (not "outros", not "Obra Saneamento")
     const mobilizedVehicles = vehicles.filter(v => {
       const isActive = !v.status || v.status.toLowerCase() === 'ativo';
       const notOutros = !v.category || v.category.toLowerCase() !== 'outros';
-      return isActive && notOutros;
+      const notExcluded = !isExcludedCompany(v.company);
+      return isActive && notOutros && notExcluded;
     });
 
     // Vehicles in maintenance (status = manutenção or similar)
@@ -414,19 +423,29 @@ export function HorimetrosPageDB() {
 
   // Missing vehicles (active, not "outros", no reading on reference date)
   const missingVehicles = useMemo(() => {
+    const isExcludedCompany = (company: string | null) => {
+      if (!company) return false;
+      return company.toLowerCase().includes('saneamento');
+    };
     return vehicles.filter(v => {
       const isActive = !v.status || v.status.toLowerCase() === 'ativo';
       const notOutros = !v.category || v.category.toLowerCase() !== 'outros';
-      return isActive && notOutros && !vehiclesWithReadingsOnDate.has(v.id);
+      const notExcluded = !isExcludedCompany(v.company);
+      return isActive && notOutros && notExcluded && !vehiclesWithReadingsOnDate.has(v.id);
     });
   }, [vehicles, vehiclesWithReadingsOnDate]);
 
   // KPI detail lists
   const mobilizedVehiclesList = useMemo(() => {
+    const isExcludedCompany = (company: string | null) => {
+      if (!company) return false;
+      return company.toLowerCase().includes('saneamento');
+    };
     return vehicles.filter(v => {
       const isActive = !v.status || v.status.toLowerCase() === 'ativo';
       const notOutros = !v.category || v.category.toLowerCase() !== 'outros';
-      return isActive && notOutros;
+      const notExcluded = !isExcludedCompany(v.company);
+      return isActive && notOutros && notExcluded;
     }).sort((a, b) => a.code.localeCompare(b.code));
   }, [vehicles]);
 
@@ -445,14 +464,38 @@ export function HorimetrosPageDB() {
   }, [readings, referenceDate]);
 
   const filteredMissingVehicles = useMemo(() => {
-    if (missingCategoryFilter === 'all') return missingVehicles;
-    return missingVehicles.filter(v => v.category?.toLowerCase() === missingCategoryFilter.toLowerCase());
-  }, [missingVehicles, missingCategoryFilter]);
+    let filtered = missingVehicles;
+    if (missingCategoryFilter !== 'all') {
+      filtered = filtered.filter(v => v.category?.toLowerCase() === missingCategoryFilter.toLowerCase());
+    }
+    if (missingDescriptionFilter !== 'all') {
+      filtered = filtered.filter(v => {
+        const name = v.name?.toLowerCase() || '';
+        return name.includes(missingDescriptionFilter.toLowerCase());
+      });
+    }
+    return filtered;
+  }, [missingVehicles, missingCategoryFilter, missingDescriptionFilter]);
 
   const missingCategories = useMemo(() => {
     const cats = new Set<string>();
     missingVehicles.forEach(v => { if (v.category) cats.add(v.category); });
     return Array.from(cats).sort();
+  }, [missingVehicles]);
+
+  // Extract unique description keywords from missing vehicles (first word of name)
+  const missingDescriptions = useMemo(() => {
+    const descs = new Map<string, number>();
+    missingVehicles.forEach(v => {
+      if (v.name) {
+        // Use the main description keyword (e.g., "Motoniveladora", "Escavadeira")
+        const keyword = v.name.split(/[\s-]+/)[0];
+        if (keyword.length > 2) {
+          descs.set(keyword, (descs.get(keyword) || 0) + 1);
+        }
+      }
+    });
+    return Array.from(descs.entries()).sort((a, b) => a[0].localeCompare(b[0]));
   }, [missingVehicles]);
 
   const exportMissingPDF = async (vehiclesList: typeof missingVehicles, filterLabel?: string) => {
@@ -906,7 +949,7 @@ export function HorimetrosPageDB() {
           
           <div 
             className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg px-4 py-3 cursor-pointer hover:bg-amber-100 dark:hover:bg-amber-950/50 transition-colors"
-            onClick={() => { setMissingCategoryFilter('all'); setShowMissingModal(true); }}
+            onClick={() => { setMissingCategoryFilter('all'); setMissingDescriptionFilter('all'); setShowMissingModal(true); }}
           >
             <p className="text-xs font-semibold text-amber-600 dark:text-amber-400">Faltantes</p>
             <p className="text-2xl font-bold text-amber-700 dark:text-amber-300">{missingVehicles.length}</p>
@@ -1469,12 +1512,12 @@ export function HorimetrosPageDB() {
             </DialogTitle>
           </DialogHeader>
           
-          {/* Category filter + export buttons */}
+          {/* Category + Description filter + export buttons */}
           <div className="flex flex-wrap gap-2 items-center pb-3 border-b">
             <Filter className="w-4 h-4 text-muted-foreground" />
-            <Select value={missingCategoryFilter} onValueChange={setMissingCategoryFilter}>
-              <SelectTrigger className="w-[180px] h-8">
-                <SelectValue placeholder="Filtrar categoria" />
+            <Select value={missingCategoryFilter} onValueChange={(v) => { setMissingCategoryFilter(v); }}>
+              <SelectTrigger className="w-[170px] h-8">
+                <SelectValue placeholder="Categoria" />
               </SelectTrigger>
               <SelectContent className="bg-background">
                 <SelectItem value="all">Todas ({missingVehicles.length})</SelectItem>
@@ -1484,12 +1527,29 @@ export function HorimetrosPageDB() {
                 })}
               </SelectContent>
             </Select>
+            <Select value={missingDescriptionFilter} onValueChange={setMissingDescriptionFilter}>
+              <SelectTrigger className="w-[170px] h-8">
+                <SelectValue placeholder="Descrição" />
+              </SelectTrigger>
+              <SelectContent className="bg-background">
+                <SelectItem value="all">Todas Descrições</SelectItem>
+                {missingDescriptions.map(([desc, count]) => (
+                  <SelectItem key={desc} value={desc}>{desc} ({count})</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             
             <div className="ml-auto flex gap-2">
-              <Button variant="outline" size="sm" onClick={() => exportMissingPDF(filteredMissingVehicles, missingCategoryFilter !== 'all' ? missingCategoryFilter : undefined)}>
+              <Button variant="outline" size="sm" onClick={() => {
+                const labels = [missingCategoryFilter !== 'all' ? missingCategoryFilter : '', missingDescriptionFilter !== 'all' ? missingDescriptionFilter : ''].filter(Boolean).join(' - ');
+                exportMissingPDF(filteredMissingVehicles, labels || undefined);
+              }}>
                 <FileText className="w-4 h-4 mr-1" /> PDF
               </Button>
-              <Button variant="outline" size="sm" className="text-emerald-600 hover:text-emerald-700" onClick={() => exportMissingWhatsApp(filteredMissingVehicles, missingCategoryFilter !== 'all' ? missingCategoryFilter : undefined)}>
+              <Button variant="outline" size="sm" className="text-emerald-600 hover:text-emerald-700" onClick={() => {
+                const labels = [missingCategoryFilter !== 'all' ? missingCategoryFilter : '', missingDescriptionFilter !== 'all' ? missingDescriptionFilter : ''].filter(Boolean).join(' - ');
+                exportMissingWhatsApp(filteredMissingVehicles, labels || undefined);
+              }}>
                 <MessageCircle className="w-4 h-4 mr-1" /> WhatsApp
               </Button>
             </div>
