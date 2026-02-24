@@ -347,12 +347,27 @@ export function HorimetrosPageDB() {
       if (r.current_value === 0) zerados++;
     });
 
+    // Mobilized = active vehicles (not "outros")
+    const mobilizedVehicles = vehicles.filter(v => {
+      const isActive = !v.status || v.status.toLowerCase() === 'ativo';
+      const notOutros = !v.category || v.category.toLowerCase() !== 'outros';
+      return isActive && notOutros;
+    });
+
+    // Vehicles in maintenance (status = manutenção or similar)
+    const maintenanceVehicles = vehicles.filter(v => {
+      const s = v.status?.toLowerCase() || '';
+      return s.includes('manuten') || s.includes('manutençã') || s === 'manutenção';
+    });
+
     return {
       registros: readingsWithInterval.length,
       totalInterval,
       zerados,
+      mobilizados: mobilizedVehicles.length,
+      emManutencao: maintenanceVehicles.length,
     };
-  }, [readingsWithInterval]);
+  }, [readingsWithInterval, vehicles]);
 
   // Get the reference date for missing vehicles calculation
   const referenceDate = useMemo(() => {
@@ -636,7 +651,7 @@ export function HorimetrosPageDB() {
               <Clock className="w-5 h-5 md:w-6 md:h-6 text-primary" />
             </div>
             <div>
-              <h1 className="text-xl md:text-2xl font-bold">Horímetros</h1>
+              <h1 className="text-xl md:text-2xl font-bold">Horímetros ({metrics.registros})</h1>
               <p className="text-sm text-muted-foreground">Controle de horas trabalhadas</p>
             </div>
             <div className={cn(
@@ -758,26 +773,43 @@ export function HorimetrosPageDB() {
           </div>
         </div>
 
-        {/* Metrics - Simplified */}
-        <div className="flex items-center gap-4">
-          <div className="bg-primary/10 border border-primary/20 rounded-lg px-4 py-2 flex items-center gap-3">
-            <Clock className="w-5 h-5 text-primary" />
-            <div>
-              <p className="text-xs text-muted-foreground font-medium">Total de Registros</p>
-              <p className="text-xl font-bold text-primary">{metrics.registros}</p>
-            </div>
+        {/* Metrics - 5 Cards matching reference layout */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+          {/* Total Registros */}
+          <div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg px-4 py-3">
+            <p className="text-xs font-semibold text-red-600 dark:text-red-400">Total Registros</p>
+            <p className="text-2xl font-bold text-red-700 dark:text-red-300">{metrics.registros}</p>
           </div>
           
-          {/* Missing vehicles - compact */}
+          {/* Cadastrados / Mobilizados */}
+          <div className="bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800 rounded-lg px-4 py-3">
+            <p className="text-xs font-semibold text-orange-600 dark:text-orange-400">Cadastrados</p>
+            <p className="text-2xl font-bold text-orange-700 dark:text-orange-300">{metrics.mobilizados}</p>
+            <p className="text-[10px] text-orange-500 dark:text-orange-400">Mobilizados</p>
+          </div>
+          
+          {/* Lançados */}
+          <div className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-lg px-4 py-3">
+            <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">Lançados</p>
+            <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-300">{vehiclesWithReadingsOnDate.size}</p>
+            <p className="text-[10px] text-emerald-500 dark:text-emerald-400">Com horímetro/km</p>
+          </div>
+          
+          {/* Faltantes */}
           <div 
-            className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg px-4 py-2 cursor-pointer hover:bg-red-100 dark:hover:bg-red-950/50 transition-colors flex items-center gap-3"
+            className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg px-4 py-3 cursor-pointer hover:bg-amber-100 dark:hover:bg-amber-950/50 transition-colors"
             onClick={() => setShowMissingModal(true)}
           >
-            <AlertTriangle className="w-5 h-5 text-red-500" />
-            <div>
-              <p className="text-xs text-red-600 dark:text-red-400 font-medium">Sem registro hoje</p>
-              <p className="text-lg font-bold text-red-700 dark:text-red-300">{missingVehicles.length}</p>
-            </div>
+            <p className="text-xs font-semibold text-amber-600 dark:text-amber-400">Faltantes</p>
+            <p className="text-2xl font-bold text-amber-700 dark:text-amber-300">{missingVehicles.length}</p>
+            <p className="text-[10px] text-amber-500 dark:text-amber-400">Clique p/ detalhes</p>
+          </div>
+          
+          {/* Em Manutenção */}
+          <div className="bg-muted border rounded-lg px-4 py-3">
+            <p className="text-xs font-semibold text-muted-foreground">Em Manutenção</p>
+            <p className="text-2xl font-bold text-foreground">{metrics.emManutencao}</p>
+            <p className="text-[10px] text-muted-foreground">{metrics.emManutencao} reg. • Detalhes</p>
           </div>
         </div>
 
@@ -1094,27 +1126,30 @@ export function HorimetrosPageDB() {
                       />
                     </TableHead>
                   )}
-                  <TableHead>Data</TableHead>
-                  <TableHead>Veículo</TableHead>
-                  <TableHead>Operador</TableHead>
-                  <TableHead className="text-right">Hor. Anterior</TableHead>
-                  <TableHead className="text-right">Hor. Atual</TableHead>
-                  <TableHead className="text-right">H.T.</TableHead>
-                  <TableHead className="text-right">KM Anterior</TableHead>
-                  <TableHead className="text-right">KM Atual</TableHead>
-                  <TableHead className="text-right">Total KM</TableHead>
-                  <TableHead className="text-right">Ações</TableHead>
+                  <TableHead className="w-12 text-center">ITEM</TableHead>
+                  <TableHead>DATA</TableHead>
+                  <TableHead>VEÍCULO</TableHead>
+                  <TableHead>DESCRIÇÃO</TableHead>
+                  <TableHead>EMPRESA</TableHead>
+                  <TableHead>OPERADOR</TableHead>
+                  <TableHead className="text-right">HOR. ANT.</TableHead>
+                  <TableHead className="text-right">HOR. ATUAL</TableHead>
+                  <TableHead className="text-right">INTERV. H</TableHead>
+                  <TableHead className="text-right">KM ANT.</TableHead>
+                  <TableHead className="text-right">KM ATUAL</TableHead>
+                  <TableHead className="text-right">TOTAL KM</TableHead>
+                  <TableHead className="text-right">AÇÕES</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {paginatedReadings.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={selectionModeActive ? 14 : 13} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={selectionModeActive ? 15 : 14} className="text-center py-8 text-muted-foreground">
                       Nenhum registro encontrado para o período selecionado
                     </TableCell>
                   </TableRow>
                 ) : (
-                  paginatedReadings.map(reading => (
+                  paginatedReadings.map((reading, index) => (
                     <TableRow key={reading.id} className={cn(selectedIds.has(reading.id) && "bg-primary/5")}>
                       {selectionModeActive && (
                         <TableCell>
@@ -1124,11 +1159,16 @@ export function HorimetrosPageDB() {
                           />
                         </TableCell>
                       )}
-                      <TableCell>
+                      <TableCell className="text-center text-xs text-muted-foreground font-medium">
+                        {(currentPage - 1) * rowsPerPage + index + 1}
+                      </TableCell>
+                      <TableCell className="text-sm">
                         {format(new Date(reading.reading_date + 'T00:00:00'), 'dd/MM/yyyy')}
                       </TableCell>
-                      <TableCell className="font-medium">{reading.vehicle?.code}</TableCell>
-                      <TableCell>{reading.operator || '-'}</TableCell>
+                      <TableCell className="font-bold text-orange-600 dark:text-orange-400">{reading.vehicle?.code}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground truncate max-w-[180px]">{reading.vehicle?.name || '-'}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{reading.vehicle?.company || '-'}</TableCell>
+                      <TableCell className="text-sm">{reading.operator || '-'}</TableCell>
                       <TableCell className="text-right">
                         {formatNumericBR(reading.previous_value)}
                       </TableCell>
