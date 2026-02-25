@@ -72,7 +72,6 @@ import { useFieldSettings, playSuccessSound, vibrateDevice } from '@/hooks/useFi
 import { useOfflineStorage } from '@/hooks/useOfflineStorage';
 import { useFormPersistence } from '@/hooks/useFormPersistence';
 import { QRCodeScanner } from './QRCodeScanner';
-import { mapVehicleToComboioLocation } from '@/lib/fuelSheetMapping';
 
 interface RequiredFields {
   horimeter_current: boolean;
