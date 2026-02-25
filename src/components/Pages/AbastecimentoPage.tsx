@@ -807,12 +807,20 @@ export function AbastecimentoPage() {
     }>> = {};
     
     filteredRows.forEach(row => {
-      const local = String(row['LOCAL DE SAIDA'] || row['LOCAL'] || 'Não informado').trim() || 'Não informado';
+      const tipo = String(row['TIPO'] || row['TIPO DE OPERACAO'] || '').toLowerCase();
+      const fornecedor = String(row['FORNECEDOR'] || '').trim();
+      
+      // For Carregamento, use LOCAL DO CARREGAMENTO as the grouping key
+      let local: string;
+      if (tipo === 'carregamento') {
+        local = String(row['LOCAL DO CARREGAMENTO'] || row['LOCAL'] || 'Não informado').trim() || 'Não informado';
+      } else {
+        local = String(row['LOCAL DE SAIDA'] || row['LOCAL'] || 'Não informado').trim() || 'Não informado';
+      }
+      
       const quantidade = parseNumber(row['QUANTIDADE']);
       const arlaQtd = parseNumber(row['QUANTIDADE DE ARLA']);
       const valor = parseNumber(row['VALOR TOTAL']);
-      const tipo = String(row['TIPO'] || row['TIPO DE OPERACAO'] || '').toLowerCase();
-      const fornecedor = String(row['FORNECEDOR'] || '').trim();
       
       if (!summary[local]) {
         summary[local] = { abastecimentos: 0, diesel: 0, arla: 0, valor: 0 };
@@ -1015,9 +1023,14 @@ export function AbastecimentoPage() {
   }, [saneamentoFilteredData]);
 
   // Entries data - filter ONLY external supplier entries (Cavalo Marinho, Ipiranga, etc.)
+  // Exclude Carregamento records (internal comboio loading)
   const entradasData = useMemo(() => {
     const internalKeywords = ['comboio', 'transferencia', 'transferência', 'interno', 'interna'];
     const entries = data.rows.filter(row => {
+      // Exclude Carregamento type (internal comboio loading)
+      const tipo = String(row['TIPO'] || '').toLowerCase();
+      if (tipo === 'carregamento') return false;
+      
       const fornecedor = String(row['FORNECEDOR'] || '').trim();
       if (!fornecedor) return false;
       const fornecedorLower = fornecedor.toLowerCase();
@@ -1257,7 +1270,7 @@ export function AbastecimentoPage() {
       
       filteredRows.forEach(row => {
         const tipo = String(row['TIPO'] || '').toLowerCase();
-        if (tipo.includes('entrada') || tipo.includes('recebimento')) return;
+        if (tipo.includes('entrada') || tipo.includes('recebimento') || tipo === 'carregamento') return;
         
         const rawLocal = String(row['LOCAL DE SAIDA'] || row['LOCAL'] || 'Não informado').trim();
         const group = classifyLoc(rawLocal);
@@ -1402,9 +1415,10 @@ export function AbastecimentoPage() {
         const records = resumoPorLocal.recordsByLocal[local];
         if (!records || records.length === 0) return;
         
-        // Separate entries from exits
-        const saidasRecords = records.filter(r => !r.fornecedor && !r.tipo.includes('entrada'));
-        const entradasRecords = records.filter(r => r.fornecedor || r.tipo.includes('entrada'));
+        // Separate entries, exits, and carregamentos
+        const saidasRecords = records.filter(r => !r.fornecedor && !r.tipo.includes('entrada') && r.tipo !== 'carregamento');
+        const carregamentoRecords = records.filter(r => r.tipo === 'carregamento');
+        const entradasRecords = records.filter(r => (r.fornecedor || r.tipo.includes('entrada')) && r.tipo !== 'carregamento');
         
         // Sort records by description for better organization
         const sortedSaidas = [...saidasRecords].sort((a, b) => 
@@ -2221,7 +2235,7 @@ export function AbastecimentoPage() {
 
       for (const row of rows) {
         const tipo = String(row['TIPO'] || '').toLowerCase();
-        if (tipo === 'entrada') continue;
+        if (tipo === 'entrada' || tipo === 'carregamento') continue;
         
         const motorista = String(row['MOTORISTA'] || '').trim();
         const veiculoCode = String(row['VEICULO'] || '').trim().toUpperCase().replace(/\s+/g, '');
@@ -2334,7 +2348,7 @@ export function AbastecimentoPage() {
                     <Truck className="w-4 h-4 text-orange-600" />
                     <div>
                       <div className="font-medium">Carregar Comboio</div>
-                      <div className="text-xs text-muted-foreground">Entrada de diesel para comboio</div>
+                      <div className="text-xs text-muted-foreground">Carregamento de diesel para comboio</div>
                     </div>
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => openAdminModal('tanque_diesel')} className="gap-2 cursor-pointer">
