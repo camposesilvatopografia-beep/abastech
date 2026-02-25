@@ -128,7 +128,7 @@ export function buildFuelSheetData(record: FuelSheetRecord): Record<string, any>
     'OBSERVAÇÃO': record.observations || '',
     'FOTO BOMBA': record.photoPumpUrl || '',
     'FOTO HORIMETRO': record.photoHorimeterUrl || '',
-    'LOCAL DE ENTRADA': record.entryLocation || '',
+    'LOCAL DE ENTRADA': tipo === 'Entrada' ? (record.entryLocation || '') : '',
     'LUBRIFICAR': record.lubricant ? 'TRUE' : 'FALSE',
     'LUBRIFICANTE': record.lubricant || '',
     'COMPLETAR ÓLEO': record.oilType ? 'TRUE' : 'FALSE',
