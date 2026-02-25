@@ -2208,7 +2208,106 @@ export function AbastecimentoPage() {
     }
   }, [refetchGeral]);
 
-  // Auto-run correction once
+  // One-time correction: fix MOTORISTA column for tank operator records
+  const fixTankOperatorNames = useCallback(async () => {
+    try {
+      toast.info('Corrigindo coluna MOTORISTA para lançamentos de tanque...');
+      
+      // 1. Load vehicle sheet to get correct drivers
+      const { data: vehicleSheet } = await supabase.functions.invoke('google-sheets', {
+        body: { action: 'getData', sheetName: 'Veiculo', noCache: true },
+      });
+      const vehicleRows = vehicleSheet?.rows || [];
+      const driverByCode = new Map<string, string>();
+      for (const v of vehicleRows) {
+        const code = String(v['Codigo'] || '').trim().toUpperCase().replace(/\s+/g, '');
+        const driver = String(v['Motorista'] || '').trim();
+        if (code && driver) driverByCode.set(code, driver);
+      }
+
+      // 2. Get tank operator names from field_users
+      const { data: tankUsers } = await supabase
+        .from('field_users')
+        .select('name, assigned_locations')
+        .eq('active', true);
+      const tankOperatorNames = new Set<string>();
+      if (tankUsers) {
+        for (const u of tankUsers) {
+          const locs = u.assigned_locations || [];
+          const isTank = locs.some((l: string) => l.toLowerCase().includes('tanque') || l.toLowerCase().includes('canteiro'));
+          if (isTank) tankOperatorNames.add(u.name.toLowerCase().trim());
+        }
+      }
+
+      // 3. Load fuel sheet data
+      const { data: sheetData } = await supabase.functions.invoke('google-sheets', {
+        body: { action: 'getData', sheetName: 'AbastecimentoCanteiro01', noCache: true },
+      });
+      const rows = sheetData?.rows || [];
+      let fixed = 0;
+
+      for (const row of rows) {
+        const tipo = String(row['TIPO'] || '').toLowerCase();
+        if (tipo === 'entrada') continue;
+        
+        const motorista = String(row['MOTORISTA'] || '').trim();
+        const veiculoCode = String(row['VEICULO'] || '').trim().toUpperCase().replace(/\s+/g, '');
+        const localVal = String(row['LOCAL'] || '').toLowerCase();
+        
+        // Only fix if LOCAL is a tanque/canteiro and MOTORISTA is a tank operator name
+        const isFromTanque = localVal.includes('comboio') || localVal.includes('tanque') || localVal.includes('canteiro');
+        if (!isFromTanque) continue;
+        
+        const isTankOperator = tankOperatorNames.has(motorista.toLowerCase().trim());
+        if (!isTankOperator) continue;
+        
+        // Look up correct driver
+        const correctDriver = driverByCode.get(veiculoCode);
+        if (correctDriver && correctDriver.toLowerCase() !== motorista.toLowerCase() && row._rowIndex) {
+          const rowData: Record<string, string> = {};
+          for (const [key, val] of Object.entries(row)) {
+            if (key === '_rowIndex') continue;
+            rowData[key] = String(val ?? '');
+          }
+          rowData['MOTORISTA'] = correctDriver;
+
+          await supabase.functions.invoke('google-sheets', {
+            body: { action: 'update', sheetName: 'AbastecimentoCanteiro01', rowIndex: row._rowIndex, data: rowData },
+          });
+          fixed++;
+          if (fixed % 5 === 0) await new Promise(r => setTimeout(r, 500));
+        }
+      }
+
+      // 4. Also fix in Supabase DB
+      if (tankOperatorNames.size > 0) {
+        const { data: dbRecords } = await supabase
+          .from('field_fuel_records')
+          .select('id, vehicle_code, operator_name')
+          .eq('record_type', 'Saida');
+        
+        if (dbRecords?.length) {
+          for (const rec of dbRecords) {
+            const opName = (rec.operator_name || '').toLowerCase().trim();
+            if (!tankOperatorNames.has(opName)) continue;
+            const code = rec.vehicle_code.toUpperCase().replace(/\s+/g, '');
+            const correctDriver = driverByCode.get(code);
+            if (correctDriver && correctDriver.toLowerCase() !== opName) {
+              await supabase.from('field_fuel_records').update({ operator_name: correctDriver }).eq('id', rec.id);
+            }
+          }
+        }
+      }
+
+      toast.success(`Correção de MOTORISTA concluída! ${fixed} linha(s) corrigida(s).`);
+      refetchGeral();
+    } catch (error) {
+      console.error('Error fixing tank operator names:', error);
+      toast.error('Erro ao corrigir coluna MOTORISTA');
+    }
+  }, [refetchGeral]);
+
+  // Auto-run corrections once
   useEffect(() => {
     const correctionKey = 'comboio_local_fix_v4';
     if (!localStorage.getItem(correctionKey)) {
@@ -2217,7 +2316,14 @@ export function AbastecimentoPage() {
         localStorage.setItem(correctionKey, 'done');
       });
     }
-  }, [fixComboioLocalColumn]);
+    const motoristKey = 'tank_motorista_fix_v1';
+    if (!localStorage.getItem(motoristKey)) {
+      localStorage.setItem(motoristKey, 'running');
+      fixTankOperatorNames().then(() => {
+        localStorage.setItem(motoristKey, 'done');
+      });
+    }
+  }, [fixComboioLocalColumn, fixTankOperatorNames]);
 
   return (
     <div className="flex-1 p-3 md:p-6 overflow-auto">
