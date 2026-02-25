@@ -351,7 +351,7 @@ export function FieldTanqueForm({ user, onBack }: FieldTanqueFormProps) {
           <div className="flex items-center gap-3 bg-indigo-100 dark:bg-indigo-900/60 px-4 py-2.5 rounded-xl -ml-1">
             <MapPin className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
             <span className="text-lg font-bold text-indigo-800 dark:text-indigo-200">
-              Local do Tanque <span className="text-red-500">*</span>
+              Local de Entrada <span className="text-red-500">*</span>
             </span>
           </div>
           <Select value={selectedLocation} onValueChange={setSelectedLocation}>

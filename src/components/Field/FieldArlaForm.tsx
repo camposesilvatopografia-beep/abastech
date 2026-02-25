@@ -325,7 +325,7 @@ export function FieldArlaForm({ user, onBack }: FieldArlaFormProps) {
           <div className="flex items-center gap-3 bg-cyan-100 dark:bg-cyan-900/60 px-4 py-2.5 rounded-xl -ml-1">
             <MapPin className="w-6 h-6 text-cyan-600 dark:text-cyan-400" />
             <span className="text-lg font-bold text-cyan-800 dark:text-cyan-200">
-              Local do Tanque <span className="text-red-500">*</span>
+              Local de Entrada <span className="text-red-500">*</span>
             </span>
           </div>
           <Select value={selectedLocation} onValueChange={setSelectedLocation}>

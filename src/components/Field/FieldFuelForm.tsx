@@ -2551,7 +2551,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                 <div className="flex items-center gap-3 bg-indigo-100 dark:bg-indigo-900/60 px-4 py-2.5 rounded-xl -ml-1">
                   <MapPin className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
                   <span className="text-lg font-bold text-indigo-800 dark:text-indigo-200">
-                    Local
+                    Local de Saída
                   </span>
                 </div>
                 <Select value={location} onValueChange={setLocation}>
@@ -2571,7 +2571,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
               <div className="bg-indigo-50 dark:bg-indigo-950/40 rounded-2xl border-2 border-indigo-400 dark:border-indigo-600 p-4 shadow-lg">
                 <div className="flex items-center gap-3">
                   <MapPin className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
-                  <span className="text-lg font-bold text-indigo-800 dark:text-indigo-200">Local:</span>
+                   <span className="text-lg font-bold text-indigo-800 dark:text-indigo-200">Local de Saída:</span>
                   <span className="text-lg font-bold text-foreground">{location}</span>
                 </div>
               </div>

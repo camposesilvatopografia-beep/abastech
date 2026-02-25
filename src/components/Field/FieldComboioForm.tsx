@@ -477,7 +477,7 @@ export function FieldComboioForm({ user, onBack }: FieldComboioFormProps) {
           <div className="flex items-center gap-3 bg-indigo-100 dark:bg-indigo-900/60 px-4 py-2.5 rounded-xl -ml-1">
             <MapPin className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
             <span className="text-lg font-bold text-indigo-800 dark:text-indigo-200">
-              {isComboioUser ? 'Local de Entrada' : 'Local (Tanque de Saída)'}
+              {isComboioUser ? 'Local de Entrada' : 'Local de Saída'}
             </span>
           </div>
           <Select value={entryLocation} onValueChange={setEntryLocation}>
