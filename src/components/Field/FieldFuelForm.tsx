@@ -1694,14 +1694,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         fuel_quantity: fuelQuantity ?? 0,
         fuel_type: fuelType,
         arla_quantity: arlaQuantity ?? 0,
-        location: (() => {
-          // For saida to comboio vehicles from tanque, map LOCAL to comboio name
-          if (recordType === 'saida') {
-            const comboioLoc = mapVehicleToComboioLocation(vehicleCode, vehicleDescription);
-            if (comboioLoc) return comboioLoc;
-          }
-          return location;
-        })(),
+        location: location,
         observations: (() => {
           let obs = observations;
           // Add comboio tank refuel indicator
@@ -1801,13 +1794,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         fuelQuantity: fuelQuantity ?? 0,
         fuelType,
         arlaQuantity: arlaQuantity ?? 0,
-        location: (() => {
-          if (recordType === 'saida') {
-            const comboioLoc = mapVehicleToComboioLocation(vehicleCode, vehicleDescription);
-            if (comboioLoc) return comboioLoc;
-          }
-          return location;
-        })(),
+        location: location,
         observations: recordType === 'entrada' && photoInvoiceUrl
           ? `${observations} | FOTO NF: ${photoInvoiceUrl}`.trim()
           : observations,
@@ -1900,13 +1887,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
             fuel_quantity: fuelQuantity ?? 0,
             fuel_type: fuelType,
             arla_quantity: arlaQuantity ?? 0,
-            location: (() => {
-              if (recordType === 'saida') {
-                const comboioLoc = mapVehicleToComboioLocation(vehicleCode, vehicleDescription);
-                if (comboioLoc) return comboioLoc;
-              }
-              return location;
-            })(),
+            location: location,
             observations,
             record_date: now.toISOString().split('T')[0],
             record_time: now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
