@@ -305,11 +305,12 @@ export function FieldComboioForm({ user, onBack }: FieldComboioFormProps) {
         photoPumpUrl = await uploadPhoto(photoPump, 'comboio');
       }
 
-      // Use user's assigned comboio location for LOCAL column
-      const userComboioLocation = (user.assigned_locations || []).find(loc => 
-        loc.toLowerCase().includes('comboio')
-      );
-      const location = userComboioLocation || vehicleDescription || vehicleCode || '';
+      // LOCAL = source of fuel (where the fuel exits FROM)
+      // For entrada (comboio receiving from tanque): LOCAL = tanque source (entryLocation)
+      // For saida (tanque sending to comboio): LOCAL = user's tanque location
+      const location = recordType === 'entrada'
+        ? (entryLocation || '')
+        : (user.assigned_locations?.[0] || '');
 
       const recordData = {
         user_id: user.id,
