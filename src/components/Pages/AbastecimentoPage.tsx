@@ -2141,6 +2141,83 @@ export function AbastecimentoPage() {
     window.print();
   }, []);
 
+  // One-time correction: fix LOCAL column for Caminhão Comboio vehicles
+  const fixComboioLocalColumn = useCallback(async () => {
+    try {
+      toast.info('Corrigindo coluna LOCAL para veículos Comboio...');
+      const { data: sheetData, error: fetchError } = await supabase.functions.invoke('google-sheets', {
+        body: { action: 'getData', sheetName: 'AbastecimentoCanteiro01', noCache: true },
+      });
+      if (fetchError) throw fetchError;
+
+      const rows = sheetData?.rows || [];
+      let fixed = 0;
+
+      for (const row of rows) {
+        const local = String(row['LOCAL'] || '').trim();
+        const veiculo = String(row['VEICULO'] || row['CODIGO'] || '').trim().toUpperCase();
+        const descricao = String(row['DESCRICAO'] || row['DESCRIÇÃO'] || '').trim().toUpperCase();
+        const tipo = String(row['TIPO'] || '').toLowerCase();
+
+        // Only fix saida records where LOCAL contains "Caminhão Comboio" or is wrong
+        if (tipo !== 'entrada' && (local.toLowerCase().includes('caminhão comboio') || local.toLowerCase().includes('caminhao comboio'))) {
+          const { mapVehicleToComboioLocation } = await import('@/lib/fuelSheetMapping');
+          const correctLocal = mapVehicleToComboioLocation(veiculo, descricao);
+          if (correctLocal && correctLocal !== local && row._rowIndex) {
+            // Update the row
+            const rowData: Record<string, string> = {};
+            for (const [key, val] of Object.entries(row)) {
+              if (key === '_rowIndex') continue;
+              rowData[key] = String(val ?? '');
+            }
+            rowData['LOCAL'] = correctLocal;
+
+            await supabase.functions.invoke('google-sheets', {
+              body: { action: 'update', sheetName: 'AbastecimentoCanteiro01', rowIndex: row._rowIndex, data: rowData },
+            });
+            fixed++;
+            // Small delay to avoid rate limiting
+            if (fixed % 5 === 0) await new Promise(r => setTimeout(r, 500));
+          }
+        }
+      }
+
+      // Also fix in Supabase DB
+      const { data: dbRecords } = await supabase
+        .from('field_fuel_records')
+        .select('id, vehicle_code, vehicle_description, location')
+        .or('location.ilike.%caminhão comboio%,location.ilike.%caminhao comboio%')
+        .eq('record_type', 'saida');
+
+      if (dbRecords?.length) {
+        const { mapVehicleToComboioLocation } = await import('@/lib/fuelSheetMapping');
+        for (const rec of dbRecords) {
+          const correctLocal = mapVehicleToComboioLocation(rec.vehicle_code, rec.vehicle_description || '');
+          if (correctLocal) {
+            await supabase.from('field_fuel_records').update({ location: correctLocal }).eq('id', rec.id);
+          }
+        }
+      }
+
+      toast.success(`Correção concluída! ${fixed} linha(s) corrigida(s) na planilha.`);
+      refetchGeral();
+    } catch (error) {
+      console.error('Error fixing comboio LOCAL:', error);
+      toast.error('Erro ao corrigir coluna LOCAL');
+    }
+  }, [refetchGeral]);
+
+  // Auto-run correction once
+  useEffect(() => {
+    const correctionKey = 'comboio_local_fix_v1';
+    if (!localStorage.getItem(correctionKey)) {
+      localStorage.setItem(correctionKey, 'running');
+      fixComboioLocalColumn().then(() => {
+        localStorage.setItem(correctionKey, 'done');
+      });
+    }
+  }, [fixComboioLocalColumn]);
+
   return (
     <div className="flex-1 p-3 md:p-6 overflow-auto">
       <div className="space-y-4 md:space-y-6">

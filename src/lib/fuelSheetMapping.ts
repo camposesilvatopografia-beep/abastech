@@ -50,6 +50,35 @@ const fmtNum = (v: any): string => {
   return n > 0 ? formatPtBRNumber(n, { decimals: 2 }) : '';
 };
 
+/**
+ * Maps a Caminhão Comboio vehicle code (e.g. CC-02-ENG) to its comboio location name (e.g. Comboio 02).
+ * Returns null if the vehicle is not a comboio.
+ */
+export function mapVehicleToComboioLocation(vehicleCode: string, vehicleDescription?: string): string | null {
+  const code = (vehicleCode || '').toUpperCase().trim();
+  const desc = (vehicleDescription || '').toUpperCase().trim();
+
+  // Check if it's a comboio vehicle
+  const isComboio = code.startsWith('CC') || desc.includes('COMBOIO');
+  if (!isComboio) return null;
+
+  // Extract the number from the vehicle code (e.g. CC-02-ENG → 02, CC-01 → 01)
+  const match = code.match(/CC[- ]?(\d+)/);
+  if (match) {
+    const num = match[1].replace(/^0+/, '') || '0'; // Remove leading zeros
+    return `Comboio ${num.padStart(2, '0')}`;
+  }
+
+  // Fallback: try to extract from description
+  const descMatch = desc.match(/COMBOIO\s*(\d+)/);
+  if (descMatch) {
+    const num = descMatch[1].replace(/^0+/, '') || '0';
+    return `Comboio ${num.padStart(2, '0')}`;
+  }
+
+  return 'Comboio';
+}
+
 export function buildFuelSheetData(record: FuelSheetRecord): Record<string, any> {
   const tipo = record.recordType === 'entrada' || record.recordType === 'Entrada' ? 'Entrada' : 'Saida';
 
