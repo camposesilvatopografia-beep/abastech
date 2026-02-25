@@ -1,0 +1,1 @@
+UPDATE field_fuel_records SET record_type = 'Carregamento' WHERE category = 'Tanque Comboio' AND record_type IN ('entrada', 'Entrada', 'saida', 'Saida')
