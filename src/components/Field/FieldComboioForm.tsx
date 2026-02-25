@@ -306,11 +306,8 @@ export function FieldComboioForm({ user, onBack }: FieldComboioFormProps) {
       }
 
       // LOCAL = source of fuel (where the fuel exits FROM)
-      // For entrada (comboio receiving from tanque): LOCAL = tanque source (entryLocation)
-      // For saida (tanque sending to comboio): LOCAL = user's tanque location
-      const location = recordType === 'entrada'
-        ? (entryLocation || '')
-        : (user.assigned_locations?.[0] || '');
+      // In this form, source is always the selected tank.
+      const location = entryLocation || '';
 
       const recordData = {
         user_id: user.id,
