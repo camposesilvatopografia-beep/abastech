@@ -83,6 +83,17 @@ function detectRateLimit(errorText: string) {
   );
 }
 
+function detectRetryableError(errorText: string) {
+  return (
+    detectRateLimit(errorText) ||
+    errorText.includes('"code": 500') ||
+    errorText.includes('"INTERNAL"') ||
+    errorText.includes('"code": 400') ||
+    errorText.includes('"FAILED_PRECONDITION"') ||
+    errorText.includes('"code": 503')
+  );
+}
+
 async function sleep(ms: number) {
   await new Promise((r) => setTimeout(r, ms));
 }
@@ -304,21 +315,25 @@ async function getSheetData(accessToken: string, sheetId: string, range: string)
 
   const promise = (async () => {
     try {
-      // Small retry for bursty 429 (does NOT fix quota, but smooths spikes)
-      try {
-        const values = await fetchSheetValues(accessToken, sheetId, range);
-        cacheSet(sheetDataCache, key, values, SHEET_DATA_TTL_MS);
-        return values;
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
-        if (detectRateLimit(msg)) {
-          await sleep(900);
+      // Retry loop for transient Google API errors (429, 500, 503, 400 FAILED_PRECONDITION)
+      const MAX_RETRIES = 3;
+      for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+        try {
           const values = await fetchSheetValues(accessToken, sheetId, range);
           cacheSet(sheetDataCache, key, values, SHEET_DATA_TTL_MS);
           return values;
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          if (detectRetryableError(msg) && attempt < MAX_RETRIES - 1) {
+            const delayMs = 800 * (attempt + 1); // 800ms, 1600ms
+            console.warn(`Retryable error on attempt ${attempt + 1}, retrying in ${delayMs}ms...`);
+            await sleep(delayMs);
+            continue;
+          }
+          throw e;
         }
-        throw e;
       }
+      throw new Error("Unreachable");
     } finally {
       sheetDataInFlight.delete(key);
     }
