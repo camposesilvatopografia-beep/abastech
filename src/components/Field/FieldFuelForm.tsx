@@ -2596,13 +2596,14 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         {/* NORMAL SAÍDA FORM - only when not in quick mode (but comboio_tank_refuel shows vehicle selection) */}
         {recordType === 'saida' && (quickEntryMode === 'normal' || quickEntryMode === 'comboio_tank_refuel') && (
           <>
-            {/* Location - above Vehicle */}
-            {user.assigned_locations && user.assigned_locations.length > 1 ? (
+            {/* Location - above Vehicle (hidden for comboio-only users) */}
+            {!userLocationInfo.isOnlyComboio && (
+              user.assigned_locations && user.assigned_locations.length > 1 ? (
               <div className="bg-indigo-50 dark:bg-indigo-950/40 rounded-2xl border-2 border-indigo-400 dark:border-indigo-600 p-4 space-y-3 shadow-lg">
                 <div className="flex items-center gap-3 bg-indigo-100 dark:bg-indigo-900/60 px-4 py-2.5 rounded-xl -ml-1">
                   <MapPin className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
                   <span className="text-lg font-bold text-indigo-800 dark:text-indigo-200">
-                    Local
+                    Local de Saída
                   </span>
                 </div>
                 <Select value={location} onValueChange={setLocation}>
@@ -2622,11 +2623,12 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
               <div className="bg-indigo-50 dark:bg-indigo-950/40 rounded-2xl border-2 border-indigo-400 dark:border-indigo-600 p-4 shadow-lg">
                 <div className="flex items-center gap-3">
                   <MapPin className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
-                  <span className="text-lg font-bold text-indigo-800 dark:text-indigo-200">Local:</span>
+                  <span className="text-lg font-bold text-indigo-800 dark:text-indigo-200">Local de Saída:</span>
                   <span className="text-lg font-bold text-foreground">{location}</span>
                 </div>
               </div>
-            ) : null}
+            ) : null
+            )}
 
             {/* Vehicle Selection */}
             <div className="bg-sky-50 dark:bg-sky-950/40 rounded-2xl border-2 border-sky-400 dark:border-sky-600 p-4 space-y-3 shadow-lg">
