@@ -10,8 +10,6 @@ import {
   Search,
   ChevronsUpDown,
   Check,
-  TrendingUp,
-  TrendingDown,
   CheckCircle,
   Clock,
   MapPin,
@@ -460,20 +458,6 @@ export function FieldComboioForm({ user, onBack }: FieldComboioFormProps) {
 
       <div className="px-3 py-3 space-y-3 max-w-2xl mx-auto">
 
-        {/* Type Selection */}
-        <div className="bg-white dark:bg-slate-800 rounded-2xl border-2 border-slate-200 dark:border-slate-700 p-3 shadow-lg">
-          {isComboioUser ? (
-            <Button type="button" variant="default" disabled className="w-full h-12 text-base font-bold bg-gradient-to-r from-green-500 to-green-600 text-white border-0 shadow-lg shadow-green-500/30 cursor-default">
-              <TrendingUp className="w-5 h-5 mr-2" />
-              Entrada
-            </Button>
-          ) : (
-            <Button type="button" variant="default" disabled className="w-full h-12 text-base font-bold bg-gradient-to-r from-red-500 to-red-600 text-white border-0 shadow-lg shadow-red-500/30 cursor-default">
-              <TrendingDown className="w-5 h-5 mr-2" />
-              Saída
-            </Button>
-          )}
-        </div>
 
         {/* Local */}
         <div className="bg-indigo-50 dark:bg-indigo-950/40 rounded-2xl border-2 border-indigo-400 dark:border-indigo-600 p-4 space-y-3 shadow-lg">
