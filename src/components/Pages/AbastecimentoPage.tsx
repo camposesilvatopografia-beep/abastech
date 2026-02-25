@@ -2159,8 +2159,10 @@ export function AbastecimentoPage() {
         const descricao = String(row['DESCRICAO'] || row['DESCRIÇÃO'] || '').trim().toUpperCase();
         const tipo = String(row['TIPO'] || '').toLowerCase();
 
-        // Only fix saida records where LOCAL contains "Caminhão Comboio" or is wrong
-        if (tipo !== 'entrada' && (local.toLowerCase().includes('caminhão comboio') || local.toLowerCase().includes('caminhao comboio'))) {
+        // Only fix saida records where LOCAL contains "Caminhão Comboio" or generic "Comboio" without number
+        const localLower = local.toLowerCase();
+        const isComboioGeneric = localLower.includes('caminhão comboio') || localLower.includes('caminhao comboio') || localLower === 'comboio' || localLower === 'caminhão comboio';
+        if (tipo !== 'entrada' && isComboioGeneric) {
           const { mapVehicleToComboioLocation } = await import('@/lib/fuelSheetMapping');
           const correctLocal = mapVehicleToComboioLocation(veiculo, descricao);
           if (correctLocal && correctLocal !== local && row._rowIndex) {
@@ -2209,7 +2211,7 @@ export function AbastecimentoPage() {
 
   // Auto-run correction once
   useEffect(() => {
-    const correctionKey = 'comboio_local_fix_v1';
+    const correctionKey = 'comboio_local_fix_v3';
     if (!localStorage.getItem(correctionKey)) {
       localStorage.setItem(correctionKey, 'running');
       fixComboioLocalColumn().then(() => {
