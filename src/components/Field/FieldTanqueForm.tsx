@@ -203,7 +203,7 @@ export function FieldTanqueForm({ user, onBack }: FieldTanqueFormProps) {
         fuel_type: 'Diesel',
         arla_quantity: null,
         location: selectedLocation,
-        entry_location: null,
+        entry_location: selectedLocation,
         unit_price: parsedPrice,
         observations: `[CARREGAR TANQUE] Fornecedor: ${supplier || 'N/A'}${invoiceNumber ? ` | NF: ${invoiceNumber}` : ''}${observations ? ` | ${observations}` : ''}`,
         record_date: recordDate,
@@ -254,6 +254,7 @@ export function FieldTanqueForm({ user, onBack }: FieldTanqueFormProps) {
             supplier,
             invoiceNumber,
             unitPrice: parsedPrice || 0,
+            entryLocation: selectedLocation,
           });
 
           const { error: sheetError } = await supabase.functions.invoke('google-sheets', {

@@ -177,7 +177,7 @@ export function FieldArlaForm({ user, onBack }: FieldArlaFormProps) {
         fuel_type: 'Arla',
         arla_quantity: qty,
         location: selectedLocation,
-        entry_location: null,
+        entry_location: selectedLocation,
         unit_price: parsedPrice,
         observations: `[CARREGAR ARLA] Fornecedor: ${supplier || 'N/A'}${invoiceNumber ? ` | NF: ${invoiceNumber}` : ''}${observations ? ` | ${observations}` : ''}`,
         record_date: recordDate,
@@ -228,6 +228,7 @@ export function FieldArlaForm({ user, onBack }: FieldArlaFormProps) {
             supplier,
             invoiceNumber,
             unitPrice: parsedPrice || 0,
+            entryLocation: selectedLocation,
           });
 
           const { error: sheetError } = await supabase.functions.invoke('google-sheets', {

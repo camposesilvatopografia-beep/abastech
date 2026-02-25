@@ -62,7 +62,7 @@ function buildSheetData(record: any): Record<string, any> {
     'OBSERVAÇÃO': record.observations || '',
     'FOTO BOMBA': record.photo_pump_url || '',
     'FOTO HORIMETRO': record.photo_horimeter_url || '',
-    'LOCAL DE ENTRADA': record.entry_location || '',
+    'LOCAL DE ENTRADA': tipo === 'Entrada' ? (record.entry_location || '') : '',
     'LUBRIFICAR': Number(record.oil_quantity) > 0 ? 'Sim' : '',
     'LUBRIFICANTE': record.lubricant || '',
     'COMPLETAR ÓLEO': Number(record.oil_quantity) > 0 ? 'Sim' : '',
