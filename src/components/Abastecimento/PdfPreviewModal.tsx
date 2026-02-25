@@ -46,8 +46,8 @@ export function PdfPreviewModal({ open, onClose, pdfUrl, fileName = 'relatorio.p
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <DialogContent className="max-w-5xl w-[95vw] h-[90vh] flex flex-col p-0 gap-0">
-        <DialogHeader className="px-4 py-3 border-b border-border flex-row items-center justify-between space-y-0">
+      <DialogContent className="max-w-5xl w-[95vw] h-[90vh] flex flex-col p-0 gap-0 [&>button.absolute]:hidden">
+        <DialogHeader className="px-4 py-3 border-b border-border flex-row items-center justify-between space-y-0 shrink-0">
           <DialogTitle className="text-sm font-semibold">Pré-visualização do Relatório</DialogTitle>
           <div className="flex items-center gap-2">
             <Button size="sm" variant="outline" className="gap-1.5 h-8" onClick={handlePrint} disabled={!pdfUrl}>
@@ -64,7 +64,7 @@ export function PdfPreviewModal({ open, onClose, pdfUrl, fileName = 'relatorio.p
           </div>
         </DialogHeader>
 
-        <div className="flex-1 min-h-0 bg-muted">
+        <div className="flex-1 min-h-0 bg-muted overflow-hidden">
           {loading ? (
             <div className="flex items-center justify-center h-full">
               <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
