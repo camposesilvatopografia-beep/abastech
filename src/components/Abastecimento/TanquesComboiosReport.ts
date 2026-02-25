@@ -124,6 +124,7 @@ function renderResumoGeral(
   doc: jsPDF,
   entries: { label: string; data: StockSummary }[],
   currentY: number,
+  variant: 'tanque' | 'comboio' = 'tanque',
 ): number {
   // Section title
   doc.setFontSize(11);
@@ -132,17 +133,35 @@ function renderResumoGeral(
   doc.text('Resumo Geral', PAGE_MARGIN, currentY + 4);
   currentY += 8;
 
-  const head = [['Descrição', 'Estoque\nAnterior', 'Entrada', 'Saída para\nComboios', 'Saída para\nEquipamentos', 'Total', 'Estoque Atual']];
+  const isTanque = variant === 'tanque';
 
-  const bodyRows = entries.map(e => [
-    e.label,
-    fmtNum(e.data.estoqueAnterior),
-    fmtNum(e.data.entrada, 2),
-    fmtNum(e.data.saidaComboios),
-    fmtNum(e.data.saidaEquipamentos),
-    fmtNum(e.data.total),
-    fmtNum(e.data.estoqueAtual),
-  ]);
+  const head = isTanque
+    ? [['Descrição', 'Estoque\nAnterior', 'Entrada', 'Saída para\nComboios', 'Saída para\nEquipamentos', 'Total', 'Estoque Atual']]
+    : [['Descrição', 'Estoque Anterior', 'Entrada', 'Saída', 'Estoque Atual']];
+
+  const bodyRows = entries.map(e => {
+    if (isTanque) {
+      return [
+        e.label,
+        fmtNum(e.data.estoqueAnterior),
+        fmtNum(e.data.entrada, 2),
+        fmtNum(e.data.saidaComboios),
+        fmtNum(e.data.saidaEquipamentos),
+        fmtNum(e.data.total),
+        fmtNum(e.data.estoqueAtual),
+      ];
+    } else {
+      const saida = e.data.saidaComboios + e.data.saidaEquipamentos + e.data.total;
+      const saidaVal = saida > 0 ? saida : e.data.total;
+      return [
+        e.label,
+        fmtNum(e.data.estoqueAnterior),
+        fmtNum(e.data.entrada, 2),
+        fmtNum(saidaVal > 0 ? saidaVal : 0),
+        fmtNum(e.data.estoqueAtual),
+      ];
+    }
+  });
 
   // Total row
   const totals: StockSummary = entries.reduce((acc, e) => ({
@@ -154,15 +173,26 @@ function renderResumoGeral(
     estoqueAtual: acc.estoqueAtual + e.data.estoqueAtual,
   }), { estoqueAnterior: 0, entrada: 0, saidaComboios: 0, saidaEquipamentos: 0, total: 0, estoqueAtual: 0 });
 
-  bodyRows.push([
-    'Total geral',
-    fmtNum(totals.estoqueAnterior),
-    fmtNum(totals.entrada, 2),
-    fmtNum(totals.saidaComboios),
-    fmtNum(totals.saidaEquipamentos),
-    fmtNum(totals.total),
-    fmtNum(totals.estoqueAtual),
-  ]);
+  if (isTanque) {
+    bodyRows.push([
+      'Total geral',
+      fmtNum(totals.estoqueAnterior),
+      fmtNum(totals.entrada, 2),
+      fmtNum(totals.saidaComboios),
+      fmtNum(totals.saidaEquipamentos),
+      fmtNum(totals.total),
+      fmtNum(totals.estoqueAtual),
+    ]);
+  } else {
+    const totalSaida = totals.saidaComboios + totals.saidaEquipamentos + totals.total;
+    bodyRows.push([
+      'Total geral',
+      fmtNum(totals.estoqueAnterior),
+      fmtNum(totals.entrada, 2),
+      fmtNum(totalSaida > 0 ? totalSaida : 0),
+      fmtNum(totals.estoqueAtual),
+    ]);
+  }
 
   autoTable(doc, {
     startY: currentY,
@@ -200,6 +230,133 @@ function renderResumoGeral(
   });
 
   return (doc as any).lastAutoTable.finalY + 10;
+}
+
+// ─── Comboio Fuel Data Table (extra columns: Consumo, Sopra Filtro, Lubri.) ──
+
+const COMBOIO_TABLE_HEAD = [
+  '#', 'Código', 'Descrição', 'Motorista/Operador',
+  'Hor/Km\nAnterior', 'Hor/Km\nAtual', 'Intervalo\n(h/km)',
+  'Consumo', 'Sopra Filtro\n(Qtd)', 'Lubri.', 'Qtd\nDiesel'
+];
+
+const COMBOIO_COL_STYLES: Record<number, any> = {
+  0: { cellWidth: 10, halign: 'center' },
+  1: { cellWidth: 24, halign: 'center' },
+  2: { cellWidth: 42, halign: 'center', overflow: 'linebreak' },
+  3: { cellWidth: 42, halign: 'center', overflow: 'linebreak' },
+  4: { cellWidth: 24, halign: 'center' },
+  5: { cellWidth: 24, halign: 'center' },
+  6: { cellWidth: 22, halign: 'center' },
+  7: { cellWidth: 22, halign: 'center' },
+  8: { cellWidth: 24, halign: 'center' },
+  9: { cellWidth: 22, halign: 'center' },
+  10: { cellWidth: 21, halign: 'center', fontStyle: 'bold' },
+};
+
+function buildComboioFuelTableData(records: FuelRecord[]) {
+  let totalDiesel = 0;
+
+  const body = records.map((row, index) => {
+    const qty = parseNumber(row['QUANTIDADE']);
+    const horAnterior = parseNumber(row['HORIMETRO ANTERIOR'] || row['HOR_ANTERIOR'] || 0);
+    const horAtual = parseNumber(row['HORIMETRO ATUAL'] || row['HOR_ATUAL'] || 0);
+    const kmAnterior = parseNumber(row['KM ANTERIOR'] || row['KM_ANTERIOR'] || 0);
+    const kmAtual = parseNumber(row['KM ATUAL'] || row['KM_ATUAL'] || 0);
+    const obs = String(row['OBSERVACAO'] || row['OBSERVAÇÕES'] || row['OBS'] || row['OBSERVACOES'] || '').toUpperCase();
+    const isBroken = obs.includes('QUEBRADO');
+
+    const usaKm = kmAtual > 0 || kmAnterior > 0;
+    const anterior = usaKm ? kmAnterior : horAnterior;
+    const atual = usaKm ? kmAtual : horAtual;
+    const intervalo = atual - anterior;
+
+    let consumo = 0;
+    if (!isBroken && qty > 0 && intervalo > 0) {
+      consumo = usaKm ? intervalo / qty : qty / intervalo;
+    }
+
+    totalDiesel += qty;
+
+    const sopraFiltro = parseNumber(row['SOPRA FILTRO'] || row['SOPRAFILTRO'] || row['Sopra Filtro'] || 0);
+    const lubri = String(row['LUBRIFICANTE'] || row['Lubrificante'] || row['LUBRI'] || row['Lubri'] || '').trim();
+    const brokenLabel = '⚠ QUEBRADO';
+
+    return [
+      String(index + 1),
+      String(row['VEICULO'] || ''),
+      String(row['DESCRICAO'] || row['DESCRIÇÃO'] || ''),
+      String(row['MOTORISTA'] || ''),
+      isBroken ? brokenLabel : (anterior > 0 ? fmtPtBR(anterior) : '-'),
+      isBroken ? brokenLabel : (atual > 0 ? fmtPtBR(atual) : '-'),
+      isBroken ? brokenLabel : (intervalo > 0 ? fmtPtBR(intervalo) : '-'),
+      isBroken ? brokenLabel : (consumo > 0 ? fmtPtBR(consumo) : '-'),
+      sopraFiltro > 0 ? String(sopraFiltro) : '-',
+      lubri || '-',
+      qty > 0 ? qty.toLocaleString('pt-BR', { minimumFractionDigits: 0 }) : '-',
+    ];
+  });
+
+  return { body, totalDiesel };
+}
+
+function renderComboioSaidasTable(doc: jsPDF, records: FuelRecord[], currentY: number, pageHeight: number): number {
+  if (records.length === 0) return currentY;
+
+  if (currentY > pageHeight - 50) {
+    doc.addPage();
+    currentY = 15;
+  }
+
+  const { body, totalDiesel } = buildComboioFuelTableData(records);
+
+  body.push([
+    '', '', '', '', '', '', '', '', '', 'TOTAL',
+    totalDiesel > 0 ? totalDiesel.toLocaleString('pt-BR', { minimumFractionDigits: 0 }) + ' L' : '-',
+  ]);
+
+  autoTable(doc, {
+    startY: currentY,
+    head: [COMBOIO_TABLE_HEAD],
+    body,
+    theme: 'grid',
+    tableWidth: USABLE_WIDTH,
+    styles: {
+      fontSize: 8,
+      cellPadding: 2.5,
+      lineColor: [200, 200, 210],
+      lineWidth: 0.25,
+      overflow: 'linebreak',
+      halign: 'center',
+      valign: 'middle',
+    },
+    headStyles: {
+      fillColor: [220, 220, 225],
+      textColor: [30, 30, 30],
+      fontStyle: 'bold',
+      fontSize: 8,
+      halign: 'center',
+      valign: 'middle',
+      minCellHeight: 11,
+    },
+    columnStyles: COMBOIO_COL_STYLES,
+    margin: { left: PAGE_MARGIN, right: PAGE_MARGIN },
+    alternateRowStyles: { fillColor: [255, 255, 255] },
+    didParseCell: (data) => {
+      if (data.row.index === body.length - 1) {
+        data.cell.styles.fontStyle = 'bold';
+        data.cell.styles.fillColor = [220, 200, 200];
+        data.cell.styles.fontSize = 8;
+      }
+      const cellText = String(data.cell.raw || '');
+      if (cellText.includes('QUEBRADO')) {
+        data.cell.styles.textColor = [200, 100, 0];
+        data.cell.styles.fontStyle = 'bold';
+      }
+    },
+  });
+
+  return (doc as any).lastAutoTable.finalY + 8;
 }
 
 // ─── Fuel Data Tables ──────────────────────────────────────────────────
@@ -495,7 +652,14 @@ function renderTanquesPage(
   currentY = renderResumoGeral(doc, [
     { label: 'Tanque Canteiro 01', data: stockData.canteiro01 },
     { label: 'Tanque Canteiro 02', data: stockData.canteiro02 },
-  ], currentY);
+  ], currentY, 'tanque');
+
+  // Section title for fuel records
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(180, 60, 60);
+  doc.text('Tanques 01 e 02', LANDSCAPE_WIDTH / 2, currentY + 2, { align: 'center' });
+  currentY += 8;
 
   // Separate Saídas and Entradas
   const saidas = sortRecords(fuelRecords.filter(r => !isEntradaRecord(r)), sortByDescription);
@@ -528,18 +692,25 @@ function renderComboiosPage(
   let currentY = renderHeader(doc, 'RELATÓRIO GERAL DOS COMBOIOS', selectedDate, obraSettings, logoBase64);
   const pageHeight = doc.internal.pageSize.getHeight();
 
-  // Resumo Geral - Comboios
+  // Resumo Geral - Comboios (simplified columns)
   currentY = renderResumoGeral(doc, [
     { label: 'Comboio 01', data: stockData.comboio01 },
     { label: 'Comboio 02', data: stockData.comboio02 },
     { label: 'Comboio 03', data: stockData.comboio03 },
-  ], currentY);
+  ], currentY, 'comboio');
+
+  // Section title for fuel records
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(180, 60, 60);
+  doc.text('Relatório do Comboios', LANDSCAPE_WIDTH / 2, currentY + 2, { align: 'center' });
+  currentY += 8;
 
   // Separate Saídas and Entradas
   const saidas = sortRecords(fuelRecords.filter(r => !isEntradaRecord(r)), sortByDescription);
   const entradas = sortRecords(fuelRecords.filter(r => isEntradaRecord(r)), sortByDescription);
 
-  currentY = renderSaidasTable(doc, saidas, currentY, pageHeight);
+  currentY = renderComboioSaidasTable(doc, saidas, currentY, pageHeight);
   currentY = renderEntradasTable(doc, entradas, currentY, 'comboio', pageHeight);
 
   if (saidas.length === 0 && entradas.length === 0) {
