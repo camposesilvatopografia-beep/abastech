@@ -2159,10 +2159,10 @@ export function AbastecimentoPage() {
         const descricao = String(row['DESCRICAO'] || row['DESCRIÇÃO'] || '').trim().toUpperCase();
         const tipo = String(row['TIPO'] || '').toLowerCase();
 
-        // Only fix saida records where LOCAL contains "Caminhão Comboio" or generic "Comboio" without number
+        // Fix ALL records (saida AND entrada) where LOCAL contains "Caminhão Comboio" or generic text
         const localLower = local.toLowerCase();
         const isComboioGeneric = localLower.includes('caminhão comboio') || localLower.includes('caminhao comboio') || localLower === 'comboio' || localLower === 'caminhão comboio';
-        if (tipo !== 'entrada' && isComboioGeneric) {
+        if (isComboioGeneric) {
           const { mapVehicleToComboioLocation } = await import('@/lib/fuelSheetMapping');
           const correctLocal = mapVehicleToComboioLocation(veiculo, descricao);
           if (correctLocal && correctLocal !== local && row._rowIndex) {
@@ -2184,12 +2184,11 @@ export function AbastecimentoPage() {
         }
       }
 
-      // Also fix in Supabase DB
+      // Also fix in Supabase DB (all record types)
       const { data: dbRecords } = await supabase
         .from('field_fuel_records')
         .select('id, vehicle_code, vehicle_description, location')
-        .or('location.ilike.%caminhão comboio%,location.ilike.%caminhao comboio%')
-        .eq('record_type', 'saida');
+        .or('location.ilike.%caminhão comboio%,location.ilike.%caminhao comboio%');
 
       if (dbRecords?.length) {
         const { mapVehicleToComboioLocation } = await import('@/lib/fuelSheetMapping');
@@ -2211,7 +2210,7 @@ export function AbastecimentoPage() {
 
   // Auto-run correction once
   useEffect(() => {
-    const correctionKey = 'comboio_local_fix_v3';
+    const correctionKey = 'comboio_local_fix_v4';
     if (!localStorage.getItem(correctionKey)) {
       localStorage.setItem(correctionKey, 'running');
       fixComboioLocalColumn().then(() => {
