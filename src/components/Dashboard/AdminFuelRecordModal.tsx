@@ -640,11 +640,6 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess, presetMode
         arla_quantity: arlaQuantity ?? 0,
         location: (() => {
           if (recordType === 'entrada' && quickEntryMode === 'normal') return entryLocation;
-          // For saida to comboio vehicles, map LOCAL to comboio name
-          if (recordType === 'saida') {
-            const comboioLoc = mapVehicleToComboioLocation(vehicleCode, vehicleDescription);
-            if (comboioLoc) return comboioLoc;
-          }
           return location;
         })(),
         observations: quickEntryMode !== 'normal' ? `[${getQuickModeLabel(quickEntryMode)}] ${observations}`.trim() : (observations || null),
@@ -717,7 +712,7 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess, presetMode
         'FORNECEDOR': supplier || '',
         'NOTA FISCAL': invoiceNumber || '',
         'VALOR UNITÁRIO': parseFloat(unitPrice.replace(/\./g, '').replace(',', '.')) || '',
-        'LOCAL DE ENTRADA': entryLocation || '',
+        'LOCAL DE ENTRADA': (recordType === 'entrada' && quickEntryMode === 'normal') ? (entryLocation || '') : '',
       };
 
       // Sync to Google Sheets immediately
