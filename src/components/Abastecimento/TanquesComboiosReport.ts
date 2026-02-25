@@ -706,14 +706,12 @@ function renderComboiosPage(
   doc.text('Relatório do Comboios', LANDSCAPE_WIDTH / 2, currentY + 2, { align: 'center' });
   currentY += 8;
 
-  // Separate Saídas and Entradas
+  // Only Saídas for comboios (no Entradas section)
   const saidas = sortRecords(fuelRecords.filter(r => !isEntradaRecord(r)), sortByDescription);
-  const entradas = sortRecords(fuelRecords.filter(r => isEntradaRecord(r)), sortByDescription);
 
   currentY = renderComboioSaidasTable(doc, saidas, currentY, pageHeight);
-  currentY = renderEntradasTable(doc, entradas, currentY, 'comboio', pageHeight);
 
-  if (saidas.length === 0 && entradas.length === 0) {
+  if (saidas.length === 0) {
     doc.setTextColor(120, 120, 130);
     doc.setFontSize(9);
     doc.setFont('helvetica', 'italic');
