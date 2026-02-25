@@ -2145,20 +2145,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
       {/* Form */}
       <div className="px-3 py-3 space-y-3 max-w-2xl mx-auto">
 
-        {/* Record Type - Fixed as Saída */}
-        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-3 shadow-sm">
-          <div className="grid grid-cols-1">
-            <Button
-              type="button"
-              variant="default"
-              className="h-12 text-base font-bold bg-gradient-to-r from-red-500 to-red-600 text-white border-0 shadow-lg shadow-red-500/30 cursor-default"
-              disabled
-            >
-              <Fuel className="w-5 h-5 mr-2" />
-              Saída
-            </Button>
-          </div>
-        </div>
+        {/* Record Type - Fixed as Saída (hidden from UI, always set internally) */}
 
         {/* Quick Entry Options based on user location */}
         {recordType === 'saida' && (
