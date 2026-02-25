@@ -72,6 +72,7 @@ import { useFieldSettings, playSuccessSound, vibrateDevice } from '@/hooks/useFi
 import { useOfflineStorage } from '@/hooks/useOfflineStorage';
 import { useFormPersistence } from '@/hooks/useFormPersistence';
 import { QRCodeScanner } from './QRCodeScanner';
+import { mapVehicleToComboioLocation } from '@/lib/fuelSheetMapping';
 
 interface RequiredFields {
   horimeter_current: boolean;
@@ -1693,7 +1694,14 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         fuel_quantity: fuelQuantity ?? 0,
         fuel_type: fuelType,
         arla_quantity: arlaQuantity ?? 0,
-        location: location,
+        location: (() => {
+          // For saida to comboio vehicles from tanque, map LOCAL to comboio name
+          if (recordType === 'saida') {
+            const comboioLoc = mapVehicleToComboioLocation(vehicleCode, vehicleDescription);
+            if (comboioLoc) return comboioLoc;
+          }
+          return location;
+        })(),
         observations: (() => {
           let obs = observations;
           // Add comboio tank refuel indicator
@@ -1793,7 +1801,13 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         fuelQuantity: fuelQuantity ?? 0,
         fuelType,
         arlaQuantity: arlaQuantity ?? 0,
-        location: location,
+        location: (() => {
+          if (recordType === 'saida') {
+            const comboioLoc = mapVehicleToComboioLocation(vehicleCode, vehicleDescription);
+            if (comboioLoc) return comboioLoc;
+          }
+          return location;
+        })(),
         observations: recordType === 'entrada' && photoInvoiceUrl
           ? `${observations} | FOTO NF: ${photoInvoiceUrl}`.trim()
           : observations,
@@ -1886,7 +1900,13 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
             fuel_quantity: fuelQuantity ?? 0,
             fuel_type: fuelType,
             arla_quantity: arlaQuantity ?? 0,
-            location: location,
+            location: (() => {
+              if (recordType === 'saida') {
+                const comboioLoc = mapVehicleToComboioLocation(vehicleCode, vehicleDescription);
+                if (comboioLoc) return comboioLoc;
+              }
+              return location;
+            })(),
             observations,
             record_date: now.toISOString().split('T')[0],
             record_time: now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),

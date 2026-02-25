@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { format } from 'date-fns';
 import { getSheetData } from '@/lib/googleSheets';
+import { mapVehicleToComboioLocation } from '@/lib/fuelSheetMapping';
 import { ptBR } from 'date-fns/locale';
 import { 
   Fuel, 
@@ -637,7 +638,15 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess, presetMode
         fuel_quantity: fuelQuantity ?? 0,
         fuel_type: fuelType,
         arla_quantity: arlaQuantity ?? 0,
-        location: recordType === 'entrada' && quickEntryMode === 'normal' ? entryLocation : location,
+        location: (() => {
+          if (recordType === 'entrada' && quickEntryMode === 'normal') return entryLocation;
+          // For saida to comboio vehicles, map LOCAL to comboio name
+          if (recordType === 'saida') {
+            const comboioLoc = mapVehicleToComboioLocation(vehicleCode, vehicleDescription);
+            if (comboioLoc) return comboioLoc;
+          }
+          return location;
+        })(),
         observations: quickEntryMode !== 'normal' ? `[${getQuickModeLabel(quickEntryMode)}] ${observations}`.trim() : (observations || null),
         oil_type: oilType || null,
         oil_quantity: parseFloat(oilQuantity) || null,
