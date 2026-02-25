@@ -138,7 +138,7 @@ export function buildFuelSheetData(record: FuelSheetRecord): Record<string, any>
     'INTERVALO KM': intervaloKm,
     'QUANTIDADE': fmtNum(qty),
     'TIPO DE COMBUSTIVEL': record.fuelType || '',
-    'LOCAL DE SAIDA': saidaLocation,
+    'LOCAL': saidaLocation,
     'ARLA': (record.arlaQuantity && Number(record.arlaQuantity) > 0) ? 'TRUE' : 'FALSE',
     'QUANTIDADE DE ARLA': fmtNum(record.arlaQuantity),
     'FORNECEDOR': record.supplier || '',
