@@ -3,8 +3,9 @@ import { formatPtBRNumber } from '@/lib/ptBRNumber';
 /**
  * Builds the data object mapped to the exact headers of the 'AbastecimentoCanteiro01' spreadsheet.
  * 
- * Actual header order (Column A → AJ):
- * id | DATA | HORA | TIPO | LOCAL DE ENTRADA | LOCAL DE SAIDA | CATEGORIA | VEICULO | POTENCIA | DESCRICAO | MOTORISTA | EMPRESA | OBRA |
+ * Actual header order (Column A → AL):
+ * id | DATA | HORA | TIPO | LOCAL DO CARREGAMENTO | TANQUE CARREGADO | LOCAL DE ENTRADA | LOCAL DE SAIDA |
+ * CATEGORIA | VEICULO | POTENCIA | DESCRICAO | MOTORISTA | EMPRESA | OBRA |
  * HORIMETRO ANTERIOR | HORIMETRO ATUAL | INTERVALO HORAS | KM ANTERIOR | KM ATUAL | INTERVALO KM |
  * QUANTIDADE | TIPO DE COMBUSTIVEL | ARLA | QUANTIDADE DE ARLA | FORNECEDOR | NOTA FISCAL |
  * VALOR UNITÁRIO | VALOR TOTAL | OBSERVAÇÃO | FOTO BOMBA | FOTO HORIMETRO |
@@ -80,7 +81,11 @@ export function mapVehicleToComboioLocation(vehicleCode: string, vehicleDescript
 }
 
 export function buildFuelSheetData(record: FuelSheetRecord): Record<string, any> {
-  const tipo = record.recordType === 'entrada' || record.recordType === 'Entrada' ? 'Entrada' : 'Saida';
+  const rt = (record.recordType || '').toLowerCase();
+  const isCarregamento = rt === 'carregamento';
+  const tipo = isCarregamento
+    ? 'Carregamento'
+    : (rt === 'entrada' ? 'Entrada' : 'Saida');
 
   const horPrev = Number(record.horimeterPrevious) || 0;
   const horCurr = Number(record.horimeterCurrent) || 0;
@@ -103,14 +108,24 @@ export function buildFuelSheetData(record: FuelSheetRecord): Record<string, any>
     ? ((record.location || '').trim() || mapVehicleToComboioLocation(record.vehicleCode, record.vehicleDescription) || '')
     : '';
 
+  // For Carregamento: derive LOCAL DO CARREGAMENTO (origin tank) and TANQUE CARREGADO (comboio loaded)
+  const localDoCarregamento = isCarregamento
+    ? (record.entryLocation || record.location || '')
+    : '';
+  const tanqueCarregado = isCarregamento
+    ? (mapVehicleToComboioLocation(record.vehicleCode, record.vehicleDescription) || record.vehicleCode || '')
+    : '';
+
   return {
     'id': record.id || '',
     'DATA': record.date,
     'HORA': record.time || '',
     'TIPO': tipo,
+    'LOCAL DO CARREGAMENTO': localDoCarregamento,
+    'TANQUE CARREGADO': tanqueCarregado,
     'CATEGORIA': record.category || '',
     'VEICULO': record.vehicleCode || '',
-    'POTENCIA': '', // Not tracked in the system
+    'POTENCIA': '',
     'DESCRICAO': record.vehicleDescription || '',
     'MOTORISTA': record.operatorName || '',
     'EMPRESA': record.company || '',

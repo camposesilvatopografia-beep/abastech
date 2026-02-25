@@ -36,7 +36,12 @@ function mapVehicleToComboioLocation(vehicleCode: string, vehicleDescription?: s
 }
 
 function buildSheetData(record: any): Record<string, any> {
-  const tipo = record.record_type === 'entrada' || record.record_type === 'Entrada' ? 'Entrada' : 'Saida';
+  const rt = (record.record_type || '').toLowerCase();
+  const isCarregamento = rt === 'carregamento';
+  const tipo = isCarregamento
+    ? 'Carregamento'
+    : (rt === 'entrada' ? 'Entrada' : 'Saida');
+
   const horPrev = Number(record.horimeter_previous) || 0;
   const horCurr = Number(record.horimeter_current) || 0;
   const kmPrev = Number(record.km_previous) || 0;
@@ -58,11 +63,20 @@ function buildSheetData(record: any): Record<string, any> {
     ? ((record.location || '').trim() || mapVehicleToComboioLocation(record.vehicle_code || '', record.vehicle_description || '') || '')
     : '';
 
+  const localDoCarregamento = isCarregamento
+    ? (record.entry_location || record.location || '')
+    : '';
+  const tanqueCarregado = isCarregamento
+    ? (mapVehicleToComboioLocation(record.vehicle_code || '', record.vehicle_description || '') || record.vehicle_code || '')
+    : '';
+
   return {
     'id': record.id || '',
     'DATA': dateFormatted,
     'HORA': timeFormatted,
     'TIPO': tipo,
+    'LOCAL DO CARREGAMENTO': localDoCarregamento,
+    'TANQUE CARREGADO': tanqueCarregado,
     'CATEGORIA': record.category || '',
     'VEICULO': record.vehicle_code || '',
     'POTENCIA': '',
