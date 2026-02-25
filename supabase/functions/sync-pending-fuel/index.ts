@@ -13,6 +13,28 @@ function fmtNum(v: any): string {
   return n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+function mapVehicleToComboioLocation(vehicleCode: string, vehicleDescription?: string): string | null {
+  const code = (vehicleCode || '').toUpperCase().trim();
+  const desc = (vehicleDescription || '').toUpperCase().trim();
+
+  const isComboio = code.startsWith('CC') || desc.includes('COMBOIO');
+  if (!isComboio) return null;
+
+  const match = code.match(/CC[- ]?(\d+)/);
+  if (match) {
+    const num = match[1].replace(/^0+/, '') || '0';
+    return `Comboio ${num.padStart(2, '0')}`;
+  }
+
+  const descMatch = desc.match(/COMBOIO\s*(\d+)/);
+  if (descMatch) {
+    const num = descMatch[1].replace(/^0+/, '') || '0';
+    return `Comboio ${num.padStart(2, '0')}`;
+  }
+
+  return 'Comboio';
+}
+
 function buildSheetData(record: any): Record<string, any> {
   const tipo = record.record_type === 'entrada' || record.record_type === 'Entrada' ? 'Entrada' : 'Saida';
   const horPrev = Number(record.horimeter_previous) || 0;
@@ -31,6 +53,10 @@ function buildSheetData(record: any): Record<string, any> {
 
   // Format time as HH:MM
   const timeFormatted = record.record_time ? record.record_time.toString().slice(0, 5) : '';
+
+  const saidaLocation = tipo === 'Saida'
+    ? ((record.location || '').trim() || mapVehicleToComboioLocation(record.vehicle_code || '', record.vehicle_description || '') || '')
+    : '';
 
   return {
     'id': record.id || '',
@@ -52,7 +78,7 @@ function buildSheetData(record: any): Record<string, any> {
     'INTERVALO KM': kmCurr > kmPrev ? fmtNum(kmCurr - kmPrev) : '',
     'QUANTIDADE': fmtNum(fuelQty),
     'TIPO DE COMBUSTIVEL': record.fuel_type || 'Diesel',
-    'LOCAL DE SAIDA': tipo === 'Saida' ? (record.location || '') : '',
+    'LOCAL DE SAIDA': saidaLocation,
     'ARLA': Number(record.arla_quantity) > 0 ? 'Sim' : '',
     'QUANTIDADE DE ARLA': fmtNum(record.arla_quantity),
     'FORNECEDOR': record.supplier || '',
