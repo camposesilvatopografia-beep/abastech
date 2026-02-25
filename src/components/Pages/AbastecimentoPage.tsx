@@ -1895,9 +1895,27 @@ export function AbastecimentoPage() {
     
     const estoqueAnterior = parseNumber(findColValue(row, 'Estoque Anterior', 'ESTOQUE ANTERIOR'));
     const entrada = parseNumber(findColValue(row, 'Entrada', 'ENTRADA'));
-    const saidaComboios = parseNumber(findColValue(row, 'Saida para Comboios', 'Saída para Comboios', 'Saida Comboios', 'SAIDA COMBOIOS', 'SAIDA PARA COMBOIOS'));
-    const saidaEquipamentos = parseNumber(findColValue(row, 'Saida para Equipamentos', 'Saída para Equipamentos', 'Saida Equipamentos', 'SAIDA EQUIPAMENTOS', 'SAIDA PARA EQUIPAMENTOS'));
-    const total = saidaComboios + saidaEquipamentos;
+    
+    // Comboio sheets have a single "Saida" column; Tanque sheets have "Saida para Comboios" + "Saida para Equipamentos"
+    // Try specific columns first, then fall back to generic "Saida"
+    const saidaComboiosRaw = row['Saida para Comboios'] ?? row['Saída para Comboios'] ?? row['SAIDA PARA COMBOIOS'] ?? row['Saida Comboios'] ?? row['SAIDA COMBOIOS'];
+    const saidaEquipamentosRaw = row['Saida para Equipamentos'] ?? row['Saída para Equipamentos'] ?? row['SAIDA PARA EQUIPAMENTOS'] ?? row['Saida Equipamentos'] ?? row['SAIDA EQUIPAMENTOS'];
+    const saidaGenericRaw = row['Saida'] ?? row['SAIDA'] ?? row['Saída'];
+    
+    let saidaComboios = 0;
+    let saidaEquipamentos = 0;
+    let total = 0;
+    
+    if (saidaComboiosRaw !== undefined || saidaEquipamentosRaw !== undefined) {
+      // Tanque sheet with specific columns
+      saidaComboios = parseNumber(saidaComboiosRaw);
+      saidaEquipamentos = parseNumber(saidaEquipamentosRaw);
+      total = saidaComboios + saidaEquipamentos;
+    } else if (saidaGenericRaw !== undefined) {
+      // Comboio sheet with single "Saida" column
+      total = parseNumber(saidaGenericRaw);
+    }
+    
     const estoqueAtual = parseNumber(findColValue(row, 'Estoque Atual', 'ESTOQUE ATUAL'));
     
     return { estoqueAnterior, entrada, saidaComboios, saidaEquipamentos, total, estoqueAtual };
