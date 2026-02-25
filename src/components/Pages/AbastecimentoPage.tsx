@@ -108,6 +108,7 @@ import { VehicleConsumptionDetailTab } from '@/components/Abastecimento/VehicleC
 import { GeneralFuelingReport } from '@/components/Abastecimento/GeneralFuelingReport';
 import { exportTanquesComboiosPDF, exportTanquesComboiosXLSX, exportTanquesPDF, exportTanquesXLSX, exportComboiosPDF, exportComboiosXLSX, type TanquesComboiosStockData } from '@/components/Abastecimento/TanquesComboiosReport';
 import { ReportsTab } from '@/components/Abastecimento/ReportsTab';
+import { PdfPreviewModal } from '@/components/Abastecimento/PdfPreviewModal';
 
 const TABS = [
   { id: 'painel', label: 'Estoque', icon: Package2 },
@@ -228,6 +229,9 @@ export function AbastecimentoPage() {
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [sortByDescription, setSortByDescription] = useState(false);
   const [reportCategoryFilter, setReportCategoryFilter] = useState('all');
+  const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
+  const [showPdfPreview, setShowPdfPreview] = useState(false);
+  const [previewPdfName, setPreviewPdfName] = useState('relatorio.pdf');
   
   // Inline editing state for expanded rows
   const [expandedRowId, setExpandedRowId] = useState<number | null>(null);
@@ -2902,6 +2906,18 @@ export function AbastecimentoPage() {
               onExportComboiosXLSX={() => exportComboiosXLSX(reportRows, startDate || new Date(), sortByDescription)}
               onExportTanquesComboiosPDF={() => exportTanquesComboiosPDF(reportRows, startDate || new Date(), buildStockData(), obraSettings, sortByDescription)}
               onExportTanquesComboiosXLSX={() => exportTanquesComboiosXLSX(reportRows, startDate || new Date(), sortByDescription)}
+              onPreviewTanquesPDF={async () => {
+                const url = await exportTanquesPDF(reportRows, startDate || new Date(), buildStockData(), obraSettings, sortByDescription, true);
+                if (url) { setPreviewPdfUrl(url as string); setPreviewPdfName('Relatorio_Tanques.pdf'); setShowPdfPreview(true); }
+              }}
+              onPreviewComboiosPDF={async () => {
+                const url = await exportComboiosPDF(reportRows, startDate || new Date(), buildStockData(), obraSettings, sortByDescription, true);
+                if (url) { setPreviewPdfUrl(url as string); setPreviewPdfName('Relatorio_Comboios.pdf'); setShowPdfPreview(true); }
+              }}
+              onPreviewTanquesComboiosPDF={async () => {
+                const url = await exportTanquesComboiosPDF(reportRows, startDate || new Date(), buildStockData(), obraSettings, sortByDescription, true);
+                if (url) { setPreviewPdfUrl(url as string); setPreviewPdfName('Tanques_Comboios.pdf'); setShowPdfPreview(true); }
+              }}
             />
           );
         })()}
@@ -3547,6 +3563,14 @@ export function AbastecimentoPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* PDF Preview Modal */}
+      <PdfPreviewModal
+        open={showPdfPreview}
+        onClose={() => { setShowPdfPreview(false); setPreviewPdfUrl(null); }}
+        pdfUrl={previewPdfUrl}
+        fileName={previewPdfName}
+      />
     </div>
   );
 }

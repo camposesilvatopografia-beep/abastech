@@ -12,6 +12,7 @@ import {
   Layers,
   Printer,
   Filter,
+  Eye,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -42,6 +43,12 @@ interface ReportsTabProps {
   onExportComboiosXLSX: () => void;
   onExportTanquesComboiosPDF: () => void;
   onExportTanquesComboiosXLSX: () => void;
+  onPreviewTanquesPDF?: () => void;
+  onPreviewComboiosPDF?: () => void;
+  onPreviewTanquesComboiosPDF?: () => void;
+  onPreviewPDF?: () => void;
+  onPreviewPDFPorEmpresa?: () => void;
+  onPreviewDetailedPDF?: () => void;
 }
 
 export function ReportsTab({
@@ -65,6 +72,12 @@ export function ReportsTab({
   onExportComboiosXLSX,
   onExportTanquesComboiosPDF,
   onExportTanquesComboiosXLSX,
+  onPreviewTanquesPDF,
+  onPreviewComboiosPDF,
+  onPreviewTanquesComboiosPDF,
+  onPreviewPDF,
+  onPreviewPDFPorEmpresa,
+  onPreviewDetailedPDF,
 }: ReportsTabProps) {
   const dateLabel = startDate && endDate
     ? `${format(startDate, 'dd/MM/yyyy', { locale: ptBR })} — ${format(endDate, 'dd/MM/yyyy', { locale: ptBR })}`
@@ -158,6 +171,12 @@ export function ReportsTab({
               Relatório com resumo de estoque dos tanques fixos, tabela de saídas (abastecimentos realizados) e entradas (recebimentos de fornecedores).
             </p>
             <div className="flex items-center gap-2">
+              {onPreviewTanquesPDF && (
+                <Button size="sm" variant="outline" className="gap-1.5" onClick={onPreviewTanquesPDF} disabled={isExporting}>
+                  <Eye className="w-3.5 h-3.5" />
+                  Visualizar
+                </Button>
+              )}
               <Button
                 size="sm"
                 className="flex-1 gap-1.5 bg-blue-600 hover:bg-blue-700"
@@ -199,6 +218,12 @@ export function ReportsTab({
               Relatório com resumo de estoque dos comboios móveis, tabela de saídas (abastecimentos em campo) e entradas (carregamentos nos tanques).
             </p>
             <div className="flex items-center gap-2">
+              {onPreviewComboiosPDF && (
+                <Button size="sm" variant="outline" className="gap-1.5" onClick={onPreviewComboiosPDF} disabled={isExporting}>
+                  <Eye className="w-3.5 h-3.5" />
+                  Visualizar
+                </Button>
+              )}
               <Button
                 size="sm"
                 className="flex-1 gap-1.5 bg-emerald-600 hover:bg-emerald-700"
@@ -236,6 +261,12 @@ export function ReportsTab({
           </div>
         </div>
         <div className="p-4 flex items-center gap-2">
+          {onPreviewTanquesComboiosPDF && (
+            <Button size="sm" variant="outline" className="gap-1.5" onClick={onPreviewTanquesComboiosPDF} disabled={isExporting}>
+              <Eye className="w-3.5 h-3.5" />
+              Visualizar
+            </Button>
+          )}
           <Button
             size="sm"
             className="gap-1.5"
@@ -273,6 +304,7 @@ export function ReportsTab({
               <p className="text-[10px] text-muted-foreground">Todos os locais</p>
             </div>
             <div className="flex gap-1.5 shrink-0">
+              {onPreviewPDF && <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={onPreviewPDF} disabled={isExporting} title="Visualizar"><Eye className="w-3 h-3" /></Button>}
               <Button size="sm" className="h-7 px-2 text-xs" onClick={onExportPDF} disabled={isExporting}>PDF</Button>
               <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={onExportXLSX} disabled={isExporting}>XLS</Button>
             </div>
@@ -286,6 +318,7 @@ export function ReportsTab({
               <p className="text-[10px] text-muted-foreground">Agrupado</p>
             </div>
             <div className="flex gap-1.5 shrink-0">
+              {onPreviewPDFPorEmpresa && <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={onPreviewPDFPorEmpresa} disabled={isExporting} title="Visualizar"><Eye className="w-3 h-3" /></Button>}
               <Button size="sm" className="h-7 px-2 text-xs bg-orange-600 hover:bg-orange-700" onClick={onExportPDFPorEmpresa} disabled={isExporting}>PDF</Button>
               <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={onExportPorEmpresaXLSX} disabled={isExporting}>XLS</Button>
             </div>
@@ -299,6 +332,7 @@ export function ReportsTab({
               <p className="text-[10px] text-muted-foreground">Filtros ativos</p>
             </div>
             <div className="flex gap-1.5 shrink-0">
+              {onPreviewDetailedPDF && <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={onPreviewDetailedPDF} disabled={isExporting} title="Visualizar"><Eye className="w-3 h-3" /></Button>}
               <Button size="sm" className="h-7 px-2 text-xs bg-violet-600 hover:bg-violet-700" onClick={onExportDetailedPDF} disabled={isExporting}>PDF</Button>
             </div>
           </div>

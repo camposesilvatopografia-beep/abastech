@@ -731,13 +731,15 @@ export async function exportTanquesPDF(
   selectedDate: Date,
   stockData: TanquesComboiosStockData,
   obraSettings?: ObraSettings | null,
-  sortByDescription?: boolean
-) {
+  sortByDescription?: boolean,
+  preview?: boolean
+): Promise<string | void> {
   const doc = new jsPDF('landscape');
   const logoBase64 = await getLogoBase64(obraSettings?.logo_url);
   const tanqueRecords = filterByType(rows, 'tanque');
   renderTanquesPage(doc, tanqueRecords, stockData, selectedDate, obraSettings, sortByDescription, logoBase64);
   addPageFooters(doc);
+  if (preview) return URL.createObjectURL(doc.output('blob'));
   doc.save(`Relatorio_Tanques_${format(selectedDate, 'dd-MM-yyyy')}.pdf`);
 }
 
@@ -747,13 +749,15 @@ export async function exportComboiosPDF(
   selectedDate: Date,
   stockData: TanquesComboiosStockData,
   obraSettings?: ObraSettings | null,
-  sortByDescription?: boolean
-) {
+  sortByDescription?: boolean,
+  preview?: boolean
+): Promise<string | void> {
   const doc = new jsPDF('landscape');
   const logoBase64 = await getLogoBase64(obraSettings?.logo_url);
   const comboioRecords = filterByType(rows, 'comboio');
   renderComboiosPage(doc, comboioRecords, stockData, selectedDate, obraSettings, sortByDescription, logoBase64);
   addPageFooters(doc);
+  if (preview) return URL.createObjectURL(doc.output('blob'));
   doc.save(`Relatorio_Comboios_${format(selectedDate, 'dd-MM-yyyy')}.pdf`);
 }
 
@@ -763,8 +767,9 @@ export async function exportTanquesComboiosPDF(
   selectedDate: Date,
   stockData: TanquesComboiosStockData,
   obraSettings?: ObraSettings | null,
-  sortByDescription?: boolean
-) {
+  sortByDescription?: boolean,
+  preview?: boolean
+): Promise<string | void> {
   const doc = new jsPDF('landscape');
   const logoBase64 = await getLogoBase64(obraSettings?.logo_url);
 
@@ -777,6 +782,7 @@ export async function exportTanquesComboiosPDF(
   renderComboiosPage(doc, comboioRecords, stockData, selectedDate, obraSettings, sortByDescription, logoBase64);
 
   addPageFooters(doc);
+  if (preview) return URL.createObjectURL(doc.output('blob'));
   doc.save(`Tanques_Comboios_${format(selectedDate, 'dd-MM-yyyy')}.pdf`);
 }
 
