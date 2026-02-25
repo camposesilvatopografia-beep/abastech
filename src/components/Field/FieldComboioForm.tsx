@@ -91,7 +91,7 @@ export function FieldComboioForm({ user, onBack }: FieldComboioFormProps) {
   const [vehicleDescription, setVehicleDescription] = useState('');
   const [company, setCompany] = useState('');
   const [fuelQuantity, setFuelQuantity] = useState('');
-  const recordType = isComboioUser ? 'entrada' : 'saida';
+  const recordType = 'Carregamento';
   const [entryLocation, setEntryLocation] = useState('');
   const [photoPump, setPhotoPump] = useState<File | null>(null);
   const [photoPumpPreview, setPhotoPumpPreview] = useState<string | null>(null);
@@ -309,6 +309,10 @@ export function FieldComboioForm({ user, onBack }: FieldComboioFormProps) {
       // In this form, source is always the selected tank.
       const location = entryLocation || '';
 
+      // Derive comboio location name from vehicle code for TANQUE CARREGADO
+      const { mapVehicleToComboioLocation } = await import('@/lib/fuelSheetMapping');
+      const comboioName = mapVehicleToComboioLocation(vehicleCode, vehicleDescription) || vehicleCode;
+
       const recordData = {
         user_id: user.id,
         vehicle_code: vehicleCode,
@@ -326,13 +330,13 @@ export function FieldComboioForm({ user, onBack }: FieldComboioFormProps) {
         arla_quantity: null,
         location,
         entry_location: entryLocation,
-        observations: `[CARREGAR COMBOIO] Local: ${entryLocation}`,
+        observations: `[CARREGAMENTO] ${entryLocation} → ${comboioName}`,
         record_date: recordDate,
         record_time: recordTime,
         record_type: recordType,
         photo_pump_url: photoPumpUrl,
         photo_horimeter_url: null,
-        synced_to_sheet: navigator.onLine, // true when online to prevent FieldPage re-sync
+        synced_to_sheet: navigator.onLine,
       };
 
       const { data: insertedData, error } = await supabase
@@ -369,7 +373,7 @@ export function FieldComboioForm({ user, onBack }: FieldComboioFormProps) {
             fuelType: 'Diesel',
             location,
             arlaQuantity: 0,
-            observations: `[CARREGAR COMBOIO] Local: ${entryLocation}`,
+            observations: `[CARREGAMENTO] ${entryLocation} → ${comboioName}`,
             entryLocation,
           });
 
@@ -419,7 +423,7 @@ export function FieldComboioForm({ user, onBack }: FieldComboioFormProps) {
             <CheckCircle className="w-28 h-28 mx-auto relative z-10 animate-in zoom-in duration-500" />
           </div>
           <h2 className="text-3xl font-bold animate-in slide-in-from-bottom duration-500">
-            {recordType === 'entrada' ? 'Entrada Registrada!' : 'Saída Registrada!'}
+            Carregamento Registrado!
           </h2>
           <p className="text-lg opacity-90 animate-in slide-in-from-bottom duration-700">
             Dados salvos com sucesso
@@ -648,9 +652,7 @@ export function FieldComboioForm({ user, onBack }: FieldComboioFormProps) {
           disabled={isSaving || !vehicleCode || !fuelQuantity || !entryLocation}
           className={cn(
             "w-full h-16 text-lg font-bold gap-2 rounded-2xl shadow-lg",
-            recordType === 'entrada'
-              ? "bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 shadow-green-500/30"
-              : "bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 shadow-red-500/30"
+            "bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 shadow-orange-500/30"
           )}
         >
           {isSaving ? (
@@ -661,7 +663,7 @@ export function FieldComboioForm({ user, onBack }: FieldComboioFormProps) {
           ) : (
             <>
               <Save className="w-5 h-5" />
-              Salvar {recordType === 'entrada' ? 'Entrada' : 'Saída'}
+              Salvar Carregamento
             </>
           )}
         </Button>
