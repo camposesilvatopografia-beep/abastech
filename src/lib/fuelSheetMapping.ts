@@ -88,15 +88,20 @@ export function buildFuelSheetData(record: FuelSheetRecord): Record<string, any>
   const kmCurr = Number(record.kmCurrent) || 0;
 
   // Calculate intervals
-  const intervaloHoras = (horCurr > 0 && horPrev > 0 && horCurr > horPrev) 
+  const intervaloHoras = (horCurr > 0 && horPrev > 0 && horCurr > horPrev)
     ? fmtNum(horCurr - horPrev) : '';
-  const intervaloKm = (kmCurr > 0 && kmPrev > 0 && kmCurr > kmPrev) 
+  const intervaloKm = (kmCurr > 0 && kmPrev > 0 && kmCurr > kmPrev)
     ? fmtNum(kmCurr - kmPrev) : '';
 
   // Calculate total value
   const qty = Number(record.fuelQuantity) || 0;
   const price = Number(record.unitPrice) || 0;
   const totalValue = (qty > 0 && price > 0) ? fmtNum(qty * price) : '';
+
+  // Ensure LOCAL DE SAIDA is never blank for Saídas when vehicle is a comboio
+  const saidaLocation = tipo === 'Saida'
+    ? ((record.location || '').trim() || mapVehicleToComboioLocation(record.vehicleCode, record.vehicleDescription) || '')
+    : '';
 
   return {
     'id': record.id || '',
@@ -118,7 +123,7 @@ export function buildFuelSheetData(record: FuelSheetRecord): Record<string, any>
     'INTERVALO KM': intervaloKm,
     'QUANTIDADE': fmtNum(qty),
     'TIPO DE COMBUSTIVEL': record.fuelType || '',
-    'LOCAL DE SAIDA': tipo === 'Saida' ? (record.location || '') : '',
+    'LOCAL DE SAIDA': saidaLocation,
     'ARLA': (record.arlaQuantity && Number(record.arlaQuantity) > 0) ? 'TRUE' : 'FALSE',
     'QUANTIDADE DE ARLA': fmtNum(record.arlaQuantity),
     'FORNECEDOR': record.supplier || '',
