@@ -2816,11 +2816,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                   type="file"
                   accept="image/*"
                   capture="environment"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) setPhotoPump(file);
-                    if (e.target) e.target.value = '';
-                  }}
+                  onChange={handlePhotoCapture('pump')}
                   className="hidden"
                 />
                 <button
@@ -2832,17 +2828,14 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                     photoPumpInputRef.current?.click();
                   }}
                   className={cn(
-                    "flex flex-col items-center justify-center w-full h-24 rounded-xl border-2 border-dashed cursor-pointer transition-all",
-                    photoPump
-                      ? "border-green-400 bg-green-50 dark:bg-green-950/30"
-                      : "border-rose-300 dark:border-rose-700 bg-white dark:bg-slate-900 hover:border-rose-400"
+                    "flex flex-col items-center justify-center w-full rounded-xl border-2 border-dashed cursor-pointer transition-all overflow-hidden",
+                    photoPumpPreview
+                      ? "border-green-400 h-auto"
+                      : "border-rose-300 dark:border-rose-700 bg-white dark:bg-slate-900 hover:border-rose-400 h-24"
                   )}
                 >
-                  {photoPump ? (
-                    <div className="flex items-center gap-2 text-green-600">
-                      <CheckCircle className="w-5 h-5" />
-                      <span className="text-sm font-medium">Foto OK</span>
-                    </div>
+                  {photoPumpPreview ? (
+                    <img src={photoPumpPreview} alt="Foto Bomba" className="w-full h-32 object-cover" />
                   ) : (
                     <div className="flex flex-col items-center gap-1">
                       <Camera className="w-6 h-6 text-rose-400" />
@@ -2876,11 +2869,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                     type="file"
                     accept="image/*"
                     capture="environment"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) setPhotoHorimeter(file);
-                      if (e.target) e.target.value = '';
-                    }}
+                    onChange={handlePhotoCapture('horimeter')}
                     className="hidden"
                   />
                   <button
@@ -2892,17 +2881,14 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                       photoHorimeterInputRef.current?.click();
                     }}
                     className={cn(
-                      "flex flex-col items-center justify-center w-full h-24 rounded-xl border-2 border-dashed cursor-pointer transition-all",
-                      photoHorimeter
-                        ? "border-green-400 bg-green-50 dark:bg-green-950/30"
-                        : "border-rose-300 dark:border-rose-700 bg-white dark:bg-slate-900 hover:border-rose-400"
+                      "flex flex-col items-center justify-center w-full rounded-xl border-2 border-dashed cursor-pointer transition-all overflow-hidden",
+                      photoHorimeterPreview
+                        ? "border-green-400 h-auto"
+                        : "border-rose-300 dark:border-rose-700 bg-white dark:bg-slate-900 hover:border-rose-400 h-24"
                     )}
                   >
-                    {photoHorimeter ? (
-                      <div className="flex items-center gap-2 text-green-600">
-                        <CheckCircle className="w-5 h-5" />
-                        <span className="text-sm font-medium">Foto OK</span>
-                      </div>
+                    {photoHorimeterPreview ? (
+                      <img src={photoHorimeterPreview} alt="Foto Horímetro" className="w-full h-32 object-cover" />
                     ) : (
                       <div className="flex flex-col items-center gap-1">
                         <Image className="w-6 h-6 text-rose-400" />
