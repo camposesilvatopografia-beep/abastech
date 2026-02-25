@@ -151,13 +151,12 @@ function renderResumoGeral(
         fmtNum(e.data.estoqueAtual),
       ];
     } else {
-      const saida = e.data.saidaComboios + e.data.saidaEquipamentos + e.data.total;
-      const saidaVal = saida > 0 ? saida : e.data.total;
+      // For comboios: total already contains the correct saida value
       return [
         e.label,
         fmtNum(e.data.estoqueAnterior),
         fmtNum(e.data.entrada, 2),
-        fmtNum(saidaVal > 0 ? saidaVal : 0),
+        fmtNum(e.data.total),
         fmtNum(e.data.estoqueAtual),
       ];
     }
@@ -184,12 +183,11 @@ function renderResumoGeral(
       fmtNum(totals.estoqueAtual),
     ]);
   } else {
-    const totalSaida = totals.saidaComboios + totals.saidaEquipamentos + totals.total;
     bodyRows.push([
       'Total geral',
       fmtNum(totals.estoqueAnterior),
       fmtNum(totals.entrada, 2),
-      fmtNum(totalSaida > 0 ? totalSaida : 0),
+      fmtNum(totals.total),
       fmtNum(totals.estoqueAtual),
     ]);
   }
