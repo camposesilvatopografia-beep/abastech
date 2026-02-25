@@ -1853,6 +1853,28 @@ export function AbastecimentoPage() {
     }
   }, [resumoPorEmpresa, dateRange, obraSettings]);
 
+  // Normalize column name (remove accents, lowercase, trim)
+  const normalizeCol = useCallback((s: string) => 
+    s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
+  , []);
+
+  // Find value in a row by fuzzy column name matching
+  const findColValue = useCallback((row: Record<string, any>, ...candidates: string[]) => {
+    // Try exact matches first
+    for (const c of candidates) {
+      if (row[c] !== undefined && row[c] !== null && row[c] !== '') return row[c];
+    }
+    // Try normalized matching against all row keys
+    const normalizedCandidates = candidates.map(c => normalizeCol(c));
+    for (const key of Object.keys(row)) {
+      const nk = normalizeCol(key);
+      for (const nc of normalizedCandidates) {
+        if (nk === nc || nk.includes(nc) || nc.includes(nk)) return row[key];
+      }
+    }
+    return 0;
+  }, [normalizeCol]);
+
   // Helper to get stock data for a location from its sheet
   const getStockDataFromSheet = useCallback((sheetData: { rows: any[] }, targetDate: string) => {
     if (!sheetData.rows.length) {
@@ -1861,32 +1883,21 @@ export function AbastecimentoPage() {
     
     // Find row matching target date
     const matchingRow = sheetData.rows.find(row => {
-      const rowDate = String(row['Data'] || row['DATA'] || '').trim();
+      const rowDate = String(findColValue(row, 'Data', 'DATA', 'data') || '').trim();
       return rowDate === targetDate;
     });
     
-    if (matchingRow) {
-      const estoqueAnterior = parseNumber(matchingRow['Estoque Anterior'] || matchingRow['ESTOQUE ANTERIOR'] || 0);
-      const entrada = parseNumber(matchingRow['Entrada'] || matchingRow['ENTRADA'] || 0);
-      const saidaComboios = parseNumber(matchingRow['Saida Comboios'] || matchingRow['SAIDA COMBOIOS'] || matchingRow['Saida para Comboios'] || 0);
-      const saidaEquipamentos = parseNumber(matchingRow['Saida Equipamentos'] || matchingRow['SAIDA EQUIPAMENTOS'] || matchingRow['Saida para Equipamentos'] || 0);
-      const total = saidaComboios + saidaEquipamentos;
-      const estoqueAtual = parseNumber(matchingRow['Estoque Atual'] || matchingRow['ESTOQUE ATUAL'] || 0);
-      
-      return { estoqueAnterior, entrada, saidaComboios, saidaEquipamentos, total, estoqueAtual };
-    }
+    const row = matchingRow || sheetData.rows[sheetData.rows.length - 1];
     
-    // If no exact date match, get last row
-    const lastRow = sheetData.rows[sheetData.rows.length - 1];
-    return {
-      estoqueAnterior: parseNumber(lastRow['Estoque Anterior'] || lastRow['ESTOQUE ANTERIOR'] || 0),
-      entrada: parseNumber(lastRow['Entrada'] || lastRow['ENTRADA'] || 0),
-      saidaComboios: parseNumber(lastRow['Saida Comboios'] || lastRow['SAIDA COMBOIOS'] || 0),
-      saidaEquipamentos: parseNumber(lastRow['Saida Equipamentos'] || lastRow['SAIDA EQUIPAMENTOS'] || 0),
-      total: parseNumber(lastRow['Saida Comboios'] || 0) + parseNumber(lastRow['Saida Equipamentos'] || 0),
-      estoqueAtual: parseNumber(lastRow['Estoque Atual'] || lastRow['ESTOQUE ATUAL'] || 0)
-    };
-  }, []);
+    const estoqueAnterior = parseNumber(findColValue(row, 'Estoque Anterior', 'ESTOQUE ANTERIOR'));
+    const entrada = parseNumber(findColValue(row, 'Entrada', 'ENTRADA'));
+    const saidaComboios = parseNumber(findColValue(row, 'Saida para Comboios', 'Saída para Comboios', 'Saida Comboios', 'SAIDA COMBOIOS', 'SAIDA PARA COMBOIOS'));
+    const saidaEquipamentos = parseNumber(findColValue(row, 'Saida para Equipamentos', 'Saída para Equipamentos', 'Saida Equipamentos', 'SAIDA EQUIPAMENTOS', 'SAIDA PARA EQUIPAMENTOS'));
+    const total = saidaComboios + saidaEquipamentos;
+    const estoqueAtual = parseNumber(findColValue(row, 'Estoque Atual', 'ESTOQUE ATUAL'));
+    
+    return { estoqueAnterior, entrada, saidaComboios, saidaEquipamentos, total, estoqueAtual };
+  }, [findColValue]);
 
   // Build stock data object for Tanques/Comboios report
   const buildStockData = useCallback((): TanquesComboiosStockData => {
