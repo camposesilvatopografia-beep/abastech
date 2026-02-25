@@ -703,7 +703,7 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess, presetMode
         'QUANTIDADE': fuelQuantity || 0,
         'QUANTIDADE DE ARLA': arlaQuantity || '',
         'TIPO DE COMBUSTIVEL': fuelType,
-        'LOCAL DE SAIDA': dbRecord.location,
+        'LOCAL DE SAIDA': (recordType === 'entrada' && quickEntryMode === 'normal') ? '' : (dbRecord.location || ''),
         'OBSERVAÇÃO': dbRecord.observations || '',
         'TIPO DE ÓLEO': oilType || '',
         'QUANTIDADE DE ÓLEO': parseFloat(oilQuantity) || '',
@@ -712,7 +712,7 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess, presetMode
         'FORNECEDOR': supplier || '',
         'NOTA FISCAL': invoiceNumber || '',
         'VALOR UNITÁRIO': parseFloat(unitPrice.replace(/\./g, '').replace(',', '.')) || '',
-        'LOCAL DE ENTRADA': (recordType === 'entrada' && quickEntryMode === 'normal') ? (entryLocation || '') : '',
+        'LOCAL DE ENTRADA': (recordType === 'entrada' && quickEntryMode === 'normal') ? (entryLocation || dbRecord.location || '') : '',
       };
 
       // Sync to Google Sheets immediately
