@@ -157,8 +157,8 @@ function parseNumber(value: any): number {
 
 export function AbastecimentoPage() {
   const { user } = useAuth();
-  // Polling de 30s como fallback para edições feitas diretamente na planilha
-  const POLL_MS = 30000;
+  // Polling de 10s como fallback para edições feitas diretamente na planilha
+  const POLL_MS = 10000;
   const { data, loading, refetch } = useSheetData(SHEET_NAME, { pollingInterval: POLL_MS });
   const { settings: obraSettings } = useObraSettings();
 
@@ -171,7 +171,7 @@ export function AbastecimentoPage() {
 
   const { data: saneamentoStockData } = useSheetData(SANEAMENTO_STOCK_SHEET, { suppressErrors: true });
 
-  // Stock sheets — polling de 30s + atualização por evento Supabase Realtime
+  // Stock sheets — polling de 10s + atualização por evento Supabase Realtime
   const {
     data: estoqueComboio01Data,
     refetch: refetchComboio01,

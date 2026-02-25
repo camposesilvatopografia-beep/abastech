@@ -36,6 +36,7 @@ import { format, subDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { EditRequestModal } from './EditRequestModal';
 import { toast } from 'sonner';
+import { filterRecordsExistingInSheet } from '@/lib/sheetReconciliation';
 
 interface FieldUser {
   id: string;
@@ -60,6 +61,7 @@ interface FuelRecord {
   arla_quantity: number | null;
   observations: string | null;
   category: string | null;
+  synced_to_sheet?: boolean | null;
 }
 
 interface FieldFuelRecordsProps {
@@ -85,7 +87,7 @@ export function FieldFuelRecords({ user, onBack }: FieldFuelRecordsProps) {
       
       let query = supabase
         .from('field_fuel_records')
-        .select('id, record_date, record_time, vehicle_code, vehicle_description, fuel_quantity, location, record_type, operator_name, horimeter_current, km_current, arla_quantity, observations, category')
+        .select('id, record_date, record_time, vehicle_code, vehicle_description, fuel_quantity, location, record_type, operator_name, horimeter_current, km_current, arla_quantity, observations, category, synced_to_sheet')
         .gte('record_date', startDate)
         .lte('record_date', endDate)
         .order('record_date', { ascending: false })
@@ -101,7 +103,8 @@ export function FieldFuelRecords({ user, onBack }: FieldFuelRecordsProps) {
       const { data, error } = await query;
 
       if (error) throw error;
-      setRecords(data || []);
+      const reconciledRecords = await filterRecordsExistingInSheet((data || []) as any[]);
+      setRecords(reconciledRecords as FuelRecord[]);
     } catch (err) {
       console.error('Error fetching records:', err);
     } finally {
@@ -140,6 +143,34 @@ export function FieldFuelRecords({ user, onBack }: FieldFuelRecordsProps) {
       supabase.removeChannel(channel);
     };
   }, [fetchRecords]);
+
+  // Polling + wake-up refresh so manual sheet edits reflect quickly (mobile/desktop)
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      if (document.visibilityState === 'visible' && !isDeleting) {
+        fetchRecords();
+      }
+    }, 10000);
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        fetchRecords();
+      }
+    };
+
+    const handleFocus = () => {
+      fetchRecords();
+    };
+
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      window.clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [fetchRecords, isDeleting]);
 
   const handleDelete = async () => {
     if (!deletingRecord) return;

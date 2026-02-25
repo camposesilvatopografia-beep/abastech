@@ -56,6 +56,7 @@ import { EditRequestModal } from './EditRequestModal';
 import { LocationStockCard, LocationStockCardRef } from './LocationStockCard';
 import logoAbastech from '@/assets/logo-abastech.png';
 import { useTheme } from '@/hooks/useTheme';
+import { filterRecordsExistingInSheet } from '@/lib/sheetReconciliation';
 
 interface FieldUser {
   id: string;
@@ -260,7 +261,10 @@ export function FieldDashboard({ user, onNavigateToForm, onNavigateToFuelMenu, o
         !approvedDeletions.includes(r.id) && !allDeletingIds.includes(r.id)
       ) || [];
 
-      const mappedRecords = filteredRecords.map(r => ({
+      // Reconcile against sheet so manual sheet deletions disappear immediately in app
+      const reconciledRecords = await filterRecordsExistingInSheet(filteredRecords as any[]);
+
+      const mappedRecords = reconciledRecords.map(r => ({
         id: r.id,
         record_date: r.record_date,
         record_time: r.record_time,
