@@ -208,6 +208,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
   const [photoHorimeter, setPhotoHorimeter] = useState<File | null>(null);
   const [photoHorimeterPreview, setPhotoHorimeterPreview] = useState<string | null>(null);
   const [isUploadingPhotos, setIsUploadingPhotos] = useState(false);
+  const [fullscreenPhoto, setFullscreenPhoto] = useState<string | null>(null);
   
   // OCR state
   const [isProcessingOCR, setIsProcessingOCR] = useState(false);
@@ -2806,30 +2807,42 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                   onChange={handlePhotoCapture('pump')}
                   className="hidden"
                 />
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    saveFormState();
-                    photoPumpInputRef.current?.click();
-                  }}
-                  className={cn(
-                    "flex flex-col items-center justify-center w-full rounded-xl border-2 border-dashed cursor-pointer transition-all overflow-hidden",
-                    photoPumpPreview
-                      ? "border-green-400 h-auto"
-                      : "border-rose-300 dark:border-rose-700 bg-white dark:bg-slate-900 hover:border-rose-400 h-24"
-                  )}
-                >
-                  {photoPumpPreview ? (
-                    <img src={photoPumpPreview} alt="Foto Bomba" className="w-full h-32 object-cover" />
-                  ) : (
-                    <div className="flex flex-col items-center gap-1">
-                      <Camera className="w-6 h-6 text-rose-400" />
-                      <span className="text-xs text-muted-foreground">Tirar foto</span>
-                    </div>
-                  )}
-                </button>
+                {photoPumpPreview ? (
+                  <div className="relative">
+                    <img
+                      src={photoPumpPreview}
+                      alt="Foto Bomba"
+                      className="w-full h-32 object-cover rounded-xl border-2 border-green-400 cursor-pointer"
+                      onClick={() => setFullscreenPhoto(photoPumpPreview)}
+                    />
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        saveFormState();
+                        photoPumpInputRef.current?.click();
+                      }}
+                      className="absolute bottom-1 left-1 bg-black/60 text-white rounded-full px-2 py-1 text-xs flex items-center gap-1"
+                    >
+                      <Camera className="w-3 h-3" /> Trocar
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      saveFormState();
+                      photoPumpInputRef.current?.click();
+                    }}
+                    className="flex flex-col items-center justify-center w-full h-24 rounded-xl border-2 border-dashed border-rose-300 dark:border-rose-700 bg-white dark:bg-slate-900 hover:border-rose-400 cursor-pointer transition-all"
+                  >
+                    <Camera className="w-6 h-6 text-rose-400" />
+                    <span className="text-xs text-muted-foreground">Tirar foto</span>
+                  </button>
+                )}
                 {photoPump && (
                   <button
                     type="button"
@@ -2859,30 +2872,42 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                     onChange={handlePhotoCapture('horimeter')}
                     className="hidden"
                   />
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      saveFormState();
-                      photoHorimeterInputRef.current?.click();
-                    }}
-                    className={cn(
-                      "flex flex-col items-center justify-center w-full rounded-xl border-2 border-dashed cursor-pointer transition-all overflow-hidden",
-                      photoHorimeterPreview
-                        ? "border-green-400 h-auto"
-                        : "border-rose-300 dark:border-rose-700 bg-white dark:bg-slate-900 hover:border-rose-400 h-24"
-                    )}
-                  >
-                    {photoHorimeterPreview ? (
-                      <img src={photoHorimeterPreview} alt="Foto Horímetro" className="w-full h-32 object-cover" />
-                    ) : (
-                      <div className="flex flex-col items-center gap-1">
-                        <Image className="w-6 h-6 text-rose-400" />
-                        <span className="text-xs text-muted-foreground">Tirar foto</span>
-                      </div>
-                    )}
-                  </button>
+                  {photoHorimeterPreview ? (
+                    <div className="relative">
+                      <img
+                        src={photoHorimeterPreview}
+                        alt="Foto Horímetro"
+                        className="w-full h-32 object-cover rounded-xl border-2 border-green-400 cursor-pointer"
+                        onClick={() => setFullscreenPhoto(photoHorimeterPreview)}
+                      />
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          saveFormState();
+                          photoHorimeterInputRef.current?.click();
+                        }}
+                        className="absolute bottom-1 left-1 bg-black/60 text-white rounded-full px-2 py-1 text-xs flex items-center gap-1"
+                      >
+                        <Camera className="w-3 h-3" /> Trocar
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        saveFormState();
+                        photoHorimeterInputRef.current?.click();
+                      }}
+                      className="flex flex-col items-center justify-center w-full h-24 rounded-xl border-2 border-dashed border-rose-300 dark:border-rose-700 bg-white dark:bg-slate-900 hover:border-rose-400 cursor-pointer transition-all"
+                    >
+                      <Image className="w-6 h-6 text-rose-400" />
+                      <span className="text-xs text-muted-foreground">Tirar foto</span>
+                    </button>
+                  )}
                   {photoHorimeter && (
                     <button
                       type="button"
@@ -3219,6 +3244,22 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         onClose={() => setIsQRScannerOpen(false)}
         onScan={handleQRCodeResult}
       />
+
+      {/* Fullscreen Photo Preview */}
+      {fullscreenPhoto && (
+        <div
+          className="fixed inset-0 z-[9999] bg-black/95 flex items-center justify-center"
+          onClick={() => setFullscreenPhoto(null)}
+        >
+          <button
+            className="absolute top-4 right-4 bg-white/20 text-white rounded-full w-10 h-10 flex items-center justify-center"
+            onClick={() => setFullscreenPhoto(null)}
+          >
+            <X className="w-6 h-6" />
+          </button>
+          <img src={fullscreenPhoto} alt="Foto ampliada" className="max-w-full max-h-full object-contain p-4" />
+        </div>
+      )}
     </div>
   );
 }

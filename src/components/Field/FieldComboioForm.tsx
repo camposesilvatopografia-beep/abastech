@@ -17,6 +17,7 @@ import {
   MapPin,
   Droplet,
   Cloud,
+  X,
 } from 'lucide-react';
 import logoAbastech from '@/assets/logo-abastech.png';
 import { Button } from '@/components/ui/button';
@@ -95,6 +96,7 @@ export function FieldComboioForm({ user, onBack }: FieldComboioFormProps) {
   const [entryLocation, setEntryLocation] = useState('');
   const [photoPump, setPhotoPump] = useState<File | null>(null);
   const [photoPumpPreview, setPhotoPumpPreview] = useState<string | null>(null);
+  const [fullscreenPhoto, setFullscreenPhoto] = useState<string | null>(null);
   const photoPumpInputRef = useRef<HTMLInputElement>(null);
 
   // Vehicle search
@@ -620,7 +622,7 @@ export function FieldComboioForm({ user, onBack }: FieldComboioFormProps) {
           />
           {photoPumpPreview ? (
             <div className="relative">
-              <img src={photoPumpPreview} alt="Foto bomba" className="w-full h-40 object-cover rounded-lg border-2 border-emerald-300" />
+              <img src={photoPumpPreview} alt="Foto bomba" className="w-full h-40 object-cover rounded-lg border-2 border-emerald-300 cursor-pointer" onClick={() => setFullscreenPhoto(photoPumpPreview)} />
               <Button
                 variant="destructive"
                 size="icon"
@@ -668,6 +670,14 @@ export function FieldComboioForm({ user, onBack }: FieldComboioFormProps) {
           )}
         </Button>
       </div>
+      {fullscreenPhoto && (
+        <div className="fixed inset-0 z-[9999] bg-black/95 flex items-center justify-center" onClick={() => setFullscreenPhoto(null)}>
+          <button className="absolute top-4 right-4 bg-white/20 text-white rounded-full w-10 h-10 flex items-center justify-center" onClick={() => setFullscreenPhoto(null)}>
+            <X className="w-6 h-6" />
+          </button>
+          <img src={fullscreenPhoto} alt="Foto ampliada" className="max-w-full max-h-full object-contain p-4" />
+        </div>
+      )}
     </div>
   );
 }
