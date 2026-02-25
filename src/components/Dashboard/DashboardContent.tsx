@@ -196,7 +196,7 @@ export function DashboardContent() {
       const fornecedor = String(row['FORNECEDOR'] || '').trim().toLowerCase();
       const quantidade = parseNumber(row['QUANTIDADE'] || row['Quantidade']);
       const veiculo = String(row['VEICULO'] || row['Veiculo'] || '').trim().toLowerCase();
-      const local = String(row['LOCAL'] || row['Local'] || '').toLowerCase();
+      const local = String(row['LOCAL DE SAIDA'] || row['LOCAL'] || row['Local'] || '').toLowerCase();
       
       // Skip if no quantity
       if (quantidade <= 0) return;
@@ -312,7 +312,7 @@ export function DashboardContent() {
       filtered = filtered.filter(row => 
         String(row['VEICULO'] || row['Veiculo'] || '').toLowerCase().includes(searchLower) ||
         String(row['MOTORISTA'] || row['Motorista'] || '').toLowerCase().includes(searchLower) ||
-        String(row['LOCAL'] || row['Local'] || '').toLowerCase().includes(searchLower)
+        String(row['LOCAL DE SAIDA'] || row['LOCAL'] || row['Local'] || '').toLowerCase().includes(searchLower)
       );
     }
 
@@ -328,7 +328,7 @@ export function DashboardContent() {
         motorista: String(row['MOTORISTA'] || row['Motorista'] || 'N/A'),
         quantidade: parseNumber(row['QUANTIDADE'] || row['Quantidade']),
         combustivel: String(row['TIPO DE COMBUSTIVEL'] || row['Combustivel'] || 'Diesel'),
-        local: String(row['LOCAL'] || row['Local'] || 'N/A')
+        local: String(row['LOCAL DE SAIDA'] || row['LOCAL'] || row['Local'] || 'N/A')
       }));
   }, [filteredAbastecimentoData, search]);
 

@@ -703,7 +703,7 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess, presetMode
         'QUANTIDADE': fuelQuantity || 0,
         'QUANTIDADE DE ARLA': arlaQuantity || '',
         'TIPO DE COMBUSTIVEL': fuelType,
-        'LOCAL': dbRecord.location,
+        'LOCAL DE SAIDA': dbRecord.location,
         'OBSERVAÇÃO': dbRecord.observations || '',
         'TIPO DE ÓLEO': oilType || '',
         'QUANTIDADE DE ÓLEO': parseFloat(oilQuantity) || '',

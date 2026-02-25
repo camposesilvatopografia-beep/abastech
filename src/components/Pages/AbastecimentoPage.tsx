@@ -371,7 +371,7 @@ export function AbastecimentoPage() {
       rowData['KM ANTERIOR'] = inlineEditData['KM ANTERIOR'];
       rowData['KM ATUAL'] = inlineEditData['KM ATUAL'];
       rowData['QUANTIDADE DE ARLA'] = inlineEditData['QUANTIDADE DE ARLA'];
-      rowData['LOCAL'] = inlineEditData['LOCAL'];
+      rowData['LOCAL DE SAIDA'] = inlineEditData['LOCAL DE SAIDA'] || inlineEditData['LOCAL'];
       rowData['OBSERVAÇÃO'] = inlineEditData['OBSERVAÇÃO'];
       
       // Copy all original fields to maintain data integrity
@@ -440,7 +440,7 @@ export function AbastecimentoPage() {
             km_current: parseNum(inlineEditData['KM ATUAL']),
             arla_quantity: parseNum(inlineEditData['QUANTIDADE DE ARLA']),
             operator_name: inlineEditData['MOTORISTA'] || null,
-            location: inlineEditData['LOCAL'] || null,
+            location: inlineEditData['LOCAL DE SAIDA'] || inlineEditData['LOCAL'] || null,
             observations: inlineEditData['OBSERVAÇÃO'] || null,
             updated_at: new Date().toISOString()
           };
@@ -593,7 +593,7 @@ export function AbastecimentoPage() {
       }
       
       // Local filter
-      if (localFilter !== 'all' && row['LOCAL'] !== localFilter) return false;
+      if (localFilter !== 'all' && (row['LOCAL DE SAIDA'] || row['LOCAL']) !== localFilter) return false;
       
       // Tipo filter
       if (tipoFilter !== 'all' && row['TIPO'] !== tipoFilter) return false;
@@ -750,7 +750,7 @@ export function AbastecimentoPage() {
   const locais = useMemo(() => {
     const unique = new Set<string>();
     data.rows.forEach(row => {
-      const local = String(row['LOCAL'] || '').trim();
+      const local = String(row['LOCAL DE SAIDA'] || row['LOCAL'] || '').trim();
       if (local) unique.add(local);
     });
     return Array.from(unique).sort();
@@ -807,7 +807,7 @@ export function AbastecimentoPage() {
     }>> = {};
     
     filteredRows.forEach(row => {
-      const local = String(row['LOCAL'] || 'Não informado').trim() || 'Não informado';
+      const local = String(row['LOCAL DE SAIDA'] || row['LOCAL'] || 'Não informado').trim() || 'Não informado';
       const quantidade = parseNumber(row['QUANTIDADE']);
       const arlaQtd = parseNumber(row['QUANTIDADE DE ARLA']);
       const valor = parseNumber(row['VALOR TOTAL']);
@@ -966,7 +966,7 @@ export function AbastecimentoPage() {
   const saneamentoFilteredData = useMemo(() => {
     return data.rows.filter(row => {
       const obra = String(row['OBRA'] || row['Obra'] || '').toLowerCase();
-      const local = String(row['LOCAL'] || '').toLowerCase();
+      const local = String(row['LOCAL DE SAIDA'] || row['LOCAL'] || '').toLowerCase();
       const empresa = String(row['EMPRESA'] || '').toLowerCase();
       const observacao = String(row['OBSERVAÇÃO'] || row['OBSERVACAO'] || '').toLowerCase();
       const isSaneamento = obra.includes('saneamento') || local.includes('saneamento') || empresa.includes('saneamento') || observacao.includes('saneamento');
@@ -1030,7 +1030,7 @@ export function AbastecimentoPage() {
     const byLocation: Record<string, { registros: any[]; total: number }> = {};
     
     entries.forEach(row => {
-      const local = String(row['LOCAL'] || row['TANQUE'] || 'Não informado').trim();
+      const local = String(row['LOCAL DE SAIDA'] || row['LOCAL'] || row['TANQUE'] || 'Não informado').trim();
       const quantidade = parseNumber(row['QUANTIDADE']);
       
       if (!byLocation[local]) {
@@ -1094,7 +1094,7 @@ export function AbastecimentoPage() {
         'Motorista': String(row['MOTORISTA'] || ''),
         'Categoria': String(row['CATEGORIA'] || ''),
         'Empresa': String(row['EMPRESA'] || ''),
-        'Local': String(row['LOCAL'] || ''),
+        'Local': String(row['LOCAL DE SAIDA'] || row['LOCAL'] || ''),
         'Hor. Anterior': parseNumber(row['HORIMETRO ANTERIOR']),
         'Hor. Atual': parseNumber(row['HORIMETRO ATUAL']),
         'Km Anterior': parseNumber(row['KM ANTERIOR']),
@@ -1259,7 +1259,7 @@ export function AbastecimentoPage() {
         const tipo = String(row['TIPO'] || '').toLowerCase();
         if (tipo.includes('entrada') || tipo.includes('recebimento')) return;
         
-        const rawLocal = String(row['LOCAL'] || 'Não informado').trim();
+        const rawLocal = String(row['LOCAL DE SAIDA'] || row['LOCAL'] || 'Não informado').trim();
         const group = classifyLoc(rawLocal);
         const qty = parseNumber(row['QUANTIDADE']);
         
@@ -2739,7 +2739,7 @@ export function AbastecimentoPage() {
                             </>
                           );
                         })()}
-                        <TableCell className="text-xs">{row['LOCAL']}</TableCell>
+                        <TableCell className="text-xs">{row['LOCAL DE SAIDA'] || row['LOCAL']}</TableCell>
                         {canCreateRecords && (
                           <TableCell className="text-center">
                             <div className="flex items-center justify-center gap-1">
@@ -2844,7 +2844,7 @@ export function AbastecimentoPage() {
                         <TableCell className="text-center">
                           {parseNumber(row['QUANTIDADE DE ARLA']) > 0 ? parseNumber(row['QUANTIDADE DE ARLA']).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '-'}
                         </TableCell>
-                        <TableCell>{String(row['LOCAL'] || '-')}</TableCell>
+                        <TableCell>{String(row['LOCAL DE SAIDA'] || row['LOCAL'] || '-')}</TableCell>
                         <TableCell className="text-center">
                           <div className="flex items-center justify-center gap-1">
                             <Button variant="ghost" size="icon" className="h-7 w-7" title="Editar"
@@ -2902,7 +2902,7 @@ export function AbastecimentoPage() {
                   String(row['DATA'] || ''),
                   String(row['HORA'] || ''),
                   String(row['FORNECEDOR'] || '-'),
-                  String(row['LOCAL'] || row['TANQUE'] || '-'),
+                  String(row['LOCAL DE SAIDA'] || row['LOCAL'] || row['TANQUE'] || '-'),
                   qtd.toLocaleString('pt-BR', { minimumFractionDigits: 2 }),
                   String(row['NOTA FISCAL'] || '-'),
                   valorUnit > 0 ? `R$ ${valorUnit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '-',
@@ -2993,7 +2993,7 @@ export function AbastecimentoPage() {
                             <TableCell>{row['DATA']}</TableCell>
                             <TableCell>{row['HORA'] || '-'}</TableCell>
                             <TableCell>{row['FORNECEDOR'] || '-'}</TableCell>
-                            <TableCell>{row['LOCAL'] || row['TANQUE'] || '-'}</TableCell>
+                            <TableCell>{row['LOCAL DE SAIDA'] || row['LOCAL'] || row['TANQUE'] || '-'}</TableCell>
                             <TableCell className="text-right font-medium text-success">
                               +{qtd.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                             </TableCell>
@@ -3501,10 +3501,10 @@ export function AbastecimentoPage() {
                   <div className="space-y-2">
                     <label className="text-xs text-muted-foreground">Local</label>
                     <Select
-                      value={String(editingRecord['LOCAL'] ?? '')}
+                      value={String(editingRecord['LOCAL DE SAIDA'] ?? editingRecord['LOCAL'] ?? '')}
                       onValueChange={(value) => setEditingRecord({
                         ...editingRecord,
-                        'LOCAL': value
+                        'LOCAL DE SAIDA': value
                       })}
                     >
                       <SelectTrigger className="h-10">

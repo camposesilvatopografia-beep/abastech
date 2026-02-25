@@ -174,7 +174,7 @@ export function VehicleConsumptionDetailTab({ data, refetch, loading }: VehicleC
         date: dateStr, time: String(row['HORA'] || ''), dateObj, fuelQuantity,
         horimeterPrevious, horimeterCurrent, kmPrevious, kmCurrent,
         horimeterInterval, kmInterval, consumption,
-        location: String(row['LOCAL'] || ''), operator: String(row['OPERADOR'] || ''),
+        location: String(row['LOCAL DE SAIDA'] || row['LOCAL'] || ''), operator: String(row['OPERADOR'] || ''),
         observations, isBrokenHorimeter,
       };
 

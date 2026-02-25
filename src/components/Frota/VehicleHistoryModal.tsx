@@ -337,7 +337,7 @@ export function VehicleHistoryModal({
             lubricant: String(row['LUBRIFICANTE'] || '').trim() || null,
             filter_blow_quantity: pn(row['SOPRA FILTRO'] || 0) || null,
             operator_name: String(row['MOTORISTA'] || row['OPERADOR'] || '').trim() || null,
-            location: String(row['LOCAL'] || '').trim() || null,
+            location: String(row['LOCAL DE SAIDA'] || row['LOCAL'] || '').trim() || null,
             record_type: tipoOp.includes('entrada') ? 'entrada' : 'saida',
           });
         }

@@ -4,10 +4,10 @@ import { formatPtBRNumber } from '@/lib/ptBRNumber';
  * Builds the data object mapped to the exact headers of the 'AbastecimentoCanteiro01' spreadsheet.
  * 
  * Actual header order (Column A → AJ):
- * id | DATA | HORA | TIPO | CATEGORIA | VEICULO | POTENCIA | DESCRICAO | MOTORISTA | EMPRESA | OBRA |
+ * id | DATA | HORA | TIPO | LOCAL DE SAIDA | LOCAL DE ENTRADA | CATEGORIA | VEICULO | POTENCIA | DESCRICAO | MOTORISTA | EMPRESA | OBRA |
  * HORIMETRO ANTERIOR | HORIMETRO ATUAL | INTERVALO HORAS | KM ANTERIOR | KM ATUAL | INTERVALO KM |
- * QUANTIDADE | TIPO DE COMBUSTIVEL | LOCAL | ARLA | QUANTIDADE DE ARLA | FORNECEDOR | NOTA FISCAL |
- * VALOR UNITÁRIO | VALOR TOTAL | OBSERVAÇÃO | FOTO BOMBA | FOTO HORIMETRO | LOCAL DE ENTRADA |
+ * QUANTIDADE | TIPO DE COMBUSTIVEL | ARLA | QUANTIDADE DE ARLA | FORNECEDOR | NOTA FISCAL |
+ * VALOR UNITÁRIO | VALOR TOTAL | OBSERVAÇÃO | FOTO BOMBA | FOTO HORIMETRO |
  * LUBRIFICAR | LUBRIFICANTE | COMPLETAR ÓLEO | TIPO ÓLEO | QUANTIDADE ÓLEO | SOPRA FILTRO
  */
 
@@ -118,7 +118,7 @@ export function buildFuelSheetData(record: FuelSheetRecord): Record<string, any>
     'INTERVALO KM': intervaloKm,
     'QUANTIDADE': fmtNum(qty),
     'TIPO DE COMBUSTIVEL': record.fuelType || '',
-    'LOCAL': record.location || '',
+    'LOCAL DE SAIDA': record.location || '',
     'ARLA': (record.arlaQuantity && Number(record.arlaQuantity) > 0) ? 'TRUE' : 'FALSE',
     'QUANTIDADE DE ARLA': fmtNum(record.arlaQuantity),
     'FORNECEDOR': record.supplier || '',
