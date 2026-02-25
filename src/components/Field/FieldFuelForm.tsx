@@ -2545,8 +2545,9 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
               </div>
             )}
 
-            {/* Location - for quick modes */}
-            {user.assigned_locations && user.assigned_locations.length > 1 ? (
+            {/* Location - for quick modes (hidden for comboio-only users) */}
+            {!userLocationInfo.isOnlyComboio && (
+              user.assigned_locations && user.assigned_locations.length > 1 ? (
               <div className="bg-indigo-50 dark:bg-indigo-950/40 rounded-2xl border-2 border-indigo-400 dark:border-indigo-600 p-4 space-y-3 shadow-lg">
                 <div className="flex items-center gap-3 bg-indigo-100 dark:bg-indigo-900/60 px-4 py-2.5 rounded-xl -ml-1">
                   <MapPin className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
@@ -2575,7 +2576,8 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                   <span className="text-lg font-bold text-foreground">{location}</span>
                 </div>
               </div>
-            ) : null}
+            ) : null
+            )}
 
             {/* Observations for quick modes */}
             <div className="bg-white dark:bg-slate-800 backdrop-blur-sm rounded-xl border border-blue-200 dark:border-blue-800 p-4 space-y-3 shadow-lg">
