@@ -57,7 +57,7 @@ function classifyLocation(local: string): 'tanque' | 'comboio' | 'other' {
 }
 
 function filterByType(rows: FuelRecord[], type: 'tanque' | 'comboio'): FuelRecord[] {
-  return rows.filter(row => classifyLocation(String(row['LOCAL'] || '')) === type);
+  return rows.filter(row => classifyLocation(String(row['LOCAL DE SAIDA'] || row['LOCAL'] || '')) === type);
 }
 
 function isEntradaRecord(row: FuelRecord): boolean {

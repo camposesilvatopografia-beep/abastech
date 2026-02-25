@@ -210,7 +210,7 @@ export function EstoquesPage() {
       const tipo = String(row['TIPO DE OPERACAO'] || row['TIPO'] || row['Tipo'] || '').toLowerCase();
       const fornecedor = String(row['FORNECEDOR'] || '').trim().toLowerCase();
       const veiculo = String(row['VEICULO'] || row['Veiculo'] || '').trim().toLowerCase();
-      const local = String(row['LOCAL'] || row['Local'] || '').toLowerCase();
+      const local = String(row['LOCAL DE SAIDA'] || row['LOCAL'] || row['Local'] || '').toLowerCase();
 
       // Count exits (Saída type, no supplier, not an entrada)
       if (!fornecedor && quantidade > 0 && !tipo.includes('entrada')) {

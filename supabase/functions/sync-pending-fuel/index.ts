@@ -52,7 +52,7 @@ function buildSheetData(record: any): Record<string, any> {
     'INTERVALO KM': kmCurr > kmPrev ? fmtNum(kmCurr - kmPrev) : '',
     'QUANTIDADE': fmtNum(fuelQty),
     'TIPO DE COMBUSTIVEL': record.fuel_type || 'Diesel',
-    'LOCAL': record.location || '',
+    'LOCAL DE SAIDA': record.location || '',
     'ARLA': Number(record.arla_quantity) > 0 ? 'Sim' : '',
     'QUANTIDADE DE ARLA': fmtNum(record.arla_quantity),
     'FORNECEDOR': record.supplier || '',

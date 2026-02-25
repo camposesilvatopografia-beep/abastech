@@ -230,7 +230,7 @@ export function SyncTestPage() {
           'HORA': testTime.substring(0, 5),
           'VEICULO': testVehicleCode,
           'QUANTIDADE': testQuantity,
-          'LOCAL': 'TEST_SYNC',
+          'LOCAL DE SAIDA': 'TEST_SYNC',
           'OPERADOR': 'TESTE AUTOMATIZADO',
           'OBSERVACAO': `Teste de sincronização`,
         };

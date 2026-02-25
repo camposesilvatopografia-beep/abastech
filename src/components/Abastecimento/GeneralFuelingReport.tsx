@@ -137,7 +137,7 @@ export function GeneralFuelingReport({ data, refetch, loading }: GeneralFuelingR
       const tipo = String(row['TIPO'] || '').toLowerCase();
       if (tipo.includes('entrada') || tipo.includes('recebimento')) return;
 
-      const rawLocation = String(row['LOCAL'] || 'Não informado').trim();
+      const rawLocation = String(row['LOCAL DE SAIDA'] || row['LOCAL'] || 'Não informado').trim();
       const location = classifyLocation(rawLocation);
       const category = String(row['CATEGORIA'] || '').toUpperCase();
       const isEquipment = isEquipmentCategory(category);
