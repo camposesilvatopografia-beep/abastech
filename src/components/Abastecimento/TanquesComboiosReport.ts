@@ -118,8 +118,91 @@ function renderHeader(doc: jsPDF, title: string, selectedDate: Date, obraSetting
   });
 }
 
+// ─── Resumo Geral (Stock Summary Table) ───────────────────────────────
+
+function renderResumoGeral(
+  doc: jsPDF,
+  entries: { label: string; data: StockSummary }[],
+  currentY: number,
+): number {
+  // Section title
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(30, 41, 59);
+  doc.text('Resumo Geral', PAGE_MARGIN, currentY + 4);
+  currentY += 8;
+
+  const head = [['Descrição', 'Estoque\nAnterior', 'Entrada', 'Saída para\nComboios', 'Saída para\nEquipamentos', 'Total', 'Estoque Atual']];
+
+  const bodyRows = entries.map(e => [
+    e.label,
+    fmtNum(e.data.estoqueAnterior),
+    fmtNum(e.data.entrada, 2),
+    fmtNum(e.data.saidaComboios),
+    fmtNum(e.data.saidaEquipamentos),
+    fmtNum(e.data.total),
+    fmtNum(e.data.estoqueAtual),
+  ]);
+
+  // Total row
+  const totals: StockSummary = entries.reduce((acc, e) => ({
+    estoqueAnterior: acc.estoqueAnterior + e.data.estoqueAnterior,
+    entrada: acc.entrada + e.data.entrada,
+    saidaComboios: acc.saidaComboios + e.data.saidaComboios,
+    saidaEquipamentos: acc.saidaEquipamentos + e.data.saidaEquipamentos,
+    total: acc.total + e.data.total,
+    estoqueAtual: acc.estoqueAtual + e.data.estoqueAtual,
+  }), { estoqueAnterior: 0, entrada: 0, saidaComboios: 0, saidaEquipamentos: 0, total: 0, estoqueAtual: 0 });
+
+  bodyRows.push([
+    'Total geral',
+    fmtNum(totals.estoqueAnterior),
+    fmtNum(totals.entrada, 2),
+    fmtNum(totals.saidaComboios),
+    fmtNum(totals.saidaEquipamentos),
+    fmtNum(totals.total),
+    fmtNum(totals.estoqueAtual),
+  ]);
+
+  autoTable(doc, {
+    startY: currentY,
+    head,
+    body: bodyRows,
+    theme: 'grid',
+    tableWidth: USABLE_WIDTH,
+    styles: {
+      fontSize: 9,
+      cellPadding: 3,
+      lineColor: [200, 200, 210],
+      lineWidth: 0.25,
+      halign: 'center',
+      valign: 'middle',
+    },
+    headStyles: {
+      fillColor: [220, 220, 225],
+      textColor: [30, 30, 30],
+      fontStyle: 'bold',
+      fontSize: 9,
+      halign: 'center',
+      valign: 'middle',
+      minCellHeight: 11,
+    },
+    columnStyles: {
+      0: { halign: 'left', fontStyle: 'bold' },
+    },
+    margin: { left: PAGE_MARGIN, right: PAGE_MARGIN },
+    didParseCell: (data) => {
+      if (data.row.index === bodyRows.length - 1) {
+        data.cell.styles.fontStyle = 'bold';
+        data.cell.styles.fillColor = [230, 230, 240];
+      }
+    },
+  });
+
+  return (doc as any).lastAutoTable.finalY + 10;
+}
+
 // ─── Fuel Data Tables ──────────────────────────────────────────────────
-// (Stock summary tables removed — only fuel records are shown)
 
 function buildFuelTableData(records: FuelRecord[]) {
   let totalDiesel = 0;
@@ -408,14 +491,17 @@ function renderTanquesPage(
   let currentY = renderHeader(doc, 'RELATÓRIO GERAL DOS TANQUES', selectedDate, obraSettings, logoBase64);
   const pageHeight = doc.internal.pageSize.getHeight();
 
+  // Resumo Geral - Tanques
+  currentY = renderResumoGeral(doc, [
+    { label: 'Tanque Canteiro 01', data: stockData.canteiro01 },
+    { label: 'Tanque Canteiro 02', data: stockData.canteiro02 },
+  ], currentY);
+
   // Separate Saídas and Entradas
   const saidas = sortRecords(fuelRecords.filter(r => !isEntradaRecord(r)), sortByDescription);
   const entradas = sortRecords(fuelRecords.filter(r => isEntradaRecord(r)), sortByDescription);
 
-  // SAÍDAS
   currentY = renderSaidasTable(doc, saidas, currentY, pageHeight);
-
-  // ENTRADAS
   currentY = renderEntradasTable(doc, entradas, currentY, 'tanque', pageHeight);
 
   if (saidas.length === 0 && entradas.length === 0) {
@@ -442,14 +528,18 @@ function renderComboiosPage(
   let currentY = renderHeader(doc, 'RELATÓRIO GERAL DOS COMBOIOS', selectedDate, obraSettings, logoBase64);
   const pageHeight = doc.internal.pageSize.getHeight();
 
+  // Resumo Geral - Comboios
+  currentY = renderResumoGeral(doc, [
+    { label: 'Comboio 01', data: stockData.comboio01 },
+    { label: 'Comboio 02', data: stockData.comboio02 },
+    { label: 'Comboio 03', data: stockData.comboio03 },
+  ], currentY);
+
   // Separate Saídas and Entradas
   const saidas = sortRecords(fuelRecords.filter(r => !isEntradaRecord(r)), sortByDescription);
   const entradas = sortRecords(fuelRecords.filter(r => isEntradaRecord(r)), sortByDescription);
 
-  // SAÍDAS
   currentY = renderSaidasTable(doc, saidas, currentY, pageHeight);
-
-  // ENTRADAS
   currentY = renderEntradasTable(doc, entradas, currentY, 'comboio', pageHeight);
 
   if (saidas.length === 0 && entradas.length === 0) {
