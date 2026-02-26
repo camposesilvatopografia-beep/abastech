@@ -40,11 +40,17 @@ export function FieldOverlay({ open, onClose, location, adminUser, initialView }
   const [loadingUser, setLoadingUser] = useState(false);
 
   // Fetch the actual field_user for this location so inserts use a valid FK
+  // NOTE: we intentionally exclude adminUser from deps to avoid infinite loops
+  // (it's a new object ref each render from the parent)
+  const adminUserRef = useMemo(() => adminUser, [adminUser?.id]);
+
   useEffect(() => {
     if (!open || !location) {
       setRealFieldUser(null);
       return;
     }
+
+    let cancelled = false;
 
     const fetchFieldUser = async () => {
       setLoadingUser(true);
@@ -57,6 +63,8 @@ export function FieldOverlay({ open, onClose, location, adminUser, initialView }
           .limit(1)
           .single();
 
+        if (cancelled) return;
+
         if (data) {
           setRealFieldUser({
             id: data.id,
@@ -65,37 +73,36 @@ export function FieldOverlay({ open, onClose, location, adminUser, initialView }
             role: 'operador',
             assigned_locations: [location],
           });
-        } else {
-          // Fallback: use admin info but this may fail FK constraints
+        } else if (adminUserRef) {
           console.warn('[FieldOverlay] No field_user found for location:', location);
-          if (adminUser) {
-            setRealFieldUser({
-              id: adminUser.id,
-              name: adminUser.name,
-              username: adminUser.username,
-              role: 'operador',
-              assigned_locations: [location],
-            });
-          }
+          setRealFieldUser({
+            id: adminUserRef.id,
+            name: adminUserRef.name,
+            username: adminUserRef.username,
+            role: 'operador',
+            assigned_locations: [location],
+          });
         }
       } catch (err) {
+        if (cancelled) return;
         console.error('[FieldOverlay] Error fetching field user:', err);
-        if (adminUser) {
+        if (adminUserRef) {
           setRealFieldUser({
-            id: adminUser.id,
-            name: adminUser.name,
-            username: adminUser.username,
+            id: adminUserRef.id,
+            name: adminUserRef.name,
+            username: adminUserRef.username,
             role: 'operador',
             assigned_locations: [location],
           });
         }
       } finally {
-        setLoadingUser(false);
+        if (!cancelled) setLoadingUser(false);
       }
     };
 
     fetchFieldUser();
-  }, [open, location, adminUser]);
+    return () => { cancelled = true; };
+  }, [open, location, adminUserRef?.id]);
 
   // Clear orphaned offline records on open
   useEffect(() => {
