@@ -1856,6 +1856,10 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         quantity: fuelQuantity ?? 0
       });
       
+      // Clear persisted form state IMMEDIATELY to prevent visibilitychange
+      // from re-saving stale values (e.g. fuelQuantity=47) during the success animation
+      clearFormState();
+      
       // Wait for animation and then redirect to dashboard
       setTimeout(() => {
         setShowSuccess(false);
