@@ -831,36 +831,42 @@ export function FieldDashboard({ user, onNavigateToForm, onNavigateToFuelMenu, o
           {/* Fuel Quick Access Buttons */}
           {(!canViewModule || canViewModule(user.role, 'field_abastecimento', user.id)) && onNavigateToFuelView && (
             <div className="grid grid-cols-2 gap-3">
-              {[
-                { key: 'fuel-abastecer' as const, label: 'Abastecer', desc: 'Veículos e Equipamentos', icon: Fuel, gradient: 'from-emerald-500 to-emerald-700', shadow: 'shadow-emerald-500/30' },
-                { key: 'fuel-comboio' as const, label: 'Carregar Comboio', desc: 'Tanque do Comboio', icon: Truck, gradient: 'from-orange-500 to-orange-700', shadow: 'shadow-orange-500/30' },
-                ...((isAdmin || (user.assigned_locations || []).some(l => l.toLowerCase().includes('tanque')))
-                  ? [
-                      { key: 'fuel-tanque' as const, label: 'Tanque Diesel', desc: 'Entrada de fornecedor', icon: Package2, gradient: 'from-blue-500 to-blue-700', shadow: 'shadow-blue-500/30' },
-                      { key: 'fuel-arla' as const, label: 'Tanque Arla', desc: 'Entrada de Arla', icon: Droplets, gradient: 'from-cyan-500 to-cyan-700', shadow: 'shadow-cyan-500/30' },
-                    ]
-                  : []),
-              ].map((item) => {
-                const Icon = item.icon;
-                return (
-                  <button
-                    key={item.key}
-                    onClick={() => onNavigateToFuelView(item.key)}
-                    className={cn(
-                      "flex items-center gap-3 p-5 rounded-2xl text-white shadow-lg active:scale-[0.97] transition-transform text-left",
-                      `bg-gradient-to-r ${item.gradient} ${item.shadow}`
-                    )}
-                  >
-                    <div className="w-14 h-14 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center shrink-0">
-                      <Icon className="w-7 h-7" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <span className="text-sm font-bold block leading-tight">{item.label}</span>
-                      <span className="text-[11px] opacity-80 block leading-tight mt-0.5">{item.desc}</span>
-                    </div>
-                  </button>
-                );
-              })}
+              {(() => {
+                const isTanqueUser = (user.assigned_locations || []).some(l => l.toLowerCase().includes('tanque'));
+                const comboioLabel = isTanqueUser ? 'Carregar Tanque do Comboio' : 'Carregar Comboio';
+                const comboioDesc = isTanqueUser ? 'Saída para Comboio' : 'Tanque do Comboio';
+                const items = [
+                  { key: 'fuel-abastecer' as const, label: 'Abastecer', desc: 'Veículos e Equipamentos', icon: Fuel, gradient: 'from-emerald-500 to-emerald-700', shadow: 'shadow-emerald-500/30' },
+                  { key: 'fuel-comboio' as const, label: comboioLabel, desc: comboioDesc, icon: Truck, gradient: 'from-orange-500 to-orange-700', shadow: 'shadow-orange-500/30' },
+                  ...((isAdmin || isTanqueUser)
+                    ? [
+                        { key: 'fuel-tanque' as const, label: 'Tanque Diesel', desc: 'Entrada de fornecedor', icon: Package2, gradient: 'from-blue-500 to-blue-700', shadow: 'shadow-blue-500/30' },
+                        { key: 'fuel-arla' as const, label: 'Tanque Arla', desc: 'Entrada de Arla', icon: Droplets, gradient: 'from-cyan-500 to-cyan-700', shadow: 'shadow-cyan-500/30' },
+                      ]
+                    : []),
+                ];
+                return items.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <button
+                      key={item.key}
+                      onClick={() => onNavigateToFuelView(item.key)}
+                      className={cn(
+                        "flex items-center gap-3 p-5 rounded-2xl text-white shadow-lg active:scale-[0.97] transition-transform text-left",
+                        `bg-gradient-to-r ${item.gradient} ${item.shadow}`
+                      )}
+                    >
+                      <div className="w-14 h-14 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center shrink-0">
+                        <Icon className="w-7 h-7" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-sm font-bold block leading-tight">{item.label}</span>
+                        <span className="text-[11px] opacity-80 block leading-tight mt-0.5">{item.desc}</span>
+                      </div>
+                    </button>
+                  );
+                });
+              })()}
             </div>
           )}
 
