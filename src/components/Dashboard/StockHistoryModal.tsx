@@ -257,195 +257,95 @@ export function StockHistoryModal({ open, onClose, title, sheetData }: StockHist
           </div>
         </div>
 
-
-        <Tabs defaultValue="resumo" className="w-full flex flex-col flex-1">
-          <div className="px-6 py-3 border-b border-border bg-muted/30">
-            <TabsList className="bg-muted/50">
-              <TabsTrigger value="resumo" className="gap-2 data-[state=active]:bg-background">
-                <History className="h-4 w-4" />
-                Resumo
-              </TabsTrigger>
-              <TabsTrigger value="tabela" className="gap-2 data-[state=active]:bg-background">
-                <Table2 className="h-4 w-4" />
-                Tabela Completa
-              </TabsTrigger>
-            </TabsList>
-          </div>
-
-          {/* RESUMO (movimentações diárias) */}
-          <TabsContent value="resumo" className="m-0 flex-1">
-            {/* Summary Cards */}
-            <div className="px-6 py-4 grid grid-cols-2 md:grid-cols-4 gap-3 border-b border-border bg-muted/20">
-              <div className="bg-background rounded-xl p-4 text-center border border-border shadow-sm">
-                <span className="text-xs text-muted-foreground font-medium">Registros</span>
-                <div className="text-2xl font-bold text-foreground mt-1">{historyRows.length}</div>
-              </div>
-              <div className="bg-emerald-500/5 rounded-xl p-4 text-center border border-emerald-500/20 shadow-sm">
-                <span className="text-xs text-muted-foreground font-medium">Total Entradas</span>
-                <div className="flex items-center justify-center gap-1.5 text-2xl font-bold text-emerald-600 dark:text-emerald-500 mt-1">
-                  <ArrowUp className="h-5 w-5" />
-                  {formatNumber(totals.entradas)}
-                </div>
-              </div>
-              <div className="bg-rose-500/5 rounded-xl p-4 text-center border border-rose-500/20 shadow-sm">
-                <span className="text-xs text-muted-foreground font-medium">Total Saídas</span>
-                <div className="flex items-center justify-center gap-1.5 text-2xl font-bold text-rose-600 dark:text-rose-500 mt-1">
-                  <ArrowDown className="h-5 w-5" />
-                  {formatNumber(totals.saidas)}
-                </div>
-              </div>
-              <div className="bg-sky-500/5 rounded-xl p-4 text-center border border-sky-500/20 shadow-sm">
-                <span className="text-xs text-muted-foreground font-medium">Saldo</span>
-                <div className={cn(
-                  "flex items-center justify-center gap-1.5 text-2xl font-bold mt-1",
-                  saldo >= 0 ? "text-sky-600 dark:text-sky-500" : "text-rose-600 dark:text-rose-500"
-                )}>
-                  <Package2 className="h-5 w-5" />
-                  {saldo >= 0 ? '+' : ''}{formatNumber(saldo)}
-                </div>
-              </div>
-            </div>
-
-            {/* History Table */}
-            <ScrollArea className="h-[320px]">
-              {historyRows.length > 0 ? (
-                <Table>
-                  <TableHeader className="sticky top-0 bg-background z-10">
-                    <TableRow className="hover:bg-transparent">
-                      <TableHead className="w-[140px]">
-                        <div className="flex items-center gap-1.5">
-                          <Calendar className="h-3.5 w-3.5" />
-                          Data
-                        </div>
-                      </TableHead>
-                      <TableHead className="text-right">Est. Anterior</TableHead>
-                      <TableHead className="text-right">
-                        <span className="text-emerald-600 dark:text-emerald-500">Entrada</span>
-                      </TableHead>
-                      <TableHead className="text-right">
-                        <span className="text-rose-600 dark:text-rose-500">Saída</span>
-                      </TableHead>
-                      <TableHead className="text-right">Est. Atual</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {historyRows.map((row, index) => {
-                      const isToday = row.data.trim() === todayStr;
-                      const isLatest = !hasToday && index === 0;
-                      return (
-                        <TableRow
-                          key={index}
+        {/* ── TABELA DE HISTÓRICO (expandida, sem abas) ────────── */}
+        <ScrollArea className="h-[50vh]">
+          {historyRows.length > 0 ? (
+            <Table>
+              <TableHeader className="sticky top-0 bg-background z-10">
+                <TableRow className="hover:bg-transparent border-b-2 border-border">
+                  <TableHead className="w-[140px]">
+                    <div className="flex items-center gap-1.5">
+                      <Calendar className="h-3.5 w-3.5" />
+                      Data
+                    </div>
+                  </TableHead>
+                  <TableHead className="text-right">Est. Anterior</TableHead>
+                  <TableHead className="text-right">
+                    <span className="text-emerald-600 dark:text-emerald-500">Entrada</span>
+                  </TableHead>
+                  <TableHead className="text-right">
+                    <span className="text-rose-600 dark:text-rose-500">Saída</span>
+                  </TableHead>
+                  <TableHead className="text-right">Est. Atual</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {historyRows.map((row, index) => {
+                  const isToday = row.data.trim() === todayStr;
+                  const isLatest = !hasToday && index === 0;
+                  return (
+                    <TableRow
+                      key={index}
+                      className={cn(
+                        "hover:bg-muted/50 transition-colors",
+                        isToday && "bg-sky-100/80 dark:bg-sky-950/40 font-semibold border-l-4 border-l-sky-500",
+                        isLatest && !isToday && "bg-amber-50 dark:bg-amber-950/20 border-l-4 border-l-amber-500"
+                      )}
+                    >
+                      <TableCell className="font-medium">
+                        <Badge
+                          variant="outline"
                           className={cn(
-                            "hover:bg-muted/50",
-                            isToday && "bg-sky-50 dark:bg-sky-950/30 font-semibold",
-                            isLatest && !isToday && "bg-amber-50 dark:bg-amber-950/20"
+                            "font-mono text-xs",
+                            isToday && "bg-sky-100 dark:bg-sky-900/50 border-sky-400 text-sky-700 dark:text-sky-300",
+                            isLatest && !isToday && "bg-amber-100 dark:bg-amber-900/30 border-amber-400 text-amber-700 dark:text-amber-300"
                           )}
                         >
-                          <TableCell className="font-medium">
-                            <Badge
-                              variant="outline"
-                              className={cn(
-                                "font-mono text-xs",
-                                isToday && "bg-sky-100 dark:bg-sky-900/50 border-sky-400 text-sky-700 dark:text-sky-300",
-                                isLatest && !isToday && "bg-amber-100 dark:bg-amber-900/30 border-amber-400 text-amber-700 dark:text-amber-300"
-                              )}
-                            >
-                              {isToday ? '📅 Hoje' : isLatest ? `⏱ ${row.data}` : row.data}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className={cn(
-                            "text-right font-medium",
-                            row.estoqueAnterior < 0 ? "text-rose-600 dark:text-rose-500" : "text-amber-600 dark:text-amber-500"
-                          )}>
-                            {formatNumber(row.estoqueAnterior)}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            {row.entrada > 0 ? (
-                              <span className="text-emerald-600 dark:text-emerald-500 font-semibold">
-                                +{formatNumber(row.entrada)}
-                              </span>
-                            ) : (
-                              <span className="text-muted-foreground">-</span>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            {row.saida > 0 ? (
-                              <span className="text-rose-600 dark:text-rose-500 font-semibold">
-                                -{formatNumber(row.saida)}
-                              </span>
-                            ) : (
-                              <span className="text-muted-foreground">-</span>
-                            )}
-                          </TableCell>
-                          <TableCell className={cn(
-                            "text-right font-bold",
-                            row.estoqueAtual < 0 ? "text-rose-600 dark:text-rose-500" : "text-sky-600 dark:text-sky-500"
-                          )}>
-                            {formatNumber(row.estoqueAtual)}
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              ) : (
-                <div className="flex flex-col items-center justify-center h-full py-12 text-muted-foreground">
-                  <Package2 className="h-12 w-12 mb-4 opacity-50" />
-                  <p className="text-sm">Nenhum histórico disponível</p>
-                </div>
-              )}
-            </ScrollArea>
-          </TabsContent>
-
-          {/* TABELA (igual planilha) */}
-          <TabsContent value="tabela" className="m-0 flex-1">
-            <ScrollArea className="h-[440px]">
-              {rawHeaders.length > 0 && rawRows.length > 0 ? (
-                <div className="w-full overflow-x-auto">
-                  <Table>
-                    <TableHeader className="sticky top-0 bg-background z-10">
-                      <TableRow>
-                        {rawHeaders.map((h) => (
-                          <TableHead key={String(h)} className="whitespace-nowrap font-semibold">
-                            {String(h)}
-                          </TableHead>
-                        ))}
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {rawRows.map((row: any, idx: number) => {
-                        const dateStr = String(row['Data'] || row['DATA'] || row['data'] || '').trim();
-                        const isToday = dateStr === todayStr;
-                        const isLatest = !historyRows.some(r => r.data.trim() === todayStr) && idx === 0;
-                        return (
-                          <TableRow
-                            key={row?._rowIndex ?? idx}
-                            className={cn(
-                              "hover:bg-muted/50",
-                              isToday && "bg-sky-50 dark:bg-sky-950/30 font-semibold",
-                              isLatest && !isToday && "bg-amber-50 dark:bg-amber-950/20"
-                            )}
-                          >
-                            {rawHeaders.map((h) => (
-                              <TableCell key={String(h)} className="whitespace-nowrap">
-                                {String(row?.[h] ?? '')}
-                              </TableCell>
-                            ))}
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center h-full py-12 text-muted-foreground">
-                  <Package2 className="h-12 w-12 mb-4 opacity-50" />
-                  <p className="text-sm">Nenhum dado disponível</p>
-                </div>
-              )}
-            </ScrollArea>
-          </TabsContent>
-        </Tabs>
+                          {isToday ? '📅 Hoje' : isLatest ? `⏱ ${row.data}` : row.data}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className={cn(
+                        "text-right font-medium",
+                        row.estoqueAnterior < 0 ? "text-rose-600 dark:text-rose-500" : "text-amber-600 dark:text-amber-500"
+                      )}>
+                        {formatNumber(row.estoqueAnterior)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {row.entrada > 0 ? (
+                          <span className="text-emerald-600 dark:text-emerald-500 font-semibold">
+                            +{formatNumber(row.entrada)}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {row.saida > 0 ? (
+                          <span className="text-rose-600 dark:text-rose-500 font-semibold">
+                            -{formatNumber(row.saida)}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell className={cn(
+                        "text-right font-bold",
+                        row.estoqueAtual < 0 ? "text-rose-600 dark:text-rose-500" : "text-sky-600 dark:text-sky-500"
+                      )}>
+                        {formatNumber(row.estoqueAtual)}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          ) : (
+            <div className="flex flex-col items-center justify-center h-full py-12 text-muted-foreground">
+              <Package2 className="h-12 w-12 mb-4 opacity-50" />
+              <p className="text-sm">Nenhum histórico disponível</p>
+            </div>
+          )}
+        </ScrollArea>
       </DialogContent>
     </Dialog>
   );
