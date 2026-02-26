@@ -1,13 +1,15 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { X, ArrowLeft } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
+import { useState, useEffect, useMemo } from 'react';
+import { X } from 'lucide-react';
 import { FieldFuelForm } from '@/components/Field/FieldFuelForm';
 import { FieldComboioForm } from '@/components/Field/FieldComboioForm';
 import { FieldTanqueForm } from '@/components/Field/FieldTanqueForm';
 import { FieldArlaForm } from '@/components/Field/FieldArlaForm';
 import { FieldArlaOnlyForm } from '@/components/Field/FieldArlaOnlyForm';
-import { FieldFuelMenu } from '@/components/Field/FieldFuelMenu';
+import { FieldFuelRecords } from '@/components/Field/FieldFuelRecords';
+import { FieldStockView } from '@/components/Field/FieldStockView';
+import { FieldDashboard } from '@/components/Field/FieldDashboard';
+import { FieldHorimeterForm } from '@/components/Field/FieldHorimeterForm';
+import { FieldServiceOrderForm } from '@/components/Field/FieldServiceOrderForm';
 
 interface FieldUser {
   id: string;
@@ -17,7 +19,7 @@ interface FieldUser {
   assigned_locations?: string[];
 }
 
-type FieldOverlayView = 'menu' | 'fuel-abastecer' | 'fuel-comboio' | 'fuel-tanque' | 'fuel-arla' | 'fuel-arla-only';
+type OverlayView = 'dashboard' | 'fuel-abastecer' | 'fuel-comboio' | 'fuel-tanque' | 'fuel-arla' | 'fuel-arla-only' | 'fuel-registros' | 'fuel-estoques' | 'horimeter' | 'os';
 
 interface FieldOverlayProps {
   open: boolean;
@@ -28,9 +30,8 @@ interface FieldOverlayProps {
 }
 
 export function FieldOverlay({ open, onClose, location, adminUser, initialView }: FieldOverlayProps) {
-  const [currentView, setCurrentView] = useState<FieldOverlayView>('menu');
+  const [currentView, setCurrentView] = useState<OverlayView>('dashboard');
 
-  // Build a field user from the admin user with the selected location
   const fieldUser = useMemo((): FieldUser | null => {
     if (!adminUser) return null;
     return {
@@ -42,149 +43,62 @@ export function FieldOverlay({ open, onClose, location, adminUser, initialView }
     };
   }, [adminUser, location]);
 
-  // Set initial view when opening
+  // Reset to dashboard when opening
   useEffect(() => {
-    if (open && initialView) {
-      setCurrentView(initialView as FieldOverlayView);
-    } else if (open) {
-      // Auto-detect best view based on location
-      if (location.toLowerCase().includes('comboio')) {
-        setCurrentView('fuel-comboio');
-      } else {
-        setCurrentView('fuel-abastecer');
-      }
+    if (open) {
+      setCurrentView((initialView as OverlayView) || 'dashboard');
     }
-  }, [open, initialView, location]);
-
-  // Reset on close
-  useEffect(() => {
-    if (!open) {
-      setCurrentView('menu');
-    }
-  }, [open]);
+  }, [open, initialView]);
 
   if (!open || !fieldUser) return null;
 
-  const handleBack = () => {
-    setCurrentView('menu');
-  };
-
-  const handleFormSuccess = () => {
-    // After successful save, go back to menu or close
-    setCurrentView('menu');
-  };
+  const goBack = () => setCurrentView('dashboard');
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="relative w-full max-w-lg h-[90vh] max-h-[900px] bg-background rounded-2xl shadow-2xl overflow-hidden flex flex-col border border-border">
+      <div className="relative w-full max-w-lg h-[92vh] max-h-[940px] bg-background rounded-2xl shadow-2xl overflow-hidden flex flex-col border border-border">
         {/* Close button */}
         <button
           onClick={onClose}
-          className="absolute top-3 right-3 z-10 p-1.5 rounded-full bg-black/20 hover:bg-black/40 text-white transition-colors"
+          className="absolute top-3 right-3 z-20 p-1.5 rounded-full bg-black/30 hover:bg-black/50 text-white transition-colors"
+          title="Voltar ao sistema"
         >
           <X className="w-5 h-5" />
         </button>
 
-        {/* Location badge */}
-        <div className="absolute top-3 left-3 z-10 px-3 py-1 rounded-full bg-white/20 backdrop-blur-sm text-white text-xs font-semibold">
-          ⊕ {location}
-        </div>
-
         {/* Content */}
         <div className="flex-1 overflow-auto">
-          {currentView === 'menu' ? (
-            <div className="min-h-full bg-gradient-to-br from-slate-100 via-slate-50 to-white dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 p-6">
-              <div className="pt-12 pb-4">
-                <h2 className="text-xl font-bold text-foreground mb-1">Lançar como {location}</h2>
-                <p className="text-sm text-muted-foreground">Selecione o tipo de lançamento</p>
-              </div>
-              <div className="space-y-3">
-                {location.toLowerCase().includes('comboio') ? (
-                  <>
-                    <MenuButton
-                      label="Abastecer Veículo"
-                      description="Saída de combustível para veículo/equipamento"
-                      color="from-green-600 to-green-700"
-                      onClick={() => setCurrentView('fuel-abastecer')}
-                    />
-                    <MenuButton
-                      label="Carregar Comboio"
-                      description="Entrada/saída de diesel no comboio"
-                      color="from-orange-600 to-orange-700"
-                      onClick={() => setCurrentView('fuel-comboio')}
-                    />
-                    <MenuButton
-                      label="Abastecer Apenas Arla"
-                      description="Registro somente de Arla"
-                      color="from-cyan-600 to-cyan-700"
-                      onClick={() => setCurrentView('fuel-arla-only')}
-                    />
-                  </>
-                ) : (
-                  <>
-                    <MenuButton
-                      label="Abastecer Veículo"
-                      description="Saída de combustível para veículo/equipamento"
-                      color="from-green-600 to-green-700"
-                      onClick={() => setCurrentView('fuel-abastecer')}
-                    />
-                    <MenuButton
-                      label="Carregar Tanque Diesel"
-                      description="Entrada de diesel no tanque"
-                      color="from-blue-600 to-blue-700"
-                      onClick={() => setCurrentView('fuel-tanque')}
-                    />
-                    <MenuButton
-                      label="Carregar Tanque Arla"
-                      description="Entrada de Arla no tanque"
-                      color="from-cyan-600 to-cyan-700"
-                      onClick={() => setCurrentView('fuel-arla')}
-                    />
-                    <MenuButton
-                      label="Abastecer Apenas Arla"
-                      description="Registro somente de Arla (saída)"
-                      color="from-teal-600 to-teal-700"
-                      onClick={() => setCurrentView('fuel-arla-only')}
-                    />
-                  </>
-                )}
-                <Button
-                  variant="ghost"
-                  onClick={onClose}
-                  className="w-full mt-4 text-muted-foreground"
-                >
-                  Voltar ao Sistema
-                </Button>
-              </div>
-            </div>
+          {currentView === 'dashboard' ? (
+            <FieldDashboard
+              user={fieldUser}
+              onNavigateToForm={() => setCurrentView('fuel-abastecer')}
+              onNavigateToHorimeter={() => setCurrentView('horimeter')}
+              onNavigateToOS={() => setCurrentView('os')}
+              onNavigateToFuelView={(view) => setCurrentView(view)}
+              isAdmin={true}
+              canViewModule={() => true}
+            />
           ) : currentView === 'fuel-abastecer' ? (
-            <FieldFuelForm user={fieldUser} onLogout={onClose} onBack={handleBack} />
+            <FieldFuelForm user={fieldUser} onLogout={onClose} onBack={goBack} />
           ) : currentView === 'fuel-comboio' ? (
-            <FieldComboioForm user={fieldUser} onBack={handleBack} />
+            <FieldComboioForm user={fieldUser} onBack={goBack} />
           ) : currentView === 'fuel-tanque' ? (
-            <FieldTanqueForm user={fieldUser} onBack={handleBack} />
+            <FieldTanqueForm user={fieldUser} onBack={goBack} />
           ) : currentView === 'fuel-arla' ? (
-            <FieldArlaForm user={fieldUser} onBack={handleBack} />
+            <FieldArlaForm user={fieldUser} onBack={goBack} />
           ) : currentView === 'fuel-arla-only' ? (
-            <FieldArlaOnlyForm user={fieldUser} onBack={handleBack} />
+            <FieldArlaOnlyForm user={fieldUser} onBack={goBack} />
+          ) : currentView === 'fuel-registros' ? (
+            <FieldFuelRecords user={fieldUser} onBack={goBack} />
+          ) : currentView === 'fuel-estoques' ? (
+            <FieldStockView onBack={goBack} assignedLocations={fieldUser.assigned_locations} />
+          ) : currentView === 'horimeter' ? (
+            <FieldHorimeterForm user={fieldUser} onBack={goBack} />
+          ) : currentView === 'os' ? (
+            <FieldServiceOrderForm user={fieldUser} onBack={goBack} />
           ) : null}
         </div>
       </div>
     </div>
-  );
-}
-
-function MenuButton({ label, description, color, onClick }: { label: string; description: string; color: string; onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className={cn(
-        "w-full text-left px-5 py-4 rounded-xl bg-gradient-to-r text-white shadow-lg hover:shadow-xl transition-all hover:scale-[1.02] active:scale-[0.98]",
-        color,
-      )}
-    >
-      <div className="font-bold text-base">{label}</div>
-      <div className="text-white/80 text-xs mt-0.5">{description}</div>
-    </button>
   );
 }
