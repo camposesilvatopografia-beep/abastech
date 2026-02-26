@@ -59,9 +59,9 @@ function buildSheetData(record: any): Record<string, any> {
   // Format time as HH:MM
   const timeFormatted = record.record_time ? record.record_time.toString().slice(0, 5) : '';
 
-  const saidaLocation = tipo === 'Saida'
-    ? ((record.location || '').trim() || mapVehicleToComboioLocation(record.vehicle_code || '', record.vehicle_description || '') || '')
-    : '';
+  // LOCAL column: always populate when location is available
+  const locationValue = (record.location || '').trim()
+    || (tipo === 'Saida' ? (mapVehicleToComboioLocation(record.vehicle_code || '', record.vehicle_description || '') || '') : '');
 
   const localDoCarregamento = isCarregamento
     ? (record.entry_location || record.location || '')
@@ -92,7 +92,7 @@ function buildSheetData(record: any): Record<string, any> {
     'INTERVALO KM': kmCurr > kmPrev ? fmtNum(kmCurr - kmPrev) : '',
     'QUANTIDADE': fmtNum(fuelQty),
     'TIPO DE COMBUSTIVEL': record.fuel_type || 'Diesel',
-    'LOCAL': saidaLocation,
+    'LOCAL': locationValue,
     'ARLA': Number(record.arla_quantity) > 0 ? 'Sim' : '',
     'QUANTIDADE DE ARLA': fmtNum(record.arla_quantity),
     'FORNECEDOR': record.supplier || '',
