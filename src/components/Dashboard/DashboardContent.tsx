@@ -572,6 +572,17 @@ _Sistema Abastech_`;
           />
         </div>
 
+        {/* Secondary KPIs */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 md:gap-4">
+          <MetricCard
+            title="SAÍDA P/ COMBOIOS"
+            value={`${stockData.saidaComboios.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L`}
+            subtitle="Transferências internas"
+            variant="yellow"
+            icon={Truck}
+          />
+        </div>
+
         {/* ARLA Stock KPI */}
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 md:gap-4">
           <MetricCard
