@@ -2510,20 +2510,6 @@ export function AbastecimentoPage() {
             variant="red"
             icon={TrendingDown}
           />
-          <MetricCard
-            title="SAÍDA P/ COMBOIOS"
-            value={`${metricsFromGeral.saidaComboios.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L`}
-            subtitle="Transferências internas"
-            variant="yellow"
-            icon={Truck}
-          />
-          <MetricCard
-            title="ARLA TOTAL DE SAÍDAS"
-            value={`${additionalMetrics.totalArla.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L`}
-            subtitle="Arla consumido"
-            variant="blue"
-            icon={Droplet}
-          />
         </div>
 
 
