@@ -2755,11 +2755,23 @@ export function AbastecimentoPage() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredRows.slice(0, 100).map((row, index) => (
-                      <TableRow key={row._rowIndex || index}>
+                    filteredRows.slice(0, 100).map((row, index) => {
+                      const hasIssue = correctionAnalysis.allIssues.includes(row);
+                      const issueType = correctionAnalysis.zeroInterval.includes(row) ? 'zero'
+                        : correctionAnalysis.highInterval.includes(row) ? 'high'
+                        : correctionAnalysis.zeroConsumption.includes(row) ? 'missing' : null;
+                      return (
+                      <TableRow key={row._rowIndex || index} className={cn(
+                        hasIssue && 'bg-destructive/10 hover:bg-destructive/15 border-l-2 border-l-destructive'
+                      )}>
                         <TableCell className="text-xs">{row['DATA']}</TableCell>
                         <TableCell className="text-xs">{row['HORA']}</TableCell>
-                        <TableCell className="text-xs font-bold text-primary">{row['VEICULO']}</TableCell>
+                        <TableCell className="text-xs font-bold text-primary">
+                          <span className="flex items-center gap-1">
+                            {hasIssue && <AlertTriangle className="w-3 h-3 text-destructive shrink-0" />}
+                            {row['VEICULO']}
+                          </span>
+                        </TableCell>
                         <TableCell className="text-xs">{row['MOTORISTA']}</TableCell>
                         <TableCell className="text-right text-xs font-mono font-medium">
                           {parseNumber(row['QUANTIDADE']).toLocaleString('pt-BR')}
@@ -2820,7 +2832,8 @@ export function AbastecimentoPage() {
                           </TableCell>
                         )}
                       </TableRow>
-                    ))
+                      );
+                    })
                   )}
                 </TableBody>
               </Table>
