@@ -246,6 +246,9 @@ export function AbastecimentoPage() {
   // Pending sync state
   const [isSyncingPending, setIsSyncingPending] = useState(false);
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
+  
+  // Correction filter state for Lançamentos tab
+  const [correctionFilter, setCorrectionFilter] = useState<'all' | 'zero_interval' | 'high_interval' | 'zero_consumption' | 'all_issues'>('all');
 
   // Check pending records count on mount and after refetch
   const checkPendingSync = useCallback(async () => {
@@ -745,6 +748,53 @@ export function AbastecimentoPage() {
       totalValor
     };
   }, [filteredRows]);
+
+  // ── Correction detection for Lançamentos KPIs ──
+  const correctionAnalysis = useMemo(() => {
+    const MAX_INTERVAL_HOURS = 500;
+    const MAX_INTERVAL_KM = 5000;
+    const zeroInterval: any[] = [];
+    const highInterval: any[] = [];
+    const zeroConsumption: any[] = [];
+    filteredRows.forEach(row => {
+      const tipo = String(row['TIPO'] || '').toLowerCase();
+      if (tipo === 'entrada' || tipo === 'carregamento') return;
+      const cat = String(row['CATEGORIA'] || row['Categoria'] || '').toLowerCase();
+      const isEquip = cat.includes('equipamento') || cat.includes('máquina') || cat.includes('maquina') ||
+        cat.includes('escavadeira') || cat.includes('retro') || cat.includes('pá carregadeira') ||
+        cat.includes('pa carregadeira') || cat.includes('trator') || cat.includes('rolo') ||
+        cat.includes('motoniveladora') || cat.includes('gerador');
+      const obs = String(row['OBSERVAÇÃO'] || row['OBSERVACAO'] || '').toUpperCase();
+      if (obs.includes('QUEBRADO')) return;
+      const anterior = isEquip
+        ? parseNumber(row['HORIMETRO ANTERIOR'] || row['HOR_ANTERIOR'] || 0)
+        : parseNumber(row['KM ANTERIOR'] || row['KM_ANTERIOR'] || 0);
+      const atual = isEquip
+        ? parseNumber(row['HORIMETRO ATUAL'] || row['HOR_ATUAL'] || 0)
+        : parseNumber(row['KM ATUAL'] || row['KM_ATUAL'] || 0);
+      const intervalo = atual > 0 && anterior > 0 ? atual - anterior : 0;
+      const qty = parseNumber(row['QUANTIDADE']);
+      if ((anterior > 0 || atual > 0) && intervalo <= 0) {
+        zeroInterval.push(row);
+      } else if (intervalo > 0 && intervalo > (isEquip ? MAX_INTERVAL_HOURS : MAX_INTERVAL_KM)) {
+        highInterval.push(row);
+      }
+      if (qty > 0 && anterior === 0 && atual === 0) {
+        zeroConsumption.push(row);
+      }
+    });
+    const allIssues = [...new Set([...zeroInterval, ...highInterval, ...zeroConsumption])];
+    return { zeroInterval, highInterval, zeroConsumption, allIssues };
+  }, [filteredRows]);
+
+  const displayRows = useMemo(() => {
+    if (correctionFilter === 'all') return filteredRows;
+    const issueSet = correctionFilter === 'zero_interval' ? correctionAnalysis.zeroInterval
+      : correctionFilter === 'high_interval' ? correctionAnalysis.highInterval
+      : correctionFilter === 'zero_consumption' ? correctionAnalysis.zeroConsumption
+      : correctionAnalysis.allIssues;
+    return filteredRows.filter(row => issueSet.includes(row));
+  }, [filteredRows, correctionFilter, correctionAnalysis]);
 
   // Get unique values for filters
   const locais = useMemo(() => {
@@ -2662,6 +2712,87 @@ export function AbastecimentoPage() {
 
         {activeTab === 'detalhamento' && (
           <div className="space-y-4">
+            {/* Correction KPIs */}
+            {correctionAnalysis.allIssues.length > 0 && (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <button
+                  onClick={() => setCorrectionFilter(correctionFilter === 'all_issues' ? 'all' : 'all_issues')}
+                  className={cn(
+                    "rounded-lg border p-3 text-left transition-all hover:shadow-md cursor-pointer",
+                    correctionFilter === 'all_issues'
+                      ? "border-destructive bg-destructive/10 ring-2 ring-destructive/30"
+                      : "border-border bg-card hover:border-destructive/50"
+                  )}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <AlertTriangle className="h-4 w-4 text-destructive" />
+                    <span className="text-xs font-medium text-muted-foreground">TOTAL CORREÇÕES</span>
+                  </div>
+                  <span className="text-2xl font-bold text-destructive">{correctionAnalysis.allIssues.length}</span>
+                </button>
+
+                <button
+                  onClick={() => setCorrectionFilter(correctionFilter === 'zero_interval' ? 'all' : 'zero_interval')}
+                  className={cn(
+                    "rounded-lg border p-3 text-left transition-all hover:shadow-md cursor-pointer",
+                    correctionFilter === 'zero_interval'
+                      ? "border-amber-500 bg-amber-500/10 ring-2 ring-amber-500/30"
+                      : "border-border bg-card hover:border-amber-500/50"
+                  )}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <Gauge className="h-4 w-4 text-amber-500" />
+                    <span className="text-xs font-medium text-muted-foreground">INTERVALO ZERO/NEG.</span>
+                  </div>
+                  <span className="text-2xl font-bold text-amber-600 dark:text-amber-400">{correctionAnalysis.zeroInterval.length}</span>
+                </button>
+
+                <button
+                  onClick={() => setCorrectionFilter(correctionFilter === 'high_interval' ? 'all' : 'high_interval')}
+                  className={cn(
+                    "rounded-lg border p-3 text-left transition-all hover:shadow-md cursor-pointer",
+                    correctionFilter === 'high_interval'
+                      ? "border-orange-500 bg-orange-500/10 ring-2 ring-orange-500/30"
+                      : "border-border bg-card hover:border-orange-500/50"
+                  )}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <TrendingUp className="h-4 w-4 text-orange-500" />
+                    <span className="text-xs font-medium text-muted-foreground">INTERVALO ALTO</span>
+                  </div>
+                  <span className="text-2xl font-bold text-orange-600 dark:text-orange-400">{correctionAnalysis.highInterval.length}</span>
+                </button>
+
+                <button
+                  onClick={() => setCorrectionFilter(correctionFilter === 'zero_consumption' ? 'all' : 'zero_consumption')}
+                  className={cn(
+                    "rounded-lg border p-3 text-left transition-all hover:shadow-md cursor-pointer",
+                    correctionFilter === 'zero_consumption'
+                      ? "border-rose-500 bg-rose-500/10 ring-2 ring-rose-500/30"
+                      : "border-border bg-card hover:border-rose-500/50"
+                  )}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <AlertTriangle className="h-4 w-4 text-rose-500" />
+                    <span className="text-xs font-medium text-muted-foreground">SEM HORÍMETRO/KM</span>
+                  </div>
+                  <span className="text-2xl font-bold text-rose-600 dark:text-rose-400">{correctionAnalysis.zeroConsumption.length}</span>
+                </button>
+              </div>
+            )}
+
+            {correctionFilter !== 'all' && (
+              <div className="flex items-center gap-2 px-3 py-2 bg-destructive/10 border border-destructive/30 rounded-lg">
+                <AlertTriangle className="h-4 w-4 text-destructive" />
+                <span className="text-sm font-medium text-destructive">
+                  Filtro ativo: mostrando {displayRows.length} registro(s) com possíveis correções
+                </span>
+                <Button variant="ghost" size="sm" className="ml-auto h-7 text-xs" onClick={() => setCorrectionFilter('all')}>
+                  <X className="h-3 w-3 mr-1" /> Limpar filtro
+                </Button>
+              </div>
+            )}
+
             <div className="flex items-center justify-between flex-wrap gap-2">
               <h2 className="text-lg font-semibold bg-primary/10 px-4 py-2 rounded-lg">Detalhamento de Abastecimentos</h2>
               <div className="flex items-center gap-2">
@@ -2697,14 +2828,14 @@ export function AbastecimentoPage() {
                         Carregando dados...
                       </TableCell>
                     </TableRow>
-                  ) : filteredRows.length === 0 ? (
+                  ) : displayRows.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={canCreateRecords ? 11 : 10} className="text-center py-8 text-muted-foreground">
                         Nenhum registro encontrado
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredRows.slice(0, 100).map((row, index) => (
+                    displayRows.slice(0, 100).map((row, index) => (
                       <TableRow key={row._rowIndex || index}>
                         <TableCell className="text-xs">{row['DATA']}</TableCell>
                         <TableCell className="text-xs">{row['HORA']}</TableCell>
@@ -2773,9 +2904,9 @@ export function AbastecimentoPage() {
                   )}
                 </TableBody>
               </Table>
-              {filteredRows.length > 100 && (
+              {displayRows.length > 100 && (
                 <div className="p-4 text-center text-sm text-muted-foreground border-t">
-                  Mostrando 100 de {filteredRows.length} registros
+                  Mostrando 100 de {displayRows.length} registros
                 </div>
               )}
             </div>
