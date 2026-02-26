@@ -2712,86 +2712,6 @@ export function AbastecimentoPage() {
 
         {activeTab === 'detalhamento' && (
           <div className="space-y-4">
-            {/* Correction KPIs */}
-            {correctionAnalysis.allIssues.length > 0 && (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <button
-                  onClick={() => setCorrectionFilter(correctionFilter === 'all_issues' ? 'all' : 'all_issues')}
-                  className={cn(
-                    "rounded-lg border p-3 text-left transition-all hover:shadow-md cursor-pointer",
-                    correctionFilter === 'all_issues'
-                      ? "border-destructive bg-destructive/10 ring-2 ring-destructive/30"
-                      : "border-border bg-card hover:border-destructive/50"
-                  )}
-                >
-                  <div className="flex items-center gap-2 mb-1">
-                    <AlertTriangle className="h-4 w-4 text-destructive" />
-                    <span className="text-xs font-medium text-muted-foreground">TOTAL CORREÇÕES</span>
-                  </div>
-                  <span className="text-2xl font-bold text-destructive">{correctionAnalysis.allIssues.length}</span>
-                </button>
-
-                <button
-                  onClick={() => setCorrectionFilter(correctionFilter === 'zero_interval' ? 'all' : 'zero_interval')}
-                  className={cn(
-                    "rounded-lg border p-3 text-left transition-all hover:shadow-md cursor-pointer",
-                    correctionFilter === 'zero_interval'
-                      ? "border-amber-500 bg-amber-500/10 ring-2 ring-amber-500/30"
-                      : "border-border bg-card hover:border-amber-500/50"
-                  )}
-                >
-                  <div className="flex items-center gap-2 mb-1">
-                    <Gauge className="h-4 w-4 text-amber-500" />
-                    <span className="text-xs font-medium text-muted-foreground">INTERVALO ZERO/NEG.</span>
-                  </div>
-                  <span className="text-2xl font-bold text-amber-600 dark:text-amber-400">{correctionAnalysis.zeroInterval.length}</span>
-                </button>
-
-                <button
-                  onClick={() => setCorrectionFilter(correctionFilter === 'high_interval' ? 'all' : 'high_interval')}
-                  className={cn(
-                    "rounded-lg border p-3 text-left transition-all hover:shadow-md cursor-pointer",
-                    correctionFilter === 'high_interval'
-                      ? "border-orange-500 bg-orange-500/10 ring-2 ring-orange-500/30"
-                      : "border-border bg-card hover:border-orange-500/50"
-                  )}
-                >
-                  <div className="flex items-center gap-2 mb-1">
-                    <TrendingUp className="h-4 w-4 text-orange-500" />
-                    <span className="text-xs font-medium text-muted-foreground">INTERVALO ALTO</span>
-                  </div>
-                  <span className="text-2xl font-bold text-orange-600 dark:text-orange-400">{correctionAnalysis.highInterval.length}</span>
-                </button>
-
-                <button
-                  onClick={() => setCorrectionFilter(correctionFilter === 'zero_consumption' ? 'all' : 'zero_consumption')}
-                  className={cn(
-                    "rounded-lg border p-3 text-left transition-all hover:shadow-md cursor-pointer",
-                    correctionFilter === 'zero_consumption'
-                      ? "border-rose-500 bg-rose-500/10 ring-2 ring-rose-500/30"
-                      : "border-border bg-card hover:border-rose-500/50"
-                  )}
-                >
-                  <div className="flex items-center gap-2 mb-1">
-                    <AlertTriangle className="h-4 w-4 text-rose-500" />
-                    <span className="text-xs font-medium text-muted-foreground">SEM HORÍMETRO/KM</span>
-                  </div>
-                  <span className="text-2xl font-bold text-rose-600 dark:text-rose-400">{correctionAnalysis.zeroConsumption.length}</span>
-                </button>
-              </div>
-            )}
-
-            {correctionFilter !== 'all' && (
-              <div className="flex items-center gap-2 px-3 py-2 bg-destructive/10 border border-destructive/30 rounded-lg">
-                <AlertTriangle className="h-4 w-4 text-destructive" />
-                <span className="text-sm font-medium text-destructive">
-                  Filtro ativo: mostrando {displayRows.length} registro(s) com possíveis correções
-                </span>
-                <Button variant="ghost" size="sm" className="ml-auto h-7 text-xs" onClick={() => setCorrectionFilter('all')}>
-                  <X className="h-3 w-3 mr-1" /> Limpar filtro
-                </Button>
-              </div>
-            )}
 
             <div className="flex items-center justify-between flex-wrap gap-2">
               <h2 className="text-lg font-semibold bg-primary/10 px-4 py-2 rounded-lg">Detalhamento de Abastecimentos</h2>
@@ -2828,14 +2748,14 @@ export function AbastecimentoPage() {
                         Carregando dados...
                       </TableCell>
                     </TableRow>
-                  ) : displayRows.length === 0 ? (
+                  ) : filteredRows.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={canCreateRecords ? 11 : 10} className="text-center py-8 text-muted-foreground">
                         Nenhum registro encontrado
                       </TableCell>
                     </TableRow>
                   ) : (
-                    displayRows.slice(0, 100).map((row, index) => (
+                    filteredRows.slice(0, 100).map((row, index) => (
                       <TableRow key={row._rowIndex || index}>
                         <TableCell className="text-xs">{row['DATA']}</TableCell>
                         <TableCell className="text-xs">{row['HORA']}</TableCell>
@@ -2904,9 +2824,9 @@ export function AbastecimentoPage() {
                   )}
                 </TableBody>
               </Table>
-              {displayRows.length > 100 && (
+              {filteredRows.length > 100 && (
                 <div className="p-4 text-center text-sm text-muted-foreground border-t">
-                  Mostrando 100 de {displayRows.length} registros
+                  Mostrando 100 de {filteredRows.length} registros
                 </div>
               )}
             </div>
