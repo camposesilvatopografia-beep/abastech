@@ -608,8 +608,18 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess, presetMode
           return;
         }
       } else {
-        if (!supplier) {
-          toast.error('Selecione o fornecedor');
+        if (recordType === 'entrada' && presetMode !== 'comboio') {
+          if (!supplier) {
+            toast.error('Selecione o fornecedor');
+            return;
+          }
+        }
+        if (presetMode === 'comboio' && !vehicleCode) {
+          toast.error('Selecione o veículo do comboio');
+          return;
+        }
+        if (presetMode === 'comboio' && !entryLocation) {
+          toast.error('Selecione o local de saída (tanque)');
           return;
         }
       }
