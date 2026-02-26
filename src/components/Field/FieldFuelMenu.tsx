@@ -40,8 +40,8 @@ export function FieldFuelMenu({ onNavigate, user, onBack, isAdmin = false }: Fie
     },
     {
       key: 'fuel-comboio' as const,
-      label: 'Carregar Comboio',
-      description: 'Abastecimento do tanque do Comboio',
+      label: isTanqueUser ? 'Carregar Tanque do Comboio' : 'Carregar Comboio',
+      description: isTanqueUser ? 'Saída para Comboio' : 'Abastecimento do tanque do Comboio',
       icon: Truck,
       gradient: 'from-orange-500 to-orange-700',
       shadow: 'shadow-orange-500/30',
