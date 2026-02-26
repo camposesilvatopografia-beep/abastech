@@ -19,6 +19,10 @@ import {
   UserCheck,
   UserX,
   Clock,
+  Link2,
+  Copy,
+  ExternalLink,
+  Smartphone,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -304,6 +308,10 @@ export default function SystemUsersPage() {
           <TabsTrigger value="permissions" className="gap-2">
             <Shield className="w-4 h-4" />
             Permissões
+          </TabsTrigger>
+          <TabsTrigger value="links" className="gap-2">
+            <Link2 className="w-4 h-4" />
+            Links
           </TabsTrigger>
         </TabsList>
 
@@ -601,6 +609,61 @@ export default function SystemUsersPage() {
 
         <TabsContent value="permissions">
           <RolePermissionsManager />
+        </TabsContent>
+
+        <TabsContent value="links">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Smartphone className="w-5 h-5 text-primary" />
+                Links do Aplicativo Mobile
+              </CardTitle>
+              <CardDescription>
+                Compartilhe estes links com os operadores para instalação do app
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {[
+                {
+                  label: 'Apontamento Campo (Login)',
+                  url: `${window.location.origin}/apontamento`,
+                  description: 'Link direto para o app de campo - operadores acessam e fazem login',
+                },
+                {
+                  label: 'Página de Instalação PWA',
+                  url: `${window.location.origin}/apontamento/instalar`,
+                  description: 'Página com instruções de instalação do app no celular',
+                },
+              ].map((link) => (
+                <div key={link.url} className="flex items-center justify-between gap-4 p-4 rounded-lg border bg-muted/30">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium text-sm">{link.label}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{link.description}</p>
+                    <code className="text-xs text-primary mt-1 block truncate">{link.url}</code>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => {
+                        navigator.clipboard.writeText(link.url);
+                        toast.success('Link copiado!');
+                      }}
+                    >
+                      <Copy className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => window.open(link.url, '_blank')}
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
 
