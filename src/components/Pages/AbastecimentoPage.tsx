@@ -2427,7 +2427,27 @@ export function AbastecimentoPage() {
                       {['Tanque Canteiro 01', 'Tanque Canteiro 02', 'Comboio 01', 'Comboio 02', 'Comboio 03'].map(loc => (
                         <DropdownMenuItem
                           key={loc}
-                          onClick={() => openAdminModal('location', loc)}
+                          onClick={() => {
+                            // Bridge desktop admin user to field user format
+                            const storedAdmin = localStorage.getItem('abastech_user');
+                            if (storedAdmin) {
+                              try {
+                                const adminData = JSON.parse(storedAdmin);
+                                const fieldUser = {
+                                  id: adminData.id,
+                                  name: adminData.name,
+                                  username: adminData.username,
+                                  role: adminData.role || 'admin',
+                                  assigned_locations: [loc],
+                                };
+                                localStorage.setItem('abastech_field_user', JSON.stringify(fieldUser));
+                              } catch {}
+                            }
+                            // Save selected location for FieldPage admin impersonation
+                            localStorage.setItem('abastech_admin_active_location', loc);
+                            sessionStorage.setItem('admin_access_requested', 'true');
+                            window.location.href = '/apontamento';
+                          }}
                           className="gap-2 cursor-pointer"
                         >
                           <MapPin className={cn("w-3.5 h-3.5", loc.includes('Comboio') ? "text-orange-500" : "text-blue-500")} />
