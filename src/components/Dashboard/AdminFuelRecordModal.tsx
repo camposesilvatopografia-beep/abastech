@@ -651,7 +651,7 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess, presetMode
         supplier: supplier || null,
         invoice_number: invoiceNumber || null,
         unit_price: parseFloat(unitPrice.replace(/\./g, '').replace(',', '.')) || null,
-        entry_location: entryLocation || null,
+        entry_location: (recordType === 'entrada' && quickEntryMode === 'normal') ? (entryLocation || null) : null,
         record_date: dbRecordDate,
         record_time: dbRecordTime,
         synced_to_sheet: false,
