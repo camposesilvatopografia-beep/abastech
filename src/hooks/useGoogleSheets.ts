@@ -82,7 +82,7 @@ export function useSheetData(
       const requestKey = `${sheetName}|${noCache ? 'noCache' : 'cache'}`;
 
       const last = lastFetchAtByKey.get(requestKey) ?? 0;
-      if (now - last < 800 && silent) return;
+      if (now - last < 2000 && silent) return; // Throttle polling to avoid 429 quota errors
 
       // De-dupe in-flight requests per (sheet + cacheMode)
       const existing = inFlightByKey.get(requestKey);

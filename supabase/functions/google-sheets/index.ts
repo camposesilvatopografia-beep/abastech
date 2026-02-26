@@ -17,10 +17,10 @@ interface SheetRow {
 // - Edge function instances keep memory across requests for a while, so this cache helps a lot.
 // - We cache reads briefly (seconds) and metadata longer (minutes).
 
-const SHEET_DATA_TTL_MS = 15_000; // short TTL to feel "real-time" but avoid bursts
+const SHEET_DATA_TTL_MS = 30_000; // 30s cache to reduce quota usage (was 15s)
 // When the client explicitly requests noCache, we still keep a *tiny* TTL to coalesce bursts,
 // but avoid serving stale values for long.
-const NO_CACHE_TTL_MS = 1_500;
+const NO_CACHE_TTL_MS = 3_000; // 3s for noCache bursts (was 1.5s)
 
 const METADATA_TTL_MS = 5 * 60_000;
 const HEADER_TTL_MS = 5 * 60_000;
@@ -325,8 +325,9 @@ async function getSheetData(accessToken: string, sheetId: string, range: string)
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e);
           if (detectRetryableError(msg) && attempt < MAX_RETRIES - 1) {
-            const delayMs = 800 * (attempt + 1); // 800ms, 1600ms
-            console.warn(`Retryable error on attempt ${attempt + 1}, retrying in ${delayMs}ms...`);
+            const is429 = msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED');
+            const delayMs = is429 ? 5000 * (attempt + 1) : 800 * (attempt + 1);
+            console.warn(`Retryable error on attempt ${attempt + 1}${is429 ? ' (quota)' : ''}, retrying in ${delayMs}ms...`);
             await sleep(delayMs);
             continue;
           }
