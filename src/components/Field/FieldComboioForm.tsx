@@ -316,13 +316,16 @@ export function FieldComboioForm({ user, onBack }: FieldComboioFormProps) {
       const { mapVehicleToComboioLocation } = await import('@/lib/fuelSheetMapping');
       const comboioName = mapVehicleToComboioLocation(vehicleCode, vehicleDescription) || vehicleCode;
 
+      // Use the comboio driver name (associated with the vehicle), not the tank operator
+      const driverName = getDriverForVehicle(vehicleCode) || user.name;
+
       const recordData = {
         user_id: user.id,
         vehicle_code: vehicleCode,
         vehicle_description: vehicleDescription,
         category: 'Tanque Comboio',
         company,
-        operator_name: removeAccents(user.name),
+        operator_name: removeAccents(driverName),
         work_site: '',
         horimeter_previous: null,
         horimeter_current: null,
@@ -365,7 +368,7 @@ export function FieldComboioForm({ user, onBack }: FieldComboioFormProps) {
             category: 'Tanque Comboio',
             vehicleCode,
             vehicleDescription: removeAccents(vehicleDescription),
-            operatorName: removeAccents(user.name),
+            operatorName: removeAccents(driverName),
             company,
             workSite: '',
             horimeterPrevious: 0,
