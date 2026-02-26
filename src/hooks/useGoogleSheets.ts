@@ -77,12 +77,12 @@ export function useSheetData(
       // Throttle ultra-bursty refreshes (double-clicks, multi-components mounting at once)
       const now = Date.now();
 
-      // Polling (silent) always bypasses cache; manual refresh can request bypass too.
-      const noCache = silent || forceNoCache;
+      // Silent refreshes should prefer backend cache to avoid read-quota bursts.
+      const noCache = forceNoCache;
       const requestKey = `${sheetName}|${noCache ? 'noCache' : 'cache'}`;
 
       const last = lastFetchAtByKey.get(requestKey) ?? 0;
-      if (now - last < 2000 && silent) return; // Throttle polling to avoid 429 quota errors
+      if (now - last < 10_000 && silent) return; // Throttle silent refreshes to avoid 429 quota errors
 
       // De-dupe in-flight requests per (sheet + cacheMode)
       const existing = inFlightByKey.get(requestKey);
@@ -157,7 +157,7 @@ export function useSheetData(
     const onVisibility = () => {
       if (canPollNow()) {
         startPolling();
-        fetchData(true, true);
+        fetchData(true, false);
       } else {
         stopPolling();
       }
@@ -165,7 +165,7 @@ export function useSheetData(
 
     const onFocusOrOnline = () => {
       if (!canPollNow()) return;
-      fetchData(true, true);
+      fetchData(true, false);
     };
 
     startPolling();
@@ -255,8 +255,8 @@ export function useSheetData(
     [sheetName, fetchData, toast]
   );
 
-  const refetch = useCallback((silent = false, forceNoCache = true) => {
-    return fetchData(silent, forceNoCache || !silent);
+  const refetch = useCallback((silent = false, forceNoCache = false) => {
+    return fetchData(silent, forceNoCache);
   }, [fetchData]);
 
   return {
