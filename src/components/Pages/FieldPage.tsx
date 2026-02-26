@@ -240,6 +240,13 @@ export function FieldPage() {
         setUser(parsedUser);
         // Immediately refresh from database to get latest data
         refreshUserData(parsedUser.id);
+        
+        // Check if there's a requested initial view (from desktop admin impersonation)
+        const initialView = localStorage.getItem('abastech_field_initial_view');
+        if (initialView) {
+          localStorage.removeItem('abastech_field_initial_view');
+          setCurrentView(initialView as FieldView);
+        }
       } catch {
         localStorage.removeItem(STORAGE_KEY);
       }
