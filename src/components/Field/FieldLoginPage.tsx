@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { User, Lock, LogIn, Mic, Eye, EyeOff, Loader2, CheckCircle2, Sparkles, Monitor, CloudOff } from 'lucide-react';
+import { User, Lock, LogIn, Mic, Eye, EyeOff, Loader2, CheckCircle2, Sparkles, Monitor, CloudOff, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -342,14 +342,28 @@ export function FieldLoginPage({ onLogin }: FieldLoginPageProps) {
             </Button>
           </form>
 
+          {/* Install App Button - only if not installed */}
+          {!window.matchMedia('(display-mode: standalone)').matches && (
+            <div className="pt-4 border-t border-white/10">
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full h-11 border-green-500/40 text-green-400 hover:bg-green-500/10 hover:text-green-300 font-medium"
+                onClick={() => window.location.href = '/apontamento/instalar'}
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Instalar Aplicativo
+              </Button>
+            </div>
+          )}
+
           {/* Admin System Access */}
-          <div className="pt-4 border-t border-white/10">
+          <div className="pt-2">
             <Button
               type="button"
               variant="ghost"
               className="w-full h-10 text-slate-400 hover:text-white hover:bg-white/5 text-sm"
               onClick={() => {
-                // Set flag to bypass mobile redirect
                 sessionStorage.setItem('admin_access_requested', 'true');
                 window.location.href = '/login';
               }}
