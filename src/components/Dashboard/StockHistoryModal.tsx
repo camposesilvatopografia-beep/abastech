@@ -168,7 +168,7 @@ export function StockHistoryModal({ open, onClose, title, sheetData }: StockHist
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-5xl max-h-[90vh] p-0 gap-0 overflow-hidden">
+      <DialogContent className="max-w-[95vw] w-full max-h-[95vh] h-[95vh] p-0 gap-0 overflow-hidden flex flex-col">
         {/* Header */}
         <div className="bg-gradient-to-r from-slate-800 to-slate-900 px-6 py-5 text-white">
           <div className="flex items-center justify-between">
@@ -258,7 +258,7 @@ export function StockHistoryModal({ open, onClose, title, sheetData }: StockHist
         </div>
 
         {/* ── TABELA DE HISTÓRICO (expandida, sem abas) ────────── */}
-        <ScrollArea className="h-[50vh]">
+        <ScrollArea className="flex-1">
           {historyRows.length > 0 ? (
             <Table>
               <TableHeader className="sticky top-0 bg-background z-10">
