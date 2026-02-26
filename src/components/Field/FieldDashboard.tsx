@@ -787,9 +787,29 @@ export function FieldDashboard({ user, onNavigateToForm, onNavigateToFuelMenu, o
             </Button>
           </div>
         </div>
-        <div className="flex items-center gap-2 text-sm bg-white/10 px-3 py-1.5 rounded-lg w-fit">
-          <Calendar className="w-4 h-4" />
-          {todayStr}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-sm bg-white/10 px-3 py-1.5 rounded-lg w-fit">
+            <Calendar className="w-4 h-4" />
+            {todayStr}
+          </div>
+          <button
+            onClick={() => {
+              // Unregister all service workers and reload
+              if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.getRegistrations().then(registrations => {
+                  registrations.forEach(reg => reg.unregister());
+                });
+              }
+              // Clear caches
+              if ('caches' in window) {
+                caches.keys().then(names => names.forEach(name => caches.delete(name)));
+              }
+              setTimeout(() => window.location.reload(), 300);
+            }}
+            className="text-[10px] bg-white/10 text-white/70 px-2 py-1 rounded-md hover:bg-white/20 transition-colors"
+          >
+            v2.8.0 • Atualizar
+          </button>
         </div>
       </div>
 
