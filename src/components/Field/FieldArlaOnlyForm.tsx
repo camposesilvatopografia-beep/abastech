@@ -77,7 +77,10 @@ export function FieldArlaOnlyForm({ user, onBack }: FieldArlaOnlyFormProps) {
     return vehiclesData.rows
       .filter(row => {
         const status = String(row['STATUS'] || row['Status'] || '').toLowerCase();
-        return status !== 'desmobilizado' && status !== 'inativo';
+        if (status === 'desmobilizado' || status === 'inativo') return false;
+        // Only show Veiculos (trucks, etc.), never Equipamentos
+        const cat = String(row['CATEGORIA'] || row['Categoria'] || '').toLowerCase();
+        return cat === 'veiculo' || cat === 'veículo';
       })
       .map(row => ({
         code: String(row['VEICULO'] || row['Veiculo'] || row['Código'] || '').trim(),
@@ -90,11 +93,19 @@ export function FieldArlaOnlyForm({ user, onBack }: FieldArlaOnlyFormProps) {
 
   const filteredVehicles = useMemo(() => {
     if (!vehicleSearch) return vehicleOptions;
-    const search = vehicleSearch.toLowerCase();
-    return vehicleOptions.filter(v =>
-      v.code.toLowerCase().includes(search) ||
-      v.description.toLowerCase().includes(search)
-    );
+    const search = removeAccents(vehicleSearch.toLowerCase().replace(/[\s-]/g, ''));
+    return vehicleOptions
+      .map(v => {
+        const normalCode = removeAccents(v.code.toLowerCase().replace(/[\s-]/g, ''));
+        const normalDesc = removeAccents(v.description.toLowerCase().replace(/[\s-]/g, ''));
+        let score = 0;
+        if (normalCode === search) score = 100;
+        else if (normalCode.startsWith(search)) score = 80;
+        else if (normalCode.includes(search) || normalDesc.includes(search)) score = 50;
+        return { ...v, score };
+      })
+      .filter(v => v.score > 0)
+      .sort((a, b) => b.score - a.score);
   }, [vehicleOptions, vehicleSearch]);
 
   const handleVehicleSelect = (code: string) => {
@@ -334,7 +345,7 @@ export function FieldArlaOnlyForm({ user, onBack }: FieldArlaOnlyFormProps) {
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-[calc(100vw-2rem)] p-0" align="start">
-              <Command>
+              <Command shouldFilter={false}>
                 <CommandInput
                   placeholder="Buscar veículo..."
                   value={vehicleSearch}
@@ -346,7 +357,7 @@ export function FieldArlaOnlyForm({ user, onBack }: FieldArlaOnlyFormProps) {
                     {filteredVehicles.map((v) => (
                       <CommandItem
                         key={v.code}
-                        value={`${v.code} ${v.description}`}
+                        value={v.code}
                         onSelect={() => handleVehicleSelect(v.code)}
                         className="py-3"
                       >
