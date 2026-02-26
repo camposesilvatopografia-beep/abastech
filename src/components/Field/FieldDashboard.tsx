@@ -72,7 +72,7 @@ interface FieldDashboardProps {
   onNavigateToFuelMenu?: () => void;
   onNavigateToHorimeter?: () => void;
   onNavigateToOS?: () => void;
-  onNavigateToFuelView?: (view: 'fuel-abastecer' | 'fuel-comboio' | 'fuel-tanque' | 'fuel-arla' | 'fuel-registros' | 'fuel-estoques') => void;
+  onNavigateToFuelView?: (view: 'fuel-abastecer' | 'fuel-comboio' | 'fuel-tanque' | 'fuel-arla' | 'fuel-arla-only' | 'fuel-registros' | 'fuel-estoques') => void;
   pendingSyncCount?: number;
   isSyncing?: boolean;
   onSync?: () => void;
@@ -840,6 +840,7 @@ export function FieldDashboard({ user, onNavigateToForm, onNavigateToFuelMenu, o
                   { key: 'fuel-comboio' as const, label: comboioLabel, desc: comboioDesc, icon: Truck, gradient: 'from-orange-500 to-orange-700', shadow: 'shadow-orange-500/30' },
                   ...((isAdmin || isTanqueUser)
                     ? [
+                        { key: 'fuel-arla-only' as const, label: 'Abastecer Apenas Arla', desc: 'Veículo + Quantidade', icon: Droplets, gradient: 'from-teal-500 to-teal-700', shadow: 'shadow-teal-500/30' },
                         { key: 'fuel-tanque' as const, label: 'Tanque Diesel', desc: 'Entrada de fornecedor', icon: Package2, gradient: 'from-blue-500 to-blue-700', shadow: 'shadow-blue-500/30' },
                         { key: 'fuel-arla' as const, label: 'Tanque Arla', desc: 'Entrada de Arla', icon: Droplets, gradient: 'from-cyan-500 to-cyan-700', shadow: 'shadow-cyan-500/30' },
                       ]

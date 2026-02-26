@@ -13,7 +13,7 @@ interface FieldUser {
 }
 
 interface FieldFuelMenuProps {
-  onNavigate: (view: 'fuel-abastecer' | 'fuel-comboio' | 'fuel-tanque' | 'fuel-arla') => void;
+  onNavigate: (view: 'fuel-abastecer' | 'fuel-comboio' | 'fuel-tanque' | 'fuel-arla' | 'fuel-arla-only') => void;
   user?: FieldUser;
   onBack?: () => void;
   isAdmin?: boolean;
@@ -46,6 +46,15 @@ export function FieldFuelMenu({ onNavigate, user, onBack, isAdmin = false }: Fie
       gradient: 'from-orange-500 to-orange-700',
       shadow: 'shadow-orange-500/30',
       show: true,
+    },
+    {
+      key: 'fuel-arla-only' as const,
+      label: 'Abastecer Apenas Arla',
+      description: 'Veículo + Quantidade de Arla',
+      icon: Droplets,
+      gradient: 'from-teal-500 to-teal-700',
+      shadow: 'shadow-teal-500/30',
+      show: isTanqueUser,
     },
     {
       key: 'fuel-tanque' as const,

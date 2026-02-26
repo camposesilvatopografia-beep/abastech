@@ -8,6 +8,7 @@ import { FieldFuelMenu } from '@/components/Field/FieldFuelMenu';
 import { FieldComboioForm } from '@/components/Field/FieldComboioForm';
 import { FieldTanqueForm } from '@/components/Field/FieldTanqueForm';
 import { FieldArlaForm } from '@/components/Field/FieldArlaForm';
+import { FieldArlaOnlyForm } from '@/components/Field/FieldArlaOnlyForm';
 import { FieldFuelRecords } from '@/components/Field/FieldFuelRecords';
 import { FieldStockView } from '@/components/Field/FieldStockView';
 import { useRolePermissions } from '@/hooks/useRolePermissions';
@@ -73,7 +74,7 @@ const ALL_FIELD_LOCATIONS = [
 const STORAGE_KEY = 'abastech_field_user';
 const ADMIN_LOCATION_KEY = 'abastech_admin_active_location';
 
-type FieldView = 'dashboard' | 'form' | 'fuel-abastecer' | 'fuel-comboio' | 'fuel-tanque' | 'fuel-arla' | 'fuel-registros' | 'fuel-estoques' | 'horimeter' | 'os';
+type FieldView = 'dashboard' | 'form' | 'fuel-abastecer' | 'fuel-comboio' | 'fuel-tanque' | 'fuel-arla' | 'fuel-arla-only' | 'fuel-registros' | 'fuel-estoques' | 'horimeter' | 'os';
 
 export function FieldPage() {
   const [user, setUser] = useState<FieldUser | null>(null);
@@ -1034,6 +1035,11 @@ export function FieldPage() {
           />
         ) : currentView === 'fuel-arla' && effectiveUser ? (
           <FieldArlaForm
+            user={effectiveUser}
+            onBack={() => setCurrentView('dashboard')}
+          />
+        ) : currentView === 'fuel-arla-only' && effectiveUser ? (
+          <FieldArlaOnlyForm
             user={effectiveUser}
             onBack={() => setCurrentView('dashboard')}
           />
