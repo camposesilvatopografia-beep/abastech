@@ -2417,21 +2417,6 @@ export function AbastecimentoPage() {
                       <div className="text-xs text-muted-foreground">Entrada de arla para tanque</div>
                     </div>
                   </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => setShowHorimeterModal(true)} className="gap-2 cursor-pointer">
-                    <Gauge className="w-4 h-4 text-purple-600" />
-                    <div>
-                      <div className="font-medium">Lançar Horímetro</div>
-                      <div className="text-xs text-muted-foreground">Registrar leitura de horímetro/km</div>
-                    </div>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setShowOSModal(true)} className="gap-2 cursor-pointer">
-                    <Wrench className="w-4 h-4 text-amber-600" />
-                    <div>
-                      <div className="font-medium">Nova Ordem de Serviço</div>
-                      <div className="text-xs text-muted-foreground">Criar OS de manutenção</div>
-                    </div>
-                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             )}
