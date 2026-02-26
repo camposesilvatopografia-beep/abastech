@@ -134,21 +134,21 @@ export function useSheetData(
     fetchData();
   }, [fetchData]);
 
-  // Polling for real-time updates
+  // Polling + visibility/focus/online refresh (covers both polling and non-polling cases)
   useEffect(() => {
-    if (!pollingInterval || pollingInterval <= 0) return;
+    if (!sheetName) return;
 
     let intervalId: number | null = null;
 
-    const start = () => {
-      if (intervalId) return;
+    const startPolling = () => {
+      if (intervalId || !pollingInterval || pollingInterval <= 0) return;
       intervalId = window.setInterval(() => {
         if (!canPollNow()) return;
         fetchData(true); // silent refresh
       }, pollingInterval);
     };
 
-    const stop = () => {
+    const stopPolling = () => {
       if (!intervalId) return;
       window.clearInterval(intervalId);
       intervalId = null;
@@ -156,55 +156,32 @@ export function useSheetData(
 
     const onVisibility = () => {
       if (canPollNow()) {
-        start();
-        // Refresh immediately when the user comes back to the tab (avoid showing stale cards)
+        startPolling();
         fetchData(true, true);
       } else {
-        stop();
+        stopPolling();
       }
     };
 
-    start();
-    document.addEventListener('visibilitychange', onVisibility);
-
-    const onFocus = () => {
-      if (!canPollNow()) return;
-      fetchData(true, true);
-    };
-    window.addEventListener('focus', onFocus);
-
-    return () => {
-      stop();
-      document.removeEventListener('visibilitychange', onVisibility);
-      window.removeEventListener('focus', onFocus);
-    };
-  }, [pollingInterval, fetchData]);
-
-  // Refresh imediato ao voltar do background (mobile/PWA), voltar conexão ou foco.
-  useEffect(() => {
-    if (!sheetName) return;
-
-    const refreshNow = () => {
+    const onFocusOrOnline = () => {
       if (!canPollNow()) return;
       fetchData(true, true);
     };
 
-    const onVisibility = () => {
-      if (canPollNow()) refreshNow();
-    };
-
+    startPolling();
     document.addEventListener('visibilitychange', onVisibility);
-    window.addEventListener('focus', refreshNow);
-    window.addEventListener('pageshow', refreshNow);
-    window.addEventListener('online', refreshNow);
+    window.addEventListener('focus', onFocusOrOnline);
+    window.addEventListener('pageshow', onFocusOrOnline);
+    window.addEventListener('online', onFocusOrOnline);
 
     return () => {
+      stopPolling();
       document.removeEventListener('visibilitychange', onVisibility);
-      window.removeEventListener('focus', refreshNow);
-      window.removeEventListener('pageshow', refreshNow);
-      window.removeEventListener('online', refreshNow);
+      window.removeEventListener('focus', onFocusOrOnline);
+      window.removeEventListener('pageshow', onFocusOrOnline);
+      window.removeEventListener('online', onFocusOrOnline);
     };
-  }, [sheetName, fetchData]);
+  }, [sheetName, pollingInterval, fetchData]);
 
   const create = useCallback(
     async (rowData: Record<string, any>) => {
