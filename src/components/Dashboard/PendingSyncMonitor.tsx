@@ -84,15 +84,16 @@ export function PendingSyncMonitor() {
       if (error) throw error;
 
       setLastSyncResult({ synced: data?.synced || 0, failed: data?.failed || 0 });
+      const skippedCount = data?.skipped || 0;
 
       if (data?.synced > 0) {
-        toast.success(`${data.synced} registro(s) sincronizado(s) com sucesso!`);
+        toast.success(`${data.synced} registro(s) sincronizado(s) com sucesso!${skippedCount > 0 ? ` (${skippedCount} já existiam)` : ''}`);
       }
       if (data?.failed > 0) {
         toast.error(`${data.failed} registro(s) falharam na sincronização.`);
       }
       if (data?.synced === 0 && data?.failed === 0) {
-        toast.info('Nenhum registro pendente para sincronizar.');
+        toast.info(skippedCount > 0 ? `${skippedCount} registro(s) já estavam sincronizados.` : 'Nenhum registro pendente para sincronizar.');
       }
 
       // Refresh data

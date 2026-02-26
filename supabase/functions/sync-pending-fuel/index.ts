@@ -112,6 +112,11 @@ function buildSheetData(record: any): Record<string, any> {
   };
 }
 
+// Normalize header: remove accents, lowercase, trim
+function normalizeHeader(h: string): string {
+  return (h || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim().replace(/\s+/g, ' ');
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -123,6 +128,7 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // Fetch all unsynced records (from ALL users — admin operation)
+    // Use atomic lock: only select records that are still unsynced
     const { data: pendingRecords, error: fetchError } = await supabase
       .from('field_fuel_records')
       .select('*')
@@ -135,20 +141,102 @@ serve(async (req) => {
 
     if (!pendingRecords || pendingRecords.length === 0) {
       return new Response(
-        JSON.stringify({ success: true, message: 'No pending records to sync', synced: 0 }),
+        JSON.stringify({ success: true, message: 'No pending records to sync', synced: 0, skipped: 0 }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     console.log(`Found ${pendingRecords.length} pending records to sync`);
 
+    // --- Deduplication: fetch existing sheet data to check for duplicates ---
+    let existingSheetIds = new Set<string>();
+    let existingSheetKeys = new Set<string>();
+    try {
+      const { data: sheetResp, error: sheetErr } = await supabase.functions.invoke('google-sheets', {
+        body: { action: 'getData', sheetName: 'AbastecimentoCanteiro01' },
+      });
+
+      if (!sheetErr && sheetResp?.rows) {
+        const headers: string[] = (sheetResp.headers || []).map(normalizeHeader);
+        const idCol = headers.indexOf('id');
+        const dataCol = headers.indexOf('data');
+        const horaCol = headers.indexOf('hora');
+        const veiculoCol = headers.indexOf('veiculo');
+        const qtdCol = headers.indexOf('quantidade');
+
+        for (const row of sheetResp.rows) {
+          const values = Object.values(row) as string[];
+          // Collect IDs
+          if (idCol >= 0 && values[idCol]) {
+            existingSheetIds.add(String(values[idCol]).trim());
+          }
+          // Also check by normalized header keys from row object
+          const rowId = row['id'] || row['ID'];
+          if (rowId) existingSheetIds.add(String(rowId).trim());
+
+          // Build composite key: vehicle+date+time+quantity
+          const v = (row['VEICULO'] || row['veiculo'] || (veiculoCol >= 0 ? values[veiculoCol] : '') || '').toString().trim().toUpperCase();
+          const d = (row['DATA'] || row['data'] || (dataCol >= 0 ? values[dataCol] : '') || '').toString().trim();
+          const h = (row['HORA'] || row['hora'] || (horaCol >= 0 ? values[horaCol] : '') || '').toString().trim();
+          const q = (row['QUANTIDADE'] || row['quantidade'] || (qtdCol >= 0 ? values[qtdCol] : '') || '').toString().trim();
+          if (v && d && q) {
+            existingSheetKeys.add(`${v}|${d}|${h}|${q}`);
+          }
+        }
+        console.log(`Dedup: found ${existingSheetIds.size} IDs and ${existingSheetKeys.size} composite keys in sheet`);
+      }
+    } catch (dedupErr) {
+      console.warn('Dedup sheet fetch failed, proceeding without dedup:', dedupErr);
+    }
+
     let synced = 0;
     let failed = 0;
+    let skipped = 0;
     const errors: string[] = [];
 
     for (const record of pendingRecords) {
       try {
+        // Re-check: fetch fresh record to confirm it's still unsynced (prevent race condition)
+        const { data: freshRecord } = await supabase
+          .from('field_fuel_records')
+          .select('synced_to_sheet')
+          .eq('id', record.id)
+          .single();
+
+        if (freshRecord?.synced_to_sheet) {
+          console.log(`Record ${record.id} already synced (race condition avoided)`);
+          skipped++;
+          continue;
+        }
+
         const sheetData = buildSheetData(record);
+
+        // Check if this record already exists in the sheet (by ID or composite key)
+        const recordId = (record.id || '').trim();
+        const compositeKey = `${(record.vehicle_code || '').toUpperCase()}|${sheetData['DATA']}|${sheetData['HORA']}|${sheetData['QUANTIDADE']}`;
+
+        if (existingSheetIds.has(recordId) || existingSheetKeys.has(compositeKey)) {
+          console.log(`Record ${record.id} already exists in sheet (dedup), marking as synced`);
+          await supabase
+            .from('field_fuel_records')
+            .update({ synced_to_sheet: true })
+            .eq('id', record.id);
+          skipped++;
+          continue;
+        }
+
+        // Optimistic lock: mark as synced BEFORE sending to sheet
+        const { error: lockError } = await supabase
+          .from('field_fuel_records')
+          .update({ synced_to_sheet: true })
+          .eq('id', record.id)
+          .eq('synced_to_sheet', false);
+
+        if (lockError) {
+          console.warn(`Failed to lock record ${record.id}, skipping`);
+          skipped++;
+          continue;
+        }
 
         // Call the google-sheets edge function to create the row
         const { data: gsResponse, error: gsError } = await supabase.functions.invoke('google-sheets', {
@@ -161,25 +249,29 @@ serve(async (req) => {
 
         if (gsError) {
           console.error(`Failed to sync record ${record.id}:`, gsError);
+          // Revert the flag
+          await supabase
+            .from('field_fuel_records')
+            .update({ synced_to_sheet: false })
+            .eq('id', record.id);
           errors.push(`${record.vehicle_code} (${record.record_date}): ${gsError.message}`);
           failed++;
           continue;
         }
 
-        // Mark as synced
-        const { error: updateError } = await supabase
-          .from('field_fuel_records')
-          .update({ synced_to_sheet: true })
-          .eq('id', record.id);
+        synced++;
+        // Add to local dedup sets to prevent duplicates within this batch
+        existingSheetIds.add(recordId);
+        existingSheetKeys.add(compositeKey);
+        console.log(`Synced record ${record.id} (${record.vehicle_code} - ${record.record_date})`);
 
-        if (updateError) {
-          console.error(`Failed to update sync status for ${record.id}:`, updateError);
-        } else {
-          synced++;
-          console.log(`Synced record ${record.id} (${record.vehicle_code} - ${record.record_date})`);
-        }
       } catch (err) {
         console.error(`Error syncing record ${record.id}:`, err);
+        // Revert on error
+        await supabase
+          .from('field_fuel_records')
+          .update({ synced_to_sheet: false })
+          .eq('id', record.id);
         errors.push(`${record.vehicle_code}: ${String(err)}`);
         failed++;
       }
@@ -193,6 +285,7 @@ serve(async (req) => {
         success: true,
         synced,
         failed,
+        skipped,
         total: pendingRecords.length,
         errors: errors.slice(0, 10),
       }),
