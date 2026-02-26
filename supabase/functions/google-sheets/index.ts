@@ -47,10 +47,16 @@ function cacheGet<T>(map: Map<string, CacheEntry<T>>, key: string): T | null {
   const entry = map.get(key);
   if (!entry) return null;
   if (entry.expiresAt <= nowMs()) {
-    map.delete(key);
+    // Don't delete — keep as stale fallback for 429 scenarios
     return null;
   }
   return entry.value;
+}
+
+// Get stale data even if expired (for 429 fallback)
+function cacheGetStale<T>(map: Map<string, CacheEntry<T>>, key: string): T | null {
+  const entry = map.get(key);
+  return entry?.value ?? null;
 }
 
 function cacheSet<T>(map: Map<string, CacheEntry<T>>, key: string, value: T, ttlMs: number) {
