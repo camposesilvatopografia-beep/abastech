@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { X, Smartphone, Loader2 } from 'lucide-react';
+import { X, Tablet, Loader2 } from 'lucide-react';
 import { FieldFuelForm } from '@/components/Field/FieldFuelForm';
 import { FieldComboioForm } from '@/components/Field/FieldComboioForm';
 import { FieldTanqueForm } from '@/components/Field/FieldTanqueForm';
@@ -112,8 +112,8 @@ export function FieldOverlay({ open, onClose, location, adminUser, initialView }
       <div className="relative flex flex-col items-center">
         {/* Top bar label */}
         <div className="flex items-center gap-2 mb-2 px-4 py-1.5 rounded-full bg-white/10 backdrop-blur-md text-white text-xs font-medium">
-          <Smartphone className="w-3.5 h-3.5" />
-          <span>Visualização Mobile — {location}</span>
+          <Tablet className="w-3.5 h-3.5" />
+          <span>Visualização Tablet — {location}</span>
           <button onClick={onClose} className="ml-2 hover:text-white/60 transition-colors">
             <X className="w-3.5 h-3.5" />
           </button>
@@ -121,16 +121,16 @@ export function FieldOverlay({ open, onClose, location, adminUser, initialView }
 
         {/* Device frame */}
         <div className={cn(
-          "w-[400px] h-[85vh] max-h-[860px] rounded-[2.5rem] border-[6px] border-slate-800 bg-slate-800 shadow-2xl overflow-hidden",
+          "w-[620px] h-[90vh] max-h-[960px] rounded-[2rem] border-[5px] border-slate-800 bg-slate-800 shadow-2xl overflow-hidden",
           "ring-1 ring-slate-700"
         )}>
-          {/* Notch */}
-          <div className="relative h-7 bg-slate-800 flex items-center justify-center">
-            <div className="w-24 h-4 bg-slate-900 rounded-b-xl" />
+          {/* Top bezel */}
+          <div className="relative h-5 bg-slate-800 flex items-center justify-center">
+            <div className="w-2 h-2 bg-slate-600 rounded-full" />
           </div>
 
           {/* Screen content */}
-          <div className="flex-1 h-[calc(100%-1.75rem)] overflow-auto bg-background rounded-b-[2rem]">
+          <div className="flex-1 h-[calc(100%-1.25rem)] overflow-auto bg-background rounded-b-[1.75rem]">
             {loadingUser || !realFieldUser ? (
               <div className="flex flex-col items-center justify-center h-full gap-3">
                 <Loader2 className="w-8 h-8 animate-spin text-primary" />
