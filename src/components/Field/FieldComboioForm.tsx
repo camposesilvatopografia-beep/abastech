@@ -329,7 +329,7 @@ export function FieldComboioForm({ user, onBack }: FieldComboioFormProps) {
         fuel_type: 'Diesel',
         arla_quantity: null,
         location,
-        entry_location: entryLocation,
+        entry_location: null,
         observations: `[CARREGAMENTO] ${entryLocation} → ${comboioName}`,
         record_date: recordDate,
         record_time: recordTime,

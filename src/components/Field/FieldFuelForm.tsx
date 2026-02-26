@@ -1722,7 +1722,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         supplier: supplier || null,
         invoice_number: invoiceNumber || null,
         unit_price: unitPrice ?? null,
-        entry_location: entryLocation || null,
+        entry_location: recordType === 'entrada' ? (entryLocation || null) : null,
       };
 
       // Check if we're online
@@ -1900,7 +1900,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
             supplier: supplier || null,
             invoice_number: invoiceNumber || null,
             unit_price: unitPrice ?? null,
-            entry_location: entryLocation || null,
+            entry_location: recordType === 'entrada' ? (entryLocation || null) : null,
           };
           
           await offlineStorage.saveOfflineRecord(fallbackData);
