@@ -712,7 +712,7 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess, presetMode
         'FORNECEDOR': supplier || '',
         'NOTA FISCAL': invoiceNumber || '',
         'VALOR UNITÁRIO': parseFloat(unitPrice.replace(/\./g, '').replace(',', '.')) || '',
-        'LOCAL DE ENTRADA': (recordType === 'entrada' && quickEntryMode === 'normal') ? (entryLocation || dbRecord.location || '') : '',
+        'LOCAL DE ENTRADA': (recordType === 'entrada' && quickEntryMode === 'normal') ? (entryLocation || supplier || dbRecord.location || '') : '',
       };
 
       // Sync to Google Sheets immediately
