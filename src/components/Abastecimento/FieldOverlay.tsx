@@ -11,6 +11,7 @@ import { FieldDashboard } from '@/components/Field/FieldDashboard';
 import { FieldHorimeterForm } from '@/components/Field/FieldHorimeterForm';
 import { FieldServiceOrderForm } from '@/components/Field/FieldServiceOrderForm';
 import { cn } from '@/lib/utils';
+import { useRolePermissions } from '@/hooks/useRolePermissions';
 
 interface FieldUser {
   id: string;
@@ -32,6 +33,7 @@ interface FieldOverlayProps {
 
 export function FieldOverlay({ open, onClose, location, adminUser, initialView }: FieldOverlayProps) {
   const [currentView, setCurrentView] = useState<OverlayView>('dashboard');
+  const { canView } = useRolePermissions();
 
   const fieldUser = useMemo((): FieldUser | null => {
     if (!adminUser) return null;
@@ -39,7 +41,8 @@ export function FieldOverlay({ open, onClose, location, adminUser, initialView }
       id: adminUser.id,
       name: adminUser.name,
       username: adminUser.username,
-      role: adminUser.role || 'admin',
+      // Force operator mirror mode to match mobile local behavior
+      role: 'operador',
       assigned_locations: [location],
     };
   }, [adminUser, location]);
@@ -86,8 +89,8 @@ export function FieldOverlay({ open, onClose, location, adminUser, initialView }
                 onNavigateToHorimeter={() => setCurrentView('horimeter')}
                 onNavigateToOS={() => setCurrentView('os')}
                 onNavigateToFuelView={(view) => setCurrentView(view)}
-                isAdmin={true}
-                canViewModule={() => true}
+                isAdmin={false}
+                canViewModule={canView}
               />
             ) : currentView === 'fuel-abastecer' ? (
               <FieldFuelForm user={fieldUser} onLogout={onClose} onBack={goBack} />
