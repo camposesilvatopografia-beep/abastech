@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { numericInputProps } from './numericInputProps';
 import {
   Package2,
   Camera,
@@ -421,14 +422,7 @@ export function FieldTanqueForm({ user, onBack }: FieldTanqueFormProps) {
               const onlyDigits = e.target.value.replace(/[^\d]/g, '');
               setFuelQuantity(onlyDigits);
             }}
-            onWheel={(e) => {
-              (e.currentTarget as HTMLInputElement).blur();
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
-                e.preventDefault();
-              }
-            }}
+            {...numericInputProps}
             placeholder="Ex: 5000"
             className="flex h-16 w-full rounded-md border-2 border-amber-300 dark:border-amber-600 bg-white dark:bg-slate-900 px-3 py-2 text-3xl text-center font-black shadow-md ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           />

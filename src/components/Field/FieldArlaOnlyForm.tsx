@@ -1,4 +1,5 @@
 import { useState, useRef, useMemo, useCallback } from 'react';
+import { numericInputProps } from './numericInputProps';
 import { ArrowLeft, Droplets, Check, Clock, Search, ChevronsUpDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -389,6 +390,7 @@ export function FieldArlaOnlyForm({ user, onBack }: FieldArlaOnlyFormProps) {
             placeholder="Ex: 20"
             value={arlaQuantity}
             onChange={(e) => setArlaQuantity(e.target.value)}
+            {...numericInputProps}
             className="h-14 text-lg rounded-xl text-center font-bold"
           />
         </div>

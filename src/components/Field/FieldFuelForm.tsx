@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { numericInputProps } from './numericInputProps';
 import { 
   Fuel, 
   Mic, 
@@ -2440,6 +2441,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                   placeholder="Ex: 50"
                   value={arlaQuantity ?? ''}
                   onChange={(e) => setArlaQuantity(e.target.value ? Number(e.target.value) : null)}
+                  {...numericInputProps}
                   className="flex h-14 w-full rounded-md border px-3 py-2 text-2xl text-center font-bold ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 bg-background border-input"
                 />
               </div>
@@ -2488,6 +2490,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                   placeholder="Ex: 2"
                   value={filterBlowQuantity ?? ''}
                   onChange={(e) => setFilterBlowQuantity(e.target.value ? Number(e.target.value) : null)}
+                  {...numericInputProps}
                   className="flex h-14 w-full rounded-md border px-3 py-2 text-2xl text-center font-bold ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 bg-background border-input"
                 />
               </div>
@@ -2531,6 +2534,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                     placeholder="Ex: 5"
                     value={oilQuantity ?? ''}
                     onChange={(e) => setOilQuantity(e.target.value ? Number(e.target.value) : null)}
+                    {...numericInputProps}
                     className="flex h-14 w-full rounded-md border px-3 py-2 text-2xl text-center font-bold ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 bg-background border-input"
                   />
                 </div>
@@ -2958,6 +2962,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                 setQuantityInWords('');
               }
             }}
+            {...numericInputProps}
             className="flex h-16 w-full rounded-md border-2 border-amber-300 dark:border-amber-600 bg-white dark:bg-slate-900 px-3 py-2 text-3xl text-center font-black ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-200 dark:focus:ring-amber-800 shadow-md"
           />
         </div>
@@ -2999,6 +3004,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                       placeholder="Ex: 5"
                       value={oilQuantity ?? ''}
                       onChange={(e) => setOilQuantity(e.target.value ? Number(e.target.value) : null)}
+                      {...numericInputProps}
                       className="flex h-12 w-full rounded-md border px-3 py-2 text-xl text-center font-bold ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring bg-background border-input"
                     />
                   </div>
@@ -3031,6 +3037,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                       setFilterBlowQuantity(e.target.value ? Number(e.target.value) : null);
                       setFilterBlow(!!e.target.value);
                     }}
+                    {...numericInputProps}
                     className="flex h-12 w-full rounded-md border px-3 py-2 text-xl text-center font-bold ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring bg-background border-input"
                   />
                 </div>
@@ -3053,6 +3060,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
             placeholder="0"
             value={arlaQuantity ?? ''}
             onChange={(e) => setArlaQuantity(e.target.value ? Number(e.target.value) : null)}
+            {...numericInputProps}
             className="flex h-14 w-full rounded-md border-2 border-cyan-300 dark:border-cyan-600 bg-white dark:bg-slate-900 px-3 py-2 text-2xl text-center font-bold ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200 dark:focus:ring-cyan-800 shadow-md"
           />
         </div>
@@ -3100,6 +3108,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
                       placeholder="Ex: 5000"
                       value={fuelQuantity ?? ''}
                       onChange={(e) => setFuelQuantity(e.target.value ? Number(e.target.value) : null)}
+                      {...numericInputProps}
                       className="flex h-16 w-full rounded-md border-2 border-amber-300 dark:border-amber-600 bg-white dark:bg-slate-900 px-3 py-2 text-3xl text-center font-black shadow-md"
                     />
                   </div>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { numericInputProps } from './numericInputProps';
 import {
   Wrench,
   Save,
@@ -870,6 +871,7 @@ export function FieldServiceOrderForm({ user, onBack }: FieldServiceOrderFormPro
               value={form.interval_days}
               onChange={e => setForm(prev => ({ ...prev, interval_days: e.target.value }))}
               type="number"
+              {...numericInputProps}
               className={inputClass}
             />
           </div>
@@ -1035,6 +1037,7 @@ export function FieldServiceOrderForm({ user, onBack }: FieldServiceOrderFormPro
               value={form.estimated_hours}
               onChange={e => setForm(prev => ({ ...prev, estimated_hours: e.target.value }))}
               type="number"
+              {...numericInputProps}
               className={inputClass}
             />
           </div>
@@ -1044,6 +1047,7 @@ export function FieldServiceOrderForm({ user, onBack }: FieldServiceOrderFormPro
               value={form.parts_cost}
               onChange={e => setForm(prev => ({ ...prev, parts_cost: e.target.value }))}
               type="number"
+              {...numericInputProps}
               className={inputClass}
             />
           </div>
@@ -1053,6 +1057,7 @@ export function FieldServiceOrderForm({ user, onBack }: FieldServiceOrderFormPro
               value={form.labor_cost}
               onChange={e => setForm(prev => ({ ...prev, labor_cost: e.target.value }))}
               type="number"
+              {...numericInputProps}
               className={inputClass}
             />
           </div>
