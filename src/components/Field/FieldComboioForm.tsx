@@ -90,7 +90,8 @@ export function FieldComboioForm({ user, onBack }: FieldComboioFormProps) {
   const [vehicleDescription, setVehicleDescription] = useState('');
   const [company, setCompany] = useState('');
   const [fuelQuantity, setFuelQuantity] = useState('');
-  const recordType = 'Carregamento';
+  // Tanque users: fuel EXITS the tank → Saida; Comboio users: fuel ENTERS the comboio → Entrada
+  const recordType = isComboioUser ? 'Entrada' : 'Saida';
   const [entryLocation, setEntryLocation] = useState('');
   const [photoPump, setPhotoPump] = useState<File | null>(null);
   const [photoPumpPreview, setPhotoPumpPreview] = useState<string | null>(null);
