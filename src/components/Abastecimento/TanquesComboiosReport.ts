@@ -252,6 +252,24 @@ const COMBOIO_COL_STYLES: Record<number, any> = {
   10: { cellWidth: 21, halign: 'center', fontStyle: 'bold' },
 };
 
+function normalizeKey(s: string): string {
+  return (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim().replace(/\s+/g, '');
+}
+
+function findField(row: FuelRecord, aliases: string[]): string {
+  // Try exact keys first
+  for (const alias of aliases) {
+    if (row[alias] !== undefined && row[alias] !== null) return String(row[alias]);
+  }
+  // Fuzzy match
+  const normalizedAliases = aliases.map(normalizeKey);
+  for (const key of Object.keys(row)) {
+    const nk = normalizeKey(key);
+    if (normalizedAliases.includes(nk)) return String(row[key]);
+  }
+  return '';
+}
+
 function buildComboioFuelTableData(records: FuelRecord[]) {
   let totalDiesel = 0;
 
@@ -276,8 +294,9 @@ function buildComboioFuelTableData(records: FuelRecord[]) {
 
     totalDiesel += qty;
 
-    const sopraFiltro = parseNumber(row['SOPRA FILTRO'] || row['SOPRAFILTRO'] || row['Sopra Filtro'] || 0);
-    const lubri = String(row['LUBRIFICANTE'] || row['Lubrificante'] || row['LUBRI'] || row['Lubri'] || '').trim();
+    const sopraFiltroRaw = findField(row, ['SOPRA FILTRO', 'SOPRAFILTRO', 'Sopra Filtro', 'sopra filtro']);
+    const sopraFiltro = parseNumber(sopraFiltroRaw);
+    const lubri = findField(row, ['LUBRIFICANTE', 'Lubrificante', 'LUBRI', 'Lubri', 'lubrificante']);
     const brokenLabel = '⚠ QUEBRADO';
 
     return [
