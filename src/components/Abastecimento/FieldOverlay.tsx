@@ -13,7 +13,8 @@ import { FieldServiceOrderForm } from '@/components/Field/FieldServiceOrderForm'
 import { cn } from '@/lib/utils';
 import { useRolePermissions } from '@/hooks/useRolePermissions';
 import { supabase } from '@/integrations/supabase/client';
-
+import { offlineDB } from '@/hooks/useOfflineStorage';
+import { toast } from 'sonner';
 interface FieldUser {
   id: string;
   name: string;
@@ -95,6 +96,24 @@ export function FieldOverlay({ open, onClose, location, adminUser, initialView }
 
     fetchFieldUser();
   }, [open, location, adminUser]);
+
+  // Clear orphaned offline records on open
+  useEffect(() => {
+    if (!open) return;
+    const cleanup = async () => {
+      try {
+        const allRecords = await offlineDB.getAllRecords();
+        if (allRecords.length > 0) {
+          console.log(`[FieldOverlay] Clearing ${allRecords.length} orphaned offline records`);
+          await offlineDB.clearAllRecords();
+          toast.info(`${allRecords.length} registro(s) offline órfão(s) removido(s).`);
+        }
+      } catch (err) {
+        console.error('[FieldOverlay] Error clearing offline records:', err);
+      }
+    };
+    cleanup();
+  }, [open]);
 
   useEffect(() => {
     if (open) {
