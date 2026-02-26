@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { format } from 'date-fns';
 import { getSheetData } from '@/lib/googleSheets';
-import { mapVehicleToComboioLocation } from '@/lib/fuelSheetMapping';
+import { mapVehicleToComboioLocation, buildFuelSheetData } from '@/lib/fuelSheetMapping';
 import { ptBR } from 'date-fns/locale';
 import { 
   Fuel, 
@@ -24,6 +24,7 @@ import {
   ChevronUp,
   CalendarIcon,
   CircleOff,
+  Package2,
 } from 'lucide-react';
 import { Calendar } from '@/components/ui/calendar';
 import {
@@ -280,7 +281,7 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess, presetMode
       // Apply preset mode
       if (presetMode === 'comboio') {
         setRecordType('entrada');
-        setEntryLocation('Comboio 01');
+        setEntryLocation('Tanque Canteiro 01');
         setFuelType('Diesel');
       } else if (presetMode === 'tanque_diesel') {
         setRecordType('entrada');
@@ -536,14 +537,14 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess, presetMode
     }
   };
 
-  // Sync to Google Sheets
-  const syncToGoogleSheets = async (recordData: Record<string, any>): Promise<boolean> => {
+  // Sync to Google Sheets using buildFuelSheetData for parity with mobile
+  const syncToGoogleSheets = async (sheetData: Record<string, any>): Promise<boolean> => {
     try {
       const response = await supabase.functions.invoke('google-sheets', {
         body: {
           action: 'create',
           sheetName: 'AbastecimentoCanteiro01',
-          data: recordData,
+          data: sheetData,
         },
       });
 
@@ -622,47 +623,158 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess, presetMode
       const dbRecordTime = recordTime || new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
       const formattedDate = format(selectedDate, 'dd/MM/yyyy');
 
-      // Prepare record for database
-      const dbRecord = {
-        record_type: quickEntryMode !== 'normal' ? 'saida' : recordType,
-        vehicle_code: recordType === 'entrada' && quickEntryMode === 'normal' ? 'ENTRADA' : vehicleCode,
-        vehicle_description: recordType === 'entrada' && quickEntryMode === 'normal' ? supplier : vehicleDescription,
-        category: recordType === 'entrada' && quickEntryMode === 'normal' ? 'ENTRADA' : category,
-        operator_name: recordType === 'entrada' && quickEntryMode === 'normal' ? '' : operatorName,
-        company,
-        work_site: workSite,
-        horimeter_previous: horimeterPrevious ?? 0,
-        horimeter_current: horimeterCurrent ?? 0,
-        km_previous: kmPrevious ?? 0,
-        km_current: kmCurrent ?? 0,
-        fuel_quantity: fuelQuantity ?? 0,
-        fuel_type: fuelType,
-        arla_quantity: arlaQuantity ?? 0,
-        location: (() => {
-          if (recordType === 'entrada' && quickEntryMode === 'normal') return entryLocation;
-          return location;
-        })(),
-        observations: quickEntryMode !== 'normal' ? `[${getQuickModeLabel(quickEntryMode)}] ${observations}`.trim() : (observations || null),
-        oil_type: oilType || null,
-        oil_quantity: parseFloat(oilQuantity) || null,
-        filter_blow: !!filterBlowQuantity,
-        filter_blow_quantity: parseFloat(filterBlowQuantity) || null,
-        lubricant: lubricant || null,
-        supplier: supplier || null,
-        invoice_number: invoiceNumber || null,
-        unit_price: parseFloat(unitPrice.replace(/\./g, '').replace(',', '.')) || null,
-        entry_location: (recordType === 'entrada' && quickEntryMode === 'normal') ? (entryLocation || null) : null,
-        record_date: dbRecordDate,
-        record_time: dbRecordTime,
-        synced_to_sheet: false,
-      };
+      const removeAccents = (text: string): string =>
+        text.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+      // Get current user info
+      const storedUser = localStorage.getItem('abastech_user');
+      const currentUserName = storedUser ? (JSON.parse(storedUser).name || 'Admin') : 'Admin';
+
+      let dbRecord: Record<string, any>;
+
+      // Build DB record based on preset mode to match mobile forms exactly
+      if (presetMode === 'tanque_diesel') {
+        // Match FieldTanqueForm: vehicle_code = location, category = 'Tanque Canteiro'
+        const tankLocation = entryLocation || 'Tanque Canteiro 01';
+        dbRecord = {
+          record_type: 'entrada',
+          vehicle_code: tankLocation,
+          vehicle_description: tankLocation,
+          category: 'Tanque Canteiro',
+          company: '',
+          operator_name: removeAccents(currentUserName),
+          work_site: '',
+          horimeter_previous: 0,
+          horimeter_current: 0,
+          km_previous: 0,
+          km_current: 0,
+          fuel_quantity: fuelQuantity ?? 0,
+          fuel_type: 'Diesel',
+          arla_quantity: 0,
+          location: tankLocation,
+          entry_location: supplier || tankLocation,
+          observations: `[CARREGAR TANQUE] Fornecedor: ${supplier || 'N/A'}${invoiceNumber ? ` | NF: ${invoiceNumber}` : ''}${observations ? ` | ${observations}` : ''}`,
+          oil_type: null,
+          oil_quantity: null,
+          filter_blow: false,
+          filter_blow_quantity: null,
+          lubricant: null,
+          supplier: supplier || null,
+          invoice_number: invoiceNumber || null,
+          unit_price: parseFloat(unitPrice.replace(/\./g, '').replace(',', '.')) || null,
+          record_date: dbRecordDate,
+          record_time: dbRecordTime,
+          synced_to_sheet: false,
+        };
+      } else if (presetMode === 'tanque_arla') {
+        // Match FieldArlaForm: vehicle_code = location, category = 'Tanque Arla', fuel_type = 'Arla'
+        const arlaLocation = entryLocation || 'Tanque Canteiro 01';
+        dbRecord = {
+          record_type: 'entrada',
+          vehicle_code: arlaLocation,
+          vehicle_description: arlaLocation,
+          category: 'Tanque Arla',
+          company: '',
+          operator_name: removeAccents(currentUserName),
+          work_site: '',
+          horimeter_previous: 0,
+          horimeter_current: 0,
+          km_previous: 0,
+          km_current: 0,
+          fuel_quantity: 0,
+          fuel_type: 'Arla',
+          arla_quantity: fuelQuantity ?? 0,
+          location: arlaLocation,
+          entry_location: supplier || arlaLocation,
+          observations: `[CARREGAR ARLA] Fornecedor: ${supplier || 'N/A'}${invoiceNumber ? ` | NF: ${invoiceNumber}` : ''}${observations ? ` | ${observations}` : ''}`,
+          oil_type: null,
+          oil_quantity: null,
+          filter_blow: false,
+          filter_blow_quantity: null,
+          lubricant: null,
+          supplier: supplier || null,
+          invoice_number: invoiceNumber || null,
+          unit_price: parseFloat(unitPrice.replace(/\./g, '').replace(',', '.')) || null,
+          record_date: dbRecordDate,
+          record_time: dbRecordTime,
+          synced_to_sheet: false,
+        };
+      } else if (presetMode === 'comboio') {
+        // Match FieldComboioForm: category = 'Tanque Comboio'
+        const comboioName = mapVehicleToComboioLocation(vehicleCode, vehicleDescription) || vehicleCode;
+        dbRecord = {
+          record_type: 'entrada',
+          vehicle_code: vehicleCode,
+          vehicle_description: vehicleDescription,
+          category: 'Tanque Comboio',
+          company,
+          operator_name: removeAccents(operatorName || currentUserName),
+          work_site: '',
+          horimeter_previous: 0,
+          horimeter_current: 0,
+          km_previous: 0,
+          km_current: 0,
+          fuel_quantity: fuelQuantity ?? 0,
+          fuel_type: 'Diesel',
+          arla_quantity: 0,
+          location: entryLocation || '',
+          entry_location: entryLocation || null,
+          observations: `[CARREGAMENTO] ${entryLocation} → ${comboioName}`,
+          oil_type: null,
+          oil_quantity: null,
+          filter_blow: false,
+          filter_blow_quantity: null,
+          lubricant: null,
+          supplier: null,
+          invoice_number: null,
+          unit_price: null,
+          record_date: dbRecordDate,
+          record_time: dbRecordTime,
+          synced_to_sheet: false,
+        };
+      } else {
+        // Normal mode (Abastecer Saída or generic Entrada)
+        dbRecord = {
+          record_type: quickEntryMode !== 'normal' ? 'saida' : recordType,
+          vehicle_code: recordType === 'entrada' && quickEntryMode === 'normal' ? 'ENTRADA' : vehicleCode,
+          vehicle_description: recordType === 'entrada' && quickEntryMode === 'normal' ? supplier : vehicleDescription,
+          category: recordType === 'entrada' && quickEntryMode === 'normal' ? 'ENTRADA' : category,
+          operator_name: recordType === 'entrada' && quickEntryMode === 'normal' ? '' : operatorName,
+          company,
+          work_site: workSite,
+          horimeter_previous: horimeterPrevious ?? 0,
+          horimeter_current: horimeterCurrent ?? 0,
+          km_previous: kmPrevious ?? 0,
+          km_current: kmCurrent ?? 0,
+          fuel_quantity: fuelQuantity ?? 0,
+          fuel_type: fuelType,
+          arla_quantity: arlaQuantity ?? 0,
+          location: (() => {
+            if (recordType === 'entrada' && quickEntryMode === 'normal') return entryLocation;
+            return location;
+          })(),
+          observations: quickEntryMode !== 'normal' ? `[${getQuickModeLabel(quickEntryMode)}] ${observations}`.trim() : (observations || null),
+          oil_type: oilType || null,
+          oil_quantity: parseFloat(oilQuantity) || null,
+          filter_blow: !!filterBlowQuantity,
+          filter_blow_quantity: parseFloat(filterBlowQuantity) || null,
+          lubricant: lubricant || null,
+          supplier: supplier || null,
+          invoice_number: invoiceNumber || null,
+          unit_price: parseFloat(unitPrice.replace(/\./g, '').replace(',', '.')) || null,
+          entry_location: (recordType === 'entrada' && quickEntryMode === 'normal') ? (entryLocation || null) : null,
+          record_date: dbRecordDate,
+          record_time: dbRecordTime,
+          synced_to_sheet: false,
+        };
+      }
 
       // Check for duplicates before saving
       const { checkDuplicateFuelRecord } = await import('@/lib/deduplication');
       const duplicate = await checkDuplicateFuelRecord({
         vehicle_code: dbRecord.vehicle_code,
         record_date: dbRecord.record_date,
-        fuel_quantity: dbRecord.fuel_quantity,
+        fuel_quantity: dbRecord.fuel_quantity || dbRecord.arla_quantity || 0,
         record_type: dbRecord.record_type || undefined,
         record_time: dbRecord.record_time,
       });
@@ -674,9 +786,11 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess, presetMode
       }
 
       // Insert into database
-      const { error: dbError } = await supabase
+      const { data: insertedData, error: dbError } = await supabase
         .from('field_fuel_records')
-        .insert([dbRecord]);
+        .insert([dbRecord as any])
+        .select('id')
+        .single();
 
       if (dbError) {
         console.error('Database insert error:', dbError);
@@ -685,35 +799,38 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess, presetMode
         return;
       }
 
-      // Sync to Google Sheets
-      const sheetData: Record<string, any> = {
-        'DATA': formattedDate,
-        'HORA': recordTime,
-        'TIPO': recordType === 'entrada' && quickEntryMode === 'normal' ? 'Entrada' : 'Saida',
-        'VEICULO': dbRecord.vehicle_code,
-        'DESCRICAO': dbRecord.vehicle_description,
-        'CATEGORIA': dbRecord.category,
-        'MOTORISTA': operatorName,
-        'EMPRESA': company,
-        'OBRA': workSite,
-        'HORIMETRO ANTERIOR': horimeterPrevious || '',
-        'HORIMETRO ATUAL': horimeterCurrent || '',
-        'KM ANTERIOR': kmPrevious || '',
-        'KM ATUAL': kmCurrent || '',
-        'QUANTIDADE': fuelQuantity || 0,
-        'QUANTIDADE DE ARLA': arlaQuantity || '',
-        'TIPO DE COMBUSTIVEL': fuelType,
-        'LOCAL DE SAIDA': (recordType === 'entrada' && quickEntryMode === 'normal') ? '' : (dbRecord.location || ''),
-        'OBSERVAÇÃO': dbRecord.observations || '',
-        'TIPO DE ÓLEO': oilType || '',
-        'QUANTIDADE DE ÓLEO': parseFloat(oilQuantity) || '',
-        'SOPRA FILTRO': filterBlowQuantity || '',
-        'LUBRIFICANTE': lubricant || '',
-        'FORNECEDOR': supplier || '',
-        'NOTA FISCAL': invoiceNumber || '',
-        'VALOR UNITÁRIO': parseFloat(unitPrice.replace(/\./g, '').replace(',', '.')) || '',
-        'LOCAL DE ENTRADA': (recordType === 'entrada' && quickEntryMode === 'normal') ? (entryLocation || supplier || dbRecord.location || '') : '',
-      };
+      const recordId = insertedData?.id;
+
+      // Use buildFuelSheetData for sheet sync (same as mobile forms)
+      const sheetData = buildFuelSheetData({
+        id: recordId || '',
+        date: formattedDate,
+        time: dbRecordTime,
+        recordType: dbRecord.record_type,
+        category: dbRecord.category || '',
+        vehicleCode: dbRecord.vehicle_code,
+        vehicleDescription: removeAccents(dbRecord.vehicle_description || ''),
+        operatorName: removeAccents(dbRecord.operator_name || ''),
+        company: dbRecord.company || '',
+        workSite: dbRecord.work_site || '',
+        horimeterPrevious: dbRecord.horimeter_previous || 0,
+        horimeterCurrent: dbRecord.horimeter_current || 0,
+        kmPrevious: dbRecord.km_previous || 0,
+        kmCurrent: dbRecord.km_current || 0,
+        fuelQuantity: dbRecord.fuel_quantity || 0,
+        fuelType: dbRecord.fuel_type || '',
+        location: dbRecord.location || '',
+        arlaQuantity: dbRecord.arla_quantity || 0,
+        observations: dbRecord.observations || '',
+        oilType: dbRecord.oil_type || '',
+        oilQuantity: dbRecord.oil_quantity || 0,
+        filterBlowQuantity: dbRecord.filter_blow_quantity || 0,
+        lubricant: dbRecord.lubricant || '',
+        supplier: dbRecord.supplier || '',
+        invoiceNumber: dbRecord.invoice_number || '',
+        unitPrice: dbRecord.unit_price || 0,
+        entryLocation: dbRecord.entry_location || '',
+      });
 
       // Sync to Google Sheets immediately
       toast.loading('Sincronizando com planilha...', { id: 'sync-sheet' });
@@ -723,9 +840,7 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess, presetMode
         await supabase
           .from('field_fuel_records')
           .update({ synced_to_sheet: true })
-          .eq('record_date', dbRecordDate)
-          .eq('record_time', dbRecordTime)
-          .eq('vehicle_code', dbRecord.vehicle_code);
+          .eq('id', recordId);
         
         toast.success('Registro salvo e sincronizado com a planilha!', { id: 'sync-sheet' });
       } else {
@@ -736,9 +851,7 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess, presetMode
           await supabase
             .from('field_fuel_records')
             .update({ synced_to_sheet: true })
-            .eq('record_date', dbRecordDate)
-            .eq('record_time', dbRecordTime)
-            .eq('vehicle_code', dbRecord.vehicle_code);
+            .eq('id', recordId);
           toast.success('Sincronização concluída!', { id: 'sync-sheet' });
         } else {
           toast.error('Sincronização falhou. Registro será sincronizado posteriormente.', { id: 'sync-sheet' });
@@ -864,7 +977,7 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess, presetMode
           )}
 
           {/* Quick Entry Options - Only for Saida */}
-          {recordType === 'saida' && (
+          {recordType === 'saida' && (presetMode === 'normal' || presetMode === 'location') && (
             <Collapsible open={showQuickOptions} onOpenChange={setShowQuickOptions}>
               <CollapsibleTrigger asChild>
                 <Button variant="outline" className="w-full justify-between" size="sm">
@@ -1048,7 +1161,7 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess, presetMode
           )}
 
           {/* Normal Entry Forms */}
-          {quickEntryMode === 'normal' && recordType === 'saida' && (
+          {quickEntryMode === 'normal' && recordType === 'saida' && (presetMode === 'normal' || presetMode === 'location') && (
             <>
               {/* Vehicle Selection */}
               <div className="space-y-2">
@@ -1375,8 +1488,229 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess, presetMode
             </>
           )}
 
-          {/* Entrada Fields */}
-          {quickEntryMode === 'normal' && recordType === 'entrada' && (
+          {/* Tanque Diesel Fields - matches FieldTanqueForm */}
+          {presetMode === 'tanque_diesel' && (
+            <div className="space-y-4 p-4 bg-teal-50/50 dark:bg-teal-950/20 rounded-lg border-2 border-teal-200 dark:border-teal-800">
+              <div className="flex items-center gap-2 mb-2">
+                <Package2 className="h-5 w-5 text-teal-600" />
+                <span className="font-semibold text-teal-700 dark:text-teal-400">Carregar Tanque de Diesel</span>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2 font-semibold">
+                  <MapPin className="h-4 w-4 text-blue-600" />
+                  Local de Entrada *
+                </Label>
+                <Select value={entryLocation} onValueChange={setEntryLocation}>
+                  <SelectTrigger className="h-12 text-base border-2 border-blue-300 dark:border-blue-700 bg-background font-medium">
+                    <SelectValue placeholder="Selecione o tanque..." />
+                  </SelectTrigger>
+                  <SelectContent className="bg-popover border-2 border-border">
+                    <SelectItem value="Tanque Canteiro 01" className="text-base py-3">Tanque Canteiro 01</SelectItem>
+                    <SelectItem value="Tanque Canteiro 02" className="text-base py-3">Tanque Canteiro 02</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2 font-semibold">
+                  <Building2 className="h-4 w-4 text-green-600" />
+                  Fornecedor *
+                </Label>
+                <Select value={supplier} onValueChange={setSupplier}>
+                  <SelectTrigger className="h-12 text-base border-2 border-green-300 dark:border-green-700 bg-background font-medium">
+                    <SelectValue placeholder="Selecione o fornecedor..." />
+                  </SelectTrigger>
+                  <SelectContent className="bg-popover border-2 border-border">
+                    {suppliers.map(sup => (
+                      <SelectItem key={sup.id} value={sup.name} className="text-base py-3">{sup.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2 font-semibold">
+                    <Receipt className="h-4 w-4 text-amber-600" />
+                    Nota Fiscal
+                  </Label>
+                  <Input
+                    value={invoiceNumber}
+                    onChange={(e) => setInvoiceNumber(e.target.value)}
+                    placeholder="Número da NF"
+                    className="h-12 text-base border-2 border-input bg-background font-medium"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="font-semibold">Valor Unitário (R$)</Label>
+                  <Input
+                    value={unitPrice}
+                    onChange={(e) => setUnitPrice(e.target.value)}
+                    placeholder="0,00"
+                    className="h-12 text-base border-2 border-input bg-background font-medium"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2 font-semibold">
+                  <Fuel className="h-4 w-4 text-red-500" />
+                  Quantidade (Litros) *
+                </Label>
+                <CurrencyInput
+                  value={fuelQuantity}
+                  onChange={setFuelQuantity}
+                  decimals={0}
+                  placeholder="0"
+                  className="h-14 text-2xl text-center border-2 border-teal-300 dark:border-teal-700 bg-background font-black"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Tanque Arla Fields - matches FieldArlaForm */}
+          {presetMode === 'tanque_arla' && (
+            <div className="space-y-4 p-4 bg-cyan-50/50 dark:bg-cyan-950/20 rounded-lg border-2 border-cyan-200 dark:border-cyan-800">
+              <div className="flex items-center gap-2 mb-2">
+                <Droplet className="h-5 w-5 text-cyan-600" />
+                <span className="font-semibold text-cyan-700 dark:text-cyan-400">Carregar Tanque de Arla</span>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2 font-semibold">
+                  <MapPin className="h-4 w-4 text-blue-600" />
+                  Local de Entrada *
+                </Label>
+                <Select value={entryLocation} onValueChange={setEntryLocation}>
+                  <SelectTrigger className="h-12 text-base border-2 border-blue-300 dark:border-blue-700 bg-background font-medium">
+                    <SelectValue placeholder="Selecione o tanque..." />
+                  </SelectTrigger>
+                  <SelectContent className="bg-popover border-2 border-border">
+                    <SelectItem value="Tanque Canteiro 01" className="text-base py-3">Tanque Canteiro 01</SelectItem>
+                    <SelectItem value="Tanque Canteiro 02" className="text-base py-3">Tanque Canteiro 02</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2 font-semibold">
+                  <Building2 className="h-4 w-4 text-green-600" />
+                  Fornecedor *
+                </Label>
+                <Select value={supplier} onValueChange={setSupplier}>
+                  <SelectTrigger className="h-12 text-base border-2 border-green-300 dark:border-green-700 bg-background font-medium">
+                    <SelectValue placeholder="Selecione o fornecedor..." />
+                  </SelectTrigger>
+                  <SelectContent className="bg-popover border-2 border-border">
+                    {suppliers.map(sup => (
+                      <SelectItem key={sup.id} value={sup.name} className="text-base py-3">{sup.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2 font-semibold">
+                    <Receipt className="h-4 w-4 text-amber-600" />
+                    Nota Fiscal
+                  </Label>
+                  <Input
+                    value={invoiceNumber}
+                    onChange={(e) => setInvoiceNumber(e.target.value)}
+                    placeholder="Número da NF"
+                    className="h-12 text-base border-2 border-input bg-background font-medium"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="font-semibold">Valor Unitário (R$)</Label>
+                  <Input
+                    value={unitPrice}
+                    onChange={(e) => setUnitPrice(e.target.value)}
+                    placeholder="0,00"
+                    className="h-12 text-base border-2 border-input bg-background font-medium"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2 font-semibold">
+                  <Droplet className="h-4 w-4 text-cyan-500" />
+                  Quantidade de Arla (Litros) *
+                </Label>
+                <CurrencyInput
+                  value={fuelQuantity}
+                  onChange={setFuelQuantity}
+                  decimals={0}
+                  placeholder="0"
+                  className="h-14 text-2xl text-center border-2 border-cyan-300 dark:border-cyan-700 bg-background font-black"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Comboio Fields - matches FieldComboioForm */}
+          {presetMode === 'comboio' && (
+            <div className="space-y-4 p-4 bg-orange-50/50 dark:bg-orange-950/20 rounded-lg border-2 border-orange-200 dark:border-orange-800">
+              <div className="flex items-center gap-2 mb-2">
+                <Truck className="h-5 w-5 text-orange-600" />
+                <span className="font-semibold text-orange-700 dark:text-orange-400">Carregar Comboio</span>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2 font-semibold">
+                  <Truck className="h-4 w-4" />
+                  Veículo do Comboio *
+                </Label>
+                <VehicleCombobox
+                  vehicles={vehicleOptions.filter(v => {
+                    const cat = (v.category || '').toLowerCase();
+                    return cat.includes('tanque comboio') || cat.includes('tanque_comboio');
+                  })}
+                  value={vehicleCode}
+                  onValueChange={handleVehicleSelect}
+                  placeholder="Selecione o comboio..."
+                />
+                {vehicleDescription && (
+                  <p className="text-sm text-muted-foreground">{vehicleDescription}</p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2 font-semibold">
+                  <MapPin className="h-4 w-4 text-blue-600" />
+                  Local de Saída (Tanque) *
+                </Label>
+                <Select value={entryLocation} onValueChange={setEntryLocation}>
+                  <SelectTrigger className="h-12 text-base border-2 border-blue-300 dark:border-blue-700 bg-background font-medium">
+                    <SelectValue placeholder="Selecione o tanque de origem..." />
+                  </SelectTrigger>
+                  <SelectContent className="bg-popover border-2 border-border">
+                    <SelectItem value="Tanque Canteiro 01" className="text-base py-3">Tanque Canteiro 01</SelectItem>
+                    <SelectItem value="Tanque Canteiro 02" className="text-base py-3">Tanque Canteiro 02</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2 font-semibold">
+                  <Fuel className="h-4 w-4 text-red-500" />
+                  Quantidade (Litros) *
+                </Label>
+                <CurrencyInput
+                  value={fuelQuantity}
+                  onChange={setFuelQuantity}
+                  decimals={0}
+                  placeholder="0"
+                  className="h-14 text-2xl text-center border-2 border-orange-300 dark:border-orange-700 bg-background font-black"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Generic Entrada Fields - only for normal mode */}
+          {quickEntryMode === 'normal' && recordType === 'entrada' && presetMode === 'normal' && (
             <div className="space-y-4 p-4 bg-green-50/50 dark:bg-green-950/20 rounded-lg border-2 border-green-200 dark:border-green-800">
               <div className="flex items-center gap-2 mb-2">
                 <Building2 className="h-5 w-5 text-green-600" />
@@ -1459,8 +1793,8 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess, presetMode
                     <MapPin className="h-4 w-4 text-blue-600" />
                     Local de Entrada *
                   </Label>
-                  <Select value={entryLocation} onValueChange={setEntryLocation} disabled={presetMode === 'location'}>
-                    <SelectTrigger className={cn("h-12 text-base border-2 border-blue-300 dark:border-blue-700 bg-background font-medium", presetMode === 'location' && "opacity-70")}>
+                  <Select value={entryLocation} onValueChange={setEntryLocation}>
+                    <SelectTrigger className="h-12 text-base border-2 border-blue-300 dark:border-blue-700 bg-background font-medium">
                       <SelectValue placeholder="Selecione o local" />
                     </SelectTrigger>
                     <SelectContent className="bg-popover border-2 border-border">
