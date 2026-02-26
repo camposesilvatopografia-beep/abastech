@@ -350,6 +350,46 @@ async function getSheetData(accessToken: string, sheetId: string, range: string)
   return promise;
 }
 
+async function getSheetDataNoCache(accessToken: string, sheetId: string, range: string): Promise<any[][]> {
+  const key = `${sheetId}:${range}:noCache`;
+
+  const cached = cacheGet(sheetDataCache, key);
+  if (cached) return cached;
+
+  const inFlight = sheetDataInFlight.get(key);
+  if (inFlight) return inFlight;
+
+  const promise = (async () => {
+    try {
+      const MAX_RETRIES = 2;
+      for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+        try {
+          const values = await fetchSheetValues(accessToken, sheetId, range);
+          cacheSet(sheetDataCache, key, values, NO_CACHE_TTL_MS);
+          // Also refresh regular cache so stale fallback is available in subsequent calls.
+          cacheSet(sheetDataCache, `${sheetId}:${range}`, values, SHEET_DATA_TTL_MS);
+          return values;
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          if (detectRetryableError(msg) && attempt < MAX_RETRIES - 1) {
+            const is429 = msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED');
+            const delayMs = is429 ? 4000 : 800;
+            await sleep(delayMs);
+            continue;
+          }
+          throw e;
+        }
+      }
+      throw new Error("Unreachable");
+    } finally {
+      sheetDataInFlight.delete(key);
+    }
+  })();
+
+  sheetDataInFlight.set(key, promise);
+  return promise;
+}
+
 async function appendRow(accessToken: string, sheetId: string, range: string, values: any[]): Promise<void> {
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(
     range
@@ -517,19 +557,39 @@ serve(async (req) => {
 
       case "getData": {
         const sheetRange = range || formatRange(sheetName);
+        const regularCacheKey = `${sheetId}:${sheetRange}`;
+        const noCacheKey = `${regularCacheKey}:noCache`;
 
-        // Optionally bypass in-memory cache to ensure “immediate” UI updates.
-        // We still keep a tiny TTL for coalescing bursty refreshes.
-        const rawData = noCache
-          ? await (async () => {
-              const values = await fetchSheetValues(accessToken, sheetId, sheetRange);
-              cacheSet(sheetDataCache, `${sheetId}:${sheetRange}`, values, NO_CACHE_TTL_MS);
-              return values;
-            })()
-          : await getSheetData(accessToken, sheetId, sheetRange);
+        let rawData: any[][] = [];
+        let stale = false;
+        let rateLimited = false;
+
+        try {
+          rawData = noCache
+            ? await getSheetDataNoCache(accessToken, sheetId, sheetRange)
+            : await getSheetData(accessToken, sheetId, sheetRange);
+        } catch (err) {
+          const errMsg = err instanceof Error ? err.message : String(err);
+          if (detectRateLimit(errMsg)) {
+            rateLimited = true;
+            const staleData = cacheGetStale(sheetDataCache, regularCacheKey)
+              ?? cacheGetStale(sheetDataCache, noCacheKey);
+
+            if (staleData) {
+              stale = true;
+              rawData = staleData;
+              console.warn(`Rate limit on ${sheetRange}; serving stale cache`);
+            } else {
+              rawData = [];
+              console.warn(`Rate limit on ${sheetRange}; returning empty payload to avoid frontend crash`);
+            }
+          } else {
+            throw err;
+          }
+        }
 
         if (rawData.length === 0) {
-          result = { headers: [], rows: [] };
+          result = { headers: [], rows: [], stale, rateLimited };
         } else {
           const headers = rawData[0];
           const rows = rawData.slice(1).map((row, index) => {
@@ -539,7 +599,7 @@ serve(async (req) => {
             });
             return obj;
           });
-          result = { headers, rows };
+          result = { headers, rows, stale, rateLimited };
         }
         break;
       }
