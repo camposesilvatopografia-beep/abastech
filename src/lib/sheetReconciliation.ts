@@ -11,7 +11,7 @@ interface DbFuelRecordForSheetMatch {
 }
 
 const SHEET_NAME = 'AbastecimentoCanteiro01';
-const SNAPSHOT_TTL_MS = 3000;
+const SNAPSHOT_TTL_MS = 1000;
 
 let snapshotCache: {
   expiresAt: number;
@@ -145,7 +145,7 @@ async function getSheetSnapshot(): Promise<{ ids: Set<string>; compositeKeys: Se
 export async function filterRecordsExistingInSheet<T extends DbFuelRecordForSheetMatch>(
   records: T[]
 ): Promise<T[]> {
-  if (!records.length || !navigator.onLine) return records;
+  if (!records.length) return records;
 
   try {
     const { ids, compositeKeys } = await getSheetSnapshot();
