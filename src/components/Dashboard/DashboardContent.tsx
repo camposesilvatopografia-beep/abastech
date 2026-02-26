@@ -7,6 +7,7 @@ import { ConsumptionRanking } from './ConsumptionRanking';
 import { KPIDiagnosticsModal } from './KPIDiagnosticsModal';
 import { useSheetData } from '@/hooks/useGoogleSheets';
 import { useRealtimeSync } from '@/hooks/useRealtimeSync';
+import { PendingSyncMonitor } from './PendingSyncMonitor';
 import { format, parse, isWithinInterval, startOfDay, endOfDay, isValid } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Button } from '@/components/ui/button';
@@ -427,6 +428,9 @@ _Sistema Abastech_`;
   return (
     <div className="flex-1 p-3 md:p-6 overflow-auto">
       <div className="space-y-4 md:space-y-6">
+        {/* Pending Sync Monitor for Admin */}
+        <PendingSyncMonitor />
+
         {/* Header with Filters */}
         <div className="bg-card rounded-lg border border-border p-4 space-y-4">
           <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">

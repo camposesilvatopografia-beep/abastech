@@ -813,6 +813,55 @@ export function FieldDashboard({ user, onNavigateToForm, onNavigateToFuelMenu, o
         </div>
       </div>
 
+      {/* Mandatory Sync Banner */}
+      {pendingSyncCount > 0 && (
+        <div className={cn(
+          "rounded-xl p-4 border-2 space-y-3",
+          theme === 'dark' 
+            ? "bg-amber-950/30 border-amber-500/50" 
+            : "bg-amber-50 border-amber-400"
+        )}>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center shrink-0">
+              <AlertCircle className="w-5 h-5 text-amber-500" />
+            </div>
+            <div className="flex-1">
+              <h3 className={cn(
+                "font-bold text-sm",
+                theme === 'dark' ? "text-amber-300" : "text-amber-800"
+              )}>
+                {pendingSyncCount} registro(s) pendente(s)
+              </h3>
+              <p className={cn(
+                "text-xs",
+                theme === 'dark' ? "text-amber-400/70" : "text-amber-600"
+              )}>
+                Sincronize antes de fazer novos lançamentos
+              </p>
+            </div>
+          </div>
+          {onSync && (
+            <Button
+              onClick={onSync}
+              disabled={isSyncing}
+              className="w-full h-10 bg-amber-600 hover:bg-amber-700 text-white font-semibold"
+            >
+              {isSyncing ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Sincronizando...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Sincronizar Agora
+                </>
+              )}
+            </Button>
+          )}
+        </div>
+      )}
+
       {/* Dashboard Tabs: Início / Resumo */}
       <div className={cn(
         "flex rounded-xl overflow-hidden border",
