@@ -109,7 +109,7 @@ import { GeneralFuelingReport } from '@/components/Abastecimento/GeneralFuelingR
 import { exportTanquesComboiosPDF, exportTanquesComboiosXLSX, exportTanquesPDF, exportTanquesXLSX, exportComboiosPDF, exportComboiosXLSX, type TanquesComboiosStockData } from '@/components/Abastecimento/TanquesComboiosReport';
 import { ReportsTab } from '@/components/Abastecimento/ReportsTab';
 import { PdfPreviewModal } from '@/components/Abastecimento/PdfPreviewModal';
-import { FieldOverlay } from '@/components/Abastecimento/FieldOverlay';
+
 
 const TABS = [
   { id: 'painel', label: 'Estoque', icon: Package2 },
@@ -248,9 +248,6 @@ export function AbastecimentoPage() {
   const [isSyncingPending, setIsSyncingPending] = useState(false);
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
   
-  // Field overlay state (floating field form)
-  const [fieldOverlayOpen, setFieldOverlayOpen] = useState(false);
-  const [fieldOverlayLocation, setFieldOverlayLocation] = useState('');
   
   // Correction filter state for Lançamentos tab
   const [correctionFilter, setCorrectionFilter] = useState<'all' | 'zero_interval' | 'high_interval' | 'zero_consumption' | 'all_issues'>('all');
@@ -2421,30 +2418,6 @@ export function AbastecimentoPage() {
                     </div>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuSub>
-                    <DropdownMenuSubTrigger className="gap-2 cursor-pointer">
-                      <MapPin className="w-4 h-4 text-teal-600" />
-                      <div>
-                        <div className="font-medium">Entrar como Local</div>
-                      </div>
-                    </DropdownMenuSubTrigger>
-                    <DropdownMenuSubContent className="w-52">
-                      {['Tanque Canteiro 01', 'Tanque Canteiro 02', 'Comboio 01', 'Comboio 02', 'Comboio 03'].map(loc => (
-                        <DropdownMenuItem
-                          key={loc}
-                          onClick={() => {
-                            setFieldOverlayLocation(loc);
-                            setFieldOverlayOpen(true);
-                          }}
-                          className="gap-2 cursor-pointer"
-                        >
-                          <MapPin className={cn("w-3.5 h-3.5", loc.includes('Comboio') ? "text-orange-500" : "text-blue-500")} />
-                          <span className="text-sm">{loc}</span>
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuSubContent>
-                  </DropdownMenuSub>
-                  <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={() => setShowHorimeterModal(true)} className="gap-2 cursor-pointer">
                     <Gauge className="w-4 h-4 text-purple-600" />
                     <div>
@@ -3799,13 +3772,6 @@ export function AbastecimentoPage() {
         fileName={previewPdfName}
       />
 
-      {/* Field Overlay - floating field form */}
-      <FieldOverlay
-        open={fieldOverlayOpen}
-        onClose={() => { setFieldOverlayOpen(false); refetch(); }}
-        location={fieldOverlayLocation}
-        adminUser={user ? { id: user.id, name: user.name, username: user.username, role: user.role } : null}
-      />
     </div>
   );
 }
