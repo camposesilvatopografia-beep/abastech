@@ -372,10 +372,8 @@ export function DashboardContent() {
   const summaryRows = [
     { label: 'Estoque Anterior', value: stockData.estoqueAnterior.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) },
     { label: '+ Entradas', value: stockData.entrada.toLocaleString('pt-BR', { minimumFractionDigits: 2 }), isPositive: true },
-    { label: '- Saídas Total', value: stockData.totalSaidas.toLocaleString('pt-BR', { minimumFractionDigits: 2 }), isNegative: true },
-    // Only show sub-items if they have values > 0
-    ...(stockData.saidaComboios > 0 ? [{ label: 'Para Comboios', value: stockData.saidaComboios.toLocaleString('pt-BR', { minimumFractionDigits: 2 }), isSubItem: true }] : []),
-    ...(stockData.saidaEquipamentos > 0 ? [{ label: 'Para Equipamentos', value: stockData.saidaEquipamentos.toLocaleString('pt-BR', { minimumFractionDigits: 2 }), isSubItem: true }] : []),
+    ...(stockData.saidaComboios > 0 ? [{ label: '- Carregamentos (Comboios)', value: stockData.saidaComboios.toLocaleString('pt-BR', { minimumFractionDigits: 2 }), isNegative: true }] : []),
+    { label: '- Saídas (Veículos/Equipamentos)', value: stockData.saidaEquipamentos.toLocaleString('pt-BR', { minimumFractionDigits: 2 }), isNegative: true },
     { label: 'Estoque Atual', value: stockData.estoqueAtual.toLocaleString('pt-BR', { minimumFractionDigits: 2 }), isTotal: true },
   ];
 
@@ -399,9 +397,8 @@ export function DashboardContent() {
 🛢️ *DIESEL*
 • Estoque Anterior: ${stockData.estoqueAnterior.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} L
 • Entradas: +${stockData.entrada.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} L
-• Saídas Total: -${stockData.totalSaidas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} L
-  ├ Comboios: ${stockData.saidaComboios.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} L
-  └ Equipamentos: ${stockData.saidaEquipamentos.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} L
+• Carregamentos (Comboios): -${stockData.saidaComboios.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} L
+• Saídas (Veículos/Equip.): -${stockData.saidaEquipamentos.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} L
 • *Estoque Atual: ${stockData.estoqueAtual.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} L*
 
 💧 *ARLA*
