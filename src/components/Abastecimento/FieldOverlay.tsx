@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { X, Smartphone } from 'lucide-react';
+import { X, Smartphone, Loader2 } from 'lucide-react';
 import { FieldFuelForm } from '@/components/Field/FieldFuelForm';
 import { FieldComboioForm } from '@/components/Field/FieldComboioForm';
 import { FieldTanqueForm } from '@/components/Field/FieldTanqueForm';
@@ -12,6 +12,7 @@ import { FieldHorimeterForm } from '@/components/Field/FieldHorimeterForm';
 import { FieldServiceOrderForm } from '@/components/Field/FieldServiceOrderForm';
 import { cn } from '@/lib/utils';
 import { useRolePermissions } from '@/hooks/useRolePermissions';
+import { supabase } from '@/integrations/supabase/client';
 
 interface FieldUser {
   id: string;
@@ -34,18 +35,66 @@ interface FieldOverlayProps {
 export function FieldOverlay({ open, onClose, location, adminUser, initialView }: FieldOverlayProps) {
   const [currentView, setCurrentView] = useState<OverlayView>('dashboard');
   const { canView } = useRolePermissions();
+  const [realFieldUser, setRealFieldUser] = useState<FieldUser | null>(null);
+  const [loadingUser, setLoadingUser] = useState(false);
 
-  const fieldUser = useMemo((): FieldUser | null => {
-    if (!adminUser) return null;
-    return {
-      id: adminUser.id,
-      name: adminUser.name,
-      username: adminUser.username,
-      // Force operator mirror mode to match mobile local behavior
-      role: 'operador',
-      assigned_locations: [location],
+  // Fetch the actual field_user for this location so inserts use a valid FK
+  useEffect(() => {
+    if (!open || !location) {
+      setRealFieldUser(null);
+      return;
+    }
+
+    const fetchFieldUser = async () => {
+      setLoadingUser(true);
+      try {
+        const { data } = await supabase
+          .from('field_users')
+          .select('id, name, username, role, assigned_locations')
+          .eq('active', true)
+          .contains('assigned_locations', [location])
+          .limit(1)
+          .single();
+
+        if (data) {
+          setRealFieldUser({
+            id: data.id,
+            name: data.name,
+            username: data.username,
+            role: 'operador',
+            assigned_locations: [location],
+          });
+        } else {
+          // Fallback: use admin info but this may fail FK constraints
+          console.warn('[FieldOverlay] No field_user found for location:', location);
+          if (adminUser) {
+            setRealFieldUser({
+              id: adminUser.id,
+              name: adminUser.name,
+              username: adminUser.username,
+              role: 'operador',
+              assigned_locations: [location],
+            });
+          }
+        }
+      } catch (err) {
+        console.error('[FieldOverlay] Error fetching field user:', err);
+        if (adminUser) {
+          setRealFieldUser({
+            id: adminUser.id,
+            name: adminUser.name,
+            username: adminUser.username,
+            role: 'operador',
+            assigned_locations: [location],
+          });
+        }
+      } finally {
+        setLoadingUser(false);
+      }
     };
-  }, [adminUser, location]);
+
+    fetchFieldUser();
+  }, [open, location, adminUser]);
 
   useEffect(() => {
     if (open) {
@@ -53,7 +102,7 @@ export function FieldOverlay({ open, onClose, location, adminUser, initialView }
     }
   }, [open, initialView]);
 
-  if (!open || !fieldUser) return null;
+  if (!open) return null;
 
   const goBack = () => setCurrentView('dashboard');
 
@@ -82,9 +131,14 @@ export function FieldOverlay({ open, onClose, location, adminUser, initialView }
 
           {/* Screen content */}
           <div className="flex-1 h-[calc(100%-1.75rem)] overflow-auto bg-background rounded-b-[2rem]">
-            {currentView === 'dashboard' ? (
+            {loadingUser || !realFieldUser ? (
+              <div className="flex flex-col items-center justify-center h-full gap-3">
+                <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                <span className="text-sm text-muted-foreground">Carregando usuário do local...</span>
+              </div>
+            ) : currentView === 'dashboard' ? (
               <FieldDashboard
-                user={fieldUser}
+                user={realFieldUser}
                 onNavigateToForm={() => setCurrentView('fuel-abastecer')}
                 onNavigateToHorimeter={() => setCurrentView('horimeter')}
                 onNavigateToOS={() => setCurrentView('os')}
@@ -93,23 +147,23 @@ export function FieldOverlay({ open, onClose, location, adminUser, initialView }
                 canViewModule={canView}
               />
             ) : currentView === 'fuel-abastecer' ? (
-              <FieldFuelForm user={fieldUser} onLogout={onClose} onBack={goBack} />
+              <FieldFuelForm user={realFieldUser} onLogout={onClose} onBack={goBack} />
             ) : currentView === 'fuel-comboio' ? (
-              <FieldComboioForm user={fieldUser} onBack={goBack} />
+              <FieldComboioForm user={realFieldUser} onBack={goBack} />
             ) : currentView === 'fuel-tanque' ? (
-              <FieldTanqueForm user={fieldUser} onBack={goBack} />
+              <FieldTanqueForm user={realFieldUser} onBack={goBack} />
             ) : currentView === 'fuel-arla' ? (
-              <FieldArlaForm user={fieldUser} onBack={goBack} />
+              <FieldArlaForm user={realFieldUser} onBack={goBack} />
             ) : currentView === 'fuel-arla-only' ? (
-              <FieldArlaOnlyForm user={fieldUser} onBack={goBack} />
+              <FieldArlaOnlyForm user={realFieldUser} onBack={goBack} />
             ) : currentView === 'fuel-registros' ? (
-              <FieldFuelRecords user={fieldUser} onBack={goBack} />
+              <FieldFuelRecords user={realFieldUser} onBack={goBack} />
             ) : currentView === 'fuel-estoques' ? (
-              <FieldStockView onBack={goBack} assignedLocations={fieldUser.assigned_locations} />
+              <FieldStockView onBack={goBack} assignedLocations={realFieldUser.assigned_locations} />
             ) : currentView === 'horimeter' ? (
-              <FieldHorimeterForm user={fieldUser} onBack={goBack} />
+              <FieldHorimeterForm user={realFieldUser} onBack={goBack} />
             ) : currentView === 'os' ? (
-              <FieldServiceOrderForm user={fieldUser} onBack={goBack} />
+              <FieldServiceOrderForm user={realFieldUser} onBack={goBack} />
             ) : null}
           </div>
         </div>
