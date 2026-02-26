@@ -306,9 +306,10 @@ export function FieldComboioForm({ user, onBack }: FieldComboioFormProps) {
         photoPumpUrl = await uploadPhoto(photoPump, 'comboio');
       }
 
-      // LOCAL = source of fuel (where the fuel exits FROM)
-      // In this form, source is always the selected tank.
-      const location = entryLocation || '';
+      // LOCAL = where the operation happens (the comboio or tank location)
+      // For comboio users (Entrada): LOCAL = comboio name; for tanque users (Saida): LOCAL = tank name
+      const userComboioLocation = (user.assigned_locations || []).find(loc => loc.toLowerCase().includes('comboio')) || '';
+      const location = isComboioUser ? userComboioLocation : (entryLocation || '');
 
       // Derive comboio location name from vehicle code for TANQUE CARREGADO
       const { mapVehicleToComboioLocation } = await import('@/lib/fuelSheetMapping');
@@ -330,7 +331,7 @@ export function FieldComboioForm({ user, onBack }: FieldComboioFormProps) {
         fuel_type: 'Diesel',
         arla_quantity: null,
         location,
-        entry_location: null,
+        entry_location: entryLocation || null,
         observations: `[CARREGAMENTO] ${entryLocation} → ${comboioName}`,
         record_date: recordDate,
         record_time: recordTime,

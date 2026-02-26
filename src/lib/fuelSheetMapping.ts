@@ -103,10 +103,10 @@ export function buildFuelSheetData(record: FuelSheetRecord): Record<string, any>
   const price = Number(record.unitPrice) || 0;
   const totalValue = (qty > 0 && price > 0) ? fmtNum(qty * price) : '';
 
-  // Ensure LOCAL DE SAIDA is never blank for Saídas when vehicle is a comboio
-  const saidaLocation = tipo === 'Saida'
-    ? ((record.location || '').trim() || mapVehicleToComboioLocation(record.vehicleCode, record.vehicleDescription) || '')
-    : '';
+  // LOCAL column: always populate when location is available
+  // For Saida: fallback to comboio location derived from vehicle code
+  const locationValue = (record.location || '').trim()
+    || (tipo === 'Saida' ? (mapVehicleToComboioLocation(record.vehicleCode, record.vehicleDescription) || '') : '');
 
   // For Carregamento: derive LOCAL DO CARREGAMENTO (origin tank) and TANQUE CARREGADO (comboio loaded)
   const localDoCarregamento = isCarregamento
@@ -138,7 +138,7 @@ export function buildFuelSheetData(record: FuelSheetRecord): Record<string, any>
     'INTERVALO KM': intervaloKm,
     'QUANTIDADE': fmtNum(qty),
     'TIPO DE COMBUSTIVEL': record.fuelType || '',
-    'LOCAL': saidaLocation,
+    'LOCAL': locationValue,
     'ARLA': (record.arlaQuantity && Number(record.arlaQuantity) > 0) ? 'TRUE' : 'FALSE',
     'QUANTIDADE DE ARLA': fmtNum(record.arlaQuantity),
     'FORNECEDOR': record.supplier || '',
