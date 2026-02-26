@@ -447,7 +447,7 @@ export function FieldComboioForm({ user, onBack }: FieldComboioFormProps) {
               <ArrowLeft className="w-5 h-5" />
             </Button>
             <img src={logoAbastech} alt="Abastech" className="h-8 w-auto" />
-            <span className="text-white font-bold text-base">Carregar Comboio</span>
+            <span className="text-white font-bold text-base">{isComboioUser ? 'Carregar Comboio' : 'Carregar Tanque do Comboio'}</span>
           </div>
           <div className="flex items-center gap-2 text-white/80 text-xs">
             <Clock className="w-3.5 h-3.5" />
