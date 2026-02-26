@@ -1,22 +1,9 @@
-import { useState, useRef, useMemo, useCallback } from 'react';
+import { useState, useRef, useMemo, useCallback, useEffect } from 'react';
 import { numericInputProps } from './numericInputProps';
-import { ArrowLeft, Droplets, Check, Clock, Search, ChevronsUpDown } from 'lucide-react';
+import { ArrowLeft, Droplets, Check, Clock, Search, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from '@/components/ui/command';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
 import { supabase } from '@/integrations/supabase/client';
 import { useSheetData } from '@/hooks/useGoogleSheets';
 import { useRealtimeSync } from '@/hooks/useRealtimeSync';
@@ -120,6 +107,18 @@ export function FieldArlaOnlyForm({ user, onBack }: FieldArlaOnlyFormProps) {
     setVehicleOpen(false);
     setVehicleSearch('');
   };
+
+  // Close dropdown when clicking outside
+  const vehicleDropdownRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (vehicleDropdownRef.current && !vehicleDropdownRef.current.contains(e.target as Node)) {
+        setVehicleOpen(false);
+      }
+    };
+    if (vehicleOpen) document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [vehicleOpen]);
 
   const handleSubmit = async () => {
     if (isSavingRef.current) return;
@@ -331,48 +330,59 @@ export function FieldArlaOnlyForm({ user, onBack }: FieldArlaOnlyFormProps) {
             </Label>
           </div>
 
-          <Popover open={vehicleOpen} onOpenChange={setVehicleOpen}>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                role="combobox"
-                className={cn(
-                  "w-full justify-between h-14 text-base rounded-xl",
-                  !vehicleCode && "text-muted-foreground"
+          <div className="relative" ref={vehicleDropdownRef}>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Digite código ou descrição..."
+                value={vehicleOpen ? vehicleSearch : (vehicleCode ? `${vehicleCode} - ${vehicleDescription}` : '')}
+                onChange={(e) => {
+                  setVehicleSearch(e.target.value);
+                  if (!vehicleOpen) setVehicleOpen(true);
+                }}
+                onFocus={() => setVehicleOpen(true)}
+                className="h-14 text-base rounded-xl pl-10 pr-10"
+              />
+              {vehicleCode && !vehicleOpen && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setVehicleCode('');
+                    setVehicleDescription('');
+                    setCategory('');
+                    setCompany('');
+                    setVehicleSearch('');
+                    setVehicleOpen(true);
+                  }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+
+            {vehicleOpen && (
+              <div className="absolute z-50 mt-1 w-full bg-popover border border-border rounded-xl shadow-lg max-h-[250px] overflow-y-auto">
+                {filteredVehicles.length === 0 ? (
+                  <div className="p-4 text-center text-sm text-muted-foreground">
+                    Nenhum veículo encontrado.
+                  </div>
+                ) : (
+                  filteredVehicles.map((v) => (
+                    <button
+                      key={v.code}
+                      type="button"
+                      onClick={() => handleVehicleSelect(v.code)}
+                      className="w-full text-left px-4 py-3 hover:bg-accent transition-colors border-b border-border last:border-b-0"
+                    >
+                      <span className="font-bold">{v.code}</span>
+                      <span className="text-muted-foreground ml-2 text-sm">{v.description}</span>
+                    </button>
+                  ))
                 )}
-              >
-                {vehicleCode ? `${vehicleCode} - ${vehicleDescription}` : 'Selecione o veículo...'}
-                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-[calc(100vw-2rem)] p-0" align="start">
-              <Command shouldFilter={false}>
-                <CommandInput
-                  placeholder="Buscar veículo..."
-                  value={vehicleSearch}
-                  onValueChange={setVehicleSearch}
-                />
-                <CommandList className="max-h-[300px]">
-                  <CommandEmpty>Nenhum veículo encontrado.</CommandEmpty>
-                  <CommandGroup>
-                    {filteredVehicles.map((v) => (
-                      <CommandItem
-                        key={v.code}
-                        value={v.code}
-                        onSelect={() => handleVehicleSelect(v.code)}
-                        className="py-3"
-                      >
-                        <div>
-                          <span className="font-bold">{v.code}</span>
-                          <span className="text-muted-foreground ml-2 text-sm">{v.description}</span>
-                        </div>
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                </CommandList>
-              </Command>
-            </PopoverContent>
-          </Popover>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Arla Quantity */}
