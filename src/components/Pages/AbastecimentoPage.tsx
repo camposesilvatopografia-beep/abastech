@@ -2445,6 +2445,9 @@ export function AbastecimentoPage() {
                             }
                             // Save selected location for FieldPage admin impersonation
                             localStorage.setItem('abastech_admin_active_location', loc);
+                            // Auto-navigate to the correct form based on location type
+                            const initialView = loc.toLowerCase().includes('comboio') ? 'fuel-comboio' : loc.toLowerCase().includes('arla') ? 'fuel-arla' : 'fuel-abastecer';
+                            localStorage.setItem('abastech_field_initial_view', initialView);
                             sessionStorage.setItem('admin_access_requested', 'true');
                             window.location.href = '/apontamento';
                           }}
