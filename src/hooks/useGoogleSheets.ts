@@ -180,6 +180,32 @@ export function useSheetData(
     };
   }, [pollingInterval, fetchData]);
 
+  // Refresh imediato ao voltar do background (mobile/PWA), voltar conexão ou foco.
+  useEffect(() => {
+    if (!sheetName) return;
+
+    const refreshNow = () => {
+      if (!canPollNow()) return;
+      fetchData(true, true);
+    };
+
+    const onVisibility = () => {
+      if (canPollNow()) refreshNow();
+    };
+
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('focus', refreshNow);
+    window.addEventListener('pageshow', refreshNow);
+    window.addEventListener('online', refreshNow);
+
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('focus', refreshNow);
+      window.removeEventListener('pageshow', refreshNow);
+      window.removeEventListener('online', refreshNow);
+    };
+  }, [sheetName, fetchData]);
+
   const create = useCallback(
     async (rowData: Record<string, any>) => {
       if (!sheetName) return;
@@ -190,7 +216,7 @@ export function useSheetData(
           title: 'Sucesso',
           description: 'Registro criado com sucesso!',
         });
-        await fetchData();
+        await fetchData(false, true);
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to create row';
         toast({
@@ -214,7 +240,7 @@ export function useSheetData(
           title: 'Sucesso',
           description: 'Registro atualizado com sucesso!',
         });
-        await fetchData();
+        await fetchData(false, true);
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to update row';
         toast({
@@ -238,7 +264,7 @@ export function useSheetData(
           title: 'Sucesso',
           description: 'Registro excluído com sucesso!',
         });
-        await fetchData();
+        await fetchData(false, true);
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to delete row';
         toast({
@@ -252,12 +278,16 @@ export function useSheetData(
     [sheetName, fetchData, toast]
   );
 
+  const refetch = useCallback((silent = false, forceNoCache = true) => {
+    return fetchData(silent, forceNoCache || !silent);
+  }, [fetchData]);
+
   return {
     data,
     loading,
     error,
     lastUpdatedAt,
-    refetch: fetchData,
+    refetch,
     create,
     update,
     remove,
