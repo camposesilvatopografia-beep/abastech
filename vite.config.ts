@@ -38,9 +38,9 @@ export default defineConfig(({ mode }) => ({
         background_color: '#0f172a',
         display: 'standalone',
         orientation: 'any',
-        start_url: '/',
+        start_url: '/apontamento',
         scope: '/',
-        id: '/',
+        id: '/apontamento',
         icons: [
           {
             src: '/pwa-72x72.png',
