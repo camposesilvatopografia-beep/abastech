@@ -257,39 +257,6 @@ export function StockHistoryModal({ open, onClose, title, sheetData }: StockHist
           </div>
         </div>
 
-        {/* ── RESUMO GERAL (histórico acumulado) ─────────────────── */}
-        <div className="bg-slate-900/60 px-6 py-3 border-b border-slate-700">
-          <div className="flex items-center gap-4 flex-wrap">
-            <div className="flex items-center gap-2">
-              <Package2 className="h-3.5 w-3.5 text-slate-400" />
-              <span className="text-xs text-slate-400 uppercase tracking-wide font-semibold">Histórico acumulado</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs text-slate-500">Registros:</span>
-              <span className="text-sm font-bold text-white">{historyRows.length}</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs text-slate-500">Entradas:</span>
-              <span className={cn("text-sm font-bold flex items-center gap-0.5", totals.entradas > 0 ? "text-emerald-400" : "text-slate-400")}>
-                {totals.entradas > 0 && <TrendingUp className="h-3 w-3" />}
-                +{formatNumber(totals.entradas)} L
-              </span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs text-slate-500">Saídas:</span>
-              <span className={cn("text-sm font-bold flex items-center gap-0.5", totals.saidas > 0 ? "text-rose-400" : "text-slate-400")}>
-                {totals.saidas > 0 && <TrendingDown className="h-3 w-3" />}
-                {formatNumber(totals.saidas)} L
-              </span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs text-slate-500">Saldo:</span>
-              <span className={cn("text-sm font-bold", saldo >= 0 ? "text-sky-400" : "text-rose-400")}>
-                {saldo >= 0 ? '+' : ''}{formatNumber(saldo)} L
-              </span>
-            </div>
-          </div>
-        </div>
 
         <Tabs defaultValue="resumo" className="w-full flex flex-col flex-1">
           <div className="px-6 py-3 border-b border-border bg-muted/30">
