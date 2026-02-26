@@ -109,6 +109,7 @@ import { GeneralFuelingReport } from '@/components/Abastecimento/GeneralFuelingR
 import { exportTanquesComboiosPDF, exportTanquesComboiosXLSX, exportTanquesPDF, exportTanquesXLSX, exportComboiosPDF, exportComboiosXLSX, type TanquesComboiosStockData } from '@/components/Abastecimento/TanquesComboiosReport';
 import { ReportsTab } from '@/components/Abastecimento/ReportsTab';
 import { PdfPreviewModal } from '@/components/Abastecimento/PdfPreviewModal';
+import { FieldOverlay } from '@/components/Abastecimento/FieldOverlay';
 
 const TABS = [
   { id: 'painel', label: 'Estoque', icon: Package2 },
@@ -246,6 +247,10 @@ export function AbastecimentoPage() {
   // Pending sync state
   const [isSyncingPending, setIsSyncingPending] = useState(false);
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
+  
+  // Field overlay state (floating field form)
+  const [fieldOverlayOpen, setFieldOverlayOpen] = useState(false);
+  const [fieldOverlayLocation, setFieldOverlayLocation] = useState('');
   
   // Correction filter state for Lançamentos tab
   const [correctionFilter, setCorrectionFilter] = useState<'all' | 'zero_interval' | 'high_interval' | 'zero_consumption' | 'all_issues'>('all');
@@ -2428,28 +2433,8 @@ export function AbastecimentoPage() {
                         <DropdownMenuItem
                           key={loc}
                           onClick={() => {
-                            // Bridge desktop admin user to field user format
-                            const storedAdmin = localStorage.getItem('abastech_user');
-                            if (storedAdmin) {
-                              try {
-                                const adminData = JSON.parse(storedAdmin);
-                                const fieldUser = {
-                                  id: adminData.id,
-                                  name: adminData.name,
-                                  username: adminData.username,
-                                  role: adminData.role || 'admin',
-                                  assigned_locations: [loc],
-                                };
-                                localStorage.setItem('abastech_field_user', JSON.stringify(fieldUser));
-                              } catch {}
-                            }
-                            // Save selected location for FieldPage admin impersonation
-                            localStorage.setItem('abastech_admin_active_location', loc);
-                            // Auto-navigate to the correct form based on location type
-                            const initialView = loc.toLowerCase().includes('comboio') ? 'fuel-comboio' : loc.toLowerCase().includes('arla') ? 'fuel-arla' : 'fuel-abastecer';
-                            localStorage.setItem('abastech_field_initial_view', initialView);
-                            sessionStorage.setItem('admin_access_requested', 'true');
-                            window.location.href = '/apontamento';
+                            setFieldOverlayLocation(loc);
+                            setFieldOverlayOpen(true);
                           }}
                           className="gap-2 cursor-pointer"
                         >
@@ -3812,6 +3797,14 @@ export function AbastecimentoPage() {
         onClose={() => { setShowPdfPreview(false); setPreviewPdfUrl(null); }}
         pdfUrl={previewPdfUrl}
         fileName={previewPdfName}
+      />
+
+      {/* Field Overlay - floating field form */}
+      <FieldOverlay
+        open={fieldOverlayOpen}
+        onClose={() => { setFieldOverlayOpen(false); refetch(); }}
+        location={fieldOverlayLocation}
+        adminUser={user ? { id: user.id, name: user.name, username: user.username, role: user.role } : null}
       />
     </div>
   );
