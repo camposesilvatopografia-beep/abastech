@@ -166,8 +166,7 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess, presetMode
   const locationOptions = [
     'Tanque Canteiro 01',
     'Tanque Canteiro 02',
-    'Tanque Arla 01',
-    'Tanque Arla 02',
+    'Tanque Arla',
     'Comboio 01',
     'Comboio 02',
     'Comboio 03',
