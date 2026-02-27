@@ -409,7 +409,7 @@ export function AbastecimentoPage() {
 
   // Handle inline edit save
   const handleSaveInlineEdit = useCallback(async () => {
-    if (!inlineEditData || !inlineEditData._rowIndex) {
+    if (!inlineEditData || inlineEditData._rowIndex == null) {
       toast.error('Não foi possível identificar o registro para edição');
       return;
     }
@@ -530,7 +530,7 @@ export function AbastecimentoPage() {
 
   // Handle record deletion with Google Sheets sync
   const handleDeleteRecord = useCallback(async () => {
-    if (!deletingRecord || !deletingRecord._rowIndex) {
+    if (!deletingRecord || deletingRecord._rowIndex == null) {
       toast.error('Não foi possível identificar o registro para exclusão');
       return;
     }
@@ -4044,10 +4044,12 @@ export function AbastecimentoPage() {
                       broadcast('fuel_record_updated', { vehicleCode });
                       setShowEditModal(false);
                       setEditingRecord(null);
-                      // Force fresh fetch bypassing all caches
+                      // Wait for edge function cache to expire (noCache TTL = 3s)
+                      await new Promise(r => setTimeout(r, 3500));
                       await refetch(false, true);
-                      // Second fetch after short delay to catch any propagation lag
-                      setTimeout(() => refetch(false, true), 1500);
+                      // Additional retries to catch propagation lag
+                      setTimeout(() => refetch(false, true), 3000);
+                      setTimeout(() => refetch(false, true), 6000);
                     } catch (err) {
                       console.error('Error updating record:', err);
                       toast.error('Erro ao atualizar registro');
