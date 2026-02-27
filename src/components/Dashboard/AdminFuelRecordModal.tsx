@@ -943,7 +943,7 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess, presetMode
             </div>
           </div>
 
-          {/* Record Type - shown for location modes only (normal is always Saida) */}
+          {/* Record Type - shown for location modes only */}
           {presetMode === 'location' && (
           <div className="space-y-2">
             {locationConfig && (
