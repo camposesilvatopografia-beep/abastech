@@ -20,7 +20,7 @@ interface SheetRow {
 const SHEET_DATA_TTL_MS = 30_000; // 30s cache to reduce quota usage (was 15s)
 // When the client explicitly requests noCache, we still keep a *tiny* TTL to coalesce bursts,
 // but avoid serving stale values for long.
-const NO_CACHE_TTL_MS = 3_000; // 3s for noCache bursts (was 1.5s)
+const NO_CACHE_TTL_MS = 500; // 0.5s — near real-time for explicit noCache reads
 
 const METADATA_TTL_MS = 5 * 60_000;
 const HEADER_TTL_MS = 5 * 60_000;
