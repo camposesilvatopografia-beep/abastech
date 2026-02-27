@@ -98,6 +98,10 @@ export default function SystemUsersPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [permUser, setPermUser] = useState<SystemUser | null>(null);
+  const [resetPasswordUser, setResetPasswordUser] = useState<SystemUser | null>(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
   
   const [formData, setFormData] = useState({
     name: '',
@@ -261,6 +265,30 @@ export default function SystemUsersPage() {
     } catch (err) {
       console.error('Error deleting user:', err);
       toast.error('Erro ao excluir usuário');
+    }
+  };
+
+  const handleResetPassword = async () => {
+    if (!resetPasswordUser || !newPassword.trim()) {
+      toast.error('Digite a nova senha');
+      return;
+    }
+    setIsResetting(true);
+    try {
+      const { error } = await supabase
+        .from('system_users')
+        .update({ password_hash: newPassword.trim() })
+        .eq('id', resetPasswordUser.id);
+      if (error) throw error;
+      toast.success(`Senha de ${resetPasswordUser.name} alterada!`);
+      setResetPasswordUser(null);
+      setNewPassword('');
+      setShowNewPassword(false);
+    } catch (err) {
+      console.error('Error resetting password:', err);
+      toast.error('Erro ao alterar senha');
+    } finally {
+      setIsResetting(false);
     }
   };
 
@@ -501,6 +529,7 @@ export default function SystemUsersPage() {
                   ]}
                   actions={[
                     { icon: <Shield className="w-4 h-4 text-primary" />, onClick: () => setPermUser(user) },
+                    { icon: <Key className="w-4 h-4 text-amber-500" />, onClick: () => { setResetPasswordUser(user); setNewPassword(''); setShowNewPassword(false); } },
                     { icon: <Edit className="w-4 h-4" />, onClick: () => handleEdit(user) },
                     { icon: <Trash2 className="w-4 h-4 text-destructive" />, onClick: () => handleDelete(user) },
                   ]}
@@ -573,6 +602,14 @@ export default function SystemUsersPage() {
                             title="Permissões"
                           >
                             <Shield className="w-4 h-4 text-primary" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => { setResetPasswordUser(user); setNewPassword(''); setShowNewPassword(false); }}
+                            title="Alterar Senha"
+                          >
+                            <Key className="w-4 h-4 text-amber-500" />
                           </Button>
                           <Button
                             variant="ghost"
@@ -677,6 +714,50 @@ export default function SystemUsersPage() {
           userType="system"
         />
       )}
+
+      {/* Reset Password Dialog */}
+      <Dialog open={!!resetPasswordUser} onOpenChange={(open) => { if (!open) { setResetPasswordUser(null); setNewPassword(''); setShowNewPassword(false); } }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Key className="w-5 h-5 text-amber-500" />
+              Alterar Senha
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-muted-foreground">
+              Definir nova senha para <strong>{resetPasswordUser?.name}</strong> (@{resetPasswordUser?.username})
+            </p>
+            <div className="space-y-2">
+              <Label>Nova Senha *</Label>
+              <div className="relative">
+                <Input
+                  type={showNewPassword ? 'text' : 'password'}
+                  placeholder="Digite a nova senha"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowNewPassword(!showNewPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => { setResetPasswordUser(null); setNewPassword(''); }}>
+              Cancelar
+            </Button>
+            <Button onClick={handleResetPassword} disabled={isResetting || !newPassword.trim()}>
+              <Key className="w-4 h-4 mr-2" />
+              {isResetting ? 'Salvando...' : 'Alterar Senha'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
