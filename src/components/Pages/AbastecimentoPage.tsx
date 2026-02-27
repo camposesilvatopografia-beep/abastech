@@ -226,8 +226,9 @@ export function AbastecimentoPage() {
   const [adminPresetLocation, setAdminPresetLocation] = useState<string>('');
   const [editingRecord, setEditingRecord] = useState<any>(null);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [previousRecord, setPreviousRecord] = useState<any>(null);
+  const [previousRecords, setPreviousRecords] = useState<any[]>([]);
   const [showPreviousRecord, setShowPreviousRecord] = useState(false);
+  const [selectedPreviousIdx, setSelectedPreviousIdx] = useState<number | null>(null);
   const [showHorimeterModal, setShowHorimeterModal] = useState(false);
   const [showOSModal, setShowOSModal] = useState(false);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
@@ -259,12 +260,13 @@ export function AbastecimentoPage() {
   // Find previous record when editing a record
   useEffect(() => {
     if (!editingRecord || !showEditModal) {
-      setPreviousRecord(null);
+      setPreviousRecords([]);
       setShowPreviousRecord(false);
+      setSelectedPreviousIdx(null);
       return;
     }
     const vehicleCode = String(editingRecord['VEICULO'] || '').trim().toUpperCase();
-    if (!vehicleCode) { setPreviousRecord(null); return; }
+    if (!vehicleCode) { setPreviousRecords([]); return; }
 
     const editDate = parseDate(String(editingRecord['DATA'] || ''));
     const editTime = String(editingRecord['HORA'] || '').trim();
@@ -289,7 +291,7 @@ export function AbastecimentoPage() {
         return (b.rowIndex as number) - (a.rowIndex as number);
       });
 
-    // Find current record index then get the one after it (previous chronologically)
+    // Find current record index then get the ones after it (previous chronologically)
     const currentIdx = vehicleRows.findIndex(r => {
       if (r.rowIndex === editRowIndex) return true;
       if (editDate && r.date && r.date.getTime() === editDate.getTime() && r.time === editTime) return true;
@@ -297,9 +299,10 @@ export function AbastecimentoPage() {
     });
 
     if (currentIdx >= 0 && currentIdx < vehicleRows.length - 1) {
-      setPreviousRecord(vehicleRows[currentIdx + 1].row);
+      const prev = vehicleRows.slice(currentIdx + 1, currentIdx + 6).map(r => r.row);
+      setPreviousRecords(prev);
     } else {
-      setPreviousRecord(null);
+      setPreviousRecords([]);
     }
   }, [editingRecord, showEditModal, data.rows]);
 
@@ -3800,105 +3803,117 @@ export function AbastecimentoPage() {
                 </div>
               )}
 
-              {/* Previous Record Comparison */}
-              {previousRecord && (
+              {/* Previous Records List */}
+              {previousRecords.length > 0 && (
                 <div className="border border-amber-300 dark:border-amber-700 rounded-lg overflow-hidden">
                   <button
                     type="button"
                     className="w-full flex items-center justify-between px-4 py-3 bg-amber-50 dark:bg-amber-950/30 hover:bg-amber-100 dark:hover:bg-amber-950/50 transition-colors"
-                    onClick={() => setShowPreviousRecord(!showPreviousRecord)}
+                    onClick={() => { setShowPreviousRecord(!showPreviousRecord); if (showPreviousRecord) setSelectedPreviousIdx(null); }}
                   >
                     <span className="text-sm font-semibold flex items-center gap-2 text-amber-700 dark:text-amber-400">
                       <Eye className="w-4 h-4" />
-                      Abastecimento Anterior do Veículo
+                      Abastecimentos Anteriores do Veículo ({previousRecords.length})
                     </span>
                     {showPreviousRecord ? <ChevronUp className="w-4 h-4 text-amber-600" /> : <ChevronDown className="w-4 h-4 text-amber-600" />}
                   </button>
                   {showPreviousRecord && (
-                    <div className="p-4 space-y-4 bg-amber-50/50 dark:bg-amber-950/10">
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                        <div className="space-y-1">
-                          <span className="text-[11px] text-muted-foreground uppercase tracking-wide">Data</span>
-                          <p className="text-sm font-medium">{String(previousRecord['DATA'] || '-')}</p>
-                        </div>
-                        <div className="space-y-1">
-                          <span className="text-[11px] text-muted-foreground uppercase tracking-wide">Hora</span>
-                          <p className="text-sm font-medium">{String(previousRecord['HORA'] || '-')}</p>
-                        </div>
-                        <div className="space-y-1">
-                          <span className="text-[11px] text-muted-foreground uppercase tracking-wide">Motorista</span>
-                          <p className="text-sm font-medium">{String(previousRecord['MOTORISTA'] || '-')}</p>
-                        </div>
-                        <div className="space-y-1">
-                          <span className="text-[11px] text-muted-foreground uppercase tracking-wide">Quantidade (L)</span>
-                          <p className="text-sm font-medium">{String(previousRecord['QUANTIDADE'] || '-')}</p>
-                        </div>
-                        <div className="space-y-1">
-                          <span className="text-[11px] text-muted-foreground uppercase tracking-wide">Horímetro Anterior</span>
-                          <p className="text-sm font-medium">{String(previousRecord['HORIMETRO ANTERIOR'] || '-')}</p>
-                        </div>
-                        <div className="space-y-1">
-                          <span className="text-[11px] text-muted-foreground uppercase tracking-wide">Horímetro Atual</span>
-                          <p className="text-sm font-semibold text-amber-700 dark:text-amber-400">{String(previousRecord['HORIMETRO ATUAL'] || '-')}</p>
-                        </div>
-                        <div className="space-y-1">
-                          <span className="text-[11px] text-muted-foreground uppercase tracking-wide">KM Anterior</span>
-                          <p className="text-sm font-medium">{String(previousRecord['KM ANTERIOR'] || '-')}</p>
-                        </div>
-                        <div className="space-y-1">
-                          <span className="text-[11px] text-muted-foreground uppercase tracking-wide">KM Atual</span>
-                          <p className="text-sm font-semibold text-amber-700 dark:text-amber-400">{String(previousRecord['KM ATUAL'] || '-')}</p>
-                        </div>
-                        <div className="space-y-1">
-                          <span className="text-[11px] text-muted-foreground uppercase tracking-wide">Local</span>
-                          <p className="text-sm font-medium">{String(previousRecord['LOCAL DE SAIDA'] || previousRecord['LOCAL'] || '-')}</p>
-                        </div>
-                        <div className="space-y-1">
-                          <span className="text-[11px] text-muted-foreground uppercase tracking-wide">ARLA</span>
-                          <p className="text-sm font-medium">{String(previousRecord['QUANTIDADE DE ARLA'] || '-')}</p>
-                        </div>
-                        {previousRecord['OBSERVAÇÃO'] && String(previousRecord['OBSERVAÇÃO']).trim() && (
-                          <div className="space-y-1 col-span-2">
-                            <span className="text-[11px] text-muted-foreground uppercase tracking-wide">Observações</span>
-                            <p className="text-sm font-medium">{String(previousRecord['OBSERVAÇÃO'])}</p>
-                          </div>
-                        )}
-                      </div>
+                    <div className="bg-amber-50/50 dark:bg-amber-950/10 divide-y divide-amber-200 dark:divide-amber-800">
+                      {previousRecords.map((rec, idx) => (
+                        <div key={idx}>
+                          <button
+                            type="button"
+                            className={cn(
+                              "w-full flex items-center justify-between px-4 py-2.5 text-left hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors text-sm",
+                              selectedPreviousIdx === idx && "bg-amber-100 dark:bg-amber-900/40"
+                            )}
+                            onClick={() => setSelectedPreviousIdx(selectedPreviousIdx === idx ? null : idx)}
+                          >
+                            <div className="flex items-center gap-3 flex-wrap">
+                              <span className="text-xs font-mono text-muted-foreground w-4">{idx + 1}.</span>
+                              <span className="font-medium">{String(rec['DATA'] || '-')}</span>
+                              <span className="text-muted-foreground">{String(rec['HORA'] || '')}</span>
+                              <span className="text-amber-700 dark:text-amber-400 font-semibold">{String(rec['QUANTIDADE'] || '-')}L</span>
+                              <span className="text-muted-foreground text-xs">Hor: {String(rec['HORIMETRO ATUAL'] || '-')}</span>
+                            </div>
+                            {selectedPreviousIdx === idx ? <ChevronUp className="w-3.5 h-3.5 text-amber-600 shrink-0" /> : <ChevronDown className="w-3.5 h-3.5 text-amber-600 shrink-0" />}
+                          </button>
 
-                      {/* Previous record photos */}
-                      {(previousRecord['FOTO BOMBA'] || previousRecord['FOTO HORIMETRO']) && (
-                        <div className="space-y-2 pt-2 border-t border-amber-200 dark:border-amber-800">
-                          <span className="text-[11px] text-muted-foreground uppercase tracking-wide flex items-center gap-1">
-                            <Image className="w-3 h-3" /> Fotos do abastecimento anterior
-                          </span>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            {previousRecord['FOTO BOMBA'] && String(previousRecord['FOTO BOMBA']).trim() && (
-                              <div className="space-y-1">
-                                <span className="text-xs text-muted-foreground">Foto Bomba</span>
-                                <img
-                                  src={String(previousRecord['FOTO BOMBA'])}
-                                  alt="Foto Bomba (anterior)"
-                                  className="w-full h-44 object-cover rounded-lg border border-amber-300 dark:border-amber-700 cursor-pointer hover:opacity-90 transition-opacity"
-                                  onClick={() => setFullscreenImage(String(previousRecord['FOTO BOMBA']))}
-                                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                                />
+                          {selectedPreviousIdx === idx && (
+                            <div className="p-4 space-y-4 border-t border-amber-200 dark:border-amber-800 bg-amber-50/80 dark:bg-amber-950/20">
+                              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                <div className="space-y-1">
+                                  <span className="text-[11px] text-muted-foreground uppercase tracking-wide">Data</span>
+                                  <p className="text-sm font-medium">{String(rec['DATA'] || '-')}</p>
+                                </div>
+                                <div className="space-y-1">
+                                  <span className="text-[11px] text-muted-foreground uppercase tracking-wide">Hora</span>
+                                  <p className="text-sm font-medium">{String(rec['HORA'] || '-')}</p>
+                                </div>
+                                <div className="space-y-1">
+                                  <span className="text-[11px] text-muted-foreground uppercase tracking-wide">Motorista</span>
+                                  <p className="text-sm font-medium">{String(rec['MOTORISTA'] || '-')}</p>
+                                </div>
+                                <div className="space-y-1">
+                                  <span className="text-[11px] text-muted-foreground uppercase tracking-wide">Quantidade (L)</span>
+                                  <p className="text-sm font-medium">{String(rec['QUANTIDADE'] || '-')}</p>
+                                </div>
+                                <div className="space-y-1">
+                                  <span className="text-[11px] text-muted-foreground uppercase tracking-wide">Horímetro Anterior</span>
+                                  <p className="text-sm font-medium">{String(rec['HORIMETRO ANTERIOR'] || '-')}</p>
+                                </div>
+                                <div className="space-y-1">
+                                  <span className="text-[11px] text-muted-foreground uppercase tracking-wide">Horímetro Atual</span>
+                                  <p className="text-sm font-semibold text-amber-700 dark:text-amber-400">{String(rec['HORIMETRO ATUAL'] || '-')}</p>
+                                </div>
+                                <div className="space-y-1">
+                                  <span className="text-[11px] text-muted-foreground uppercase tracking-wide">KM Anterior</span>
+                                  <p className="text-sm font-medium">{String(rec['KM ANTERIOR'] || '-')}</p>
+                                </div>
+                                <div className="space-y-1">
+                                  <span className="text-[11px] text-muted-foreground uppercase tracking-wide">KM Atual</span>
+                                  <p className="text-sm font-semibold text-amber-700 dark:text-amber-400">{String(rec['KM ATUAL'] || '-')}</p>
+                                </div>
+                                <div className="space-y-1">
+                                  <span className="text-[11px] text-muted-foreground uppercase tracking-wide">Local</span>
+                                  <p className="text-sm font-medium">{String(rec['LOCAL DE SAIDA'] || rec['LOCAL'] || '-')}</p>
+                                </div>
+                                <div className="space-y-1">
+                                  <span className="text-[11px] text-muted-foreground uppercase tracking-wide">ARLA</span>
+                                  <p className="text-sm font-medium">{String(rec['QUANTIDADE DE ARLA'] || '-')}</p>
+                                </div>
+                                {rec['OBSERVAÇÃO'] && String(rec['OBSERVAÇÃO']).trim() && (
+                                  <div className="space-y-1 col-span-2">
+                                    <span className="text-[11px] text-muted-foreground uppercase tracking-wide">Observações</span>
+                                    <p className="text-sm font-medium">{String(rec['OBSERVAÇÃO'])}</p>
+                                  </div>
+                                )}
                               </div>
-                            )}
-                            {previousRecord['FOTO HORIMETRO'] && String(previousRecord['FOTO HORIMETRO']).trim() && (
-                              <div className="space-y-1">
-                                <span className="text-xs text-muted-foreground">Foto Horímetro</span>
-                                <img
-                                  src={String(previousRecord['FOTO HORIMETRO'])}
-                                  alt="Foto Horímetro (anterior)"
-                                  className="w-full h-44 object-cover rounded-lg border border-amber-300 dark:border-amber-700 cursor-pointer hover:opacity-90 transition-opacity"
-                                  onClick={() => setFullscreenImage(String(previousRecord['FOTO HORIMETRO']))}
-                                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                                />
-                              </div>
-                            )}
-                          </div>
+                              {(rec['FOTO BOMBA'] || rec['FOTO HORIMETRO']) && (
+                                <div className="space-y-2 pt-2 border-t border-amber-200 dark:border-amber-800">
+                                  <span className="text-[11px] text-muted-foreground uppercase tracking-wide flex items-center gap-1">
+                                    <Image className="w-3 h-3" /> Fotos
+                                  </span>
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    {rec['FOTO BOMBA'] && String(rec['FOTO BOMBA']).trim() && (
+                                      <div className="space-y-1">
+                                        <span className="text-xs text-muted-foreground">Foto Bomba</span>
+                                        <img src={String(rec['FOTO BOMBA'])} alt="Foto Bomba" className="w-full h-44 object-cover rounded-lg border border-amber-300 dark:border-amber-700 cursor-pointer hover:opacity-90 transition-opacity" onClick={() => setFullscreenImage(String(rec['FOTO BOMBA']))} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                                      </div>
+                                    )}
+                                    {rec['FOTO HORIMETRO'] && String(rec['FOTO HORIMETRO']).trim() && (
+                                      <div className="space-y-1">
+                                        <span className="text-xs text-muted-foreground">Foto Horímetro</span>
+                                        <img src={String(rec['FOTO HORIMETRO'])} alt="Foto Horímetro" className="w-full h-44 object-cover rounded-lg border border-amber-300 dark:border-amber-700 cursor-pointer hover:opacity-90 transition-opacity" onClick={() => setFullscreenImage(String(rec['FOTO HORIMETRO']))} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
-                      )}
+                      ))}
                     </div>
                   )}
                 </div>
