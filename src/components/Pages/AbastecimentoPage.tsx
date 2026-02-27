@@ -859,33 +859,33 @@ export function AbastecimentoPage() {
   const detalhamentoRows = useMemo(() => {
     const classifyRow = (row: any) => {
       const tipo = String(row['TIPO'] || row['TIPO DE OPERACAO'] || '').toLowerCase().trim();
-      const local = String(row['LOCAL DE SAIDA'] || row['LOCAL'] || '').toLowerCase().trim();
+      const veiculo = String(row['VEICULO'] || '').toUpperCase().trim();
       const fornecedor = String(row['FORNECEDOR'] || '').trim();
-      const localEntrada = String(row['LOCAL DE ENTRADA'] || '').trim();
+      const localEntrada = String(row['LOCAL DE ENTRADA'] || '').trim().toLowerCase();
+      const local = String(row['LOCAL'] || row['LOCAL DE SAIDA'] || '').toLowerCase().trim();
 
-      // Entradas from suppliers (has fornecedor or tipo is entrada and goes to a tanque)
-      if (tipo === 'entrada' || tipo === 'recebimento') {
-        // If it has a fornecedor or goes to a tanque, it's an entrada (supplier delivery)
-        if (fornecedor || local.includes('tanque') || local.includes('canteiro') || localEntrada) {
-          return 'entradas';
-        }
-        // Otherwise it's a comboio loading
-        return 'carregamentos';
-      }
+      const isComboioVehicle = veiculo.startsWith('CC') || veiculo.includes('COMBOIO');
+      const isTanqueVehicle = veiculo.includes('TANQUE') || veiculo.includes('CANTEIRO');
+      const hasFornecedor = fornecedor.length > 0;
+      const hasLocalEntradaTanque = localEntrada.includes('tanque') || localEntrada.includes('canteiro');
 
-      // Carregamentos: saida from tanque to comboio
-      if (local.includes('comboio') && (tipo === 'saida' || tipo === 'saída' || tipo === 'carregamento')) {
-        // Check if it's loading a comboio (the vehicle IS a comboio or tanque/canteiro)
-        const veiculo = String(row['VEICULO'] || '').toLowerCase();
-        if (veiculo.includes('tanque') || veiculo.includes('comboio')) {
-          return 'carregamentos';
-        }
-      }
+      // ENTRADAS: External supplier deliveries to tanks
+      // - Vehicle is a Tanque/Canteiro AND has a fornecedor (supplier)
+      // - OR tipo is 'entrada' AND has a fornecedor
+      if (isTanqueVehicle && hasFornecedor) return 'entradas';
+      if ((tipo === 'entrada' || tipo === 'recebimento') && hasFornecedor) return 'entradas';
 
-      // If tipo is carregamento explicitly
+      // CARREGAMENTOS: Transfers from tanks to comboios
+      // - Vehicle is a Comboio (CC-xx) AND tipo is entrada/carregamento (loading from tank)
+      // - OR vehicle is a Comboio AND localEntrada references a tanque
+      // - OR tipo is 'carregamento' explicitly
+      if (isComboioVehicle && (tipo === 'entrada' || tipo === 'carregamento' || hasLocalEntradaTanque)) return 'carregamentos';
       if (tipo === 'carregamento') return 'carregamentos';
+      // Also: saida from tanque TO comboio (tank user dispatching fuel to comboio)
+      if (isTanqueVehicle && !hasFornecedor && (tipo === 'entrada' || tipo === 'carregamento')) return 'carregamentos';
+      if (isComboioVehicle && local.includes('tanque')) return 'carregamentos';
 
-      // Default: saidas (consumption)
+      // Default: saidas (consumption by equipment/vehicles)
       return 'saidas';
     };
 
