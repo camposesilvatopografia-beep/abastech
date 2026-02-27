@@ -225,6 +225,8 @@ export function AbastecimentoPage() {
   const [adminPresetLocation, setAdminPresetLocation] = useState<string>('');
   const [editingRecord, setEditingRecord] = useState<any>(null);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [previousRecord, setPreviousRecord] = useState<any>(null);
+  const [showPreviousRecord, setShowPreviousRecord] = useState(false);
   const [showHorimeterModal, setShowHorimeterModal] = useState(false);
   const [showOSModal, setShowOSModal] = useState(false);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
@@ -251,6 +253,53 @@ export function AbastecimentoPage() {
   
   // Correction filter state for Lançamentos tab
   const [correctionFilter, setCorrectionFilter] = useState<'all' | 'zero_interval' | 'high_interval' | 'zero_consumption' | 'all_issues'>('all');
+
+  // Find previous record when editing a record
+  useEffect(() => {
+    if (!editingRecord || !showEditModal) {
+      setPreviousRecord(null);
+      setShowPreviousRecord(false);
+      return;
+    }
+    const vehicleCode = String(editingRecord['VEICULO'] || '').trim().toUpperCase();
+    if (!vehicleCode) { setPreviousRecord(null); return; }
+
+    const editDate = parseDate(String(editingRecord['DATA'] || ''));
+    const editTime = String(editingRecord['HORA'] || '').trim();
+    const editRowIndex = editingRecord._rowIndex ?? Infinity;
+
+    // Find all records for same vehicle, sorted by date desc
+    const vehicleRows = data.rows
+      .filter(row => {
+        const code = String(row['VEICULO'] || '').trim().toUpperCase();
+        return code === vehicleCode;
+      })
+      .map(row => {
+        const d = parseDate(String(row['DATA'] || ''));
+        const t = String(row['HORA'] || '').trim();
+        return { row, date: d, time: t, rowIndex: row._rowIndex ?? 0 };
+      })
+      .filter(r => r.date)
+      .sort((a, b) => {
+        const diff = (b.date!.getTime()) - (a.date!.getTime());
+        if (diff !== 0) return diff;
+        if (b.time && a.time) return b.time.localeCompare(a.time);
+        return (b.rowIndex as number) - (a.rowIndex as number);
+      });
+
+    // Find current record index then get the one after it (previous chronologically)
+    const currentIdx = vehicleRows.findIndex(r => {
+      if (r.rowIndex === editRowIndex) return true;
+      if (editDate && r.date && r.date.getTime() === editDate.getTime() && r.time === editTime) return true;
+      return false;
+    });
+
+    if (currentIdx >= 0 && currentIdx < vehicleRows.length - 1) {
+      setPreviousRecord(vehicleRows[currentIdx + 1].row);
+    } else {
+      setPreviousRecord(null);
+    }
+  }, [editingRecord, showEditModal, data.rows]);
 
   // Check pending records count on mount and after refetch
   const checkPendingSync = useCallback(async () => {
@@ -3583,7 +3632,8 @@ export function AbastecimentoPage() {
                         <img
                           src={String(editingRecord['FOTO BOMBA'])}
                           alt="Foto Bomba"
-                          className="w-full h-48 object-cover rounded-lg border border-border"
+                          className="w-full h-48 object-cover rounded-lg border border-border cursor-pointer hover:opacity-90 transition-opacity"
+                          onClick={() => setFullscreenImage(String(editingRecord['FOTO BOMBA']))}
                           onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                         />
                       </div>
@@ -3594,12 +3644,117 @@ export function AbastecimentoPage() {
                         <img
                           src={String(editingRecord['FOTO HORIMETRO'])}
                           alt="Foto Horímetro"
-                          className="w-full h-48 object-cover rounded-lg border border-border"
+                          className="w-full h-48 object-cover rounded-lg border border-border cursor-pointer hover:opacity-90 transition-opacity"
+                          onClick={() => setFullscreenImage(String(editingRecord['FOTO HORIMETRO']))}
                           onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                         />
                       </div>
                     )}
                   </div>
+                </div>
+              )}
+
+              {/* Previous Record Comparison */}
+              {previousRecord && (
+                <div className="border border-amber-300 dark:border-amber-700 rounded-lg overflow-hidden">
+                  <button
+                    type="button"
+                    className="w-full flex items-center justify-between px-4 py-3 bg-amber-50 dark:bg-amber-950/30 hover:bg-amber-100 dark:hover:bg-amber-950/50 transition-colors"
+                    onClick={() => setShowPreviousRecord(!showPreviousRecord)}
+                  >
+                    <span className="text-sm font-semibold flex items-center gap-2 text-amber-700 dark:text-amber-400">
+                      <Eye className="w-4 h-4" />
+                      Abastecimento Anterior do Veículo
+                    </span>
+                    {showPreviousRecord ? <ChevronUp className="w-4 h-4 text-amber-600" /> : <ChevronDown className="w-4 h-4 text-amber-600" />}
+                  </button>
+                  {showPreviousRecord && (
+                    <div className="p-4 space-y-4 bg-amber-50/50 dark:bg-amber-950/10">
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <div className="space-y-1">
+                          <span className="text-[11px] text-muted-foreground uppercase tracking-wide">Data</span>
+                          <p className="text-sm font-medium">{String(previousRecord['DATA'] || '-')}</p>
+                        </div>
+                        <div className="space-y-1">
+                          <span className="text-[11px] text-muted-foreground uppercase tracking-wide">Hora</span>
+                          <p className="text-sm font-medium">{String(previousRecord['HORA'] || '-')}</p>
+                        </div>
+                        <div className="space-y-1">
+                          <span className="text-[11px] text-muted-foreground uppercase tracking-wide">Motorista</span>
+                          <p className="text-sm font-medium">{String(previousRecord['MOTORISTA'] || '-')}</p>
+                        </div>
+                        <div className="space-y-1">
+                          <span className="text-[11px] text-muted-foreground uppercase tracking-wide">Quantidade (L)</span>
+                          <p className="text-sm font-medium">{String(previousRecord['QUANTIDADE'] || '-')}</p>
+                        </div>
+                        <div className="space-y-1">
+                          <span className="text-[11px] text-muted-foreground uppercase tracking-wide">Horímetro Anterior</span>
+                          <p className="text-sm font-medium">{String(previousRecord['HORIMETRO ANTERIOR'] || '-')}</p>
+                        </div>
+                        <div className="space-y-1">
+                          <span className="text-[11px] text-muted-foreground uppercase tracking-wide">Horímetro Atual</span>
+                          <p className="text-sm font-semibold text-amber-700 dark:text-amber-400">{String(previousRecord['HORIMETRO ATUAL'] || '-')}</p>
+                        </div>
+                        <div className="space-y-1">
+                          <span className="text-[11px] text-muted-foreground uppercase tracking-wide">KM Anterior</span>
+                          <p className="text-sm font-medium">{String(previousRecord['KM ANTERIOR'] || '-')}</p>
+                        </div>
+                        <div className="space-y-1">
+                          <span className="text-[11px] text-muted-foreground uppercase tracking-wide">KM Atual</span>
+                          <p className="text-sm font-semibold text-amber-700 dark:text-amber-400">{String(previousRecord['KM ATUAL'] || '-')}</p>
+                        </div>
+                        <div className="space-y-1">
+                          <span className="text-[11px] text-muted-foreground uppercase tracking-wide">Local</span>
+                          <p className="text-sm font-medium">{String(previousRecord['LOCAL DE SAIDA'] || previousRecord['LOCAL'] || '-')}</p>
+                        </div>
+                        <div className="space-y-1">
+                          <span className="text-[11px] text-muted-foreground uppercase tracking-wide">ARLA</span>
+                          <p className="text-sm font-medium">{String(previousRecord['QUANTIDADE DE ARLA'] || '-')}</p>
+                        </div>
+                        {previousRecord['OBSERVAÇÃO'] && String(previousRecord['OBSERVAÇÃO']).trim() && (
+                          <div className="space-y-1 col-span-2">
+                            <span className="text-[11px] text-muted-foreground uppercase tracking-wide">Observações</span>
+                            <p className="text-sm font-medium">{String(previousRecord['OBSERVAÇÃO'])}</p>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Previous record photos */}
+                      {(previousRecord['FOTO BOMBA'] || previousRecord['FOTO HORIMETRO']) && (
+                        <div className="space-y-2 pt-2 border-t border-amber-200 dark:border-amber-800">
+                          <span className="text-[11px] text-muted-foreground uppercase tracking-wide flex items-center gap-1">
+                            <Image className="w-3 h-3" /> Fotos do abastecimento anterior
+                          </span>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {previousRecord['FOTO BOMBA'] && String(previousRecord['FOTO BOMBA']).trim() && (
+                              <div className="space-y-1">
+                                <span className="text-xs text-muted-foreground">Foto Bomba</span>
+                                <img
+                                  src={String(previousRecord['FOTO BOMBA'])}
+                                  alt="Foto Bomba (anterior)"
+                                  className="w-full h-44 object-cover rounded-lg border border-amber-300 dark:border-amber-700 cursor-pointer hover:opacity-90 transition-opacity"
+                                  onClick={() => setFullscreenImage(String(previousRecord['FOTO BOMBA']))}
+                                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                                />
+                              </div>
+                            )}
+                            {previousRecord['FOTO HORIMETRO'] && String(previousRecord['FOTO HORIMETRO']).trim() && (
+                              <div className="space-y-1">
+                                <span className="text-xs text-muted-foreground">Foto Horímetro</span>
+                                <img
+                                  src={String(previousRecord['FOTO HORIMETRO'])}
+                                  alt="Foto Horímetro (anterior)"
+                                  className="w-full h-44 object-cover rounded-lg border border-amber-300 dark:border-amber-700 cursor-pointer hover:opacity-90 transition-opacity"
+                                  onClick={() => setFullscreenImage(String(previousRecord['FOTO HORIMETRO']))}
+                                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                                />
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 
