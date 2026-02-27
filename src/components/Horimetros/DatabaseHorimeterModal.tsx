@@ -56,54 +56,119 @@ export function DatabaseHorimeterModal({
   editRecord,
   externalReadings,
 }: DatabaseHorimeterModalProps) {
-  const { vehicles, loading: vehiclesLoading, upsertVehicle, refetch: refetchVehicles } = useVehicles();
+  const { vehicles, loading: vehiclesLoading, refetch: refetchVehicles } = useVehicles();
   const { readings: internalReadings, loading: readingsLoading, createReading, updateReading, refetch } = useHorimeterReadings();
   
   // Use external readings if provided (to stay in sync with parent), otherwise use internal
   const readings = externalReadings || internalReadings;
   const { toast } = useToast();
 
-  // Auto-sync vehicles from sheet "Veiculo" to DB on open
+  const syncVehiclesFromSheet = useCallback(async (noCache = true) => {
+    try {
+      const sheetData = await getSheetData('Veiculo', { noCache });
+      const rows = sheetData?.rows || [];
+      if (!rows.length) return 0;
+
+      const normalizeCode = (v: any) =>
+        String(v ?? '')
+          .replace(/\u00A0/g, ' ')
+          .trim()
+          .toUpperCase()
+          .replace(/\s+/g, '');
+
+      const normalizeHeader = (k: string) =>
+        String(k || '')
+          .trim()
+          .toUpperCase()
+          .normalize('NFD')
+          .replace(/\p{Diacritic}/gu, '')
+          .replace(/\s+/g, ' ');
+
+      const getByCandidates = (row: Record<string, any>, candidates: string[]) => {
+        const wanted = new Set(candidates.map(normalizeHeader));
+        for (const key of Object.keys(row || {})) {
+          if (wanted.has(normalizeHeader(key))) {
+            return row[key];
+          }
+        }
+        return undefined;
+      };
+
+      const existingCodes = new Set(vehicles.map(v => normalizeCode(v.code)));
+      const toUpsert: Array<{
+        code: string;
+        name: string;
+        description: string | null;
+        category: string | null;
+        company: string | null;
+        unit: string;
+        status: string;
+      }> = [];
+
+      for (const row of rows) {
+        const rawCode = getByCandidates(row as any, ['CODIGO', 'CÓDIGO', 'VEICULO', 'VEÍCULO', 'COD']);
+        const code = String(rawCode ?? '').trim();
+        if (!code) continue;
+
+        const codeNorm = normalizeCode(code);
+        if (!codeNorm || existingCodes.has(codeNorm)) continue;
+
+        const name = String(getByCandidates(row as any, ['DESCRICAO', 'DESCRIÇÃO', 'NOME']) ?? '').trim();
+        const category = String(getByCandidates(row as any, ['CATEGORIA', 'TIPO']) ?? '').trim();
+        const company = String(getByCandidates(row as any, ['EMPRESA', 'OBRA']) ?? '').trim();
+        const statusSheet = String(getByCandidates(row as any, ['STATUS']) ?? '').trim().toLowerCase();
+        const status = statusSheet.includes('desmobil') || statusSheet.includes('inativ') ? 'inativo' : 'ativo';
+
+        toUpsert.push({
+          code,
+          name: name || code,
+          description: name || null,
+          category: category || null,
+          company: company || null,
+          unit: 'h',
+          status,
+        });
+
+        existingCodes.add(codeNorm);
+      }
+
+      if (!toUpsert.length) return 0;
+
+      const BATCH_SIZE = 200;
+      for (let i = 0; i < toUpsert.length; i += BATCH_SIZE) {
+        const batch = toUpsert.slice(i, i + BATCH_SIZE);
+        const { error } = await supabase
+          .from('vehicles')
+          .upsert(batch, { onConflict: 'code' });
+        if (error) throw error;
+      }
+
+      await refetchVehicles();
+      console.log(`🔄 Auto-synced ${toUpsert.length} vehicles from sheet to DB`);
+      return toUpsert.length;
+    } catch (err) {
+      console.warn('Sheet vehicle sync skipped:', err);
+      return 0;
+    }
+  }, [vehicles, refetchVehicles]);
+
+  // Refresh local vehicles when modal opens
+  useEffect(() => {
+    if (!open) return;
+    void refetchVehicles();
+  }, [open, refetchVehicles]);
+
+  // Keep vehicles synced from sheet while modal is open
   useEffect(() => {
     if (!open || vehiclesLoading) return;
-    let cancelled = false;
 
-    (async () => {
-      try {
-        const sheetData = await getSheetData('Veiculo');
-        if (cancelled || !sheetData?.rows?.length) return;
+    void syncVehiclesFromSheet(true);
+    const intervalId = window.setInterval(() => {
+      void syncVehiclesFromSheet(true);
+    }, 30000);
 
-        const existingCodes = new Set(vehicles.map(v => v.code.replace(/\s+/g, '').toUpperCase()));
-        let added = 0;
-
-        for (const row of sheetData.rows) {
-          const code = String(row['CODIGO'] || row['Codigo'] || row['codigo'] || row['VEICULO'] || row['Veiculo'] || '').trim();
-          if (!code) continue;
-          const codeNorm = code.replace(/\s+/g, '').toUpperCase();
-          if (existingCodes.has(codeNorm)) continue;
-
-          const name = String(row['DESCRICAO'] || row['DESCRIÇÃO'] || row['Descricao'] || row['descricao'] || '').trim();
-          const category = String(row['TIPO'] || row['Tipo'] || row['CATEGORIA'] || row['Categoria'] || '').trim();
-          const company = String(row['EMPRESA'] || row['Empresa'] || '').trim();
-
-          try {
-            await upsertVehicle({ code, name: name || code, description: name, category, company, unit: 'h', status: 'ativo' });
-            existingCodes.add(codeNorm);
-            added++;
-          } catch { /* skip duplicates */ }
-        }
-
-        if (added > 0) {
-          console.log(`🔄 Auto-synced ${added} vehicles from sheet to DB`);
-          refetchVehicles();
-        }
-      } catch (err) {
-        console.warn('Sheet vehicle sync skipped:', err);
-      }
-    })();
-
-    return () => { cancelled = true; };
-  }, [open, vehiclesLoading]);
+    return () => window.clearInterval(intervalId);
+  }, [open, vehiclesLoading, syncVehiclesFromSheet]);
   
   const isEditMode = !!editRecord;
   
