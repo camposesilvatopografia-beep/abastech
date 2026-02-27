@@ -153,7 +153,7 @@ export function VehicleCombobox({
             'bg-background border-2 border-input hover:border-primary/50',
             'transition-all duration-200',
             !value && 'text-muted-foreground',
-            value && 'border-muted-foreground/30 bg-muted/50',
+            value && 'border-primary/40 bg-primary/5',
             className
           )}
         >
@@ -168,12 +168,12 @@ export function VehicleCombobox({
         </Button>
       </PopoverTrigger>
       <PopoverContent 
-        className="w-[--radix-popover-trigger-width] min-w-[320px] p-0 bg-popover border-2 border-border shadow-xl z-[100]" 
+        className="w-[--radix-popover-trigger-width] min-w-[360px] p-0 bg-popover border-2 border-border shadow-2xl z-[100]" 
         align="start"
         sideOffset={4}
       >
         <Command className="bg-popover" filter={commandFilter} shouldFilter={false}>
-          <div className="flex items-center border-b-2 border-border px-3 bg-muted/50">
+          <div className="flex items-center border-b-2 border-border px-3 bg-muted/30">
             <Search className="h-5 w-5 shrink-0 text-primary mr-2" />
             <CommandInput 
               placeholder="Digite código ou descrição..." 
@@ -181,8 +181,13 @@ export function VehicleCombobox({
               value={search}
               onValueChange={setSearch}
             />
+            {search && (
+              <span className="text-xs text-muted-foreground whitespace-nowrap ml-2">
+                {totalFiltered} resultado{totalFiltered !== 1 ? 's' : ''}
+              </span>
+            )}
           </div>
-          <CommandList className="max-h-[400px] overflow-auto">
+          <CommandList className="max-h-[50vh] overflow-auto">
             {totalFiltered === 0 && (
               <CommandEmpty className="py-6 text-center">
                 <div className="flex flex-col items-center gap-2 text-muted-foreground">
@@ -199,14 +204,14 @@ export function VehicleCombobox({
               <CommandGroup 
                 key={category} 
                 heading={
-                  <div className="flex items-center gap-2 px-2 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground bg-muted/30 border-b border-border">
-                    <span className="w-2 h-2 rounded-full bg-primary/50" />
+                  <div className="flex items-center gap-2 px-3 py-2 text-xs font-bold uppercase tracking-wider text-primary/70 bg-muted/50 border-b border-border sticky top-0 z-10">
+                    <span className="w-2.5 h-2.5 rounded-full bg-primary/60" />
                     {category} ({categoryVehicles.length})
                   </div>
                 }
                 className="p-0"
               >
-                <div className="p-1">
+                <div className="p-1.5">
                   {categoryVehicles.map((vehicle) => {
                     const itemValue = useIdAsValue ? vehicle.id! : vehicle.code;
                     const desc = vehicle.name || vehicle.description || '';
@@ -221,26 +226,29 @@ export function VehicleCombobox({
                           setOpen(false);
                         }}
                         className={cn(
-                          "cursor-pointer py-2.5 px-3 rounded-lg mb-0.5 transition-colors",
+                          "cursor-pointer py-3 px-3 rounded-xl mb-1 transition-all",
                           "hover:bg-accent hover:text-accent-foreground",
-                          isSelected && "bg-primary/10 border border-primary/30"
+                          isSelected && "bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground shadow-md"
                         )}
                       >
                         <Check
                           className={cn(
-                            'mr-2 h-4 w-4 text-primary shrink-0',
-                            isSelected ? 'opacity-100' : 'opacity-0'
+                            'mr-2 h-4 w-4 shrink-0',
+                            isSelected ? 'opacity-100 text-primary-foreground' : 'opacity-0'
                           )}
                         />
                         <div className="flex flex-col flex-1 min-w-0">
                           <span className={cn(
                             "font-bold text-sm truncate",
-                            isSelected && "text-primary"
+                            isSelected && "text-primary-foreground"
                           )}>
                             {vehicle.code}
                           </span>
                           {desc && (
-                            <span className="text-xs text-muted-foreground truncate">
+                            <span className={cn(
+                              "text-xs truncate",
+                              isSelected ? "text-primary-foreground/80" : "text-muted-foreground"
+                            )}>
                               {desc}
                             </span>
                           )}
