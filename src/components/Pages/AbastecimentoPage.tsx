@@ -253,6 +253,7 @@ export function AbastecimentoPage() {
   
   // Correction filter state for Lançamentos tab
   const [correctionFilter, setCorrectionFilter] = useState<'all' | 'zero_interval' | 'high_interval' | 'zero_consumption' | 'all_issues'>('all');
+  const [detalhamentoSubTab, setDetalhamentoSubTab] = useState<'saidas' | 'carregamentos' | 'entradas'>('saidas');
 
   // Find previous record when editing a record
   useEffect(() => {
@@ -850,6 +851,63 @@ export function AbastecimentoPage() {
       : correctionFilter === 'zero_consumption' ? correctionAnalysis.zeroConsumption
       : correctionAnalysis.allIssues;
     return filteredRows.filter(row => issueSet.includes(row));
+  }, [filteredRows, correctionFilter, correctionAnalysis]);
+
+  // Sub-tab filtered rows for detalhamento
+  const detalhamentoRows = useMemo(() => {
+    const classifyRow = (row: any) => {
+      const tipo = String(row['TIPO'] || row['TIPO DE OPERACAO'] || '').toLowerCase().trim();
+      const local = String(row['LOCAL DE SAIDA'] || row['LOCAL'] || '').toLowerCase().trim();
+      const fornecedor = String(row['FORNECEDOR'] || '').trim();
+      const localEntrada = String(row['LOCAL DE ENTRADA'] || '').trim();
+
+      // Entradas from suppliers (has fornecedor or tipo is entrada and goes to a tanque)
+      if (tipo === 'entrada' || tipo === 'recebimento') {
+        // If it has a fornecedor or goes to a tanque, it's an entrada (supplier delivery)
+        if (fornecedor || local.includes('tanque') || local.includes('canteiro') || localEntrada) {
+          return 'entradas';
+        }
+        // Otherwise it's a comboio loading
+        return 'carregamentos';
+      }
+
+      // Carregamentos: saida from tanque to comboio
+      if (local.includes('comboio') && (tipo === 'saida' || tipo === 'saída' || tipo === 'carregamento')) {
+        // Check if it's loading a comboio (the vehicle IS a comboio or tanque/canteiro)
+        const veiculo = String(row['VEICULO'] || '').toLowerCase();
+        if (veiculo.includes('tanque') || veiculo.includes('comboio')) {
+          return 'carregamentos';
+        }
+      }
+
+      // If tipo is carregamento explicitly
+      if (tipo === 'carregamento') return 'carregamentos';
+
+      // Default: saidas (consumption)
+      return 'saidas';
+    };
+
+    const saidas: any[] = [];
+    const carregamentos: any[] = [];
+    const entradas: any[] = [];
+
+    const baseRows = correctionFilter === 'all' ? filteredRows :
+      filteredRows.filter(row => {
+        const issueSet = correctionFilter === 'zero_interval' ? correctionAnalysis.zeroInterval
+          : correctionFilter === 'high_interval' ? correctionAnalysis.highInterval
+          : correctionFilter === 'zero_consumption' ? correctionAnalysis.zeroConsumption
+          : correctionAnalysis.allIssues;
+        return issueSet.includes(row);
+      });
+
+    baseRows.forEach(row => {
+      const cat = classifyRow(row);
+      if (cat === 'entradas') entradas.push(row);
+      else if (cat === 'carregamentos') carregamentos.push(row);
+      else saidas.push(row);
+    });
+
+    return { saidas, carregamentos, entradas };
   }, [filteredRows, correctionFilter, correctionAnalysis]);
 
   // Get unique values for filters
@@ -2728,127 +2786,205 @@ export function AbastecimentoPage() {
                 </Button>
               </div>
             </div>
-            
-            <div className="bg-card rounded-lg border border-border overflow-hidden">
-              <Table>
-                <TableHeader>
-                   <TableRow className="bg-primary/10">
-                     <TableHead className="font-semibold text-primary text-xs">Data</TableHead>
-                     <TableHead className="font-semibold text-primary text-xs">Hora</TableHead>
-                     <TableHead className="font-semibold text-primary text-xs">Veículo</TableHead>
-                     <TableHead className="font-semibold text-primary text-xs">Motorista</TableHead>
-                     <TableHead className="text-right font-semibold text-primary text-xs">Qtd (L)</TableHead>
-                     <TableHead className="text-right font-semibold text-primary text-xs">Hor/Km Ant.</TableHead>
-                     <TableHead className="text-right font-semibold text-primary text-xs">Hor/Km Atual</TableHead>
-                     <TableHead className="text-right font-semibold text-primary text-xs">Intervalo</TableHead>
-                     <TableHead className="text-right font-semibold text-primary text-xs">Consumo</TableHead>
-                     <TableHead className="font-semibold text-primary text-xs">Local</TableHead>
-                     {canCreateRecords && <TableHead className="w-20 text-center font-semibold text-primary text-xs">Ações</TableHead>}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {loading ? (
-                    <TableRow>
-                      <TableCell colSpan={canCreateRecords ? 11 : 10} className="text-center py-8">
-                        <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-muted-foreground" />
-                        Carregando dados...
-                      </TableCell>
-                    </TableRow>
-                  ) : filteredRows.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={canCreateRecords ? 11 : 10} className="text-center py-8 text-muted-foreground">
-                        Nenhum registro encontrado
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    filteredRows.slice(0, 100).map((row, index) => {
-                      const hasIssue = correctionAnalysis.allIssues.includes(row);
-                      const issueType = correctionAnalysis.zeroInterval.includes(row) ? 'zero'
-                        : correctionAnalysis.highInterval.includes(row) ? 'high'
-                        : correctionAnalysis.zeroConsumption.includes(row) ? 'missing' : null;
-                      return (
-                      <TableRow key={row._rowIndex || index} className={cn(
-                        hasIssue && 'bg-destructive/10 hover:bg-destructive/15 border-l-2 border-l-destructive'
-                      )}>
-                        <TableCell className="text-xs">{row['DATA']}</TableCell>
-                        <TableCell className="text-xs">{row['HORA']}</TableCell>
-                        <TableCell className="text-xs font-bold text-primary">
-                          <span className="flex items-center gap-1">
-                            {hasIssue && <AlertTriangle className="w-3 h-3 text-destructive shrink-0" />}
-                            {row['VEICULO']}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-xs">{row['MOTORISTA']}</TableCell>
-                        <TableCell className="text-right text-xs font-mono font-medium">
-                          {parseNumber(row['QUANTIDADE']).toLocaleString('pt-BR')}
-                        </TableCell>
-                        {(() => {
-                          const cat = String(row['CATEGORIA'] || row['Categoria'] || '').toLowerCase();
-                          const isEquip = cat.includes('equipamento') || cat.includes('máquina') || cat.includes('maquina') ||
-                            cat.includes('escavadeira') || cat.includes('retro') || cat.includes('pá carregadeira') ||
-                            cat.includes('pa carregadeira') || cat.includes('trator') || cat.includes('rolo') ||
-                            cat.includes('motoniveladora') || cat.includes('gerador');
-                          const anterior = isEquip
-                            ? parseNumber(row['HORIMETRO ANTERIOR'] || row['HOR_ANTERIOR'] || 0)
-                            : parseNumber(row['KM ANTERIOR'] || row['KM_ANTERIOR'] || 0);
-                          const atual = isEquip
-                            ? parseNumber(row['HORIMETRO ATUAL'] || row['HOR_ATUAL'] || 0)
-                            : parseNumber(row['KM ATUAL'] || row['KM_ATUAL'] || 0);
-                          const suffix = isEquip ? 'h' : ' km';
-                          const intervalo = atual > 0 && anterior > 0 ? atual - anterior : 0;
-                          const qtd = parseNumber(row['QUANTIDADE']);
-                          let consumo = '';
-                          if (intervalo > 0 && qtd > 0) {
-                            if (isEquip) {
-                              consumo = (qtd / intervalo).toFixed(2) + ' L/h';
-                            } else {
-                              consumo = (intervalo / qtd).toFixed(2) + ' km/L';
-                            }
-                          }
-                          return (
-                            <>
-                              <TableCell className="text-right text-xs font-mono text-muted-foreground">
-                                {anterior > 0 ? `${anterior.toLocaleString('pt-BR')}${suffix}` : '-'}
-                              </TableCell>
-                              <TableCell className="text-right text-xs font-mono">
-                                {atual > 0 ? `${atual.toLocaleString('pt-BR')}${suffix}` : '-'}
-                              </TableCell>
-                              <TableCell className="text-right text-xs font-mono">
-                                {intervalo > 0 ? `${intervalo.toLocaleString('pt-BR', { minimumFractionDigits: isEquip ? 2 : 0 })} ${isEquip ? 'h' : 'km'}` : '-'}
-                              </TableCell>
-                              <TableCell className="text-right text-xs font-mono font-bold text-primary">
-                                {consumo || '-'}
-                              </TableCell>
-                            </>
-                          );
-                        })()}
-                        <TableCell className="text-xs">{row['LOCAL DE SAIDA'] || row['LOCAL']}</TableCell>
-                        {canCreateRecords && (
-                          <TableCell className="text-center">
-                            <div className="flex items-center justify-center gap-1">
-                              <Button variant="ghost" size="icon" className="h-7 w-7" title="Editar"
-                                onClick={() => { setEditingRecord(row); setShowEditModal(true); }}>
-                                <Edit2 className="h-4 w-4 text-blue-500" />
-                              </Button>
-                              <Button variant="ghost" size="icon" className="h-7 w-7" title="Excluir"
-                                onClick={() => { setDeletingRecord(row); setShowDeleteConfirm(true); }}>
-                                <Trash2 className="h-4 w-4 text-destructive" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                        )}
-                      </TableRow>
-                      );
-                    })
-                  )}
-                </TableBody>
-              </Table>
-              {filteredRows.length > 100 && (
-                <div className="p-4 text-center text-sm text-muted-foreground border-t">
-                  Mostrando 100 de {filteredRows.length} registros
-                </div>
-              )}
+
+            {/* Sub-tabs */}
+            <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1">
+              <button
+                onClick={() => setDetalhamentoSubTab('saidas')}
+                className={cn(
+                  "flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all",
+                  detalhamentoSubTab === 'saidas'
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <TrendingDown className="w-4 h-4" />
+                Saídas
+                <Badge variant="secondary" className="ml-1 text-xs">{detalhamentoRows.saidas.length}</Badge>
+              </button>
+              <button
+                onClick={() => setDetalhamentoSubTab('carregamentos')}
+                className={cn(
+                  "flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all",
+                  detalhamentoSubTab === 'carregamentos'
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <Truck className="w-4 h-4" />
+                Carregamentos
+                <Badge variant="secondary" className="ml-1 text-xs">{detalhamentoRows.carregamentos.length}</Badge>
+              </button>
+              <button
+                onClick={() => setDetalhamentoSubTab('entradas')}
+                className={cn(
+                  "flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all",
+                  detalhamentoSubTab === 'entradas'
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <Package2 className="w-4 h-4" />
+                Entradas
+                <Badge variant="secondary" className="ml-1 text-xs">{detalhamentoRows.entradas.length}</Badge>
+              </button>
             </div>
+            
+            {/* Table for current sub-tab */}
+            {(() => {
+              const activeRows = detalhamentoSubTab === 'saidas' ? detalhamentoRows.saidas
+                : detalhamentoSubTab === 'carregamentos' ? detalhamentoRows.carregamentos
+                : detalhamentoRows.entradas;
+
+              const isEntradas = detalhamentoSubTab === 'entradas';
+              const isCarregamentos = detalhamentoSubTab === 'carregamentos';
+
+              return (
+                <div className="bg-card rounded-lg border border-border overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-primary/10">
+                        <TableHead className="font-semibold text-primary text-xs">Data</TableHead>
+                        <TableHead className="font-semibold text-primary text-xs">Hora</TableHead>
+                        <TableHead className="font-semibold text-primary text-xs">Veículo</TableHead>
+                        <TableHead className="font-semibold text-primary text-xs">
+                          {isEntradas ? 'Fornecedor' : 'Motorista'}
+                        </TableHead>
+                        <TableHead className="text-right font-semibold text-primary text-xs">Qtd (L)</TableHead>
+                        {!isEntradas && !isCarregamentos && (
+                          <>
+                            <TableHead className="text-right font-semibold text-primary text-xs">Hor/Km Ant.</TableHead>
+                            <TableHead className="text-right font-semibold text-primary text-xs">Hor/Km Atual</TableHead>
+                            <TableHead className="text-right font-semibold text-primary text-xs">Intervalo</TableHead>
+                            <TableHead className="text-right font-semibold text-primary text-xs">Consumo</TableHead>
+                          </>
+                        )}
+                        {isEntradas && (
+                          <>
+                            <TableHead className="font-semibold text-primary text-xs">Nota Fiscal</TableHead>
+                            <TableHead className="font-semibold text-primary text-xs">Local Entrada</TableHead>
+                          </>
+                        )}
+                        {isCarregamentos && (
+                          <TableHead className="font-semibold text-primary text-xs">Destino</TableHead>
+                        )}
+                        <TableHead className="font-semibold text-primary text-xs">Local</TableHead>
+                        {canCreateRecords && <TableHead className="w-20 text-center font-semibold text-primary text-xs">Ações</TableHead>}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {loading ? (
+                        <TableRow>
+                          <TableCell colSpan={15} className="text-center py-8">
+                            <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-muted-foreground" />
+                            Carregando dados...
+                          </TableCell>
+                        </TableRow>
+                      ) : activeRows.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={15} className="text-center py-8 text-muted-foreground">
+                            Nenhum registro encontrado
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        activeRows.slice(0, 100).map((row, index) => {
+                          const hasIssue = correctionAnalysis.allIssues.includes(row);
+                          return (
+                            <TableRow key={row._rowIndex || index} className={cn(
+                              hasIssue && 'bg-destructive/10 hover:bg-destructive/15 border-l-2 border-l-destructive'
+                            )}>
+                              <TableCell className="text-xs">{row['DATA']}</TableCell>
+                              <TableCell className="text-xs">{row['HORA']}</TableCell>
+                              <TableCell className="text-xs font-bold text-primary">
+                                <span className="flex items-center gap-1">
+                                  {hasIssue && <AlertTriangle className="w-3 h-3 text-destructive shrink-0" />}
+                                  {row['VEICULO']}
+                                </span>
+                              </TableCell>
+                              <TableCell className="text-xs">
+                                {isEntradas ? String(row['FORNECEDOR'] || '-') : row['MOTORISTA']}
+                              </TableCell>
+                              <TableCell className="text-right text-xs font-mono font-medium">
+                                {parseNumber(row['QUANTIDADE']).toLocaleString('pt-BR')}
+                              </TableCell>
+                              {!isEntradas && !isCarregamentos && (() => {
+                                const cat = String(row['CATEGORIA'] || row['Categoria'] || '').toLowerCase();
+                                const isEquip = cat.includes('equipamento') || cat.includes('máquina') || cat.includes('maquina') ||
+                                  cat.includes('escavadeira') || cat.includes('retro') || cat.includes('pá carregadeira') ||
+                                  cat.includes('pa carregadeira') || cat.includes('trator') || cat.includes('rolo') ||
+                                  cat.includes('motoniveladora') || cat.includes('gerador');
+                                const anterior = isEquip
+                                  ? parseNumber(row['HORIMETRO ANTERIOR'] || row['HOR_ANTERIOR'] || 0)
+                                  : parseNumber(row['KM ANTERIOR'] || row['KM_ANTERIOR'] || 0);
+                                const atual = isEquip
+                                  ? parseNumber(row['HORIMETRO ATUAL'] || row['HOR_ATUAL'] || 0)
+                                  : parseNumber(row['KM ATUAL'] || row['KM_ATUAL'] || 0);
+                                const suffix = isEquip ? 'h' : ' km';
+                                const intervalo = atual > 0 && anterior > 0 ? atual - anterior : 0;
+                                const qtd = parseNumber(row['QUANTIDADE']);
+                                let consumo = '';
+                                if (intervalo > 0 && qtd > 0) {
+                                  if (isEquip) {
+                                    consumo = (qtd / intervalo).toFixed(2) + ' L/h';
+                                  } else {
+                                    consumo = (intervalo / qtd).toFixed(2) + ' km/L';
+                                  }
+                                }
+                                return (
+                                  <>
+                                    <TableCell className="text-right text-xs font-mono text-muted-foreground">
+                                      {anterior > 0 ? `${anterior.toLocaleString('pt-BR')}${suffix}` : '-'}
+                                    </TableCell>
+                                    <TableCell className="text-right text-xs font-mono">
+                                      {atual > 0 ? `${atual.toLocaleString('pt-BR')}${suffix}` : '-'}
+                                    </TableCell>
+                                    <TableCell className="text-right text-xs font-mono">
+                                      {intervalo > 0 ? `${intervalo.toLocaleString('pt-BR', { minimumFractionDigits: isEquip ? 2 : 0 })} ${isEquip ? 'h' : 'km'}` : '-'}
+                                    </TableCell>
+                                    <TableCell className="text-right text-xs font-mono font-bold text-primary">
+                                      {consumo || '-'}
+                                    </TableCell>
+                                  </>
+                                );
+                              })()}
+                              {isEntradas && (
+                                <>
+                                  <TableCell className="text-xs">{String(row['NOTA FISCAL'] || row['NF'] || '-')}</TableCell>
+                                  <TableCell className="text-xs">{String(row['LOCAL DE ENTRADA'] || '-')}</TableCell>
+                                </>
+                              )}
+                              {isCarregamentos && (
+                                <TableCell className="text-xs">{String(row['LOCAL DE SAIDA'] || row['LOCAL'] || '-')}</TableCell>
+                              )}
+                              <TableCell className="text-xs">{row['LOCAL DE SAIDA'] || row['LOCAL']}</TableCell>
+                              {canCreateRecords && (
+                                <TableCell className="text-center">
+                                  <div className="flex items-center justify-center gap-1">
+                                    <Button variant="ghost" size="icon" className="h-7 w-7" title="Editar"
+                                      onClick={() => { setEditingRecord(row); setShowEditModal(true); }}>
+                                      <Edit2 className="h-4 w-4 text-blue-500" />
+                                    </Button>
+                                    <Button variant="ghost" size="icon" className="h-7 w-7" title="Excluir"
+                                      onClick={() => { setDeletingRecord(row); setShowDeleteConfirm(true); }}>
+                                      <Trash2 className="h-4 w-4 text-destructive" />
+                                    </Button>
+                                  </div>
+                                </TableCell>
+                              )}
+                            </TableRow>
+                          );
+                        })
+                      )}
+                    </TableBody>
+                  </Table>
+                  {activeRows.length > 100 && (
+                    <div className="p-4 text-center text-sm text-muted-foreground border-t">
+                      Mostrando 100 de {activeRows.length} registros
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         )}
 
