@@ -1274,6 +1274,8 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess, presetMode
               {/* Horimeter with validation */}
               <div className="p-4 bg-muted/30 dark:bg-muted/20 border border-border rounded-xl space-y-4">
                 <TooltipProvider>
+                  {/* Horimeter - only for Equipamento */}
+                  {category.toUpperCase() !== 'VEICULO' && (
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label className="flex items-center gap-2 font-semibold">
@@ -1320,8 +1322,10 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess, presetMode
                       />
                     </div>
                   </div>
+                  )}
 
-                  {/* KM with validation */}
+                  {/* KM - only for Veiculo */}
+                  {category.toUpperCase() === 'VEICULO' && (
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label className="flex items-center gap-2 font-semibold">
@@ -1368,6 +1372,7 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess, presetMode
                       />
                     </div>
                   </div>
+                  )}
                 </TooltipProvider>
               </div>
 
