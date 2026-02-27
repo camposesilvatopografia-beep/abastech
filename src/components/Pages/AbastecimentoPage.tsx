@@ -3926,10 +3926,29 @@ export function AbastecimentoPage() {
                     setIsSavingEdit(true);
                     
                     try {
+                      // Parse helper for Brazilian numbers
+                      const parseNum = (val: any) => {
+                        if (!val || val === '') return null;
+                        const str = String(val).replace(/\./g, '').replace(',', '.');
+                        const num = parseFloat(str);
+                        return isNaN(num) ? null : num;
+                      };
+                      const fmtNum = (v: number | null) => {
+                        if (v === null || v === 0) return '';
+                        return v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                      };
+
                       // Prepare the row data for update
                       const rowData: Record<string, any> = {};
                       
-                      // Map the editable fields
+                      // Copy all original fields first to maintain data integrity
+                      Object.keys(editingRecord).forEach(key => {
+                        if (key !== '_rowIndex') {
+                          rowData[key] = editingRecord[key];
+                        }
+                      });
+
+                      // Override editable fields explicitly
                       rowData['QUANTIDADE'] = editingRecord['QUANTIDADE'];
                       rowData['HORIMETRO ANTERIOR'] = editingRecord['HORIMETRO ANTERIOR'];
                       rowData['HORIMETRO ATUAL'] = editingRecord['HORIMETRO ATUAL'];
@@ -3939,13 +3958,16 @@ export function AbastecimentoPage() {
                       rowData['QUANTIDADE DE ARLA'] = editingRecord['QUANTIDADE DE ARLA'];
                       rowData['LOCAL'] = editingRecord['LOCAL'];
                       rowData['OBSERVAÇÃO'] = editingRecord['OBSERVAÇÃO'];
+
+                      // Recalculate computed interval columns
+                      const horPrev = parseNum(editingRecord['HORIMETRO ANTERIOR']) || 0;
+                      const horCurr = parseNum(editingRecord['HORIMETRO ATUAL']) || 0;
+                      const kmPrev = parseNum(editingRecord['KM ANTERIOR']) || 0;
+                      const kmCurr = parseNum(editingRecord['KM ATUAL']) || 0;
+                      rowData['INTERVALO HORAS'] = horCurr > horPrev ? fmtNum(horCurr - horPrev) : '';
+                      rowData['INTERVALO KM'] = kmCurr > kmPrev ? fmtNum(kmCurr - kmPrev) : '';
                       
-                      // Copy all original fields to maintain data integrity
-                      Object.keys(editingRecord).forEach(key => {
-                        if (key !== '_rowIndex' && !(key in rowData)) {
-                          rowData[key] = editingRecord[key];
-                        }
-                      });
+                      console.log('[EditModal] Saving update for row', editingRecord._rowIndex, rowData);
                       
                       // Update Google Sheets
                       const { data: sheetResp, error } = await supabase.functions.invoke('google-sheets', {
@@ -3966,14 +3988,6 @@ export function AbastecimentoPage() {
                       const recordTime = String(editingRecord['HORA'] || '').trim();
                       
                       if (vehicleCode && recordDate) {
-                        // Parse numbers correctly (handle Brazilian format)
-                        const parseNum = (val: any) => {
-                          if (!val || val === '') return null;
-                          const str = String(val).replace(/\./g, '').replace(',', '.');
-                          const num = parseFloat(str);
-                          return isNaN(num) ? null : num;
-                        };
-                        
                         // Find matching record in database
                         let query = supabase
                           .from('field_fuel_records')
@@ -4026,9 +4040,12 @@ export function AbastecimentoPage() {
                       }
                       
                       toast.success('Registro atualizado com sucesso!');
+                      broadcast('fuel_record_updated', { vehicleCode });
                       setShowEditModal(false);
                       setEditingRecord(null);
-                      refetch(false, true);
+                      // Small delay to let edge function cache invalidate, then force fresh fetch
+                      await new Promise(r => setTimeout(r, 500));
+                      await refetch(false, true);
                     } catch (err) {
                       console.error('Error updating record:', err);
                       toast.error('Erro ao atualizar registro');
