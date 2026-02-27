@@ -34,7 +34,7 @@ export default function Login() {
       const { data, error } = await supabase
         .from('system_users')
         .select('*')
-        .eq('username', username.trim().toLowerCase())
+        .eq('username', username.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''))
         .eq('active', true)
         .single();
 
