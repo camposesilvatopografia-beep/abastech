@@ -3918,7 +3918,7 @@ export function AbastecimentoPage() {
                 <Button
                   disabled={isSavingEdit}
                   onClick={async () => {
-                    if (!editingRecord || !editingRecord._rowIndex) {
+                    if (!editingRecord || editingRecord._rowIndex == null) {
                       toast.error('Não foi possível identificar o registro para edição');
                       return;
                     }
@@ -3956,7 +3956,8 @@ export function AbastecimentoPage() {
                       rowData['KM ANTERIOR'] = editingRecord['KM ANTERIOR'];
                       rowData['KM ATUAL'] = editingRecord['KM ATUAL'];
                       rowData['QUANTIDADE DE ARLA'] = editingRecord['QUANTIDADE DE ARLA'];
-                      rowData['LOCAL'] = editingRecord['LOCAL'];
+                      rowData['LOCAL'] = editingRecord['LOCAL DE SAIDA'] || editingRecord['LOCAL'] || '';
+                      rowData['LOCAL DE SAIDA'] = editingRecord['LOCAL DE SAIDA'] || editingRecord['LOCAL'] || '';
                       rowData['OBSERVAÇÃO'] = editingRecord['OBSERVAÇÃO'];
 
                       // Recalculate computed interval columns
@@ -4043,9 +4044,10 @@ export function AbastecimentoPage() {
                       broadcast('fuel_record_updated', { vehicleCode });
                       setShowEditModal(false);
                       setEditingRecord(null);
-                      // Small delay to let edge function cache invalidate, then force fresh fetch
-                      await new Promise(r => setTimeout(r, 500));
+                      // Force fresh fetch bypassing all caches
                       await refetch(false, true);
+                      // Second fetch after short delay to catch any propagation lag
+                      setTimeout(() => refetch(false, true), 1500);
                     } catch (err) {
                       console.error('Error updating record:', err);
                       toast.error('Erro ao atualizar registro');
