@@ -1361,8 +1361,8 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess, presetMode
                 <CurrencyInput
                   value={fuelQuantity}
                   onChange={setFuelQuantity}
-                  decimals={2}
-                  placeholder="0,00"
+                  decimals={0}
+                  placeholder="0"
                 />
               </div>
 
