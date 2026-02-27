@@ -1776,9 +1776,21 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
 
       if (error) throw error;
 
-      // Sync to Google Sheets (record already inserted with synced_to_sheet=true)
-      toast.info('Sincronizando com planilha...');
-      const syncSuccess = await syncToGoogleSheets({
+      // Haptic feedback - vibrate on success
+      vibrateDevice(settings.vibrationEnabled);
+      
+      // Audio notification on success
+      playSuccessSound(settings.soundEnabled);
+
+      setShowSuccess(true);
+      
+      toast.success('Abastecimento registrado com sucesso!');
+      
+      // Update pending count
+      checkPendingRecords().catch(() => {});
+
+      // Sync to Google Sheets in background (fire-and-forget) — do NOT block the UI
+      const sheetSyncData = {
         date: recordDate,
         time: recordTime,
         recordType,
@@ -1810,44 +1822,34 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
         invoiceNumber,
         unitPrice: unitPrice ?? 0,
         entryLocation,
-      });
-
-      // Revert if sheet sync failed
-      if (!syncSuccess && savedRecord) {
-        await supabase
-          .from('field_fuel_records')
-          .update({ synced_to_sheet: false })
-          .eq('id', savedRecord.id);
-      }
-
-      // Haptic feedback - vibrate on success
-      vibrateDevice(settings.vibrationEnabled);
-      
-      // Audio notification on success
-      playSuccessSound(settings.soundEnabled);
-
-      setShowSuccess(true);
-      
-      // Update pending count
-      await checkPendingRecords();
-      
-      // If sync failed, trigger background retry via edge function (fire-and-forget)
-      if (!syncSuccess && savedRecord) {
-        console.warn('[FieldFuelForm] Sheet sync failed, scheduling background retry...');
-        // Retry via edge function after a short delay
-        setTimeout(async () => {
-          try {
-            await supabase.functions.invoke('sync-pending-fuel', {});
-            console.log('[FieldFuelForm] Background retry completed');
-          } catch (retryErr) {
-            console.error('[FieldFuelForm] Background retry failed:', retryErr);
+      };
+      const savedRecordId = savedRecord?.id;
+      // Background sync — does not block success feedback
+      (async () => {
+        try {
+          const syncSuccess = await syncToGoogleSheets(sheetSyncData);
+          if (!syncSuccess && savedRecordId) {
+            await supabase
+              .from('field_fuel_records')
+              .update({ synced_to_sheet: false })
+              .eq('id', savedRecordId);
+            // Trigger background retry
+            setTimeout(() => {
+              supabase.functions.invoke('sync-pending-fuel', {}).catch(() => {});
+            }, 3000);
           }
-        }, 5000); // Wait 5s then retry
-      }
-
-      toast.success(syncSuccess 
-        ? 'Abastecimento registrado e sincronizado!' 
-        : 'Abastecimento registrado! Planilha será sincronizada em breve.');
+        } catch (syncErr) {
+          console.error('[FieldFuelForm] Background sheet sync error:', syncErr);
+          if (savedRecordId) {
+            try {
+              await supabase
+                .from('field_fuel_records')
+                .update({ synced_to_sheet: false })
+                .eq('id', savedRecordId);
+            } catch { /* ignore */ }
+          }
+        }
+      })();
       
       // Broadcast to all clients (desktop + mobile) for real-time sync
       console.log('[FieldFuelForm] Broadcasting fuel_record_created event...');
