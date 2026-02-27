@@ -757,7 +757,7 @@ export function DatabaseHorimeterModal({
     }
   };
 
-  const isLoading = vehiclesLoading || readingsLoading;
+  const isLoading = vehiclesLoading || (!externalReadings && readingsLoading);
   const [showHistory, setShowHistory] = useState(false);
 
   // Auto-focus horimeter input after vehicle selection
