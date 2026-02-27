@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, forwardRef } from 'react';
+import { useVehicles } from '@/hooks/useHorimeters';
 import { 
   Dialog,
   DialogContent,
@@ -81,6 +82,7 @@ function getRowValue(row: Record<string, any>, keys: string[]): string {
 export const HorimeterModal = forwardRef<HTMLDivElement, HorimeterModalProps>(
   function HorimeterModal({ open, onOpenChange, onSuccess, initialVehicle, editRecord }, ref) {
     const { data: vehicleData, loading: vehicleLoading, refetch: refetchVehicles } = useSheetData('Veiculo');
+    const { vehicles: dbVehicles } = useVehicles();
     const { data: horimeterData, create, update, refetch: refetchHorimeters, loading: horimeterLoading } = useSheetData('Horimetros');
     const { toast } = useToast();
     
@@ -104,7 +106,6 @@ export const HorimeterModal = forwardRef<HTMLDivElement, HorimeterModalProps>(
         const tipo = getRowValue(row as any, ['TIPO', 'Tipo', 'tipo', 'CATEGORIA', 'Categoria', 'categoria']);
         const empresa = getRowValue(row as any, ['EMPRESA', 'Empresa', 'empresa']);
         
-        // Determine if vehicle uses KM instead of hours (typically cars, trucks)
         const tipoLower = tipo.toLowerCase();
         const usaKm = tipoLower.includes('caminhão') || 
                      tipoLower.includes('caminhao') ||
@@ -118,9 +119,30 @@ export const HorimeterModal = forwardRef<HTMLDivElement, HorimeterModalProps>(
           unique.set(codigo, { codigo, descricao, tipo, empresa, usaKm });
         }
       });
+
+      // Merge DB vehicles that are not in the sheet
+      dbVehicles.forEach(v => {
+        const codeNorm = v.code.replace(/\s+/g, '').toUpperCase();
+        const alreadyExists = Array.from(unique.keys()).some(
+          k => k.replace(/\s+/g, '').toUpperCase() === codeNorm
+        );
+        if (!alreadyExists && v.status !== 'inativo') {
+          const cat = (v.category || '').toLowerCase();
+          const usaKm = cat.includes('caminhão') || cat.includes('caminhao') ||
+                       cat.includes('carro') || cat.includes('utilitário') ||
+                       cat.includes('pickup') || cat.includes('veiculo') || cat.includes('veículo');
+          unique.set(v.code, {
+            codigo: v.code,
+            descricao: v.name || v.description || '',
+            tipo: v.category || '',
+            empresa: v.company || '',
+            usaKm,
+          });
+        }
+      });
       
       return Array.from(unique.values()).sort((a, b) => a.codigo.localeCompare(b.codigo));
-    }, [vehicleData.rows]);
+    }, [vehicleData.rows, dbVehicles]);
 
     // Get vehicle info based on selection
     const vehicleInfo = useMemo(() => {
