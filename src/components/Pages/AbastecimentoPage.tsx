@@ -51,6 +51,7 @@ import { DatabaseHorimeterModal } from '@/components/Horimetros/DatabaseHorimete
 import { StockPanelTab } from '@/components/Dashboard/StockPanelTab';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { CurrencyInput } from '@/components/ui/currency-input';
 import { MetricCard } from '@/components/Dashboard/MetricCard';
 import { useSheetData } from '@/hooks/useGoogleSheets';
 import { useRealtimeSync } from '@/hooks/useRealtimeSync';
@@ -3648,26 +3649,30 @@ export function AbastecimentoPage() {
                   </div>
                   <div className="space-y-2">
                     <label className="text-xs text-muted-foreground">Horímetro Anterior</label>
-                    <Input
-                      type="text"
-                      value={String(editingRecord['HORIMETRO ANTERIOR'] ?? '')}
-                      onChange={(e) => setEditingRecord({
+                    <CurrencyInput
+                      value={parseNumber(editingRecord['HORIMETRO ANTERIOR'])}
+                      onChange={(v) => setEditingRecord({
                         ...editingRecord,
-                        'HORIMETRO ANTERIOR': e.target.value
+                        'HORIMETRO ANTERIOR': v !== null ? v.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : ''
                       })}
+                      decimals={1}
+                      minDecimals={1}
                       className="h-10"
+                      placeholder="Ex: 8.403,5"
                     />
                   </div>
                   <div className="space-y-2">
                     <label className="text-xs text-muted-foreground">Horímetro Atual</label>
-                    <Input
-                      type="text"
-                      value={String(editingRecord['HORIMETRO ATUAL'] ?? '')}
-                      onChange={(e) => setEditingRecord({
+                    <CurrencyInput
+                      value={parseNumber(editingRecord['HORIMETRO ATUAL'])}
+                      onChange={(v) => setEditingRecord({
                         ...editingRecord,
-                        'HORIMETRO ATUAL': e.target.value
+                        'HORIMETRO ATUAL': v !== null ? v.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : ''
                       })}
+                      decimals={1}
+                      minDecimals={1}
                       className="h-10"
+                      placeholder="Ex: 8.403,5"
                     />
                   </div>
                   <div className="space-y-2">
@@ -3684,26 +3689,30 @@ export function AbastecimentoPage() {
                   </div>
                   <div className="space-y-2">
                     <label className="text-xs text-muted-foreground">KM Anterior</label>
-                    <Input
-                      type="text"
-                      value={String(editingRecord['KM ANTERIOR'] ?? '')}
-                      onChange={(e) => setEditingRecord({
+                    <CurrencyInput
+                      value={parseNumber(editingRecord['KM ANTERIOR'])}
+                      onChange={(v) => setEditingRecord({
                         ...editingRecord,
-                        'KM ANTERIOR': e.target.value
+                        'KM ANTERIOR': v !== null ? v.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : ''
                       })}
+                      decimals={1}
+                      minDecimals={1}
                       className="h-10"
+                      placeholder="Ex: 364.281,0"
                     />
                   </div>
                   <div className="space-y-2">
                     <label className="text-xs text-muted-foreground">KM Atual</label>
-                    <Input
-                      type="text"
-                      value={String(editingRecord['KM ATUAL'] ?? '')}
-                      onChange={(e) => setEditingRecord({
+                    <CurrencyInput
+                      value={parseNumber(editingRecord['KM ATUAL'])}
+                      onChange={(v) => setEditingRecord({
                         ...editingRecord,
-                        'KM ATUAL': e.target.value
+                        'KM ATUAL': v !== null ? v.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : ''
                       })}
+                      decimals={1}
+                      minDecimals={1}
                       className="h-10"
+                      placeholder="Ex: 364.312,5"
                     />
                   </div>
                   <div className="space-y-2">
