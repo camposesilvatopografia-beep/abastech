@@ -280,7 +280,8 @@ export default function SystemUsersPage() {
         .update({ password_hash: newPassword.trim() })
         .eq('id', resetPasswordUser.id);
       if (error) throw error;
-      toast.success(`Senha de ${resetPasswordUser.name} alterada!`);
+      await fetchUsers(); // refresh local list
+      toast.success(`Senha de ${resetPasswordUser.name} alterada com sucesso!`);
       setResetPasswordUser(null);
       setNewPassword('');
       setShowNewPassword(false);
