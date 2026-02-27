@@ -943,10 +943,10 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess, presetMode
             </div>
           </div>
 
-          {/* Record Type - shown for normal and location modes */}
-          {(presetMode === 'normal' || presetMode === 'location') && (
+          {/* Record Type - shown for location modes only (normal is always Saida) */}
+          {presetMode === 'location' && (
           <div className="space-y-2">
-            {presetMode === 'location' && locationConfig && (
+            {locationConfig && (
               <div className="flex items-center gap-2 p-2.5 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg mb-2">
                 <MapPin className="h-4 w-4 text-blue-600" />
                 <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
@@ -1350,58 +1350,20 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess, presetMode
                 </div>
               </TooltipProvider>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <User className="h-4 w-4" />
-                    Motorista/Operador
-                  </Label>
-                  <Input
-                    value={operatorName}
-                    onChange={(e) => setOperatorName(e.target.value)}
-                    placeholder="Nome do operador"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <Building2 className="h-4 w-4" />
-                    Empresa
-                  </Label>
-                  <Input
-                    value={company}
-                    onChange={(e) => setCompany(e.target.value)}
-                    placeholder="Empresa"
-                  />
-                </div>
-              </div>
+              {/* Motorista/Operador e Empresa são preenchidos automaticamente pelo veículo */}
 
-              {/* Fuel */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <Fuel className="h-4 w-4 text-red-500" />
-                    Quantidade (L)
-                  </Label>
-                  <CurrencyInput
-                    value={fuelQuantity}
-                    onChange={setFuelQuantity}
-                    decimals={2}
-                    placeholder="0,00"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Tipo de Combustível</Label>
-                  <Select value={fuelType} onValueChange={setFuelType}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Diesel">Diesel</SelectItem>
-                      <SelectItem value="Diesel S10">Diesel S10</SelectItem>
-                      <SelectItem value="Gasolina">Gasolina</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+              {/* Fuel - Tipo de combustível é preenchido automaticamente */}
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <Fuel className="h-4 w-4 text-red-500" />
+                  Quantidade (L)
+                </Label>
+                <CurrencyInput
+                  value={fuelQuantity}
+                  onChange={setFuelQuantity}
+                  decimals={2}
+                  placeholder="0,00"
+                />
               </div>
 
               {/* ARLA and Location */}
