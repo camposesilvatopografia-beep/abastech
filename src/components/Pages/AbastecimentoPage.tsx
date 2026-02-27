@@ -759,8 +759,13 @@ export function AbastecimentoPage() {
     const highInterval: any[] = [];
     const zeroConsumption: any[] = [];
     filteredRows.forEach(row => {
-      const tipo = String(row['TIPO'] || '').toLowerCase();
+      const tipo = String(row['TIPO'] || row['TIPO DE OPERACAO'] || '').toLowerCase();
       if (tipo === 'entrada' || tipo === 'carregamento') return;
+      // Exclude comboio/tanque records — only flag saidas to vehicles/equipment
+      const desc = String(row['DESCRICAO'] || row['Descricao'] || row['DESCRIÇÃO'] || '').toLowerCase();
+      const veiculo = String(row['VEICULO'] || row['Veiculo'] || '').toLowerCase();
+      const localSaida = String(row['LOCAL DE SAIDA'] || row['LOCAL'] || '').toLowerCase();
+      if (desc.includes('comboio') || veiculo.startsWith('cb-') || localSaida.includes('tanque canteiro')) return;
       const cat = String(row['CATEGORIA'] || row['Categoria'] || '').toLowerCase();
       const isEquip = cat.includes('equipamento') || cat.includes('máquina') || cat.includes('maquina') ||
         cat.includes('escavadeira') || cat.includes('retro') || cat.includes('pá carregadeira') ||
