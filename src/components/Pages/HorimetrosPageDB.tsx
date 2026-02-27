@@ -843,26 +843,8 @@ export function HorimetrosPageDB() {
               <span className="hidden sm:inline">Novo Registro</span>
               <span className="sm:hidden">Novo</span>
             </Button>
-            
-            <Button 
-              variant="outline"
-              onClick={() => setShowBatchModal(true)}
-              className="order-first lg:order-last"
-            >
-              <Layers className="w-4 h-4 mr-2" />
-              <span className="hidden sm:inline">Cadastro Lote</span>
-              <span className="sm:hidden">Lote</span>
-            </Button>
-            
-            <Button 
-              variant="outline"
-              onClick={() => setShowBatchEditModal(true)}
-              className="order-first lg:order-last"
-            >
-              <Pencil className="w-4 h-4 mr-2" />
-              <span className="hidden sm:inline">Edição Lote</span>
-              <span className="sm:hidden">Editar</span>
-            </Button>
+
+
 
             <Button 
               variant="outline"
