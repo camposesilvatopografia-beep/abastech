@@ -794,13 +794,15 @@ export function DatabaseHorimeterModal({
                 <div className="col-span-2 space-y-1">
                   <Label className="text-xs text-muted-foreground">Veículo *</Label>
                   <VehicleCombobox
-                    vehicles={vehicles.map(v => ({
-                      id: v.id,
-                      code: v.code,
-                      name: v.name || '',
-                      description: v.description || '',
-                      category: v.category || '',
-                    }))}
+                    vehicles={vehicles
+                      .filter(v => v.status !== 'inativo')
+                      .map(v => ({
+                        id: v.id,
+                        code: v.code,
+                        name: v.name || '',
+                        description: v.description || '',
+                        category: v.category || '',
+                      }))}
                     value={selectedVehicleId}
                     onValueChange={setSelectedVehicleId}
                     useIdAsValue={true}
