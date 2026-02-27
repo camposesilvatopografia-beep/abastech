@@ -1173,9 +1173,30 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess, presetMode
           {/* Normal Entry Forms */}
           {quickEntryMode === 'normal' && recordType === 'saida' && (presetMode === 'normal' || presetMode === 'location') && (
             <>
+              {/* Local - Destaque principal */}
+              <div className="space-y-2 p-4 bg-primary/5 dark:bg-primary/10 border-2 border-primary/30 dark:border-primary/40 rounded-xl">
+                <Label className="flex items-center gap-2 text-base font-bold text-primary">
+                  <MapPin className="h-5 w-5" />
+                  Local de Saída *
+                </Label>
+                <Select value={location} onValueChange={setLocation} disabled={presetMode === 'location'}>
+                  <SelectTrigger className={cn(
+                    "h-12 text-base font-semibold border-2 border-primary/40 dark:border-primary/50 bg-background shadow-sm",
+                    presetMode === 'location' && "opacity-70"
+                  )}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-popover border-2 border-border">
+                    {locationOptions.map(loc => (
+                      <SelectItem key={loc} value={loc} className="text-base py-3">{loc}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
               {/* Vehicle Selection */}
-              <div className="space-y-2">
-                <Label className="flex items-center gap-2">
+              <div className="space-y-2 p-4 bg-muted/50 dark:bg-muted/30 border border-border rounded-xl">
+                <Label className="flex items-center gap-2 text-sm font-bold">
                   <Truck className="h-4 w-4" />
                   Veículo *
                 </Label>
@@ -1186,7 +1207,7 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess, presetMode
                   placeholder="Selecione o veículo..."
                 />
                 {vehicleDescription && (
-                  <p className="text-sm text-muted-foreground">{vehicleDescription}</p>
+                  <p className="text-sm text-muted-foreground font-medium">{vehicleDescription}</p>
                 )}
 
                 {/* Histórico dos 5 últimos abastecimentos */}
@@ -1232,13 +1253,11 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess, presetMode
                     if (val) {
                       setHorimeterCurrent(null);
                       setKmCurrent(null);
-                      // Append broken note to observations if not already there
                       const brokenNote = 'HORÍMETRO/ODÔMETRO QUEBRADO';
                       if (!observations.includes(brokenNote)) {
                         setObservations(prev => prev ? `${prev} | ${brokenNote}` : brokenNote);
                       }
                     } else {
-                      // Remove broken note from observations
                       setObservations(prev => prev.replace(/\s*\|\s*HORÍMETRO\/ODÔMETRO QUEBRADO|HORÍMETRO\/ODÔMETRO QUEBRADO\s*\|\s*|HORÍMETRO\/ODÔMETRO QUEBRADO/g, '').trim());
                     }
                   }}
@@ -1253,162 +1272,146 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess, presetMode
               </div>
 
               {/* Horimeter with validation */}
-              <TooltipProvider>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label className="flex items-center gap-2">
-                      <Gauge className="h-4 w-4 text-amber-500" />
-                      Horímetro Anterior
-                    </Label>
-                    <CurrencyInput
-                      value={horimeterPrevious}
-                      onChange={setHorimeterPrevious}
-                      decimals={1}
-                      placeholder="0,0"
-                      className="border-amber-300 focus:border-amber-500"
-                      disabled={horimeterBroken}
-                    />
+              <div className="p-4 bg-muted/30 dark:bg-muted/20 border border-border rounded-xl space-y-4">
+                <TooltipProvider>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label className="flex items-center gap-2 font-semibold">
+                        <Gauge className="h-4 w-4 text-amber-500" />
+                        Horímetro Anterior
+                      </Label>
+                      <CurrencyInput
+                        value={horimeterPrevious}
+                        onChange={setHorimeterPrevious}
+                        decimals={1}
+                        placeholder="0,0"
+                        className="border-2 border-amber-300/60 dark:border-amber-700/50 focus:border-amber-500 bg-background"
+                        disabled={horimeterBroken}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="flex items-center gap-2 font-semibold">
+                        <Gauge className="h-4 w-4 text-amber-500" />
+                        Horímetro Atual
+                        {horimeterValidation.status !== 'neutral' && !horimeterBroken && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span>{getValidationIcon(horimeterValidation.status)}</span>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>{horimeterValidation.message}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        )}
+                      </Label>
+                      <CurrencyInput
+                        value={horimeterCurrent}
+                        onChange={setHorimeterCurrent}
+                        decimals={1}
+                        placeholder={horimeterBroken ? "Equipamento quebrado" : "0,0"}
+                        className={cn(
+                          "border-2 border-amber-300/60 dark:border-amber-700/50 focus:border-amber-500 bg-background",
+                          horimeterBroken && "opacity-50 cursor-not-allowed",
+                          !horimeterBroken && horimeterValidation.status === 'error' && "border-red-500 focus:border-red-600",
+                          !horimeterBroken && horimeterValidation.status === 'warning' && "border-yellow-500 focus:border-yellow-600",
+                          !horimeterBroken && horimeterValidation.status === 'success' && "border-green-500 focus:border-green-600"
+                        )}
+                        disabled={horimeterBroken}
+                      />
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label className="flex items-center gap-2">
-                      <Gauge className="h-4 w-4 text-amber-500" />
-                      Horímetro Atual
-                      {horimeterValidation.status !== 'neutral' && !horimeterBroken && (
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span>{getValidationIcon(horimeterValidation.status)}</span>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>{horimeterValidation.message}</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      )}
-                    </Label>
-                    <CurrencyInput
-                      value={horimeterCurrent}
-                      onChange={setHorimeterCurrent}
-                      decimals={1}
-                      placeholder={horimeterBroken ? "Equipamento quebrado" : "0,0"}
-                      className={cn(
-                        "border-amber-300 focus:border-amber-500",
-                        horimeterBroken && "opacity-50 cursor-not-allowed",
-                        !horimeterBroken && horimeterValidation.status === 'error' && "border-red-500 focus:border-red-600",
-                        !horimeterBroken && horimeterValidation.status === 'warning' && "border-yellow-500 focus:border-yellow-600",
-                        !horimeterBroken && horimeterValidation.status === 'success' && "border-green-500 focus:border-green-600"
-                      )}
-                      disabled={horimeterBroken}
-                    />
-                  </div>
-                </div>
 
-                {/* KM with validation */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label className="flex items-center gap-2">
-                      <Clock className="h-4 w-4 text-blue-500" />
-                      KM Anterior
-                    </Label>
-                    <CurrencyInput
-                      value={kmPrevious}
-                      onChange={setKmPrevious}
-                      decimals={1}
-                      placeholder="0,0"
-                      className="border-blue-300 focus:border-blue-500"
-                      disabled={horimeterBroken}
-                    />
+                  {/* KM with validation */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label className="flex items-center gap-2 font-semibold">
+                        <Clock className="h-4 w-4 text-blue-500" />
+                        KM Anterior
+                      </Label>
+                      <CurrencyInput
+                        value={kmPrevious}
+                        onChange={setKmPrevious}
+                        decimals={1}
+                        placeholder="0,0"
+                        className="border-2 border-blue-300/60 dark:border-blue-700/50 focus:border-blue-500 bg-background"
+                        disabled={horimeterBroken}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="flex items-center gap-2 font-semibold">
+                        <Clock className="h-4 w-4 text-blue-500" />
+                        KM Atual
+                        {kmValidation.status !== 'neutral' && !horimeterBroken && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span>{getValidationIcon(kmValidation.status)}</span>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>{kmValidation.message}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        )}
+                      </Label>
+                      <CurrencyInput
+                        value={kmCurrent}
+                        onChange={setKmCurrent}
+                        decimals={1}
+                        placeholder={horimeterBroken ? "Equipamento quebrado" : "0,0"}
+                        className={cn(
+                          "border-2 border-blue-300/60 dark:border-blue-700/50 focus:border-blue-500 bg-background",
+                          horimeterBroken && "opacity-50 cursor-not-allowed",
+                          !horimeterBroken && kmValidation.status === 'error' && "border-red-500 focus:border-red-600",
+                          !horimeterBroken && kmValidation.status === 'warning' && "border-yellow-500 focus:border-yellow-600",
+                          !horimeterBroken && kmValidation.status === 'success' && "border-green-500 focus:border-green-600"
+                        )}
+                        disabled={horimeterBroken}
+                      />
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label className="flex items-center gap-2">
-                      <Clock className="h-4 w-4 text-blue-500" />
-                      KM Atual
-                      {kmValidation.status !== 'neutral' && !horimeterBroken && (
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span>{getValidationIcon(kmValidation.status)}</span>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>{kmValidation.message}</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      )}
-                    </Label>
-                    <CurrencyInput
-                      value={kmCurrent}
-                      onChange={setKmCurrent}
-                      decimals={1}
-                      placeholder={horimeterBroken ? "Equipamento quebrado" : "0,0"}
-                      className={cn(
-                        "border-blue-300 focus:border-blue-500",
-                        horimeterBroken && "opacity-50 cursor-not-allowed",
-                        !horimeterBroken && kmValidation.status === 'error' && "border-red-500 focus:border-red-600",
-                        !horimeterBroken && kmValidation.status === 'warning' && "border-yellow-500 focus:border-yellow-600",
-                        !horimeterBroken && kmValidation.status === 'success' && "border-green-500 focus:border-green-600"
-                      )}
-                      disabled={horimeterBroken}
-                    />
-                  </div>
-                </div>
-              </TooltipProvider>
+                </TooltipProvider>
+              </div>
 
-              {/* Motorista/Operador e Empresa são preenchidos automaticamente pelo veículo */}
-
-              {/* Fuel - Tipo de combustível é preenchido automaticamente */}
-              <div className="space-y-2">
-                <Label className="flex items-center gap-2">
-                  <Fuel className="h-4 w-4 text-red-500" />
-                  Quantidade (L)
+              {/* Fuel Quantity */}
+              <div className="space-y-2 p-4 bg-red-50/50 dark:bg-red-950/20 border-2 border-red-200/60 dark:border-red-800/40 rounded-xl">
+                <Label className="flex items-center gap-2 text-base font-bold text-red-700 dark:text-red-400">
+                  <Fuel className="h-5 w-5" />
+                  Quantidade (L) *
                 </Label>
                 <CurrencyInput
                   value={fuelQuantity}
                   onChange={setFuelQuantity}
                   decimals={0}
                   placeholder="0"
+                  className="h-12 text-lg font-semibold border-2 border-red-300/60 dark:border-red-700/50 bg-background"
                 />
               </div>
 
-              {/* ARLA and Location */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <Droplet className="h-4 w-4 text-blue-500" />
-                    Quantidade ARLA (L)
-                  </Label>
-                  <CurrencyInput
-                    value={arlaQuantity}
-                    onChange={setArlaQuantity}
-                    decimals={2}
-                    placeholder="0,00"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <MapPin className="h-4 w-4" />
-                    Local
-                  </Label>
-                  <Select value={location} onValueChange={setLocation} disabled={presetMode === 'location'}>
-                    <SelectTrigger className={cn(presetMode === 'location' && "opacity-70")}>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {locationOptions.map(loc => (
-                        <SelectItem key={loc} value={loc}>{loc}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+              {/* ARLA */}
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2 font-semibold">
+                  <Droplet className="h-4 w-4 text-blue-500" />
+                  Quantidade ARLA (L)
+                </Label>
+                <CurrencyInput
+                  value={arlaQuantity}
+                  onChange={setArlaQuantity}
+                  decimals={0}
+                  placeholder="0"
+                  className="border-2 border-border bg-background"
+                />
               </div>
 
               {/* Additional Fields */}
-              <div className="border-t pt-4">
-                <Label className="text-sm font-medium mb-2 block">Campos Adicionais</Label>
+              <div className="border-t border-border pt-4">
+                <Label className="text-sm font-bold mb-3 block text-muted-foreground uppercase tracking-wide">Campos Adicionais</Label>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label className="flex items-center gap-2">
+                    <Label className="flex items-center gap-2 font-semibold">
                       <Wrench className="h-4 w-4" />
                       Tipo de Óleo
                     </Label>
                     <Select value={oilType} onValueChange={(val) => setOilType(val === '_none' ? '' : val)}>
-                      <SelectTrigger>
+                      <SelectTrigger className="border-2 border-border bg-background">
                         <SelectValue placeholder="Selecione..." />
                       </SelectTrigger>
                       <SelectContent>
@@ -1420,22 +1423,23 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess, presetMode
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label>Qtd. Óleo (L)</Label>
+                    <Label className="font-semibold">Qtd. Óleo (L)</Label>
                     <Input
                       type="number"
                       value={oilQuantity}
                       onChange={(e) => setOilQuantity(e.target.value)}
                       placeholder="0"
                       step="0.1"
+                      className="border-2 border-border bg-background"
                     />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4 mt-4">
                   <div className="space-y-2">
-                    <Label>Lubrificante</Label>
+                    <Label className="font-semibold">Lubrificante</Label>
                     <Select value={lubricant} onValueChange={(val) => setLubricant(val === '_none' ? '' : val)}>
-                      <SelectTrigger>
+                      <SelectTrigger className="border-2 border-border bg-background">
                         <SelectValue placeholder="Selecione..." />
                       </SelectTrigger>
                       <SelectContent>
@@ -1447,12 +1451,13 @@ export function AdminFuelRecordModal({ open, onOpenChange, onSuccess, presetMode
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label>Sopra Filtro (Qtd)</Label>
+                    <Label className="font-semibold">Sopra Filtro (Qtd)</Label>
                     <Input
                       type="number"
                       value={filterBlowQuantity}
                       onChange={(e) => setFilterBlowQuantity(e.target.value)}
                       placeholder="0"
+                      className="border-2 border-border bg-background"
                     />
                   </div>
                 </div>
