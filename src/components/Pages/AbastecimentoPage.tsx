@@ -438,7 +438,7 @@ export function AbastecimentoPage() {
       });
       
       // Update Google Sheets
-      const { error } = await supabase.functions.invoke('google-sheets', {
+      const { data: sheetResp, error } = await supabase.functions.invoke('google-sheets', {
         body: {
           action: 'update',
           sheetName: SHEET_NAME,
@@ -448,6 +448,7 @@ export function AbastecimentoPage() {
       });
       
       if (error) throw error;
+      if (sheetResp?.error) throw new Error(sheetResp.error);
       
       // Also update corresponding record in field_fuel_records database
       const vehicleCode = String(inlineEditData['VEICULO'] || '').trim();
@@ -518,7 +519,7 @@ export function AbastecimentoPage() {
       setExpandedRowId(null);
       setInlineEditData(null);
       broadcast('fuel_record_updated', { vehicleCode });
-      refetch();
+      refetch(false, true);
     } catch (err) {
       console.error('Error updating record:', err);
       toast.error('Erro ao atualizar registro');
@@ -581,7 +582,7 @@ export function AbastecimentoPage() {
       setShowDeleteConfirm(false);
       setDeletingRecord(null);
       broadcast('fuel_record_deleted', { vehicleCode });
-      refetch();
+      refetch(false, true);
     } catch (err) {
       console.error('Error deleting record:', err);
       toast.error('Erro ao excluir registro');
@@ -3947,7 +3948,7 @@ export function AbastecimentoPage() {
                       });
                       
                       // Update Google Sheets
-                      const { error } = await supabase.functions.invoke('google-sheets', {
+                      const { data: sheetResp, error } = await supabase.functions.invoke('google-sheets', {
                         body: {
                           action: 'update',
                           sheetName: SHEET_NAME,
@@ -3957,6 +3958,7 @@ export function AbastecimentoPage() {
                       });
                       
                       if (error) throw error;
+                      if (sheetResp?.error) throw new Error(sheetResp.error);
                       
                       // Also update corresponding record in field_fuel_records database
                       const vehicleCode = String(editingRecord['VEICULO'] || '').trim();
@@ -4026,7 +4028,7 @@ export function AbastecimentoPage() {
                       toast.success('Registro atualizado com sucesso!');
                       setShowEditModal(false);
                       setEditingRecord(null);
-                      refetch();
+                      refetch(false, true);
                     } catch (err) {
                       console.error('Error updating record:', err);
                       toast.error('Erro ao atualizar registro');
