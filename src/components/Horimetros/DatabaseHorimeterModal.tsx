@@ -56,12 +56,54 @@ export function DatabaseHorimeterModal({
   editRecord,
   externalReadings,
 }: DatabaseHorimeterModalProps) {
-  const { vehicles, loading: vehiclesLoading } = useVehicles();
+  const { vehicles, loading: vehiclesLoading, upsertVehicle, refetch: refetchVehicles } = useVehicles();
   const { readings: internalReadings, loading: readingsLoading, createReading, updateReading, refetch } = useHorimeterReadings();
   
   // Use external readings if provided (to stay in sync with parent), otherwise use internal
   const readings = externalReadings || internalReadings;
   const { toast } = useToast();
+
+  // Auto-sync vehicles from sheet "Veiculo" to DB on open
+  useEffect(() => {
+    if (!open || vehiclesLoading) return;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const sheetData = await getSheetData('Veiculo');
+        if (cancelled || !sheetData?.rows?.length) return;
+
+        const existingCodes = new Set(vehicles.map(v => v.code.replace(/\s+/g, '').toUpperCase()));
+        let added = 0;
+
+        for (const row of sheetData.rows) {
+          const code = String(row['CODIGO'] || row['Codigo'] || row['codigo'] || row['VEICULO'] || row['Veiculo'] || '').trim();
+          if (!code) continue;
+          const codeNorm = code.replace(/\s+/g, '').toUpperCase();
+          if (existingCodes.has(codeNorm)) continue;
+
+          const name = String(row['DESCRICAO'] || row['DESCRIÇÃO'] || row['Descricao'] || row['descricao'] || '').trim();
+          const category = String(row['TIPO'] || row['Tipo'] || row['CATEGORIA'] || row['Categoria'] || '').trim();
+          const company = String(row['EMPRESA'] || row['Empresa'] || '').trim();
+
+          try {
+            await upsertVehicle({ code, name: name || code, description: name, category, company, unit: 'h', status: 'ativo' });
+            existingCodes.add(codeNorm);
+            added++;
+          } catch { /* skip duplicates */ }
+        }
+
+        if (added > 0) {
+          console.log(`🔄 Auto-synced ${added} vehicles from sheet to DB`);
+          refetchVehicles();
+        }
+      } catch (err) {
+        console.warn('Sheet vehicle sync skipped:', err);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [open, vehiclesLoading]);
   
   const isEditMode = !!editRecord;
   
