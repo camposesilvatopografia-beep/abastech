@@ -153,7 +153,7 @@ export function VehicleCombobox({
             'bg-background border-2 border-input hover:border-primary/50',
             'transition-all duration-200',
             !value && 'text-muted-foreground',
-            value && 'border-primary/40 bg-primary/5',
+            value && 'border-primary/40 bg-primary/5 text-foreground',
             className
           )}
         >
