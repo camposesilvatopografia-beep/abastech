@@ -261,6 +261,7 @@ export function useSheetData(
 
   return {
     data,
+    setData,
     loading,
     error,
     lastUpdatedAt,
