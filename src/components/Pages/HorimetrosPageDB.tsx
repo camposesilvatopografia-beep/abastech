@@ -715,7 +715,9 @@ export function HorimetrosPageDB() {
     const grandTotalHT = vehicleSummaries.reduce((s, v) => s + v.totalHT, 0);
     const grandTotalKM = vehicleSummaries.reduce((s, v) => s + v.totalKM, 0);
     const grandTotalRecords = readingsWithInterval.length;
-    const avgHTPerVehicle = vehicleGroups.length > 0 ? grandTotalHT / vehicleGroups.length : 0;
+    // Total unique working days across all readings
+    const uniqueDays = new Set(readingsWithInterval.map(r => r.reading_date));
+    const grandTotalDays = uniqueDays.size;
 
     // ====== PAGE 1: RESUMO GERAL ======
     let y = renderStandardHeader(doc, {
@@ -740,42 +742,30 @@ export function HorimetrosPageDB() {
     doc.text(filterParts.join('  |  '), margin, y);
     y += 8;
 
-    // ====== KPI BOXES ======
-    const kpiBoxW = 58;
-    const kpiBoxH = 22;
-    const kpiGap = 8;
-    const kpiStartX = (pageWidth - (4 * kpiBoxW + 3 * kpiGap)) / 2;
+    // ====== KPI BOXES (simplified: only Total Hours + Working Days) ======
+    const kpiBoxW = 90;
+    const kpiBoxH = 24;
+    const kpiGap = 12;
+    const kpiStartX = (pageWidth - (2 * kpiBoxW + kpiGap)) / 2;
     const kpis = [
-      { label: 'TOTAL HORAS TRAB.', value: formatBR(grandTotalHT), color: [55, 71, 95] as [number, number, number] },
-      { label: 'TOTAL KM', value: formatBR(grandTotalKM), color: [55, 71, 95] as [number, number, number] },
-      { label: 'VEÍCULOS', value: String(vehicleGroups.length), color: [71, 85, 105] as [number, number, number] },
-      { label: 'LANÇAMENTOS', value: String(grandTotalRecords), color: [71, 85, 105] as [number, number, number] },
+      { label: 'TOTAL DE HORAS', value: formatBR(grandTotalHT) + ' h', color: [55, 71, 95] as [number, number, number] },
+      { label: 'DIAS TRABALHADOS', value: String(grandTotalDays), color: [55, 71, 95] as [number, number, number] },
     ];
 
     kpis.forEach((kpi, idx) => {
       const bx = kpiStartX + idx * (kpiBoxW + kpiGap);
-      // Box background
       doc.setFillColor(kpi.color[0], kpi.color[1], kpi.color[2]);
       doc.roundedRect(bx, y, kpiBoxW, kpiBoxH, 2, 2, 'F');
-      // Value
       doc.setTextColor(255, 255, 255);
       doc.setFontSize(14);
       doc.setFont('helvetica', 'bold');
       doc.text(kpi.value, bx + kpiBoxW / 2, y + 10, { align: 'center' });
-      // Label
-      doc.setFontSize(6.5);
+      doc.setFontSize(7);
       doc.setFont('helvetica', 'normal');
-      doc.text(kpi.label, bx + kpiBoxW / 2, y + 17, { align: 'center' });
+      doc.text(kpi.label, bx + kpiBoxW / 2, y + 18, { align: 'center' });
     });
 
     y += kpiBoxH + 8;
-
-    // Média por veículo
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'italic');
-    doc.setTextColor(100, 116, 139);
-    doc.text(`Média de horas por veículo: ${formatBR(avgHTPerVehicle)} h`, margin, y);
-    y += 7;
 
     // ====== SUMMARY TABLE ======
     doc.setFontSize(9);
