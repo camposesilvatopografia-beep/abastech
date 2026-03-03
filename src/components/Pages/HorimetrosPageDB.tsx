@@ -695,15 +695,20 @@ export function HorimetrosPageDB() {
     // Sort vehicles by code
     const vehicleGroups = Array.from(vehicleGroupMap.values()).sort((a, b) => a.code.localeCompare(b.code, 'pt-BR'));
 
-    // Build per-vehicle summary
+    // Build per-vehicle summary — total = last reading - first reading of period
     const vehicleSummaries = vehicleGroups.map(g => {
-      const totalHT = g.readings.reduce((sum, r) => sum + (r.interval > 0 ? r.interval : 0), 0);
-      const totalKM = g.readings.reduce((sum, r) => sum + ((r as any).km_interval > 0 ? (r as any).km_interval : 0), 0);
-      const minHor = Math.min(...g.readings.map(r => r.previous_value ?? r.current_value));
-      const maxHor = Math.max(...g.readings.map(r => r.current_value));
-      const minKm = Math.min(...g.readings.filter(r => (r as any).previous_km > 0).map(r => (r as any).previous_km || 0));
-      const maxKm = Math.max(...g.readings.map(r => (r as any).current_km || 0));
-      return { ...g, totalHT, totalKM, minHor, maxHor, minKm: isFinite(minKm) ? minKm : 0, maxKm };
+      const sorted = [...g.readings].sort((a, b) => a.reading_date.localeCompare(b.reading_date));
+      const firstReading = sorted[0];
+      const lastReading = sorted[sorted.length - 1];
+      // Total H.T. = horímetro mais recente - horímetro do primeiro registro
+      const firstHor = firstReading.previous_value ?? firstReading.current_value;
+      const lastHor = lastReading.current_value;
+      const totalHT = lastHor - firstHor;
+      // Total KM = km mais recente - km do primeiro registro
+      const firstKm = (firstReading as any).previous_km || (firstReading as any).current_km || 0;
+      const lastKm = (lastReading as any).current_km || 0;
+      const totalKM = (firstKm > 0 && lastKm > 0) ? lastKm - firstKm : 0;
+      return { ...g, totalHT: totalHT > 0 ? totalHT : 0, totalKM: totalKM > 0 ? totalKM : 0, firstHor, lastHor, firstKm, lastKm };
     });
 
     // Grand totals (calculated before rendering)
@@ -785,30 +790,34 @@ export function HorimetrosPageDB() {
       v.company,
       v.category,
       String(v.readings.length),
+      formatBR(v.firstHor),
+      formatBR(v.lastHor),
       formatBR(v.totalHT),
       formatBR(v.totalKM),
     ]);
 
     summaryTableData.push([
-      'TOTAL GERAL', '', '', '', String(grandTotalRecords), formatBR(grandTotalHT), formatBR(grandTotalKM),
+      'TOTAL GERAL', '', '', '', String(grandTotalRecords), '', '', formatBR(grandTotalHT), formatBR(grandTotalKM),
     ]);
 
     autoTable(doc, {
-      head: [['Veículo', 'Descrição', 'Empresa', 'Categoria', 'Registros', 'Total H.T.', 'Total KM']],
+      head: [['Veículo', 'Descrição', 'Empresa', 'Categoria', 'Reg.', 'Hor. Inicial', 'Hor. Final', 'Total H.T.', 'Total KM']],
       body: summaryTableData,
       startY: y,
       margin: { left: margin, right: margin },
-      styles: { fontSize: 7.5, cellPadding: 2.5, font: 'helvetica', textColor: [30, 41, 59], lineColor: [226, 232, 240], lineWidth: 0.2 },
-      headStyles: { fillColor: [55, 71, 95], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7.5, halign: 'center', cellPadding: 3 },
+      styles: { fontSize: 7, cellPadding: 2, font: 'helvetica', textColor: [30, 41, 59], lineColor: [226, 232, 240], lineWidth: 0.2 },
+      headStyles: { fillColor: [55, 71, 95], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7, halign: 'center', cellPadding: 2.5 },
       alternateRowStyles: { fillColor: [248, 250, 252] },
       columnStyles: {
-        0: { fontStyle: 'bold', halign: 'center', cellWidth: 28 },
+        0: { fontStyle: 'bold', halign: 'center', cellWidth: 24 },
         1: { halign: 'left' },
-        2: { halign: 'center' },
-        3: { halign: 'center' },
-        4: { halign: 'center', cellWidth: 22 },
-        5: { halign: 'center', fontStyle: 'bold', cellWidth: 30 },
-        6: { halign: 'center', fontStyle: 'bold', cellWidth: 30 },
+        2: { halign: 'center', cellWidth: 28 },
+        3: { halign: 'center', cellWidth: 28 },
+        4: { halign: 'center', cellWidth: 16 },
+        5: { halign: 'center', cellWidth: 26 },
+        6: { halign: 'center', cellWidth: 26 },
+        7: { halign: 'center', fontStyle: 'bold', cellWidth: 26 },
+        8: { halign: 'center', fontStyle: 'bold', cellWidth: 26 },
       },
       didParseCell: (data) => {
         if (data.section === 'body' && data.row.index === summaryTableData.length - 1) {
@@ -838,7 +847,7 @@ export function HorimetrosPageDB() {
       vy += 5;
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(30, 41, 59);
-      doc.text(`Total H.T.: ${formatBR(summary.totalHT)}  •  Total KM: ${formatBR(summary.totalKM)}  •  Lançamentos: ${group.readings.length}`, margin, vy);
+      doc.text(`Hor. Inicial: ${formatBR(summary.firstHor)}  •  Hor. Final: ${formatBR(summary.lastHor)}  •  Total H.T.: ${formatBR(summary.totalHT)}  •  Total KM: ${formatBR(summary.totalKM)}  •  Lançamentos: ${group.readings.length}`, margin, vy);
       vy += 6;
 
       // Sort readings by date ascending for the detail
