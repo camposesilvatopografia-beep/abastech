@@ -706,14 +706,21 @@ export function HorimetrosPageDB() {
       return { ...g, totalHT, totalKM, minHor, maxHor, minKm: isFinite(minKm) ? minKm : 0, maxKm };
     });
 
+    // Grand totals (calculated before rendering)
+    const grandTotalHT = vehicleSummaries.reduce((s, v) => s + v.totalHT, 0);
+    const grandTotalKM = vehicleSummaries.reduce((s, v) => s + v.totalKM, 0);
+    const grandTotalRecords = readingsWithInterval.length;
+    const avgHTPerVehicle = vehicleGroups.length > 0 ? grandTotalHT / vehicleGroups.length : 0;
+
     // ====== PAGE 1: RESUMO GERAL ======
     let y = renderStandardHeader(doc, {
-      reportTitle: 'RELATÓRIO DE HORÍMETROS — RESUMO POR VEÍCULO',
+      reportTitle: 'RELATÓRIO DE HORÍMETROS',
       obraSettings,
       logoBase64,
       date: format(new Date(), 'dd/MM/yyyy HH:mm'),
     });
 
+    // Filter info line
     doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(71, 85, 105);
@@ -725,56 +732,89 @@ export function HorimetrosPageDB() {
       filterParts.push(`Veículo: ${vehicle?.code || vehicleFilter}`);
     }
     if (categoryFilter !== 'all') filterParts.push(`Categoria: ${categoryFilter}`);
-    filterParts.push(`${vehicleGroups.length} veículos  •  ${readingsWithInterval.length} registros`);
-    doc.text(filterParts.join('  •  '), margin, y);
-    y += 6;
+    doc.text(filterParts.join('  |  '), margin, y);
+    y += 8;
 
-    // Summary table
+    // ====== KPI BOXES ======
+    const kpiBoxW = 58;
+    const kpiBoxH = 22;
+    const kpiGap = 8;
+    const kpiStartX = (pageWidth - (4 * kpiBoxW + 3 * kpiGap)) / 2;
+    const kpis = [
+      { label: 'TOTAL HORAS TRAB.', value: formatBR(grandTotalHT), color: [55, 71, 95] as [number, number, number] },
+      { label: 'TOTAL KM', value: formatBR(grandTotalKM), color: [55, 71, 95] as [number, number, number] },
+      { label: 'VEÍCULOS', value: String(vehicleGroups.length), color: [71, 85, 105] as [number, number, number] },
+      { label: 'LANÇAMENTOS', value: String(grandTotalRecords), color: [71, 85, 105] as [number, number, number] },
+    ];
+
+    kpis.forEach((kpi, idx) => {
+      const bx = kpiStartX + idx * (kpiBoxW + kpiGap);
+      // Box background
+      doc.setFillColor(kpi.color[0], kpi.color[1], kpi.color[2]);
+      doc.roundedRect(bx, y, kpiBoxW, kpiBoxH, 2, 2, 'F');
+      // Value
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.text(kpi.value, bx + kpiBoxW / 2, y + 10, { align: 'center' });
+      // Label
+      doc.setFontSize(6.5);
+      doc.setFont('helvetica', 'normal');
+      doc.text(kpi.label, bx + kpiBoxW / 2, y + 17, { align: 'center' });
+    });
+
+    y += kpiBoxH + 8;
+
+    // Média por veículo
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'italic');
+    doc.setTextColor(100, 116, 139);
+    doc.text(`Média de horas por veículo: ${formatBR(avgHTPerVehicle)} h`, margin, y);
+    y += 7;
+
+    // ====== SUMMARY TABLE ======
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(30, 41, 59);
+    doc.text('RESUMO POR VEÍCULO', margin, y);
+    y += 5;
+
     const summaryTableData = vehicleSummaries.map(v => [
       v.code,
       v.description,
       v.company,
       v.category,
       String(v.readings.length),
-      formatBR(v.minHor),
-      formatBR(v.maxHor),
       formatBR(v.totalHT),
       formatBR(v.totalKM),
     ]);
 
-    // Grand totals
-    const grandTotalHT = vehicleSummaries.reduce((s, v) => s + v.totalHT, 0);
-    const grandTotalKM = vehicleSummaries.reduce((s, v) => s + v.totalKM, 0);
-    const grandTotalRecords = readingsWithInterval.length;
-
     summaryTableData.push([
-      'TOTAL', '', '', '', String(grandTotalRecords), '', '', formatBR(grandTotalHT), formatBR(grandTotalKM),
+      'TOTAL GERAL', '', '', '', String(grandTotalRecords), formatBR(grandTotalHT), formatBR(grandTotalKM),
     ]);
 
     autoTable(doc, {
-      head: [['Veículo', 'Descrição', 'Empresa', 'Categoria', 'Lançamentos', 'Hor. Mín', 'Hor. Máx', 'Total H.T.', 'Total KM']],
+      head: [['Veículo', 'Descrição', 'Empresa', 'Categoria', 'Registros', 'Total H.T.', 'Total KM']],
       body: summaryTableData,
       startY: y,
       margin: { left: margin, right: margin },
-      styles: { fontSize: 7, cellPadding: 2, font: 'helvetica', textColor: [30, 41, 59], lineColor: [226, 232, 240], lineWidth: 0.2 },
-      headStyles: { fillColor: [55, 71, 95], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7, halign: 'center', cellPadding: 3 },
+      styles: { fontSize: 7.5, cellPadding: 2.5, font: 'helvetica', textColor: [30, 41, 59], lineColor: [226, 232, 240], lineWidth: 0.2 },
+      headStyles: { fillColor: [55, 71, 95], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7.5, halign: 'center', cellPadding: 3 },
       alternateRowStyles: { fillColor: [248, 250, 252] },
       columnStyles: {
-        0: { fontStyle: 'bold', halign: 'center' },
+        0: { fontStyle: 'bold', halign: 'center', cellWidth: 28 },
         1: { halign: 'left' },
         2: { halign: 'center' },
         3: { halign: 'center' },
-        4: { halign: 'center' },
-        5: { halign: 'center' },
-        6: { halign: 'center' },
-        7: { halign: 'center', fontStyle: 'bold' },
-        8: { halign: 'center', fontStyle: 'bold' },
+        4: { halign: 'center', cellWidth: 22 },
+        5: { halign: 'center', fontStyle: 'bold', cellWidth: 30 },
+        6: { halign: 'center', fontStyle: 'bold', cellWidth: 30 },
       },
       didParseCell: (data) => {
-        // Style the totals row
         if (data.section === 'body' && data.row.index === summaryTableData.length - 1) {
           data.cell.styles.fontStyle = 'bold';
           data.cell.styles.fillColor = [219, 234, 254];
+          data.cell.styles.textColor = [30, 41, 59];
         }
       },
     });
