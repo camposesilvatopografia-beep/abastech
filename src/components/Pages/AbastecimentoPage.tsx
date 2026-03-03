@@ -161,7 +161,7 @@ export function AbastecimentoPage() {
   const { user } = useAuth();
   // Polling de 10s como fallback para edições feitas diretamente na planilha
   const POLL_MS = 10000;
-  const { data, loading, refetch } = useSheetData(SHEET_NAME, { pollingInterval: POLL_MS });
+  const { data, setData, loading, refetch } = useSheetData(SHEET_NAME, { pollingInterval: POLL_MS });
   const { settings: obraSettings } = useObraSettings();
 
   const {
@@ -519,17 +519,31 @@ export function AbastecimentoPage() {
       }
       
       toast.success('Registro atualizado com sucesso!');
+      
+      // Optimistic update: immediately update local data so UI reflects changes
+      setData(prev => ({
+        ...prev,
+        rows: prev.rows.map(r => {
+          if (r._rowIndex === inlineEditData._rowIndex) {
+            return { ...r, ...rowData, _rowIndex: r._rowIndex };
+          }
+          return r;
+        }),
+      }));
+      
       setExpandedRowId(null);
       setInlineEditData(null);
       broadcast('fuel_record_updated', { vehicleCode });
-      refetch(false, true);
+      
+      // Delayed refetch to sync with actual sheet data
+      setTimeout(() => refetch(true, true), 2000);
     } catch (err) {
       console.error('Error updating record:', err);
       toast.error('Erro ao atualizar registro');
     } finally {
       setIsSavingInline(false);
     }
-  }, [inlineEditData, refetch]);
+  }, [inlineEditData, refetch, setData]);
 
   // Handle record deletion with Google Sheets sync
   const handleDeleteRecord = useCallback(async () => {
@@ -4057,14 +4071,23 @@ export function AbastecimentoPage() {
                       
                       toast.success('Registro atualizado com sucesso!');
                       broadcast('fuel_record_updated', { vehicleCode });
+                      
+                      // Optimistic update: immediately update local data
+                      const savedRowIndex = editingRecord._rowIndex;
+                      setData(prev => ({
+                        ...prev,
+                        rows: prev.rows.map(r => {
+                          if (r._rowIndex === savedRowIndex) {
+                            return { ...r, ...rowData, _rowIndex: r._rowIndex };
+                          }
+                          return r;
+                        }),
+                      }));
+                      
                       setShowEditModal(false);
                       setEditingRecord(null);
-                      // Wait for edge function cache to expire (noCache TTL = 3s)
-                      await new Promise(r => setTimeout(r, 3500));
-                      await refetch(false, true);
-                      // Additional retries to catch propagation lag
-                      setTimeout(() => refetch(false, true), 3000);
-                      setTimeout(() => refetch(false, true), 6000);
+                      // Delayed background refetch to sync with actual sheet
+                      setTimeout(() => refetch(true, true), 2000);
                     } catch (err) {
                       console.error('Error updating record:', err);
                       toast.error('Erro ao atualizar registro');
