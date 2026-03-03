@@ -654,9 +654,7 @@ export function HorimetrosPageDB() {
     const doc = new jsPDF('landscape');
     const pageWidth = doc.internal.pageSize.getWidth();
     const margin = 14;
-    const contentWidth = pageWidth - margin * 2;
 
-    // Use standard header
     const logoBase64 = await getLogoBase64(obraSettings?.logo_url);
 
     let dateInfo = 'Todo período';
@@ -666,18 +664,59 @@ export function HorimetrosPageDB() {
       dateInfo = `${format(dateRange.start, 'dd/MM/yyyy')} a ${format(dateRange.end, 'dd/MM/yyyy')}`;
     }
 
+    const formatBR = (val: number | null | undefined): string => {
+      if (val === null || val === undefined) return '-';
+      const hasDecimals = val % 1 !== 0;
+      return val.toLocaleString('pt-BR', { minimumFractionDigits: hasDecimals ? 2 : 0, maximumFractionDigits: 2 });
+    };
+
+    const formatInterval = (val: number): string => {
+      if (!val || val === 0) return '-';
+      const hasDecimals = Math.abs(val) % 1 !== 0;
+      return Math.abs(val).toLocaleString('pt-BR', { minimumFractionDigits: hasDecimals ? 2 : 0, maximumFractionDigits: 2 });
+    };
+
+    // Group readings by vehicle
+    const vehicleGroupMap = new Map<string, { code: string; description: string; company: string; category: string; readings: typeof readingsWithInterval }>();
+    readingsWithInterval.forEach(r => {
+      const vCode = r.vehicle?.code || 'SEM_CÓDIGO';
+      if (!vehicleGroupMap.has(vCode)) {
+        vehicleGroupMap.set(vCode, {
+          code: vCode,
+          description: r.vehicle?.name || r.vehicle?.description || '-',
+          company: r.vehicle?.company || '-',
+          category: r.vehicle?.category || '-',
+          readings: [],
+        });
+      }
+      vehicleGroupMap.get(vCode)!.readings.push(r);
+    });
+
+    // Sort vehicles by code
+    const vehicleGroups = Array.from(vehicleGroupMap.values()).sort((a, b) => a.code.localeCompare(b.code, 'pt-BR'));
+
+    // Build per-vehicle summary
+    const vehicleSummaries = vehicleGroups.map(g => {
+      const totalHT = g.readings.reduce((sum, r) => sum + (r.interval > 0 ? r.interval : 0), 0);
+      const totalKM = g.readings.reduce((sum, r) => sum + ((r as any).km_interval > 0 ? (r as any).km_interval : 0), 0);
+      const minHor = Math.min(...g.readings.map(r => r.previous_value ?? r.current_value));
+      const maxHor = Math.max(...g.readings.map(r => r.current_value));
+      const minKm = Math.min(...g.readings.filter(r => (r as any).previous_km > 0).map(r => (r as any).previous_km || 0));
+      const maxKm = Math.max(...g.readings.map(r => (r as any).current_km || 0));
+      return { ...g, totalHT, totalKM, minHor, maxHor, minKm: isFinite(minKm) ? minKm : 0, maxKm };
+    });
+
+    // ====== PAGE 1: RESUMO GERAL ======
     let y = renderStandardHeader(doc, {
-      reportTitle: 'RELATÓRIO DE HORÍMETROS',
+      reportTitle: 'RELATÓRIO DE HORÍMETROS — RESUMO POR VEÍCULO',
       obraSettings,
       logoBase64,
       date: format(new Date(), 'dd/MM/yyyy HH:mm'),
     });
 
-    // Filter info bar
     doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(71, 85, 105);
-
     const filterParts: string[] = [];
     filterParts.push(`Período: ${dateInfo}`);
     if (companyFilter !== 'all') filterParts.push(`Empresa: ${companyFilter}`);
@@ -686,82 +725,123 @@ export function HorimetrosPageDB() {
       filterParts.push(`Veículo: ${vehicle?.code || vehicleFilter}`);
     }
     if (categoryFilter !== 'all') filterParts.push(`Categoria: ${categoryFilter}`);
-    filterParts.push(`${readingsWithInterval.length} registros`);
+    filterParts.push(`${vehicleGroups.length} veículos  •  ${readingsWithInterval.length} registros`);
     doc.text(filterParts.join('  •  '), margin, y);
     y += 6;
 
-    // Data table
-    const formatBR = (val: number | null | undefined): string => {
-      if (val === null || val === undefined) return '-';
-      const hasDecimals = val % 1 !== 0;
-      return val.toLocaleString('pt-BR', { 
-        minimumFractionDigits: hasDecimals ? 2 : 0, 
-        maximumFractionDigits: 2 
-      });
-    };
+    // Summary table
+    const summaryTableData = vehicleSummaries.map(v => [
+      v.code,
+      v.description,
+      v.company,
+      v.category,
+      String(v.readings.length),
+      formatBR(v.minHor),
+      formatBR(v.maxHor),
+      formatBR(v.totalHT),
+      formatBR(v.totalKM),
+    ]);
 
-    const formatInterval = (val: number): string => {
-      if (!val || val === 0) return '-';
-      const hasDecimals = Math.abs(val) % 1 !== 0;
-      return Math.abs(val).toLocaleString('pt-BR', { 
-        minimumFractionDigits: hasDecimals ? 2 : 0, 
-        maximumFractionDigits: 2 
-      });
-    };
+    // Grand totals
+    const grandTotalHT = vehicleSummaries.reduce((s, v) => s + v.totalHT, 0);
+    const grandTotalKM = vehicleSummaries.reduce((s, v) => s + v.totalKM, 0);
+    const grandTotalRecords = readingsWithInterval.length;
 
-    const tableData = readingsWithInterval.map(r => [
-      format(new Date(r.reading_date + 'T00:00:00'), 'dd/MM/yyyy'),
-      r.vehicle?.code || '-',
-      r.operator || '-',
-      formatBR(r.previous_value),
-      formatBR(r.current_value),
-      formatInterval(r.interval),
-      formatBR((r as any).previous_km),
-      formatBR((r as any).current_km),
-      formatInterval((r as any).km_interval || 0),
+    summaryTableData.push([
+      'TOTAL', '', '', '', String(grandTotalRecords), '', '', formatBR(grandTotalHT), formatBR(grandTotalKM),
     ]);
 
     autoTable(doc, {
-      head: [['Data', 'Veículo', 'Operador', 'Hor. Anterior', 'Hor. Atual', 'H.T.', 'KM Anterior', 'KM Atual', 'Total KM']],
-      body: tableData,
+      head: [['Veículo', 'Descrição', 'Empresa', 'Categoria', 'Lançamentos', 'Hor. Mín', 'Hor. Máx', 'Total H.T.', 'Total KM']],
+      body: summaryTableData,
       startY: y,
       margin: { left: margin, right: margin },
-      styles: { 
-        fontSize: 8, 
-        cellPadding: 2.5, 
-        font: 'helvetica',
-        textColor: [30, 41, 59],
-        lineColor: [226, 232, 240],
-        lineWidth: 0.2,
-      },
-      headStyles: { 
-        fillColor: [55, 71, 95], 
-        textColor: [255, 255, 255], 
-        fontStyle: 'bold',
-        fontSize: 8,
-        halign: 'center',
-        cellPadding: 3,
-      },
+      styles: { fontSize: 7, cellPadding: 2, font: 'helvetica', textColor: [30, 41, 59], lineColor: [226, 232, 240], lineWidth: 0.2 },
+      headStyles: { fillColor: [55, 71, 95], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7, halign: 'center', cellPadding: 3 },
       alternateRowStyles: { fillColor: [248, 250, 252] },
       columnStyles: {
-        0: { halign: 'center' },
-        1: { fontStyle: 'bold', halign: 'center' },
-        2: { halign: 'left' },
+        0: { fontStyle: 'bold', halign: 'center' },
+        1: { halign: 'left' },
+        2: { halign: 'center' },
         3: { halign: 'center' },
         4: { halign: 'center' },
-        5: { halign: 'center', fontStyle: 'bold' },
+        5: { halign: 'center' },
         6: { halign: 'center' },
-        7: { halign: 'center' },
+        7: { halign: 'center', fontStyle: 'bold' },
         8: { halign: 'center', fontStyle: 'bold' },
       },
       didParseCell: (data) => {
-        if (data.section === 'body' && (data.column.index === 5 || data.column.index === 8)) {
-          const val = parseFloat(String(data.cell.raw).replace(/\./g, '').replace(',', '.'));
-          if (!isNaN(val) && val < 0) {
-            data.cell.styles.textColor = [220, 38, 38];
-          }
+        // Style the totals row
+        if (data.section === 'body' && data.row.index === summaryTableData.length - 1) {
+          data.cell.styles.fontStyle = 'bold';
+          data.cell.styles.fillColor = [219, 234, 254];
         }
       },
+    });
+
+    // ====== PER-VEHICLE DETAIL PAGES ======
+    vehicleGroups.forEach(group => {
+      doc.addPage('landscape');
+      let vy = renderStandardHeader(doc, {
+        reportTitle: `HISTÓRICO — ${group.code}`,
+        obraSettings,
+        logoBase64,
+        date: format(new Date(), 'dd/MM/yyyy HH:mm'),
+      });
+
+      // Vehicle info
+      const summary = vehicleSummaries.find(v => v.code === group.code)!;
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(71, 85, 105);
+      doc.text(`${group.description}  •  Empresa: ${group.company}  •  Categoria: ${group.category}  •  Período: ${dateInfo}`, margin, vy);
+      vy += 5;
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(30, 41, 59);
+      doc.text(`Total H.T.: ${formatBR(summary.totalHT)}  •  Total KM: ${formatBR(summary.totalKM)}  •  Lançamentos: ${group.readings.length}`, margin, vy);
+      vy += 6;
+
+      // Sort readings by date ascending for the detail
+      const sortedReadings = [...group.readings].sort((a, b) => a.reading_date.localeCompare(b.reading_date));
+
+      const detailData = sortedReadings.map(r => [
+        format(new Date(r.reading_date + 'T00:00:00'), 'dd/MM/yyyy'),
+        r.operator || '-',
+        formatBR(r.previous_value),
+        formatBR(r.current_value),
+        formatInterval(r.interval),
+        formatBR((r as any).previous_km),
+        formatBR((r as any).current_km),
+        formatInterval((r as any).km_interval || 0),
+      ]);
+
+      autoTable(doc, {
+        head: [['Data', 'Operador', 'Hor. Anterior', 'Hor. Atual', 'H.T.', 'KM Anterior', 'KM Atual', 'Total KM']],
+        body: detailData,
+        startY: vy,
+        margin: { left: margin, right: margin },
+        styles: { fontSize: 8, cellPadding: 2.5, font: 'helvetica', textColor: [30, 41, 59], lineColor: [226, 232, 240], lineWidth: 0.2 },
+        headStyles: { fillColor: [55, 71, 95], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8, halign: 'center', cellPadding: 3 },
+        alternateRowStyles: { fillColor: [248, 250, 252] },
+        columnStyles: {
+          0: { halign: 'center' },
+          1: { halign: 'left' },
+          2: { halign: 'center' },
+          3: { halign: 'center' },
+          4: { halign: 'center', fontStyle: 'bold' },
+          5: { halign: 'center' },
+          6: { halign: 'center' },
+          7: { halign: 'center', fontStyle: 'bold' },
+        },
+        didParseCell: (data) => {
+          if (data.section === 'body' && (data.column.index === 4 || data.column.index === 7)) {
+            const val = parseFloat(String(data.cell.raw).replace(/\./g, '').replace(',', '.'));
+            if (!isNaN(val) && val < 0) {
+              data.cell.styles.textColor = [220, 38, 38];
+            }
+          }
+        },
+      });
     });
 
     // Page footer on all pages
