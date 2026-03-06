@@ -1480,7 +1480,7 @@ export function AbastecimentoPage() {
         if (!isFirstPage) doc.addPage();
         isFirstPage = false;
         
-        const startY = renderStandardHeader(doc, {
+        let startY = renderStandardHeader(doc, {
           reportTitle: `LANÇAMENTOS — ${location.toUpperCase()}`,
           obraSettings,
           logoBase64,
