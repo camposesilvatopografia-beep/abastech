@@ -8,6 +8,11 @@ export interface ReportColumnConfig {
   visible: boolean;
   order: number;
   width?: number;
+  // Per-column style overrides
+  fontColor?: string;
+  bgColor?: string;
+  fontSize?: number;
+  bold?: boolean;
 }
 
 export interface ReportStyleConfig {

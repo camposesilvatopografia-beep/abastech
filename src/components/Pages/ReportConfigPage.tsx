@@ -86,52 +86,156 @@ function ColumnEditor({
     onChange(columns.map(c => c.key === key ? { ...c, width } : c));
   };
 
+  const updateColumnStyle = (key: string, prop: string, value: any) => {
+    onChange(columns.map(c => c.key === key ? { ...c, [prop]: value } : c));
+  };
+
+  const [expandedCol, setExpandedCol] = useState<string | null>(null);
+
   return (
     <div className="space-y-1">
       {sorted.map((col, idx) => (
-        <div
-          key={col.key}
-          className={cn(
-            "flex items-center gap-2 p-2 rounded-lg border border-border transition-colors",
-            !col.visible && "opacity-50 bg-muted/30"
-          )}
-        >
-          <GripVertical className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-
-          <div className="flex items-center gap-1 shrink-0">
-            <Button variant="ghost" size="icon" className="h-6 w-6" disabled={idx === 0} onClick={() => moveColumn(idx, 'up')}>
-              <ArrowUp className="w-3 h-3" />
-            </Button>
-            <Button variant="ghost" size="icon" className="h-6 w-6" disabled={idx === sorted.length - 1} onClick={() => moveColumn(idx, 'down')}>
-              <ArrowDown className="w-3 h-3" />
-            </Button>
-          </div>
-
-          <Input
-            value={col.label}
-            onChange={(e) => updateLabel(col.key, e.target.value)}
-            className="h-7 text-xs flex-1 min-w-0"
-          />
-
-          <div className="flex items-center gap-1.5 shrink-0">
-            <Label className="text-[10px] text-muted-foreground">Larg:</Label>
-            <Input
-              type="number"
-              value={col.width || ''}
-              onChange={(e) => updateWidth(col.key, Number(e.target.value) || 0)}
-              className="h-7 w-14 text-xs"
-              placeholder="auto"
-            />
-          </div>
-
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 shrink-0"
-            onClick={() => toggleVisibility(col.key)}
+        <div key={col.key}>
+          <div
+            className={cn(
+              "flex items-center gap-2 p-2 rounded-lg border border-border transition-colors",
+              !col.visible && "opacity-50 bg-muted/30"
+            )}
           >
-            {col.visible ? <Eye className="w-3.5 h-3.5 text-primary" /> : <EyeOff className="w-3.5 h-3.5 text-muted-foreground" />}
-          </Button>
+            <GripVertical className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+
+            <div className="flex items-center gap-1 shrink-0">
+              <Button variant="ghost" size="icon" className="h-6 w-6" disabled={idx === 0} onClick={() => moveColumn(idx, 'up')}>
+                <ArrowUp className="w-3 h-3" />
+              </Button>
+              <Button variant="ghost" size="icon" className="h-6 w-6" disabled={idx === sorted.length - 1} onClick={() => moveColumn(idx, 'down')}>
+                <ArrowDown className="w-3 h-3" />
+              </Button>
+            </div>
+
+            <Input
+              value={col.label}
+              onChange={(e) => updateLabel(col.key, e.target.value)}
+              className="h-7 text-xs flex-1 min-w-0"
+            />
+
+            <div className="flex items-center gap-1.5 shrink-0">
+              <Label className="text-[10px] text-muted-foreground">Larg:</Label>
+              <Input
+                type="number"
+                value={col.width || ''}
+                onChange={(e) => updateWidth(col.key, Number(e.target.value) || 0)}
+                className="h-7 w-14 text-xs"
+                placeholder="auto"
+              />
+            </div>
+
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 shrink-0"
+              onClick={() => setExpandedCol(expandedCol === col.key ? null : col.key)}
+              title="Estilos da coluna"
+            >
+              <Palette className="w-3.5 h-3.5 text-muted-foreground" />
+            </Button>
+
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 shrink-0"
+              onClick={() => toggleVisibility(col.key)}
+            >
+              {col.visible ? <Eye className="w-3.5 h-3.5 text-primary" /> : <EyeOff className="w-3.5 h-3.5 text-muted-foreground" />}
+            </Button>
+          </div>
+
+          {/* Per-column style panel */}
+          {expandedCol === col.key && (
+            <div className="ml-8 mr-2 mt-1 mb-2 p-3 rounded-lg border border-dashed border-border bg-muted/20 space-y-3">
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Estilos — {col.label}</p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {/* Font color */}
+                <div className="space-y-1">
+                  <Label className="text-[10px]">Cor do texto</Label>
+                  <div className="flex items-center gap-1.5">
+                    <div
+                      className="w-6 h-6 rounded border border-border cursor-pointer shrink-0"
+                      style={{ backgroundColor: col.fontColor || '#000000' }}
+                      onClick={() => document.getElementById(`fc-${col.key}`)?.click()}
+                    />
+                    <input
+                      id={`fc-${col.key}`}
+                      type="color"
+                      value={col.fontColor || '#000000'}
+                      onChange={(e) => updateColumnStyle(col.key, 'fontColor', e.target.value)}
+                      className="sr-only"
+                    />
+                    <span className="text-[10px] text-muted-foreground">{col.fontColor || 'padrão'}</span>
+                  </div>
+                </div>
+
+                {/* Bg color */}
+                <div className="space-y-1">
+                  <Label className="text-[10px]">Cor de fundo</Label>
+                  <div className="flex items-center gap-1.5">
+                    <div
+                      className="w-6 h-6 rounded border border-border cursor-pointer shrink-0"
+                      style={{ backgroundColor: col.bgColor || '#FFFFFF' }}
+                      onClick={() => document.getElementById(`bg-${col.key}`)?.click()}
+                    />
+                    <input
+                      id={`bg-${col.key}`}
+                      type="color"
+                      value={col.bgColor || '#FFFFFF'}
+                      onChange={(e) => updateColumnStyle(col.key, 'bgColor', e.target.value)}
+                      className="sr-only"
+                    />
+                    <span className="text-[10px] text-muted-foreground">{col.bgColor || 'padrão'}</span>
+                  </div>
+                </div>
+
+                {/* Font size */}
+                <div className="space-y-1">
+                  <Label className="text-[10px]">Fonte (pt)</Label>
+                  <Input
+                    type="number"
+                    value={col.fontSize || ''}
+                    onChange={(e) => updateColumnStyle(col.key, 'fontSize', Number(e.target.value) || undefined)}
+                    className="h-7 w-16 text-xs"
+                    placeholder="padrão"
+                    min={5}
+                    max={16}
+                  />
+                </div>
+
+                {/* Bold */}
+                <div className="space-y-1">
+                  <Label className="text-[10px]">Negrito</Label>
+                  <Switch
+                    checked={col.bold || false}
+                    onCheckedChange={(v) => updateColumnStyle(col.key, 'bold', v)}
+                  />
+                </div>
+              </div>
+              {(col.fontColor || col.bgColor || col.fontSize || col.bold) && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 text-[10px] text-muted-foreground"
+                  onClick={() => {
+                    onChange(columns.map(c => c.key === col.key
+                      ? { ...c, fontColor: undefined, bgColor: undefined, fontSize: undefined, bold: undefined }
+                      : c
+                    ));
+                  }}
+                >
+                  <RotateCcw className="w-3 h-3 mr-1" />
+                  Limpar estilos desta coluna
+                </Button>
+              )}
+            </div>
+          )}
         </div>
       ))}
     </div>
