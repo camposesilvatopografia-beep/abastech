@@ -1489,55 +1489,71 @@ export function AbastecimentoPage() {
         doc.setFontSize(10);
         doc.text(`${groupData.rows.length} registros | Total: ${fmtBR(groupData.totalLiters, 0)} L`, 14, startY);
         
-        // Build table body
-        const body = groupData.rows
-          .sort((a, b) => {
-            const descA = String(a['DESCRICAO'] || a['DESCRIÇÃO'] || '');
-            const descB = String(b['DESCRICAO'] || b['DESCRIÇÃO'] || '');
-            return descA.localeCompare(descB, 'pt-BR');
-          })
-          .map(row => {
-            const cat = String(row['CATEGORIA'] || '').toLowerCase();
-            const isEquip = isEquipCat(cat);
-            const horPrev = parseNumber(row['HORIMETRO ANTERIOR']);
-            const horCurr = parseNumber(row['HORIMETRO ATUAL']);
-            const kmPrev = parseNumber(row['KM ANTERIOR']);
-            const kmCurr = parseNumber(row['KM ATUAL']);
-            const qty = parseNumber(row['QUANTIDADE']);
-            
-            const horInterval = (horPrev > 0 && horCurr > horPrev) ? horCurr - horPrev : 0;
-            const kmInterval = (kmPrev > 0 && kmCurr > kmPrev) ? kmCurr - kmPrev : 0;
-            const interval = isEquip ? horInterval : kmInterval;
-            const intervalUnit = isEquip ? 'h' : 'km';
-            
-            let consumption = 0;
-            if (isEquip && horInterval > 0 && qty > 0) consumption = qty / horInterval;
-            else if (!isEquip && kmInterval > 0 && qty > 0) consumption = kmInterval / qty;
-            const consumptionUnit = isEquip ? 'L/h' : 'km/L';
-            
-            return [
-              row['DATA'], row['HORA'], row['VEICULO'],
-              row['MOTORISTA'] || '-', row['EMPRESA'] || '-',
-              fmtBR(qty, 0),
-              isEquip
-                ? (horPrev > 0 ? fmtBR(horPrev, 1) : '-')
-                : (kmPrev > 0 ? fmtBR(kmPrev, 0) : '-'),
-              isEquip
-                ? (horCurr > 0 ? fmtBR(horCurr, 1) : '-')
-                : (kmCurr > 0 ? fmtBR(kmCurr, 0) : '-'),
-              interval > 0 ? `${fmtBR(interval, isEquip ? 2 : 0)} ${intervalUnit}` : '-',
-              consumption > 0 ? `${fmtBR(consumption)} ${consumptionUnit}` : '-',
-            ];
-          });
+        // Build table body sorted by description
+        const sortedRows = [...groupData.rows].sort((a, b) => {
+          const descA = String(a['DESCRICAO'] || a['DESCRIÇÃO'] || '');
+          const descB = String(b['DESCRICAO'] || b['DESCRIÇÃO'] || '');
+          return descA.localeCompare(descB, 'pt-BR');
+        });
+
+        // Build description-to-color index for alternating group backgrounds
+        const uniqueDescs: string[] = [];
+        sortedRows.forEach(row => {
+          const desc = String(row['DESCRICAO'] || row['DESCRIÇÃO'] || '');
+          if (!uniqueDescs.includes(desc)) uniqueDescs.push(desc);
+        });
+        const descColorMap: Record<string, number> = {};
+        uniqueDescs.forEach((d, i) => { descColorMap[d] = i % 2; });
+
+        // Two alternating light fills for description groups
+        const groupFills: [number, number, number][] = [
+          [255, 255, 255],   // white
+          [235, 240, 250],   // light blue-gray
+        ];
+
+        const body = sortedRows.map(row => {
+          const cat = String(row['CATEGORIA'] || '').toLowerCase();
+          const isEquip = isEquipCat(cat);
+          const horPrev = parseNumber(row['HORIMETRO ANTERIOR']);
+          const horCurr = parseNumber(row['HORIMETRO ATUAL']);
+          const kmPrev = parseNumber(row['KM ANTERIOR']);
+          const kmCurr = parseNumber(row['KM ATUAL']);
+          const qty = parseNumber(row['QUANTIDADE']);
+          const desc = String(row['DESCRICAO'] || row['DESCRIÇÃO'] || '-');
+
+          const horInterval = (horPrev > 0 && horCurr > horPrev) ? horCurr - horPrev : 0;
+          const kmInterval = (kmPrev > 0 && kmCurr > kmPrev) ? kmCurr - kmPrev : 0;
+          const interval = isEquip ? horInterval : kmInterval;
+          const intervalUnit = isEquip ? 'h' : 'km';
+
+          let consumption = 0;
+          if (isEquip && horInterval > 0 && qty > 0) consumption = qty / horInterval;
+          else if (!isEquip && kmInterval > 0 && qty > 0) consumption = kmInterval / qty;
+          const consumptionUnit = isEquip ? 'L/h' : 'km/L';
+
+          return [
+            row['DATA'], row['HORA'], row['VEICULO'], desc,
+            row['MOTORISTA'] || '-', row['EMPRESA'] || '-',
+            fmtBR(qty, 0),
+            isEquip
+              ? (horPrev > 0 ? fmtBR(horPrev, 1) : '-')
+              : (kmPrev > 0 ? fmtBR(kmPrev, 0) : '-'),
+            isEquip
+              ? (horCurr > 0 ? fmtBR(horCurr, 1) : '-')
+              : (kmCurr > 0 ? fmtBR(kmCurr, 0) : '-'),
+            interval > 0 ? `${fmtBR(interval, isEquip ? 2 : 0)} ${intervalUnit}` : '-',
+            consumption > 0 ? `${fmtBR(consumption)} ${consumptionUnit}` : '-',
+          ];
+        });
         
         autoTable(doc, {
           startY: startY + 6,
-          head: [['Data', 'Hora', 'Veículo', 'Motorista', 'Empresa', 'Qtd (L)', 'Hor/Km\nAnt.', 'Hor/Km\nAtual', 'Intervalo\n(h/km)', 'Consumo\n(L/h ou km/L)']],
+          head: [['Data', 'Hora', 'Veículo', 'Descrição', 'Motorista', 'Empresa', 'Qtd (L)', 'Hor/Km\nAnt.', 'Hor/Km\nAtual', 'Intervalo\n(h/km)', 'Consumo\n(L/h ou km/L)']],
           body,
           theme: 'grid',
           styles: {
-            fontSize: 9,
-            cellPadding: 3,
+            fontSize: 8,
+            cellPadding: 2.5,
             lineColor: [200, 200, 210],
             lineWidth: 0.25,
             overflow: 'linebreak',
@@ -1545,28 +1561,35 @@ export function AbastecimentoPage() {
             valign: 'middle',
           },
           headStyles: {
-            fillColor: [220, 220, 225],
-            textColor: [30, 30, 30],
+            fillColor: [55, 71, 95],
+            textColor: [255, 255, 255],
             fontStyle: 'bold',
-            fontSize: 9,
+            fontSize: 8,
             halign: 'center',
             valign: 'middle',
             minCellHeight: 11,
           },
           columnStyles: {
-            0: { cellWidth: 22 },
-            1: { cellWidth: 14 },
-            2: { cellWidth: 24 },
-            3: { cellWidth: 'auto', overflow: 'linebreak' },
-            4: { cellWidth: 28 },
-            5: { cellWidth: 20, halign: 'center', fontStyle: 'bold' },
-            6: { cellWidth: 24, halign: 'center' },
-            7: { cellWidth: 24, halign: 'center' },
-            8: { cellWidth: 24, halign: 'center' },
-            9: { cellWidth: 26, halign: 'center' },
+            0: { cellWidth: 20 },
+            1: { cellWidth: 12 },
+            2: { cellWidth: 22 },
+            3: { cellWidth: 38, halign: 'left', overflow: 'linebreak' },
+            4: { cellWidth: 'auto', halign: 'left', overflow: 'linebreak' },
+            5: { cellWidth: 26 },
+            6: { cellWidth: 18, halign: 'center', fontStyle: 'bold' },
+            7: { cellWidth: 22, halign: 'center' },
+            8: { cellWidth: 22, halign: 'center' },
+            9: { cellWidth: 22, halign: 'center' },
+            10: { cellWidth: 24, halign: 'center' },
           },
-          alternateRowStyles: { fillColor: [245, 245, 248] },
           margin: { left: 10, right: 10 },
+          didParseCell: (data) => {
+            if (data.section === 'body') {
+              const desc = String(body[data.row.index]?.[3] || '');
+              const colorIdx = descColorMap[desc] ?? 0;
+              data.cell.styles.fillColor = groupFills[colorIdx];
+            }
+          },
         });
       });
       
