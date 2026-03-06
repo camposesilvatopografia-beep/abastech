@@ -1480,16 +1480,46 @@ export function AbastecimentoPage() {
         if (!isFirstPage) doc.addPage();
         isFirstPage = false;
         
-        const startY = renderStandardHeader(doc, {
+        let startY = renderStandardHeader(doc, {
           reportTitle: `LANÇAMENTOS — ${location.toUpperCase()}`,
           obraSettings,
           logoBase64,
           date: `${format(dateRange.start, 'dd/MM/yyyy')} a ${format(dateRange.end, 'dd/MM/yyyy')}`,
         });
         
-        doc.setTextColor(60, 60, 60);
-        doc.setFontSize(10);
-        doc.text(`${groupData.rows.length} registros | Total: ${fmtBR(groupData.totalLiters, 0)} L`, 14, startY);
+        // KPI boxes
+        const kpiY = startY;
+        const kpiW = 60;
+        const kpiH = 14;
+        const pw = doc.internal.pageSize.getWidth();
+        const kpiGap = 10;
+        const totalKpiW = kpiW * 2 + kpiGap;
+        const kpiStartX = (pw - totalKpiW) / 2;
+
+        // KPI 1 - Total Registros (blue)
+        doc.setFillColor(59, 130, 246);
+        doc.roundedRect(kpiStartX, kpiY, kpiW, kpiH, 2, 2, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(7);
+        doc.setFont('helvetica', 'normal');
+        doc.text('REGISTROS', kpiStartX + kpiW / 2, kpiY + 5, { align: 'center' });
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`${groupData.rows.length}`, kpiStartX + kpiW / 2, kpiY + 11.5, { align: 'center' });
+
+        // KPI 2 - Total Abastecido (green)
+        const kpi2X = kpiStartX + kpiW + kpiGap;
+        doc.setFillColor(34, 197, 94);
+        doc.roundedRect(kpi2X, kpiY, kpiW, kpiH, 2, 2, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(7);
+        doc.setFont('helvetica', 'normal');
+        doc.text('TOTAL ABASTECIDO', kpi2X + kpiW / 2, kpiY + 5, { align: 'center' });
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`${fmtBR(groupData.totalLiters, 0)} L`, kpi2X + kpiW / 2, kpiY + 11.5, { align: 'center' });
+
+        startY = kpiY + kpiH + 4;
         
         // Build table body sorted by description
         const sortedRows = [...groupData.rows].sort((a, b) => {
