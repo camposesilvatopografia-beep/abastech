@@ -110,6 +110,7 @@ import { GeneralFuelingReport } from '@/components/Abastecimento/GeneralFuelingR
 import { exportTanquesComboiosPDF, exportTanquesComboiosXLSX, exportTanquesPDF, exportTanquesXLSX, exportComboiosPDF, exportComboiosXLSX, type TanquesComboiosStockData } from '@/components/Abastecimento/TanquesComboiosReport';
 import { ReportsTab } from '@/components/Abastecimento/ReportsTab';
 import { PdfPreviewModal } from '@/components/Abastecimento/PdfPreviewModal';
+import { useReportConfig, type ReportConfig, type ReportStyleConfig } from '@/hooks/useReportConfig';
 
 
 const TABS = [
