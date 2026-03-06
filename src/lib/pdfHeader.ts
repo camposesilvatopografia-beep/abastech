@@ -148,36 +148,47 @@ export function renderKpiBoxes(
   const { y, recordCount, totalLiters } = options;
   const fmtBR = options.fmtBR || ((v: number, d = 0) => v.toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d }));
   const pw = doc.internal.pageSize.getWidth();
-  const kpiW = 60;
-  const kpiH = 14;
-  const kpiGap = 10;
+  const kpiW = 70;
+  const kpiH = 16;
+  const kpiGap = 12;
   const totalKpiW = kpiW * 2 + kpiGap;
   const kpiStartX = (pw - totalKpiW) / 2;
 
-  // KPI 1 - Registros (blue)
-  doc.setFillColor(59, 130, 246);
-  doc.roundedRect(kpiStartX, y, kpiW, kpiH, 2, 2, 'F');
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(7);
-  doc.setFont('helvetica', 'normal');
-  doc.text('REGISTROS', kpiStartX + kpiW / 2, y + 5, { align: 'center' });
-  doc.setFontSize(11);
+  // KPI 1 - Registros (dark blue gradient feel)
+  doc.setFillColor(37, 99, 235);
+  doc.roundedRect(kpiStartX, y, kpiW, kpiH, 3, 3, 'F');
+  // Subtle darker accent bar at top
+  doc.setFillColor(29, 78, 216);
+  doc.roundedRect(kpiStartX, y, kpiW, 5, 3, 3, 'F');
+  doc.rect(kpiStartX, y + 3, kpiW, 2, 'F');
+
+  doc.setTextColor(220, 230, 255);
+  doc.setFontSize(6.5);
   doc.setFont('helvetica', 'bold');
-  doc.text(`${recordCount}`, kpiStartX + kpiW / 2, y + 11.5, { align: 'center' });
+  doc.text('REGISTROS', kpiStartX + kpiW / 2, y + 4, { align: 'center' });
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(13);
+  doc.setFont('helvetica', 'bold');
+  doc.text(`${recordCount}`, kpiStartX + kpiW / 2, y + 13, { align: 'center' });
 
   // KPI 2 - Total Abastecido (green)
   const kpi2X = kpiStartX + kpiW + kpiGap;
-  doc.setFillColor(34, 197, 94);
-  doc.roundedRect(kpi2X, y, kpiW, kpiH, 2, 2, 'F');
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(7);
-  doc.setFont('helvetica', 'normal');
-  doc.text('TOTAL ABASTECIDO', kpi2X + kpiW / 2, y + 5, { align: 'center' });
-  doc.setFontSize(11);
-  doc.setFont('helvetica', 'bold');
-  doc.text(`${fmtBR(totalLiters, 0)} L`, kpi2X + kpiW / 2, y + 11.5, { align: 'center' });
+  doc.setFillColor(22, 163, 74);
+  doc.roundedRect(kpi2X, y, kpiW, kpiH, 3, 3, 'F');
+  doc.setFillColor(21, 128, 61);
+  doc.roundedRect(kpi2X, y, kpiW, 5, 3, 3, 'F');
+  doc.rect(kpi2X, y + 3, kpiW, 2, 'F');
 
-  return y + kpiH + 4;
+  doc.setTextColor(220, 255, 230);
+  doc.setFontSize(6.5);
+  doc.setFont('helvetica', 'bold');
+  doc.text('TOTAL ABASTECIDO', kpi2X + kpiW / 2, y + 4, { align: 'center' });
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(13);
+  doc.setFont('helvetica', 'bold');
+  doc.text(`${fmtBR(totalLiters, 0)} L`, kpi2X + kpiW / 2, y + 13, { align: 'center' });
+
+  return y + kpiH + 5;
 }
 
 /**

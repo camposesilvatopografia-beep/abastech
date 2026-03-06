@@ -210,6 +210,23 @@ export function AbastecimentoPage() {
     loading: canteiro02Loading,
     lastUpdatedAt: canteiro02UpdatedAt,
   } = useSheetData('EstoqueCanteiro02', { pollingInterval: POLL_MS, suppressErrors: true });
+
+  // Load Veiculo sheet for Potência lookup
+  const { data: veiculoSheetData } = useSheetData('Veiculo', { pollingInterval: 60000, suppressErrors: true });
+
+  // Build potência map: vehicle code -> potência
+  const potenciaByCode = useMemo(() => {
+    const map = new Map<string, string>();
+    if (veiculoSheetData?.rows) {
+      for (const row of veiculoSheetData.rows) {
+        const code = String(row['CODIGO'] || row['Codigo'] || row['codigo'] || row['VEICULO'] || row['Veiculo'] || '').trim().toUpperCase();
+        const pot = String(row['POTENCIA'] || row['Potencia'] || row['POTÊNCIA'] || row['potencia'] || '').trim();
+        if (code && pot) map.set(code, pot);
+      }
+    }
+    return map;
+  }, [veiculoSheetData]);
+
   const [activeTab, setActiveTab] = useState('painel');
   const [search, setSearch] = useState('');
   const [localFilter, setLocalFilter] = useState('all');
@@ -1537,9 +1554,12 @@ export function AbastecimentoPage() {
           else if (!isEquip && kmInterval > 0 && qty > 0) consumption = kmInterval / qty;
           const consumptionUnit = isEquip ? 'L/h' : 'km/L';
 
+          const vCode = String(row['VEICULO'] || '').trim().toUpperCase();
+          const potencia = row['POTENCIA'] || row['Potencia'] || row['POTÊNCIA'] || potenciaByCode.get(vCode) || '-';
+
           return [
             row['DATA'], row['HORA'], row['VEICULO'],
-            row['POTENCIA'] || row['Potencia'] || '-',
+            potencia,
             desc,
             row['MOTORISTA'] || '-', row['EMPRESA'] || '-',
             fmtBR(qty, 0),
