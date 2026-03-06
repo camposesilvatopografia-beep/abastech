@@ -1604,7 +1604,7 @@ export function AbastecimentoPage() {
         // Build columnStyles from config (including per-column overrides)
         const colStyles: Record<number, any> = {};
         visibleCols.forEach((c, idx) => {
-          const style: any = { halign: 'center' };
+          const style: any = { halign: c.halign || 'center' };
           if (c.width) style.cellWidth = c.width;
           if (c.key === 'descricao' || c.key === 'motorista') {
             style.overflow = 'linebreak';
