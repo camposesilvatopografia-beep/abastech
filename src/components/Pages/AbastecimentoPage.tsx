@@ -1564,7 +1564,9 @@ export function AbastecimentoPage() {
           const consumptionUnit = isEquip ? 'L/h' : 'km/L';
 
           return [
-            row['DATA'], row['HORA'], row['VEICULO'], desc,
+            row['DATA'], row['HORA'], row['VEICULO'],
+            row['POTENCIA'] || row['Potencia'] || '-',
+            desc,
             row['MOTORISTA'] || '-', row['EMPRESA'] || '-',
             fmtBR(qty, 0),
             isEquip
@@ -1582,8 +1584,8 @@ export function AbastecimentoPage() {
         const rc = lancTanquesConfig;
         const visibleCols = [...rc.columns].filter(c => c.visible).sort((a, b) => a.order - b.order);
         const colKeyToDataIdx: Record<string, number> = {
-          data: 0, hora: 1, veiculo: 2, descricao: 3, motorista: 4,
-          empresa: 5, quantidade: 6, hor_ant: 7, hor_atual: 8, intervalo: 9, consumo: 10,
+          data: 0, hora: 1, veiculo: 2, potencia: 3, descricao: 4, motorista: 5,
+          empresa: 6, quantidade: 7, hor_ant: 8, hor_atual: 9, intervalo: 10, consumo: 11,
         };
 
         // Build head and filtered body based on visible columns
