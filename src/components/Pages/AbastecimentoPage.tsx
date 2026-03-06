@@ -2234,20 +2234,60 @@ export function AbastecimentoPage() {
       doc.setTextColor(0, 0, 0);
       let currentY = startY;
       
-      // Collect stock data for all locations
-      const canteiro01 = getStockDataFromSheet(estoqueCanteiro01Data, targetDate);
-      const canteiro02 = getStockDataFromSheet(estoqueCanteiro02Data, targetDate);
-      const comboio01 = getStockDataFromSheet(estoqueComboio01Data, targetDate);
-      const comboio02 = getStockDataFromSheet(estoqueComboio02Data, targetDate);
-      const comboio03 = getStockDataFromSheet(estoqueComboio03Data, targetDate);
+      // Collect stock data from sheets
+      const canteiro01Sheet = getStockDataFromSheet(estoqueCanteiro01Data, targetDate);
+      const canteiro02Sheet = getStockDataFromSheet(estoqueCanteiro02Data, targetDate);
+      const comboio01Sheet = getStockDataFromSheet(estoqueComboio01Data, targetDate);
+      const comboio02Sheet = getStockDataFromSheet(estoqueComboio02Data, targetDate);
+      const comboio03Sheet = getStockDataFromSheet(estoqueComboio03Data, targetDate);
       
-      // Summary table data
+      // Compute breakdowns from fuel records when stock sheets lack detail
+      const computeFromRecords = (locationKeys: string[]) => {
+        let entrada = 0, saidaComboios = 0, saidaEquipamentos = 0, total = 0;
+        for (const locKey of locationKeys) {
+          const records = resumoPorLocal.recordsByLocal[locKey] || [];
+          for (const r of records) {
+            const isEntrada = r.fornecedor || r.tipo.includes('entrada');
+            const isCarregamento = r.tipo === 'carregamento';
+            if (isEntrada && !isCarregamento) {
+              entrada += r.quantidade;
+            } else if (isCarregamento) {
+              saidaComboios += r.quantidade;
+            } else {
+              saidaEquipamentos += r.quantidade;
+            }
+            total += r.quantidade;
+          }
+        }
+        return { entrada, saidaComboios, saidaEquipamentos, total };
+      };
+      
+      // Match resumoPorLocal keys to stock locations
+      const allLocKeys = Object.keys(resumoPorLocal.recordsByLocal);
+      const findLocKeys = (pattern: string) => allLocKeys.filter(k => k.toLowerCase().includes(pattern.toLowerCase()));
+      
+      const c01Records = computeFromRecords(findLocKeys('Canteiro 01'));
+      const c02Records = computeFromRecords(findLocKeys('Canteiro 02'));
+      const cb01Records = computeFromRecords(findLocKeys('Comboio 01'));
+      const cb02Records = computeFromRecords(findLocKeys('Comboio 02'));
+      const cb03Records = computeFromRecords(findLocKeys('Comboio 03'));
+      
+      // Merge: use sheet for estoqueAnterior/estoqueAtual, records for breakdowns
+      const merge = (sheet: any, records: any) => ({
+        estoqueAnterior: sheet.estoqueAnterior || 0,
+        entrada: sheet.entrada || records.entrada,
+        saidaComboios: sheet.saidaComboios || records.saidaComboios,
+        saidaEquipamentos: sheet.saidaEquipamentos || records.saidaEquipamentos,
+        total: records.total || sheet.total,
+        estoqueAtual: sheet.estoqueAtual || 0,
+      });
+      
       const summaryData = [
-        ['Canteiro 01', canteiro01.estoqueAnterior, canteiro01.entrada, canteiro01.saidaComboios, canteiro01.saidaEquipamentos, canteiro01.total, canteiro01.estoqueAtual],
-        ['Canteiro 02', canteiro02.estoqueAnterior, canteiro02.entrada, canteiro02.saidaComboios, canteiro02.saidaEquipamentos, canteiro02.total, canteiro02.estoqueAtual],
-        ['Comboio 01', comboio01.estoqueAnterior, comboio01.entrada, comboio01.saidaComboios, comboio01.saidaEquipamentos, comboio01.total, comboio01.estoqueAtual],
-        ['Comboio 02', comboio02.estoqueAnterior, comboio02.entrada, comboio02.saidaComboios, comboio02.saidaEquipamentos, comboio02.total, comboio02.estoqueAtual],
-        ['Comboio 03', comboio03.estoqueAnterior, comboio03.entrada, comboio03.saidaComboios, comboio03.saidaEquipamentos, comboio03.total, comboio03.estoqueAtual],
+        ['Tanque Canteiro 01', ...Object.values(merge(canteiro01Sheet, c01Records))],
+        ['Tanque Canteiro 02', ...Object.values(merge(canteiro02Sheet, c02Records))],
+        ['Comboio 01', ...Object.values(merge(comboio01Sheet, cb01Records))],
+        ['Comboio 02', ...Object.values(merge(comboio02Sheet, cb02Records))],
+        ['Comboio 03', ...Object.values(merge(comboio03Sheet, cb03Records))],
       ];
       
       // Calculate totals
