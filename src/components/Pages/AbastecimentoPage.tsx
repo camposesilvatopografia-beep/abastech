@@ -2338,8 +2338,8 @@ export function AbastecimentoPage() {
           cellPadding: 3,
         },
         headStyles: { 
-          fillColor: [200, 200, 200],
-          textColor: [0, 0, 0],
+          fillColor: [30, 30, 30],
+          textColor: [255, 255, 255],
           fontStyle: 'bold',
           halign: 'center',
           valign: 'middle',
