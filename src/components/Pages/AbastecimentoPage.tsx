@@ -1692,7 +1692,9 @@ export function AbastecimentoPage() {
         });
         
         doc.setTextColor(0, 0, 0);
-        currentY = startY;
+        const totalRecordsLocal = saidasRecords.length + carregamentoRecords.length + entradasRecords.length;
+        const totalLitersLocal = records.reduce((s, r) => s + r.quantidade, 0);
+        currentY = renderKpiBoxes(doc, { y: startY, recordCount: totalRecordsLocal, totalLiters: totalLitersLocal });
         
         // ========== SAÍDAS TABLE ==========
         if (sortedSaidas.length > 0) {
@@ -1997,7 +1999,7 @@ export function AbastecimentoPage() {
         });
         
         doc.setTextColor(0, 0, 0);
-        currentY = startY;
+        currentY = renderKpiBoxes(doc, { y: startY, recordCount: allRecords.length, totalLiters: empresaData.totalLitros });
         
         // Prepare table data with consumption calculation - unified table
         let totalDiesel = 0;
