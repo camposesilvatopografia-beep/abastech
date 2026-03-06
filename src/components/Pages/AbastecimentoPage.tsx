@@ -1798,8 +1798,8 @@ export function AbastecimentoPage() {
               valign: 'middle',
             },
             headStyles: {
-              fillColor: [220, 220, 225],
-              textColor: [30, 30, 30],
+              fillColor: [30, 30, 30],
+              textColor: [255, 255, 255],
               fontStyle: 'bold',
               fontSize: 9,
               halign: 'center',
@@ -1908,8 +1908,8 @@ export function AbastecimentoPage() {
               valign: 'middle',
             },
             headStyles: {
-              fillColor: [220, 220, 225],
-              textColor: [30, 30, 30],
+              fillColor: [30, 30, 30],
+              textColor: [255, 255, 255],
               fontStyle: 'bold',
               fontSize: 9,
               halign: 'center',
@@ -2099,8 +2099,8 @@ export function AbastecimentoPage() {
             valign: 'middle',
           },
           headStyles: {
-            fillColor: [220, 220, 225],
-            textColor: [30, 30, 30],
+            fillColor: [30, 30, 30],
+            textColor: [255, 255, 255],
             fontStyle: 'bold',
             fontSize: 9,
             halign: 'center',
@@ -2234,20 +2234,60 @@ export function AbastecimentoPage() {
       doc.setTextColor(0, 0, 0);
       let currentY = startY;
       
-      // Collect stock data for all locations
-      const canteiro01 = getStockDataFromSheet(estoqueCanteiro01Data, targetDate);
-      const canteiro02 = getStockDataFromSheet(estoqueCanteiro02Data, targetDate);
-      const comboio01 = getStockDataFromSheet(estoqueComboio01Data, targetDate);
-      const comboio02 = getStockDataFromSheet(estoqueComboio02Data, targetDate);
-      const comboio03 = getStockDataFromSheet(estoqueComboio03Data, targetDate);
+      // Collect stock data from sheets
+      const canteiro01Sheet = getStockDataFromSheet(estoqueCanteiro01Data, targetDate);
+      const canteiro02Sheet = getStockDataFromSheet(estoqueCanteiro02Data, targetDate);
+      const comboio01Sheet = getStockDataFromSheet(estoqueComboio01Data, targetDate);
+      const comboio02Sheet = getStockDataFromSheet(estoqueComboio02Data, targetDate);
+      const comboio03Sheet = getStockDataFromSheet(estoqueComboio03Data, targetDate);
       
-      // Summary table data
+      // Compute breakdowns from fuel records when stock sheets lack detail
+      const computeFromRecords = (locationKeys: string[]) => {
+        let entrada = 0, saidaComboios = 0, saidaEquipamentos = 0, total = 0;
+        for (const locKey of locationKeys) {
+          const records = resumoPorLocal.recordsByLocal[locKey] || [];
+          for (const r of records) {
+            const isEntrada = r.fornecedor || r.tipo.includes('entrada');
+            const isCarregamento = r.tipo === 'carregamento';
+            if (isEntrada && !isCarregamento) {
+              entrada += r.quantidade;
+            } else if (isCarregamento) {
+              saidaComboios += r.quantidade;
+            } else {
+              saidaEquipamentos += r.quantidade;
+            }
+            total += r.quantidade;
+          }
+        }
+        return { entrada, saidaComboios, saidaEquipamentos, total };
+      };
+      
+      // Match resumoPorLocal keys to stock locations
+      const allLocKeys = Object.keys(resumoPorLocal.recordsByLocal);
+      const findLocKeys = (pattern: string) => allLocKeys.filter(k => k.toLowerCase().includes(pattern.toLowerCase()));
+      
+      const c01Records = computeFromRecords(findLocKeys('Canteiro 01'));
+      const c02Records = computeFromRecords(findLocKeys('Canteiro 02'));
+      const cb01Records = computeFromRecords(findLocKeys('Comboio 01'));
+      const cb02Records = computeFromRecords(findLocKeys('Comboio 02'));
+      const cb03Records = computeFromRecords(findLocKeys('Comboio 03'));
+      
+      // Merge: use sheet for estoqueAnterior/estoqueAtual, records for breakdowns
+      const merge = (sheet: any, records: any) => ({
+        estoqueAnterior: sheet.estoqueAnterior || 0,
+        entrada: sheet.entrada || records.entrada,
+        saidaComboios: sheet.saidaComboios || records.saidaComboios,
+        saidaEquipamentos: sheet.saidaEquipamentos || records.saidaEquipamentos,
+        total: records.total || sheet.total,
+        estoqueAtual: sheet.estoqueAtual || 0,
+      });
+      
       const summaryData = [
-        ['Canteiro 01', canteiro01.estoqueAnterior, canteiro01.entrada, canteiro01.saidaComboios, canteiro01.saidaEquipamentos, canteiro01.total, canteiro01.estoqueAtual],
-        ['Canteiro 02', canteiro02.estoqueAnterior, canteiro02.entrada, canteiro02.saidaComboios, canteiro02.saidaEquipamentos, canteiro02.total, canteiro02.estoqueAtual],
-        ['Comboio 01', comboio01.estoqueAnterior, comboio01.entrada, comboio01.saidaComboios, comboio01.saidaEquipamentos, comboio01.total, comboio01.estoqueAtual],
-        ['Comboio 02', comboio02.estoqueAnterior, comboio02.entrada, comboio02.saidaComboios, comboio02.saidaEquipamentos, comboio02.total, comboio02.estoqueAtual],
-        ['Comboio 03', comboio03.estoqueAnterior, comboio03.entrada, comboio03.saidaComboios, comboio03.saidaEquipamentos, comboio03.total, comboio03.estoqueAtual],
+        ['Tanque Canteiro 01', ...Object.values(merge(canteiro01Sheet, c01Records))],
+        ['Tanque Canteiro 02', ...Object.values(merge(canteiro02Sheet, c02Records))],
+        ['Comboio 01', ...Object.values(merge(comboio01Sheet, cb01Records))],
+        ['Comboio 02', ...Object.values(merge(comboio02Sheet, cb02Records))],
+        ['Comboio 03', ...Object.values(merge(comboio03Sheet, cb03Records))],
       ];
       
       // Calculate totals
@@ -2266,14 +2306,18 @@ export function AbastecimentoPage() {
       summaryData.push(totalGeralRow);
       
       // Format numbers for display
+      const fmtStock = (v: any) => {
+        if (typeof v !== 'number' || v === 0) return '-';
+        return v.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+      };
       const formattedSummaryData = summaryData.map(row => [
         row[0],
-        typeof row[1] === 'number' ? row[1].toLocaleString('pt-BR', { minimumFractionDigits: 1 }) : row[1],
-        typeof row[2] === 'number' ? row[2].toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : row[2],
-        typeof row[3] === 'number' ? row[3].toLocaleString('pt-BR', { minimumFractionDigits: 0 }) : row[3],
-        typeof row[4] === 'number' ? row[4].toLocaleString('pt-BR', { minimumFractionDigits: 1 }) : row[4],
-        typeof row[5] === 'number' ? row[5].toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : row[5],
-        typeof row[6] === 'number' ? row[6].toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : row[6],
+        fmtStock(row[1]),
+        fmtStock(row[2]),
+        fmtStock(row[3]),
+        fmtStock(row[4]),
+        fmtStock(row[5]),
+        fmtStock(row[6]),
       ]);
       
       // Draw summary table
@@ -2294,8 +2338,8 @@ export function AbastecimentoPage() {
           cellPadding: 3,
         },
         headStyles: { 
-          fillColor: [200, 200, 200],
-          textColor: [0, 0, 0],
+          fillColor: [30, 30, 30],
+          textColor: [255, 255, 255],
           fontStyle: 'bold',
           halign: 'center',
           valign: 'middle',
@@ -2324,10 +2368,15 @@ export function AbastecimentoPage() {
       
       currentY = (doc as any).lastAutoTable?.finalY + 20 || currentY + 80;
       
+      // KPIs for detailed section
+      const allRecs = Object.values(resumoPorLocal.recordsByLocal).flat();
+      const totalLitersAll = allRecs.reduce((s, r) => s + r.quantidade, 0);
+      currentY = renderKpiBoxes(doc, { y: currentY, recordCount: allRecs.length, totalLiters: totalLitersAll });
+      
       // Section: Tanques 01 e 02 - Detailed records
-      doc.setFontSize(14);
+      doc.setFontSize(13);
       doc.setFont('helvetica', 'bold');
-      doc.setTextColor(180, 0, 0);
+      doc.setTextColor(20, 20, 20);
       doc.text('Tanques 01 e 02', pageWidth / 2, currentY, { align: 'center' });
       doc.setTextColor(0, 0, 0);
       currentY += 8;
@@ -2403,8 +2452,8 @@ export function AbastecimentoPage() {
           cellPadding: 2,
         },
         headStyles: { 
-          fillColor: [200, 200, 200],
-          textColor: [0, 0, 0],
+          fillColor: [30, 30, 30],
+          textColor: [255, 255, 255],
           fontStyle: 'bold',
           halign: 'center',
           valign: 'middle',
