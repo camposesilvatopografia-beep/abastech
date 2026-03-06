@@ -1554,9 +1554,12 @@ export function AbastecimentoPage() {
           else if (!isEquip && kmInterval > 0 && qty > 0) consumption = kmInterval / qty;
           const consumptionUnit = isEquip ? 'L/h' : 'km/L';
 
+          const vCode = String(row['VEICULO'] || '').trim().toUpperCase();
+          const potencia = row['POTENCIA'] || row['Potencia'] || row['POTÊNCIA'] || potenciaByCode.get(vCode) || '-';
+
           return [
             row['DATA'], row['HORA'], row['VEICULO'],
-            row['POTENCIA'] || row['Potencia'] || '-',
+            potencia,
             desc,
             row['MOTORISTA'] || '-', row['EMPRESA'] || '-',
             fmtBR(qty, 0),
