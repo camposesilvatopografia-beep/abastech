@@ -133,6 +133,54 @@ export function renderStandardHeader(
 }
 
 /**
+ * Renders two centered KPI boxes on the PDF (Registros + Total Abastecido).
+ * @returns The Y position after the KPI boxes.
+ */
+export function renderKpiBoxes(
+  doc: jsPDF,
+  options: {
+    y: number;
+    recordCount: number;
+    totalLiters: number;
+    fmtBR?: (v: number, d?: number) => string;
+  }
+): number {
+  const { y, recordCount, totalLiters } = options;
+  const fmtBR = options.fmtBR || ((v: number, d = 0) => v.toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d }));
+  const pw = doc.internal.pageSize.getWidth();
+  const kpiW = 60;
+  const kpiH = 14;
+  const kpiGap = 10;
+  const totalKpiW = kpiW * 2 + kpiGap;
+  const kpiStartX = (pw - totalKpiW) / 2;
+
+  // KPI 1 - Registros (blue)
+  doc.setFillColor(59, 130, 246);
+  doc.roundedRect(kpiStartX, y, kpiW, kpiH, 2, 2, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(7);
+  doc.setFont('helvetica', 'normal');
+  doc.text('REGISTROS', kpiStartX + kpiW / 2, y + 5, { align: 'center' });
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.text(`${recordCount}`, kpiStartX + kpiW / 2, y + 11.5, { align: 'center' });
+
+  // KPI 2 - Total Abastecido (green)
+  const kpi2X = kpiStartX + kpiW + kpiGap;
+  doc.setFillColor(34, 197, 94);
+  doc.roundedRect(kpi2X, y, kpiW, kpiH, 2, 2, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(7);
+  doc.setFont('helvetica', 'normal');
+  doc.text('TOTAL ABASTECIDO', kpi2X + kpiW / 2, y + 5, { align: 'center' });
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.text(`${fmtBR(totalLiters, 0)} L`, kpi2X + kpiW / 2, y + 11.5, { align: 'center' });
+
+  return y + kpiH + 4;
+}
+
+/**
  * Convenience: async version that loads the logo first, then renders the header.
  */
 export async function renderStandardHeaderAsync(

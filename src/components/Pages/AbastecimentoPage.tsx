@@ -77,7 +77,7 @@ import { ptBR } from 'date-fns/locale';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
-import { renderStandardHeader, getLogoBase64 } from '@/lib/pdfHeader';
+import { renderStandardHeader, getLogoBase64, renderKpiBoxes } from '@/lib/pdfHeader';
 import { toast } from 'sonner';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -1488,38 +1488,12 @@ export function AbastecimentoPage() {
         });
         
         // KPI boxes
-        const kpiY = startY;
-        const kpiW = 60;
-        const kpiH = 14;
-        const pw = doc.internal.pageSize.getWidth();
-        const kpiGap = 10;
-        const totalKpiW = kpiW * 2 + kpiGap;
-        const kpiStartX = (pw - totalKpiW) / 2;
-
-        // KPI 1 - Total Registros (blue)
-        doc.setFillColor(59, 130, 246);
-        doc.roundedRect(kpiStartX, kpiY, kpiW, kpiH, 2, 2, 'F');
-        doc.setTextColor(255, 255, 255);
-        doc.setFontSize(7);
-        doc.setFont('helvetica', 'normal');
-        doc.text('REGISTROS', kpiStartX + kpiW / 2, kpiY + 5, { align: 'center' });
-        doc.setFontSize(11);
-        doc.setFont('helvetica', 'bold');
-        doc.text(`${groupData.rows.length}`, kpiStartX + kpiW / 2, kpiY + 11.5, { align: 'center' });
-
-        // KPI 2 - Total Abastecido (green)
-        const kpi2X = kpiStartX + kpiW + kpiGap;
-        doc.setFillColor(34, 197, 94);
-        doc.roundedRect(kpi2X, kpiY, kpiW, kpiH, 2, 2, 'F');
-        doc.setTextColor(255, 255, 255);
-        doc.setFontSize(7);
-        doc.setFont('helvetica', 'normal');
-        doc.text('TOTAL ABASTECIDO', kpi2X + kpiW / 2, kpiY + 5, { align: 'center' });
-        doc.setFontSize(11);
-        doc.setFont('helvetica', 'bold');
-        doc.text(`${fmtBR(groupData.totalLiters, 0)} L`, kpi2X + kpiW / 2, kpiY + 11.5, { align: 'center' });
-
-        startY = kpiY + kpiH + 4;
+        startY = renderKpiBoxes(doc, {
+          y: startY,
+          recordCount: groupData.rows.length,
+          totalLiters: groupData.totalLiters,
+          fmtBR,
+        });
         
         // Build table body sorted by description
         const sortedRows = [...groupData.rows].sort((a, b) => {
@@ -1718,7 +1692,9 @@ export function AbastecimentoPage() {
         });
         
         doc.setTextColor(0, 0, 0);
-        currentY = startY;
+        const totalRecordsLocal = saidasRecords.length + carregamentoRecords.length + entradasRecords.length;
+        const totalLitersLocal = records.reduce((s, r) => s + r.quantidade, 0);
+        currentY = renderKpiBoxes(doc, { y: startY, recordCount: totalRecordsLocal, totalLiters: totalLitersLocal });
         
         // ========== SAÍDAS TABLE ==========
         if (sortedSaidas.length > 0) {
@@ -2023,7 +1999,7 @@ export function AbastecimentoPage() {
         });
         
         doc.setTextColor(0, 0, 0);
-        currentY = startY;
+        currentY = renderKpiBoxes(doc, { y: startY, recordCount: allRecords.length, totalLiters: empresaData.totalDiesel });
         
         // Prepare table data with consumption calculation - unified table
         let totalDiesel = 0;
