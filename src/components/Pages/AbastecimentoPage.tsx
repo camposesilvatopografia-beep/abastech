@@ -1630,7 +1630,7 @@ export function AbastecimentoPage() {
     } finally {
       setIsExporting(false);
     }
-  }, [filteredRows, dateRange, obraSettings]);
+  }, [filteredRows, dateRange, obraSettings, lancTanquesConfig]);
 
   // Export to PDF (simple) - same format as detailed, grouped by location WITH SIGNATURE
   // Now includes stock summary at top and separates exits/entries
