@@ -1577,7 +1577,6 @@ export function AbastecimentoPage() {
           const style: any = { halign: 'center' };
           if (c.width) style.cellWidth = c.width;
           if (c.key === 'descricao' || c.key === 'motorista') {
-            style.halign = 'left';
             style.overflow = 'linebreak';
             if (!c.width) style.cellWidth = 'auto';
           }
