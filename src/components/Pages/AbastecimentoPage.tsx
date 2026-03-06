@@ -1596,7 +1596,7 @@ export function AbastecimentoPage() {
           styles: {
             fontSize: rc.style.bodyFontSize,
             cellPadding: 2.5,
-            lineColor: [200, 200, 210],
+            lineColor: [30, 30, 30],
             lineWidth: 0.25,
             overflow: 'linebreak',
             halign: 'center',

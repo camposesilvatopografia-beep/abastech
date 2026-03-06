@@ -30,7 +30,7 @@ export interface ReportConfig {
 
 // Default styles shared across reports
 const DEFAULT_STYLE: ReportStyleConfig = {
-  headerBgColor: '#37475F',
+  headerBgColor: '#1E1E1E',
   headerTextColor: '#FFFFFF',
   headerFontSize: 9,
   bodyFontSize: 8,

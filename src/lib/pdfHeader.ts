@@ -118,14 +118,14 @@ export function renderStandardHeader(
 
   // Report title BELOW the header bar - centered and evident
   const titleY = headerHeight + 8;
-  doc.setTextColor(55, 71, 95);
+  doc.setTextColor(20, 20, 20);
   doc.setFontSize(13);
   doc.setFont('helvetica', 'bold');
   doc.text(reportTitle.toUpperCase(), pw / 2, titleY, { align: 'center' });
 
   // Underline below title (centered)
   const titleWidth = doc.getTextWidth(reportTitle.toUpperCase());
-  doc.setDrawColor(55, 71, 95);
+  doc.setDrawColor(20, 20, 20);
   doc.setLineWidth(0.5);
   doc.line((pw - titleWidth) / 2, titleY + 1.5, (pw + titleWidth) / 2, titleY + 1.5);
 
