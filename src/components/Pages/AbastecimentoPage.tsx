@@ -1999,7 +1999,7 @@ export function AbastecimentoPage() {
         });
         
         doc.setTextColor(0, 0, 0);
-        currentY = renderKpiBoxes(doc, { y: startY, recordCount: allRecords.length, totalLiters: empresaData.totalLitros });
+        currentY = renderKpiBoxes(doc, { y: startY, recordCount: allRecords.length, totalLiters: empresaData.totalDiesel });
         
         // Prepare table data with consumption calculation - unified table
         let totalDiesel = 0;
