@@ -164,6 +164,7 @@ export function AbastecimentoPage() {
   const POLL_MS = 10000;
   const { data, setData, loading, refetch } = useSheetData(SHEET_NAME, { pollingInterval: POLL_MS });
   const { settings: obraSettings } = useObraSettings();
+  const { config: lancTanquesConfig } = useReportConfig('lancamentos_tanques');
 
   const {
     data: geralData,
