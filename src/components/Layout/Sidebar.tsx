@@ -22,6 +22,7 @@ import {
   Building2,
   Settings,
   FlaskConical,
+  FileBarChart,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Link, useNavigate } from 'react-router-dom';
@@ -67,6 +68,7 @@ const menuItems: MenuItem[] = [
 
 // Admin-only menu items
 const adminMenuItems: MenuItem[] = [
+  { id: 'config-relatorios', label: 'Config. Relatórios', icon: FileBarChart },
   { id: 'sync-tests', label: 'Testes Sync', icon: FlaskConical },
 ];
 

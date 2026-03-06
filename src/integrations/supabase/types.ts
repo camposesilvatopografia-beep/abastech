@@ -633,6 +633,30 @@ export type Database = {
         }
         Relationships: []
       }
+      report_configurations: {
+        Row: {
+          config: Json
+          created_at: string
+          id: string
+          report_type: string
+          updated_at: string
+        }
+        Insert: {
+          config?: Json
+          created_at?: string
+          id?: string
+          report_type: string
+          updated_at?: string
+        }
+        Update: {
+          config?: Json
+          created_at?: string
+          id?: string
+          report_type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       role_permissions: {
         Row: {
           can_edit: boolean

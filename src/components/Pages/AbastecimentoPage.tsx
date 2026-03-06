@@ -110,6 +110,7 @@ import { GeneralFuelingReport } from '@/components/Abastecimento/GeneralFuelingR
 import { exportTanquesComboiosPDF, exportTanquesComboiosXLSX, exportTanquesPDF, exportTanquesXLSX, exportComboiosPDF, exportComboiosXLSX, type TanquesComboiosStockData } from '@/components/Abastecimento/TanquesComboiosReport';
 import { ReportsTab } from '@/components/Abastecimento/ReportsTab';
 import { PdfPreviewModal } from '@/components/Abastecimento/PdfPreviewModal';
+import { useReportConfig, type ReportConfig, type ReportStyleConfig } from '@/hooks/useReportConfig';
 
 
 const TABS = [
@@ -163,6 +164,7 @@ export function AbastecimentoPage() {
   const POLL_MS = 10000;
   const { data, setData, loading, refetch } = useSheetData(SHEET_NAME, { pollingInterval: POLL_MS });
   const { settings: obraSettings } = useObraSettings();
+  const { config: lancTanquesConfig } = useReportConfig('lancamentos_tanques');
 
   const {
     data: geralData,
@@ -1546,48 +1548,77 @@ export function AbastecimentoPage() {
           ];
         });
         
+        // Apply report config
+        const rc = lancTanquesConfig;
+        const visibleCols = [...rc.columns].filter(c => c.visible).sort((a, b) => a.order - b.order);
+        const colKeyToDataIdx: Record<string, number> = {
+          data: 0, hora: 1, veiculo: 2, descricao: 3, motorista: 4,
+          empresa: 5, quantidade: 6, hor_ant: 7, hor_atual: 8, intervalo: 9, consumo: 10,
+        };
+
+        // Build head and filtered body based on visible columns
+        const headRow = visibleCols.map(c => c.label);
+        const filteredBody = body.map(row => visibleCols.map(c => row[colKeyToDataIdx[c.key]] ?? ''));
+
+        // Parse hex color to RGB tuple
+        const hexToRgb = (hex: string): [number, number, number] => {
+          const h = hex.replace('#', '');
+          return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+        };
+
+        const hdrBg = hexToRgb(rc.style.headerBgColor);
+        const hdrTxt = hexToRgb(rc.style.headerTextColor);
+        const altColor1 = hexToRgb(rc.style.alternateRowColor1);
+        const altColor2 = hexToRgb(rc.style.alternateRowColor2);
+
+        // Build columnStyles from config
+        const colStyles: Record<number, any> = {};
+        visibleCols.forEach((c, idx) => {
+          const style: any = { halign: 'center' };
+          if (c.width) style.cellWidth = c.width;
+          if (c.key === 'descricao' || c.key === 'motorista') {
+            style.halign = 'left';
+            style.overflow = 'linebreak';
+            if (!c.width) style.cellWidth = 'auto';
+          }
+          if (c.key === 'quantidade') style.fontStyle = 'bold';
+          colStyles[idx] = style;
+        });
+
+        // Find descricao column index in filtered body
+        const descColIdx = visibleCols.findIndex(c => c.key === 'descricao');
+
         autoTable(doc, {
           startY: startY + 6,
-          head: [['Data', 'Hora', 'Veículo', 'Descrição', 'Motorista', 'Empresa', 'Qtd (L)', 'Hor/Km\nAnt.', 'Hor/Km\nAtual', 'Intervalo\n(h/km)', 'Consumo\n(L/h ou km/L)']],
-          body,
+          head: [headRow],
+          body: filteredBody,
           theme: 'grid',
           styles: {
-            fontSize: 8,
+            fontSize: rc.style.bodyFontSize,
             cellPadding: 2.5,
             lineColor: [200, 200, 210],
             lineWidth: 0.25,
             overflow: 'linebreak',
             halign: 'center',
             valign: 'middle',
+            fontStyle: rc.style.bodyBold ? 'bold' : 'normal',
           },
           headStyles: {
-            fillColor: [55, 71, 95],
-            textColor: [255, 255, 255],
+            fillColor: hdrBg,
+            textColor: hdrTxt,
             fontStyle: 'bold',
-            fontSize: 8,
+            fontSize: rc.style.headerFontSize,
             halign: 'center',
             valign: 'middle',
             minCellHeight: 11,
           },
-          columnStyles: {
-            0: { cellWidth: 20 },
-            1: { cellWidth: 12 },
-            2: { cellWidth: 22 },
-            3: { cellWidth: 38, halign: 'left', overflow: 'linebreak' },
-            4: { cellWidth: 'auto', halign: 'left', overflow: 'linebreak' },
-            5: { cellWidth: 26 },
-            6: { cellWidth: 18, halign: 'center', fontStyle: 'bold' },
-            7: { cellWidth: 22, halign: 'center' },
-            8: { cellWidth: 22, halign: 'center' },
-            9: { cellWidth: 22, halign: 'center' },
-            10: { cellWidth: 24, halign: 'center' },
-          },
+          columnStyles: colStyles,
           margin: { left: 10, right: 10 },
           didParseCell: (data) => {
             if (data.section === 'body') {
-              const desc = String(body[data.row.index]?.[3] || '');
+              const desc = descColIdx >= 0 ? String(filteredBody[data.row.index]?.[descColIdx] || '') : '';
               const colorIdx = descColorMap[desc] ?? 0;
-              data.cell.styles.fillColor = groupFills[colorIdx];
+              data.cell.styles.fillColor = colorIdx === 0 ? altColor1 : altColor2;
             }
           },
         });
@@ -1599,7 +1630,7 @@ export function AbastecimentoPage() {
     } finally {
       setIsExporting(false);
     }
-  }, [filteredRows, dateRange, obraSettings]);
+  }, [filteredRows, dateRange, obraSettings, lancTanquesConfig]);
 
   // Export to PDF (simple) - same format as detailed, grouped by location WITH SIGNATURE
   // Now includes stock summary at top and separates exits/entries
