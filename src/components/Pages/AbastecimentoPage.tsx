@@ -77,7 +77,7 @@ import { ptBR } from 'date-fns/locale';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
-import { renderStandardHeader, getLogoBase64 } from '@/lib/pdfHeader';
+import { renderStandardHeader, getLogoBase64, renderKpiBoxes } from '@/lib/pdfHeader';
 import { toast } from 'sonner';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
