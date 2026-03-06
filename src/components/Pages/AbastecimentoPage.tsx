@@ -2099,8 +2099,8 @@ export function AbastecimentoPage() {
             valign: 'middle',
           },
           headStyles: {
-            fillColor: [220, 220, 225],
-            textColor: [30, 30, 30],
+            fillColor: [30, 30, 30],
+            textColor: [255, 255, 255],
             fontStyle: 'bold',
             fontSize: 9,
             halign: 'center',
