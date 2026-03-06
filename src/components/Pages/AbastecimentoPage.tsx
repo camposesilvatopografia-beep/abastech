@@ -2368,10 +2368,15 @@ export function AbastecimentoPage() {
       
       currentY = (doc as any).lastAutoTable?.finalY + 20 || currentY + 80;
       
+      // KPIs for detailed section
+      const allRecs = Object.values(resumoPorLocal.recordsByLocal).flat();
+      const totalLitersAll = allRecs.reduce((s, r) => s + r.quantidade, 0);
+      currentY = renderKpiBoxes(doc, { y: currentY, recordCount: allRecs.length, totalLiters: totalLitersAll });
+      
       // Section: Tanques 01 e 02 - Detailed records
-      doc.setFontSize(14);
+      doc.setFontSize(13);
       doc.setFont('helvetica', 'bold');
-      doc.setTextColor(180, 0, 0);
+      doc.setTextColor(20, 20, 20);
       doc.text('Tanques 01 e 02', pageWidth / 2, currentY, { align: 'center' });
       doc.setTextColor(0, 0, 0);
       currentY += 8;
