@@ -2306,14 +2306,18 @@ export function AbastecimentoPage() {
       summaryData.push(totalGeralRow);
       
       // Format numbers for display
+      const fmtStock = (v: any) => {
+        if (typeof v !== 'number' || v === 0) return '-';
+        return v.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+      };
       const formattedSummaryData = summaryData.map(row => [
         row[0],
-        typeof row[1] === 'number' ? row[1].toLocaleString('pt-BR', { minimumFractionDigits: 1 }) : row[1],
-        typeof row[2] === 'number' ? row[2].toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : row[2],
-        typeof row[3] === 'number' ? row[3].toLocaleString('pt-BR', { minimumFractionDigits: 0 }) : row[3],
-        typeof row[4] === 'number' ? row[4].toLocaleString('pt-BR', { minimumFractionDigits: 1 }) : row[4],
-        typeof row[5] === 'number' ? row[5].toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : row[5],
-        typeof row[6] === 'number' ? row[6].toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : row[6],
+        fmtStock(row[1]),
+        fmtStock(row[2]),
+        fmtStock(row[3]),
+        fmtStock(row[4]),
+        fmtStock(row[5]),
+        fmtStock(row[6]),
       ]);
       
       // Draw summary table
