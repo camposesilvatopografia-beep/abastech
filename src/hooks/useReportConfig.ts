@@ -13,6 +13,7 @@ export interface ReportColumnConfig {
   bgColor?: string;
   fontSize?: number;
   bold?: boolean;
+  halign?: 'left' | 'center' | 'right';
 }
 
 export interface ReportStyleConfig {

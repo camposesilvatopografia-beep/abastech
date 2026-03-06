@@ -217,15 +217,33 @@ function ColumnEditor({
                     onCheckedChange={(v) => updateColumnStyle(col.key, 'bold', v)}
                   />
                 </div>
+
+                {/* Alignment */}
+                <div className="space-y-1">
+                  <Label className="text-[10px]">Alinhamento</Label>
+                  <div className="flex gap-1">
+                    {(['left', 'center', 'right'] as const).map(align => (
+                      <Button
+                        key={align}
+                        variant={(col.halign || 'center') === align ? 'default' : 'outline'}
+                        size="sm"
+                        className="h-6 w-8 text-[10px] px-0"
+                        onClick={() => updateColumnStyle(col.key, 'halign', align)}
+                      >
+                        {align === 'left' ? 'E' : align === 'center' ? 'C' : 'D'}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
               </div>
-              {(col.fontColor || col.bgColor || col.fontSize || col.bold) && (
+              {(col.fontColor || col.bgColor || col.fontSize || col.bold || col.halign) && (
                 <Button
                   variant="ghost"
                   size="sm"
                   className="h-6 text-[10px] text-muted-foreground"
                   onClick={() => {
                     onChange(columns.map(c => c.key === col.key
-                      ? { ...c, fontColor: undefined, bgColor: undefined, fontSize: undefined, bold: undefined }
+                      ? { ...c, fontColor: undefined, bgColor: undefined, fontSize: undefined, bold: undefined, halign: undefined }
                       : c
                     ));
                   }}
