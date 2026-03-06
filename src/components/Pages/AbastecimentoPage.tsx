@@ -1601,7 +1601,7 @@ export function AbastecimentoPage() {
         const altColor1 = hexToRgb(rc.style.alternateRowColor1);
         const altColor2 = hexToRgb(rc.style.alternateRowColor2);
 
-        // Build columnStyles from config
+        // Build columnStyles from config (including per-column overrides)
         const colStyles: Record<number, any> = {};
         visibleCols.forEach((c, idx) => {
           const style: any = { halign: 'center' };
@@ -1610,7 +1610,10 @@ export function AbastecimentoPage() {
             style.overflow = 'linebreak';
             if (!c.width) style.cellWidth = 'auto';
           }
-          if (c.key === 'quantidade') style.fontStyle = 'bold';
+          if (c.key === 'quantidade' || c.bold) style.fontStyle = 'bold';
+          if (c.fontSize) style.fontSize = c.fontSize;
+          if (c.fontColor) style.textColor = hexToRgb(c.fontColor);
+          if (c.bgColor) style.fillColor = hexToRgb(c.bgColor);
           colStyles[idx] = style;
         });
 
