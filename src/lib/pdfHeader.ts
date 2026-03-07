@@ -64,6 +64,7 @@ export function renderStandardHeader(
     logoBase64?: string | null;
     date?: string; // formatted date string, defaults to today
     headerHeight?: number;
+    showTitleUnderline?: boolean;
   }
 ): number {
   const {
@@ -72,6 +73,7 @@ export function renderStandardHeader(
     logoBase64,
     date = format(new Date(), 'dd/MM/yyyy'),
     headerHeight = 28,
+    showTitleUnderline = true,
   } = options;
 
   const pw = doc.internal.pageSize.getWidth();
@@ -124,10 +126,12 @@ export function renderStandardHeader(
   doc.text(reportTitle.toUpperCase(), pw / 2, titleY, { align: 'center' });
 
   // Underline below title (centered)
-  const titleWidth = doc.getTextWidth(reportTitle.toUpperCase());
-  doc.setDrawColor(20, 20, 20);
-  doc.setLineWidth(0.5);
-  doc.line((pw - titleWidth) / 2, titleY + 1.5, (pw + titleWidth) / 2, titleY + 1.5);
+  if (showTitleUnderline) {
+    const titleWidth = doc.getTextWidth(reportTitle.toUpperCase());
+    doc.setDrawColor(20, 20, 20);
+    doc.setLineWidth(0.5);
+    doc.line((pw - titleWidth) / 2, titleY + 1.5, (pw + titleWidth) / 2, titleY + 1.5);
+  }
 
   return titleY + 8;
 }
