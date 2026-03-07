@@ -98,11 +98,13 @@ import { HorimeterDBCorrectionsTab } from '@/components/Horimetros/HorimeterDBCo
 import { BatchEditModal } from '@/components/Horimetros/BatchEditModal';
 import { MissingReadingsTab } from '@/components/Horimetros/MissingReadingsTab';
 import { RepeatHorimeterModal } from '@/components/Horimetros/RepeatHorimeterModal';
+import { HorimeterReportsTab } from '@/components/Horimetros/HorimeterReportsTab';
 import { useRealtimeRefresh } from '@/hooks/useRealtimeSync';
 
 const TABS = [
   { id: 'registros', label: 'Registros', icon: List },
   { id: 'pendencias', label: 'Pendências', icon: AlertTriangle },
+  { id: 'relatorios', label: 'Relatórios', icon: FileText },
 ];
 const DEFAULT_HORIMETER_COLUMNS: ColumnConfig[] = [
   { key: 'select', label: 'Seleção', visible: true, order: 0 },
