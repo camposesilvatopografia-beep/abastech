@@ -139,6 +139,8 @@ const Index = () => {
         return <SyncTestPage />;
       case 'config-relatorios':
         return <ReportConfigPage />;
+      case 'relatorios':
+        return <RelatoriosPage />;
       default:
         return <DashboardContent />;
     }
