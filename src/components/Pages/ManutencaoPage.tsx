@@ -1918,27 +1918,7 @@ export function ManutencaoPage() {
       logoBase64,
     });
     
-    let y = startY;
-    
-    // Filters info
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(60, 60, 60);
-    
-    const dateRangeText = startDate && endDate 
-      ? `${format(startDate, 'dd/MM/yyyy')} até ${format(endDate, 'dd/MM/yyyy')}`
-      : 'Todo período';
-    const companyText = companyFilter !== 'all' ? companyFilter : 'Todas';
-    const statusText = statusFilter === 'all' ? 'Todos' : statusFilter === 'manutencao' ? 'Em Manutenção' : statusFilter;
-    
-    doc.text(`Período: ${dateRangeText}`, 14, y);
-    doc.text(`Empresa: ${companyText}`, 120, y);
-    doc.text(`Status: ${statusText}`, 200, y);
-    y += 6;
-    doc.text(`Gerado em: ${format(new Date(), 'dd/MM/yyyy HH:mm', { locale: ptBR })}`, 14, y);
-    doc.text(`Total: ${filteredRows.length} ordens`, 120, y);
-
-    y += 10;
+    let y = startY + 4;
 
     const mechanicsMap = new Map(mechanics.map(m => [m.id, m.name]));
 
