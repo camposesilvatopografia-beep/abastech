@@ -21,6 +21,7 @@ import { RequestHistoryPage } from '@/components/Pages/RequestHistoryPage';
 import { ObraSettingsPage } from '@/components/Pages/ObraSettingsPage';
 import { SyncTestPage } from '@/components/Pages/SyncTestPage';
 import { ReportConfigPage } from '@/components/Pages/ReportConfigPage';
+import { RelatoriosPage } from '@/components/Pages/RelatoriosPage';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import logoWatermark from '@/assets/logo-abastech-full.png';
@@ -81,6 +82,7 @@ const Index = () => {
       manutencao: 'manutencao',
       calendario: 'calendario',
       alertas: 'alertas',
+      relatorios: 'relatorios',
       fornecedores: 'fornecedores',
       lubrificantes: 'lubrificantes',
       mecanicos: 'mecanicos',
@@ -138,6 +140,8 @@ const Index = () => {
         return <SyncTestPage />;
       case 'config-relatorios':
         return <ReportConfigPage />;
+      case 'relatorios':
+        return <RelatoriosPage />;
       default:
         return <DashboardContent />;
     }

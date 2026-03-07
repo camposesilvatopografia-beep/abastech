@@ -50,6 +50,7 @@ const menuItems: MenuItem[] = [
   { id: 'horimetros', label: 'Horímetros', icon: Clock },
   { id: 'manutencao', label: 'Manutenção', icon: Wrench },
   { id: 'calendario', label: 'Calendário', icon: Calendar },
+  { id: 'relatorios', label: 'Relatórios', icon: FileBarChart },
   { 
     id: 'cadastros', 
     label: 'Cadastros', 
