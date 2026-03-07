@@ -944,7 +944,13 @@ export function ManutencaoPage() {
     return { emManutencao, aguardandoPecas, urgentes, finalizadas };
   }, [filteredRows]);
 
-  // Status badge
+  // Helper to resolve mechanic name from mechanic_id when mechanic_name is empty
+  const mechanicsMap = useMemo(() => new Map(mechanics.map(m => [m.id, m.name])), [mechanics]);
+  const getMechanicName = useCallback((order: ServiceOrder) => {
+    return order.mechanic_name || (order.mechanic_id ? mechanicsMap.get(order.mechanic_id) : null) || '-';
+  }, [mechanicsMap]);
+
+
   const getStatusBadge = (status: string) => {
     const s = status.toLowerCase();
     if (s.includes('finalizada') || s.includes('concluída')) {
@@ -1451,7 +1457,7 @@ export function ManutencaoPage() {
       ``,
       `📌 Status: *${order.status}*`,
       `⚙️ Tipo: ${order.order_type}`,
-      order.mechanic_name ? `👨‍🔧 Mecânico: ${order.mechanic_name}` : '',
+      getMechanicName(order) !== '-' ? `👨‍🔧 Mecânico: ${getMechanicName(order)}` : '',
       ``,
       order.problem_description ? `❌ *Problema:*\n${order.problem_description.slice(0, 200)}` : '',
       order.solution_description ? `\n✅ *Solução:*\n${order.solution_description.slice(0, 200)}` : '',
@@ -1651,7 +1657,7 @@ export function ManutencaoPage() {
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(...gray);
     doc.text(`Tipo: ${order.order_type}`, rightX + 4, y + 25);
-    doc.text(`Mecânico: ${order.mechanic_name || '-'}`, rightX + 4, y + 31);
+    doc.text(`Mecânico: ${getMechanicName(order)}`, rightX + 4, y + 31);
     
     // Downtime
     const downtime = calculateDowntime(order);
@@ -1886,7 +1892,7 @@ export function ManutencaoPage() {
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(6);
     doc.setTextColor(...gray);
-    doc.text(`Nome: ${order.mechanic_name || ''}`, sig2X, sigY + 25);
+    doc.text(`Nome: ${getMechanicName(order)}`, sig2X, sigY + 25);
     doc.text('Data: ___/___/______', sig2X, sigY + 29);
     
     // Signature 3: Aprovação
@@ -1920,8 +1926,6 @@ export function ManutencaoPage() {
     
     let y = startY + 4;
 
-    const mechanicsMap = new Map(mechanics.map(m => [m.id, m.name]));
-
     const tableData = filteredRows.slice(0, 100).map((row) => {
       const company = vehicleCompanyMap.get(row.vehicle_code) || '-';
       const entryDate = (row as any).entry_date || row.order_date;
@@ -1930,9 +1934,7 @@ export function ManutencaoPage() {
         ? format(new Date(entryDate + 'T12:00:00'), 'dd/MM/yy') + (entryTime ? ` ${entryTime.slice(0, 5)}` : '')
         : '-';
       const downtime = calculateDowntime(row) || '-';
-      
-      // Resolve mechanic name: prefer mechanic_name, fallback to mechanics lookup by mechanic_id
-      const mechanicName = row.mechanic_name || (row.mechanic_id ? mechanicsMap.get(row.mechanic_id) : null) || '-';
+      const mechanicName = getMechanicName(row);
       
       return [
         row.order_number,
@@ -2019,7 +2021,7 @@ export function ManutencaoPage() {
         'Prioridade': row.priority,
         'Problema': row.problem_description || '-',
         'Solução': row.solution_description || '-',
-        'Mecânico': row.mechanic_name || '-',
+        'Mecânico': getMechanicName(row),
         'Data de Entrada': entryFormatted,
         'T. Parado': downtime,
         'Status': row.status,
@@ -2382,7 +2384,7 @@ export function ManutencaoPage() {
                         <TableCell className="py-2 px-2 hidden md:table-cell max-w-[150px] truncate text-xs">
                           {row.problem_description || '-'}
                         </TableCell>
-                        <TableCell className="py-2 px-2 hidden lg:table-cell text-xs">{row.mechanic_name || '-'}</TableCell>
+                        <TableCell className="py-2 px-2 hidden lg:table-cell text-xs">{getMechanicName(row)}</TableCell>
                         <TableCell className="py-2 px-2">{getPrioridadeBadge(row.priority)}</TableCell>
                         <TableCell className="py-2 px-2">
                           {getStatusBadge(row.status)}
