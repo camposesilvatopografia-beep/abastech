@@ -461,8 +461,12 @@ export function RelatoriosPage() {
       const doc = new jsPDF('landscape');
       const margin = 14;
       let y = renderStandardHeader(doc, { reportTitle: 'Relatório de Ordens de Serviço', obraSettings, logoBase64, date: format(new Date(), 'dd/MM/yyyy HH:mm'), showTitleUnderline: false });
-      doc.setFontSize(8); doc.setFont('helvetica', 'normal'); doc.setTextColor(71, 85, 105);
-      doc.text(`Período: ${dateInfo}  |  ${orders.length} ordem(ns)`, margin, y); y += 8;
+      // Modern "Gerado em" badge
+      doc.setFillColor(248, 250, 252);
+      doc.roundedRect(margin, y - 4, 90, 12, 2, 2, 'F');
+      doc.setFontSize(8); doc.setFont('helvetica', 'bold'); doc.setTextColor(100, 116, 139);
+      doc.text(`Gerado em: ${format(new Date(), 'dd/MM/yyyy HH:mm')}`, margin + 4, y + 3);
+      y += 14;
 
       const tableData = orders.map(o => [
         format(new Date(o.order_date + 'T00:00:00'), 'dd/MM/yyyy'),
