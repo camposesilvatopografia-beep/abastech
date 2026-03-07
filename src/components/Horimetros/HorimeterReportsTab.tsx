@@ -203,14 +203,22 @@ export function HorimeterReportsTab({
     doc.text(parts.join('  |  '), margin, y);
     y += 8;
 
-    const tableData = filteredDetailedReadings.map(r => {
+    // Sort by description (vehicle type) then date
+    const sortedReadings = [...filteredDetailedReadings].sort((a, b) => {
+      const descA = (a.vehicle?.description || a.vehicle?.category || '').toLowerCase();
+      const descB = (b.vehicle?.description || b.vehicle?.category || '').toLowerCase();
+      if (descA !== descB) return descA.localeCompare(descB);
+      return a.reading_date.localeCompare(b.reading_date);
+    });
+
+    const tableData = sortedReadings.map(r => {
       const interval = r.current_value - (r.previous_value ?? r.current_value);
       const prevKm = (r as any).previous_km;
       const currKm = (r as any).current_km;
       const kmInterval = (prevKm && currKm && currKm > 0 && prevKm > 0) ? currKm - prevKm : null;
       return [
         format(new Date(r.reading_date + 'T00:00:00'), 'dd/MM/yyyy'),
-        r.vehicle?.code || '-', r.operator || '-',
+        r.vehicle?.code || '-', r.vehicle?.description || r.vehicle?.category || '-', r.operator || '-',
         formatBR(r.previous_value), formatBR(r.current_value),
         interval > 0 ? formatBR(interval) : '-',
         formatBR(prevKm), formatBR(currKm),
@@ -218,13 +226,23 @@ export function HorimeterReportsTab({
       ];
     });
 
+    // Track description groups for alternating fills
+    let lastDesc = '';
+    let descColorIdx = 0;
+
     autoTable(doc, {
-      head: [['Data', 'Veículo', 'Operador', 'Hor. Anterior', 'Hor. Atual', 'H.T.', 'KM Anterior', 'KM Atual', 'Total KM']],
+      head: [['Data', 'Veículo', 'Descrição', 'Operador', 'Hor. Anterior', 'Hor. Atual', 'H.T.', 'KM Anterior', 'KM Atual', 'Total KM']],
       body: tableData, startY: y, margin: { left: margin, right: margin },
       styles: { fontSize: 7.5, cellPadding: 2.5, font: 'helvetica', textColor: [30, 30, 30], lineColor: [200, 200, 200], lineWidth: 0.2 },
       headStyles: { fillColor: [30, 30, 30], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7.5, halign: 'center', cellPadding: 3 },
-      alternateRowStyles: { fillColor: [248, 250, 252] },
-      columnStyles: { 0: { halign: 'center', cellWidth: 22 }, 1: { halign: 'center', fontStyle: 'bold', cellWidth: 22 }, 2: { halign: 'left' }, 3: { halign: 'center', cellWidth: 26 }, 4: { halign: 'center', cellWidth: 26 }, 5: { halign: 'center', fontStyle: 'bold', cellWidth: 18 }, 6: { halign: 'center', cellWidth: 26 }, 7: { halign: 'center', cellWidth: 26 }, 8: { halign: 'center', fontStyle: 'bold', cellWidth: 20 } },
+      didParseCell: (data) => {
+        if (data.section === 'body') {
+          const desc = tableData[data.row.index]?.[2] || '';
+          if (desc !== lastDesc) { descColorIdx++; lastDesc = desc; }
+          data.cell.styles.fillColor = descColorIdx % 2 === 0 ? [248, 250, 252] : [255, 255, 255];
+        }
+      },
+      columnStyles: { 0: { halign: 'center', cellWidth: 22 }, 1: { halign: 'center', fontStyle: 'bold', cellWidth: 22 }, 2: { halign: 'left' }, 3: { halign: 'left' }, 4: { halign: 'center', cellWidth: 24 }, 5: { halign: 'center', cellWidth: 24 }, 6: { halign: 'center', fontStyle: 'bold', cellWidth: 16 }, 7: { halign: 'center', cellWidth: 24 }, 8: { halign: 'center', cellWidth: 24 }, 9: { halign: 'center', fontStyle: 'bold', cellWidth: 18 } },
     });
 
     addPageFooters(doc, margin);
