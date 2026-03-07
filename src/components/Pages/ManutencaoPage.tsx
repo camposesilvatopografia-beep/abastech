@@ -1457,7 +1457,7 @@ export function ManutencaoPage() {
       ``,
       `📌 Status: *${order.status}*`,
       `⚙️ Tipo: ${order.order_type}`,
-      order.mechanic_name ? `👨‍🔧 Mecânico: ${order.mechanic_name}` : '',
+      getMechanicName(order) !== '-' ? `👨‍🔧 Mecânico: ${getMechanicName(order)}` : '',
       ``,
       order.problem_description ? `❌ *Problema:*\n${order.problem_description.slice(0, 200)}` : '',
       order.solution_description ? `\n✅ *Solução:*\n${order.solution_description.slice(0, 200)}` : '',
@@ -1657,7 +1657,7 @@ export function ManutencaoPage() {
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(...gray);
     doc.text(`Tipo: ${order.order_type}`, rightX + 4, y + 25);
-    doc.text(`Mecânico: ${order.mechanic_name || '-'}`, rightX + 4, y + 31);
+    doc.text(`Mecânico: ${getMechanicName(order)}`, rightX + 4, y + 31);
     
     // Downtime
     const downtime = calculateDowntime(order);
@@ -1892,7 +1892,7 @@ export function ManutencaoPage() {
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(6);
     doc.setTextColor(...gray);
-    doc.text(`Nome: ${order.mechanic_name || ''}`, sig2X, sigY + 25);
+    doc.text(`Nome: ${getMechanicName(order)}`, sig2X, sigY + 25);
     doc.text('Data: ___/___/______', sig2X, sigY + 29);
     
     // Signature 3: Aprovação
