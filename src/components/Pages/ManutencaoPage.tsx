@@ -2025,7 +2025,7 @@ export function ManutencaoPage() {
         'Prioridade': row.priority,
         'Problema': row.problem_description || '-',
         'Solução': row.solution_description || '-',
-        'Mecânico': row.mechanic_name || '-',
+        'Mecânico': getMechanicName(row),
         'Data de Entrada': entryFormatted,
         'T. Parado': downtime,
         'Status': row.status,
