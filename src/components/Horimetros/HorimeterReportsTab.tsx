@@ -193,7 +193,7 @@ export function HorimeterReportsTab({
     const logoBase64 = await getLogoBase64(obraSettings?.logo_url);
     const dateInfo = `${format(detailedDateRange.start, 'dd/MM/yyyy')} a ${format(detailedDateRange.end, 'dd/MM/yyyy')}`;
 
-    let y = renderStandardHeader(doc, { reportTitle: 'RELATÓRIO DETALHADO DE HORÍMETROS', obraSettings, logoBase64, date: format(new Date(), 'dd/MM/yyyy HH:mm') });
+    let y = renderStandardHeader(doc, { reportTitle: 'Relatório de Horímetros/Km', obraSettings, logoBase64, date: format(new Date(), 'dd/MM/yyyy HH:mm'), showTitleUnderline: false });
 
     doc.setFontSize(8); doc.setFont('helvetica', 'normal'); doc.setTextColor(71, 85, 105);
     const parts: string[] = [`Período: ${dateInfo}`];
@@ -201,10 +201,7 @@ export function HorimeterReportsTab({
     if (detailedVehicle !== 'all') { const v = vehicles.find(v => v.id === detailedVehicle); parts.push(`Veículo: ${v?.code || ''}`); }
     parts.push(`${filteredDetailedReadings.length} registro(s)`);
     doc.text(parts.join('  |  '), margin, y);
-    y += 6;
-
-    const totalHT = filteredDetailedReadings.reduce((s, r) => { const i = r.current_value - (r.previous_value ?? r.current_value); return s + (i > 0 ? i : 0); }, 0);
-    y = renderKpiPair(doc, y, pageWidth, { label: 'REGISTROS', value: `${filteredDetailedReadings.length}` }, { label: 'TOTAL HORAS', value: `${formatBR(totalHT)} h` });
+    y += 8;
 
     const tableData = filteredDetailedReadings.map(r => {
       const interval = r.current_value - (r.previous_value ?? r.current_value);
