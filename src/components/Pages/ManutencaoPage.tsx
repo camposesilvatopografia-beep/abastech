@@ -1939,48 +1939,6 @@ export function ManutencaoPage() {
     doc.text(`Total: ${filteredRows.length} ordens`, 120, y);
 
     y += 10;
-    
-    // Modern KPI badges with icons and rounded pill style
-    const kpis = [
-      { label: 'Em Manutenção', value: metrics.emManutencao, color: [220, 53, 69] as [number, number, number] },
-      { label: 'Aguardando', value: metrics.aguardandoPecas, color: [245, 158, 11] as [number, number, number] },
-      { label: 'Urgentes', value: metrics.urgentes, color: [239, 68, 68] as [number, number, number] },
-      { label: 'Finalizadas', value: metrics.finalizadas, color: [34, 197, 94] as [number, number, number] },
-    ];
-
-    const kpiWidth = 55;
-    const kpiHeight = 20;
-    const kpiGap = 8;
-    const totalKpiWidth = kpis.length * kpiWidth + (kpis.length - 1) * kpiGap;
-    const kpiStartX = (pageWidth - totalKpiWidth) / 2;
-
-    kpis.forEach((kpi, i) => {
-      const x = kpiStartX + i * (kpiWidth + kpiGap);
-      
-      // Background with rounded corners
-      doc.setFillColor(...kpi.color);
-      doc.roundedRect(x, y, kpiWidth, kpiHeight, 4, 4, 'F');
-      
-      // Subtle darker top bar
-      const darkerColor = kpi.color.map(c => Math.max(0, c - 30)) as [number, number, number];
-      doc.setFillColor(...darkerColor);
-      doc.roundedRect(x, y, kpiWidth, 7, 4, 4, 'F');
-      doc.rect(x, y + 4, kpiWidth, 3, 'F');
-      
-      // Label (top)
-      doc.setFontSize(6.5);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(255, 255, 255, 200);
-      doc.text(kpi.label, x + kpiWidth / 2, y + 5.5, { align: 'center' });
-      
-      // Value (bottom, larger)
-      doc.setFontSize(14);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(255, 255, 255);
-      doc.text(String(kpi.value), x + kpiWidth / 2, y + 16.5, { align: 'center' });
-    });
-    
-    y += kpiHeight + 8;
 
     const mechanicsMap = new Map(mechanics.map(m => [m.id, m.name]));
 
