@@ -2022,13 +2022,14 @@ export function ManutencaoPage() {
         lineWidth: 0.2,
       },
       headStyles: { 
-        fillColor: [55, 71, 95], 
+        fillColor: [30, 30, 30], 
         textColor: [255, 255, 255], 
         fontStyle: 'bold',
         fontSize: 8,
         cellPadding: 3,
+        halign: 'center',
       },
-      alternateRowStyles: { fillColor: [248, 250, 252] },
+      alternateRowStyles: { fillColor: [242, 242, 242] },
       columnStyles: {
         0: { cellWidth: 18 },
         1: { cellWidth: 18, fontStyle: 'bold' },
