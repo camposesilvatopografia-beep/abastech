@@ -113,10 +113,10 @@ export function renderStandardHeader(
     doc.text(obraSettings.cidade, textStartX, 16);
   }
 
-  // Date on right
-  doc.setFontSize(8);
-  doc.setFont('helvetica', 'normal');
-  doc.text(date, pw - 14, 10, { align: 'right' });
+  // Date on right – prominent
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.text(date, pw - 10, 11, { align: 'right' });
 
   // Report title BELOW the header bar - centered and evident
   const titleY = headerHeight + 8;
