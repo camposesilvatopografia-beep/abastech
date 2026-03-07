@@ -1460,162 +1460,124 @@ export function AbastecimentoPage() {
       
       const fmtBR = (v: number, dec = 2) => v.toLocaleString('pt-BR', { minimumFractionDigits: dec, maximumFractionDigits: dec });
       
-      // Group filtered rows by unified location (Tanques, Comboios, etc.)
-      const groups: Record<string, { rows: Record<string, any>[]; totalLiters: number }> = {};
-      
+      // Collect all fueling rows (exclude entries/carregamentos)
+      const allRows: Record<string, any>[] = [];
       filteredRows.forEach(row => {
         const tipo = String(row['TIPO'] || '').toLowerCase();
         if (tipo.includes('entrada') || tipo.includes('recebimento') || tipo === 'carregamento') return;
-        
-        const rawLocal = String(row['LOCAL DE SAIDA'] || row['LOCAL'] || 'Não informado').trim();
-        const group = classifyLoc(rawLocal);
+        allRows.push(row);
+      });
+
+      let startY = renderStandardHeader(doc, {
+        reportTitle: 'REGISTROS DE ABASTECIMENTOS',
+        obraSettings,
+        logoBase64,
+        date: `${format(dateRange.start, 'dd/MM/yyyy')} a ${format(dateRange.end, 'dd/MM/yyyy')}`,
+      });
+
+      // Build table body sorted by description
+      const sortedRows = [...allRows].sort((a, b) => {
+        const descA = String(a['DESCRICAO'] || a['DESCRIÇÃO'] || '');
+        const descB = String(b['DESCRICAO'] || b['DESCRIÇÃO'] || '');
+        return descA.localeCompare(descB, 'pt-BR');
+      });
+
+      const body = sortedRows.map(row => {
+        const cat = String(row['CATEGORIA'] || '').toLowerCase();
+        const isEquip = isEquipCat(cat);
+        const horPrev = parseNumber(row['HORIMETRO ANTERIOR']);
+        const horCurr = parseNumber(row['HORIMETRO ATUAL']);
+        const kmPrev = parseNumber(row['KM ANTERIOR']);
+        const kmCurr = parseNumber(row['KM ATUAL']);
         const qty = parseNumber(row['QUANTIDADE']);
-        
-        if (!groups[group]) groups[group] = { rows: [], totalLiters: 0 };
-        groups[group].rows.push(row);
-        groups[group].totalLiters += qty;
+        const desc = String(row['DESCRICAO'] || row['DESCRIÇÃO'] || '-');
+
+        const horInterval = (horPrev > 0 && horCurr > horPrev) ? horCurr - horPrev : 0;
+        const kmInterval = (kmPrev > 0 && kmCurr > kmPrev) ? kmCurr - kmPrev : 0;
+        const interval = isEquip ? horInterval : kmInterval;
+        const intervalUnit = isEquip ? 'h' : 'km';
+
+        let consumption = 0;
+        if (isEquip && horInterval > 0 && qty > 0) consumption = qty / horInterval;
+        else if (!isEquip && kmInterval > 0 && qty > 0) consumption = kmInterval / qty;
+        const consumptionUnit = isEquip ? 'L/h' : 'km/L';
+
+        const vCode = String(row['VEICULO'] || '').trim().toUpperCase();
+        const potencia = row['POTENCIA'] || row['Potencia'] || row['POTÊNCIA'] || potenciaByCode.get(vCode) || '-';
+
+        return [
+          row['DATA'], row['VEICULO'],
+          potencia, desc,
+          row['MOTORISTA'] || '-', row['EMPRESA'] || '-',
+          fmtBR(qty, 0),
+          isEquip ? (horPrev > 0 ? fmtBR(horPrev, 1) : '-') : (kmPrev > 0 ? fmtBR(kmPrev, 0) : '-'),
+          isEquip ? (horCurr > 0 ? fmtBR(horCurr, 1) : '-') : (kmCurr > 0 ? fmtBR(kmCurr, 0) : '-'),
+          interval > 0 ? `${fmtBR(interval, isEquip ? 2 : 0)} ${intervalUnit}` : '-',
+          consumption > 0 ? `${fmtBR(consumption)} ${consumptionUnit}` : '-',
+        ];
       });
-      
-      // Order: Tanques first, then Comboios, then others
-      const orderedGroups: [string, typeof groups[string]][] = [];
-      if (groups['Tanques']) orderedGroups.push(['Tanques', groups['Tanques']]);
-      if (groups['Comboios']) orderedGroups.push(['Comboios', groups['Comboios']]);
-      Object.entries(groups).forEach(([k, v]) => {
-        if (k !== 'Tanques' && k !== 'Comboios') orderedGroups.push([k, v]);
+
+      // Apply report config
+      const rc = lancTanquesConfig;
+      const visibleCols = [...rc.columns].filter(c => c.visible).sort((a, b) => a.order - b.order);
+      const colKeyToDataIdx: Record<string, number> = {
+        data: 0, veiculo: 1, potencia: 2, descricao: 3, motorista: 4,
+        empresa: 5, quantidade: 6, hor_ant: 7, hor_atual: 8, intervalo: 9, consumo: 10,
+      };
+
+      const headRow = visibleCols.map(c => c.label);
+      const filteredBody = body.map(row => visibleCols.map(c => row[colKeyToDataIdx[c.key]] ?? ''));
+
+      const hexToRgb = (hex: string): [number, number, number] => {
+        const h = hex.replace('#', '');
+        return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+      };
+
+      const hdrBg = hexToRgb(rc.style.headerBgColor);
+      const hdrTxt = hexToRgb(rc.style.headerTextColor);
+
+      const colStyles: Record<number, any> = {};
+      visibleCols.forEach((c, idx) => {
+        const style: any = { halign: c.halign || 'center' };
+        if (c.width) style.cellWidth = c.width;
+        if (c.key === 'descricao' || c.key === 'motorista') {
+          style.overflow = 'linebreak';
+          if (!c.width) style.cellWidth = 'auto';
+        }
+        if (c.key === 'quantidade' || c.bold) style.fontStyle = 'bold';
+        if (c.fontSize) style.fontSize = c.fontSize;
+        if (c.fontColor) style.textColor = hexToRgb(c.fontColor);
+        if (c.bgColor) style.fillColor = hexToRgb(c.bgColor);
+        colStyles[idx] = style;
       });
-      
-      let isFirstPage = true;
-      
-      orderedGroups.forEach(([location, groupData]) => {
-        if (!isFirstPage) doc.addPage();
-        isFirstPage = false;
-        
-        let startY = renderStandardHeader(doc, {
-          reportTitle: `LANÇAMENTOS — ${location.toUpperCase()}`,
-          obraSettings,
-          logoBase64,
-          date: `${format(dateRange.start, 'dd/MM/yyyy')} a ${format(dateRange.end, 'dd/MM/yyyy')}`,
-        });
-        
-        
-        // Build table body sorted by description
-        const sortedRows = [...groupData.rows].sort((a, b) => {
-          const descA = String(a['DESCRICAO'] || a['DESCRIÇÃO'] || '');
-          const descB = String(b['DESCRICAO'] || b['DESCRIÇÃO'] || '');
-          return descA.localeCompare(descB, 'pt-BR');
-        });
 
-        
-
-        const body = sortedRows.map(row => {
-          const cat = String(row['CATEGORIA'] || '').toLowerCase();
-          const isEquip = isEquipCat(cat);
-          const horPrev = parseNumber(row['HORIMETRO ANTERIOR']);
-          const horCurr = parseNumber(row['HORIMETRO ATUAL']);
-          const kmPrev = parseNumber(row['KM ANTERIOR']);
-          const kmCurr = parseNumber(row['KM ATUAL']);
-          const qty = parseNumber(row['QUANTIDADE']);
-          const desc = String(row['DESCRICAO'] || row['DESCRIÇÃO'] || '-');
-
-          const horInterval = (horPrev > 0 && horCurr > horPrev) ? horCurr - horPrev : 0;
-          const kmInterval = (kmPrev > 0 && kmCurr > kmPrev) ? kmCurr - kmPrev : 0;
-          const interval = isEquip ? horInterval : kmInterval;
-          const intervalUnit = isEquip ? 'h' : 'km';
-
-          let consumption = 0;
-          if (isEquip && horInterval > 0 && qty > 0) consumption = qty / horInterval;
-          else if (!isEquip && kmInterval > 0 && qty > 0) consumption = kmInterval / qty;
-          const consumptionUnit = isEquip ? 'L/h' : 'km/L';
-
-          const vCode = String(row['VEICULO'] || '').trim().toUpperCase();
-          const potencia = row['POTENCIA'] || row['Potencia'] || row['POTÊNCIA'] || potenciaByCode.get(vCode) || '-';
-
-          return [
-            row['DATA'], row['VEICULO'],
-            potencia,
-            desc,
-            row['MOTORISTA'] || '-', row['EMPRESA'] || '-',
-            fmtBR(qty, 0),
-            isEquip
-              ? (horPrev > 0 ? fmtBR(horPrev, 1) : '-')
-              : (kmPrev > 0 ? fmtBR(kmPrev, 0) : '-'),
-            isEquip
-              ? (horCurr > 0 ? fmtBR(horCurr, 1) : '-')
-              : (kmCurr > 0 ? fmtBR(kmCurr, 0) : '-'),
-            interval > 0 ? `${fmtBR(interval, isEquip ? 2 : 0)} ${intervalUnit}` : '-',
-            consumption > 0 ? `${fmtBR(consumption)} ${consumptionUnit}` : '-',
-          ];
-        });
-        
-        // Apply report config
-        const rc = lancTanquesConfig;
-        const visibleCols = [...rc.columns].filter(c => c.visible).sort((a, b) => a.order - b.order);
-        const colKeyToDataIdx: Record<string, number> = {
-          data: 0, veiculo: 1, potencia: 2, descricao: 3, motorista: 4,
-          empresa: 5, quantidade: 6, hor_ant: 7, hor_atual: 8, intervalo: 9, consumo: 10,
-        };
-
-        // Build head and filtered body based on visible columns
-        const headRow = visibleCols.map(c => c.label);
-        const filteredBody = body.map(row => visibleCols.map(c => row[colKeyToDataIdx[c.key]] ?? ''));
-
-        // Parse hex color to RGB tuple
-        const hexToRgb = (hex: string): [number, number, number] => {
-          const h = hex.replace('#', '');
-          return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
-        };
-
-        const hdrBg = hexToRgb(rc.style.headerBgColor);
-        const hdrTxt = hexToRgb(rc.style.headerTextColor);
-        const altColor1 = hexToRgb(rc.style.alternateRowColor1);
-        const altColor2 = hexToRgb(rc.style.alternateRowColor2);
-
-        // Build columnStyles from config (including per-column overrides)
-        const colStyles: Record<number, any> = {};
-        visibleCols.forEach((c, idx) => {
-          const style: any = { halign: c.halign || 'center' };
-          if (c.width) style.cellWidth = c.width;
-          if (c.key === 'descricao' || c.key === 'motorista') {
-            style.overflow = 'linebreak';
-            if (!c.width) style.cellWidth = 'auto';
-          }
-          if (c.key === 'quantidade' || c.bold) style.fontStyle = 'bold';
-          if (c.fontSize) style.fontSize = c.fontSize;
-          if (c.fontColor) style.textColor = hexToRgb(c.fontColor);
-          if (c.bgColor) style.fillColor = hexToRgb(c.bgColor);
-          colStyles[idx] = style;
-        });
-
-
-
-        autoTable(doc, {
-          startY: startY + 6,
-          head: [headRow],
-          body: filteredBody,
-          theme: 'grid',
-          styles: {
-            fontSize: rc.style.bodyFontSize,
-            cellPadding: 2.5,
-            lineColor: [30, 30, 30],
-            lineWidth: 0.25,
-            overflow: 'linebreak',
-            halign: 'center',
-            valign: 'middle',
-            fontStyle: rc.style.bodyBold ? 'bold' : 'normal',
-          },
-          headStyles: {
-            fillColor: hdrBg,
-            textColor: hdrTxt,
-            fontStyle: 'bold',
-            fontSize: rc.style.headerFontSize,
-            halign: 'center',
-            valign: 'middle',
-            minCellHeight: 11,
-          },
-          columnStyles: colStyles,
-          margin: { left: 10, right: 10 },
-          alternateRowStyles: { fillColor: [245, 247, 250] },
-        });
+      autoTable(doc, {
+        startY: startY + 6,
+        head: [headRow],
+        body: filteredBody,
+        theme: 'grid',
+        styles: {
+          fontSize: rc.style.bodyFontSize,
+          cellPadding: 2.5,
+          lineColor: [30, 30, 30],
+          lineWidth: 0.25,
+          overflow: 'linebreak',
+          halign: 'center',
+          valign: 'middle',
+          fontStyle: rc.style.bodyBold ? 'bold' : 'normal',
+        },
+        headStyles: {
+          fillColor: hdrBg,
+          textColor: hdrTxt,
+          fontStyle: 'bold',
+          fontSize: rc.style.headerFontSize,
+          halign: 'center',
+          valign: 'middle',
+          minCellHeight: 11,
+        },
+        columnStyles: colStyles,
+        margin: { left: 10, right: 10 },
+        alternateRowStyles: { fillColor: [245, 247, 250] },
       });
       
       doc.save(`lancamentos-abastecimento-${format(new Date(), 'yyyy-MM-dd')}.pdf`);
