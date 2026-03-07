@@ -1505,20 +1505,7 @@ export function AbastecimentoPage() {
           return descA.localeCompare(descB, 'pt-BR');
         });
 
-        // Build description-to-color index for alternating group backgrounds
-        const uniqueDescs: string[] = [];
-        sortedRows.forEach(row => {
-          const desc = String(row['DESCRICAO'] || row['DESCRIÇÃO'] || '');
-          if (!uniqueDescs.includes(desc)) uniqueDescs.push(desc);
-        });
-        const descColorMap: Record<string, number> = {};
-        uniqueDescs.forEach((d, i) => { descColorMap[d] = i % 2; });
-
-        // Two alternating light fills for description groups
-        const groupFills: [number, number, number][] = [
-          [255, 255, 255],   // white
-          [235, 240, 250],   // light blue-gray
-        ];
+        
 
         const body = sortedRows.map(row => {
           const cat = String(row['CATEGORIA'] || '').toLowerCase();
@@ -1544,7 +1531,7 @@ export function AbastecimentoPage() {
           const potencia = row['POTENCIA'] || row['Potencia'] || row['POTÊNCIA'] || potenciaByCode.get(vCode) || '-';
 
           return [
-            row['DATA'], row['HORA'], row['VEICULO'],
+            row['DATA'], row['VEICULO'],
             potencia,
             desc,
             row['MOTORISTA'] || '-', row['EMPRESA'] || '-',
@@ -1564,8 +1551,8 @@ export function AbastecimentoPage() {
         const rc = lancTanquesConfig;
         const visibleCols = [...rc.columns].filter(c => c.visible).sort((a, b) => a.order - b.order);
         const colKeyToDataIdx: Record<string, number> = {
-          data: 0, hora: 1, veiculo: 2, potencia: 3, descricao: 4, motorista: 5,
-          empresa: 6, quantidade: 7, hor_ant: 8, hor_atual: 9, intervalo: 10, consumo: 11,
+          data: 0, veiculo: 1, potencia: 2, descricao: 3, motorista: 4,
+          empresa: 5, quantidade: 6, hor_ant: 7, hor_atual: 8, intervalo: 9, consumo: 10,
         };
 
         // Build head and filtered body based on visible columns
@@ -1599,8 +1586,7 @@ export function AbastecimentoPage() {
           colStyles[idx] = style;
         });
 
-        // Find descricao column index in filtered body
-        const descColIdx = visibleCols.findIndex(c => c.key === 'descricao');
+
 
         autoTable(doc, {
           startY: startY + 6,
@@ -1628,13 +1614,7 @@ export function AbastecimentoPage() {
           },
           columnStyles: colStyles,
           margin: { left: 10, right: 10 },
-          didParseCell: (data) => {
-            if (data.section === 'body') {
-              const desc = descColIdx >= 0 ? String(filteredBody[data.row.index]?.[descColIdx] || '') : '';
-              const colorIdx = descColorMap[desc] ?? 0;
-              data.cell.styles.fillColor = colorIdx === 0 ? altColor1 : altColor2;
-            }
-          },
+          alternateRowStyles: { fillColor: [245, 247, 250] },
         });
       });
       
