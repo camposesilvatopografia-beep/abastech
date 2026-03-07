@@ -49,6 +49,7 @@ interface ReportsTabProps {
   onPreviewPDF?: () => void;
   onPreviewPDFPorEmpresa?: () => void;
   onPreviewDetailedPDF?: () => void;
+  onExportResumoGeral?: () => void;
 }
 
 export function ReportsTab({
@@ -78,6 +79,7 @@ export function ReportsTab({
   onPreviewPDF,
   onPreviewPDFPorEmpresa,
   onPreviewDetailedPDF,
+  onExportResumoGeral,
 }: ReportsTabProps) {
   const dateLabel = startDate && endDate
     ? `${format(startDate, 'dd/MM/yyyy', { locale: ptBR })} — ${format(endDate, 'dd/MM/yyyy', { locale: ptBR })}`
