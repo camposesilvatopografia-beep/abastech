@@ -355,6 +355,112 @@ export function HorimeterReportsTab({
       doc.text('Nenhum registro de abastecimento encontrado para esta empresa no período.', margin, y);
     }
 
+    // ====== DETALHAMENTO POR VEÍCULO ======
+    // Build per-vehicle summary combining horimeter + fuel data
+    const vehicleMap = new Map<string, {
+      code: string; description: string;
+      horInitial: number | null; horFinal: number | null; totalHT: number;
+      kmInitial: number | null; kmFinal: number | null; totalKM: number;
+      totalLiters: number; fuelCount: number; horCount: number;
+      avgConsumption: number | null;
+    }>();
+
+    // Process horimeter data
+    horimeterData.forEach(r => {
+      const code = r.vehicle?.code || '-';
+      if (!vehicleMap.has(code)) {
+        vehicleMap.set(code, {
+          code, description: r.vehicle?.description || r.vehicle?.category || '-',
+          horInitial: null, horFinal: null, totalHT: 0,
+          kmInitial: null, kmFinal: null, totalKM: 0,
+          totalLiters: 0, fuelCount: 0, horCount: 0, avgConsumption: null,
+        });
+      }
+      const v = vehicleMap.get(code)!;
+      v.horCount++;
+      if (v.horInitial === null || (r.previous_value != null && r.previous_value < v.horInitial)) v.horInitial = r.previous_value;
+      if (v.horFinal === null || r.current_value > v.horFinal) v.horFinal = r.current_value;
+      const prevKm = (r as any).previous_km; const currKm = (r as any).current_km;
+      if (prevKm && (v.kmInitial === null || prevKm < v.kmInitial)) v.kmInitial = prevKm;
+      if (currKm && (v.kmFinal === null || currKm > v.kmFinal)) v.kmFinal = currKm;
+    });
+
+    // Process fuel data
+    if (fuelRecords) {
+      fuelRecords.forEach(r => {
+        const code = r.vehicle_code || '-';
+        if (!vehicleMap.has(code)) {
+          vehicleMap.set(code, {
+            code, description: r.vehicle_description || '-',
+            horInitial: null, horFinal: null, totalHT: 0,
+            kmInitial: null, kmFinal: null, totalKM: 0,
+            totalLiters: 0, fuelCount: 0, horCount: 0, avgConsumption: null,
+          });
+        }
+        const v = vehicleMap.get(code)!;
+        v.fuelCount++;
+        v.totalLiters += r.fuel_quantity || 0;
+      });
+    }
+
+    // Calculate totals
+    vehicleMap.forEach(v => {
+      v.totalHT = (v.horInitial != null && v.horFinal != null && v.horFinal > v.horInitial) ? v.horFinal - v.horInitial : 0;
+      v.totalKM = (v.kmInitial != null && v.kmFinal != null && v.kmFinal > v.kmInitial) ? v.kmFinal - v.kmInitial : 0;
+      v.avgConsumption = (v.totalHT > 0 && v.totalLiters > 0) ? v.totalLiters / v.totalHT : null;
+    });
+
+    const vehicleSummaries = Array.from(vehicleMap.values()).sort((a, b) => a.description.localeCompare(b.description));
+
+    if (vehicleSummaries.length > 0) {
+      doc.addPage('landscape');
+      y = renderStandardHeader(doc, { reportTitle: 'Detalhamento por Veículo', obraSettings, logoBase64, date: format(new Date(), 'dd/MM/yyyy HH:mm'), showTitleUnderline: false });
+      doc.setFontSize(8); doc.setFont('helvetica', 'normal'); doc.setTextColor(71, 85, 105);
+      doc.text(`Empresa: ${company}  |  Período: ${dateInfo}  |  ${vehicleSummaries.length} veículo(s)`, margin, y); y += 8;
+
+      const detailTableData = vehicleSummaries.map(v => [
+        v.code,
+        v.description,
+        v.horInitial != null ? formatBR(v.horInitial) : '-',
+        v.horFinal != null ? formatBR(v.horFinal) : '-',
+        v.totalHT > 0 ? formatBR(v.totalHT) : '-',
+        v.kmInitial != null ? formatBR(v.kmInitial) : '-',
+        v.kmFinal != null ? formatBR(v.kmFinal) : '-',
+        v.totalKM > 0 ? formatBR(v.totalKM) : '-',
+        v.totalLiters > 0 ? formatBR(v.totalLiters) : '-',
+        v.avgConsumption != null ? formatBR(v.avgConsumption) : '-',
+        `${v.horCount}/${v.fuelCount}`,
+      ]);
+
+      let lastDescV = ''; let descColorIdxV = 0;
+      autoTable(doc, {
+        head: [['Veículo', 'Descrição', 'Hor. Inicial', 'Hor. Final', 'Total H.T.', 'KM Inicial', 'KM Final', 'Total KM', 'Total (L)', 'Consumo (L/h)', 'Lanç. Hor/Abast']],
+        body: detailTableData, startY: y, margin: { left: margin, right: margin },
+        styles: { fontSize: 7.5, cellPadding: 2.5, font: 'helvetica', textColor: [30, 30, 30], lineColor: [200, 200, 200], lineWidth: 0.2 },
+        headStyles: { fillColor: [30, 30, 30], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7.5, halign: 'center', cellPadding: 3 },
+        didParseCell: (data) => {
+          if (data.section === 'body') {
+            const desc = detailTableData[data.row.index]?.[1] || '';
+            if (desc !== lastDescV) { descColorIdxV++; lastDescV = desc; }
+            data.cell.styles.fillColor = descColorIdxV % 2 === 0 ? [248, 250, 252] : [255, 255, 255];
+          }
+        },
+        columnStyles: {
+          0: { halign: 'center', fontStyle: 'bold', cellWidth: 22 },
+          1: { halign: 'left' },
+          2: { halign: 'center', cellWidth: 22 },
+          3: { halign: 'center', cellWidth: 22 },
+          4: { halign: 'center', fontStyle: 'bold', cellWidth: 20 },
+          5: { halign: 'center', cellWidth: 22 },
+          6: { halign: 'center', cellWidth: 22 },
+          7: { halign: 'center', fontStyle: 'bold', cellWidth: 20 },
+          8: { halign: 'center', fontStyle: 'bold', cellWidth: 20 },
+          9: { halign: 'center', cellWidth: 24 },
+          10: { halign: 'center', cellWidth: 24 },
+        },
+      });
+    }
+
     addPageFooters(doc, margin);
     return { doc, horCount: horimeterData.length, fuelCount: fuelRecords?.length || 0 };
   };
