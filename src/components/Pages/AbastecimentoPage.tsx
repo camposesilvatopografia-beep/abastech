@@ -1700,7 +1700,7 @@ export function AbastecimentoPage() {
         doc.setTextColor(0, 0, 0);
         const totalRecordsLocal = saidasRecords.length + carregamentoRecords.length + entradasRecords.length;
         const totalLitersLocal = records.reduce((s, r) => s + r.quantidade, 0);
-        let currentY = startY;
+        currentY = startY;
         
         // ========== SAÍDAS TABLE ==========
         if (sortedSaidas.length > 0) {
@@ -2005,7 +2005,7 @@ export function AbastecimentoPage() {
         });
         
         doc.setTextColor(0, 0, 0);
-        let currentY = startY;
+        currentY = startY;
         
         // Prepare table data with consumption calculation - unified table
         let totalDiesel = 0;
