@@ -1127,6 +1127,9 @@ export function HorimetrosPageDB() {
             onExportMissingWhatsApp={() => exportMissingWhatsApp(missingVehicles)}
             recordCount={readingsWithInterval.length}
             missingCount={missingVehicles.length}
+            readings={readings}
+            vehicles={vehicles}
+            obraSettings={obraSettings}
           />
         ) : (
         <>
