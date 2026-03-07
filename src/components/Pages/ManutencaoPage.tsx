@@ -1926,8 +1926,6 @@ export function ManutencaoPage() {
     
     let y = startY + 4;
 
-    const mechanicsMap = new Map(mechanics.map(m => [m.id, m.name]));
-
     const tableData = filteredRows.slice(0, 100).map((row) => {
       const company = vehicleCompanyMap.get(row.vehicle_code) || '-';
       const entryDate = (row as any).entry_date || row.order_date;
@@ -1936,9 +1934,7 @@ export function ManutencaoPage() {
         ? format(new Date(entryDate + 'T12:00:00'), 'dd/MM/yy') + (entryTime ? ` ${entryTime.slice(0, 5)}` : '')
         : '-';
       const downtime = calculateDowntime(row) || '-';
-      
-      // Resolve mechanic name: prefer mechanic_name, fallback to mechanics lookup by mechanic_id
-      const mechanicName = row.mechanic_name || (row.mechanic_id ? mechanicsMap.get(row.mechanic_id) : null) || '-';
+      const mechanicName = getMechanicName(row);
       
       return [
         row.order_number,
