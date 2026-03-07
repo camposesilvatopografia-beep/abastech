@@ -944,7 +944,13 @@ export function ManutencaoPage() {
     return { emManutencao, aguardandoPecas, urgentes, finalizadas };
   }, [filteredRows]);
 
-  // Status badge
+  // Helper to resolve mechanic name from mechanic_id when mechanic_name is empty
+  const mechanicsMap = useMemo(() => new Map(mechanics.map(m => [m.id, m.name])), [mechanics]);
+  const getMechanicName = useCallback((order: ServiceOrder) => {
+    return order.mechanic_name || (order.mechanic_id ? mechanicsMap.get(order.mechanic_id) : null) || '-';
+  }, [mechanicsMap]);
+
+
   const getStatusBadge = (status: string) => {
     const s = status.toLowerCase();
     if (s.includes('finalizada') || s.includes('concluída')) {
