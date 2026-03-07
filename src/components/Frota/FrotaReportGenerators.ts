@@ -353,12 +353,12 @@ export async function exportEfetivoPDF(
     doc.text(obraSettings.cidade, textStartX, 25);
   }
 
-  // Date on the right
-  doc.setFontSize(9);
+  // Date on the right – prominent
+  doc.setFontSize(11);
   doc.setFont('helvetica', 'bold');
   const formattedDate = format(selectedDate, "EEEE, d 'de' MMMM 'de' yyyy", { locale: ptBR });
   doc.text(formattedDate.charAt(0).toUpperCase() + formattedDate.slice(1), pageWidth - 14, 11, { align: 'right' });
-  doc.setFontSize(7);
+  doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
   doc.text(`Gerado: ${format(new Date(), 'dd/MM/yyyy HH:mm')}`, pageWidth - 14, 18, { align: 'right' });
 
