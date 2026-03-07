@@ -154,14 +154,8 @@ export function HorimeterHistoryTab({ vehicles, readings, loading }: HorimeterHi
     resetToDefaults,
   } = useLayoutPreferences('horimetros-history', DEFAULT_HISTORY_COLUMNS);
 
-  // Get unique companies
-  const empresas = useMemo(() => {
-    const unique = new Set<string>();
-    vehicles.forEach(v => {
-      if (v.company) unique.add(v.company);
-    });
-    return Array.from(unique).sort();
-  }, [vehicles]);
+  // Fixed company list
+  const empresas = ['Engemat', 'L. Pereira', 'A. Barreto', 'Consórcio'];
 
   // Get unique categories
   const categorias = useMemo(() => {

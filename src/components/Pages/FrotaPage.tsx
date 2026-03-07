@@ -376,14 +376,7 @@ export function FrotaPage() {
     }
   };
 
-  const empresas = useMemo(() => {
-    const unique = new Set<string>();
-    data.rows.forEach(row => {
-      const empresa = getRowValue(row as any, ['EMPRESA', 'Empresa', 'empresa']).trim();
-      if (empresa) unique.add(empresa);
-    });
-    return Array.from(unique).sort();
-  }, [data.rows]);
+  const empresas = ['Engemat', 'L. Pereira', 'A. Barreto', 'Consórcio'];
 
   const descricoes = useMemo(() => {
     const unique = new Set<string>();

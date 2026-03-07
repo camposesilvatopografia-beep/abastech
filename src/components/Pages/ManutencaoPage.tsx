@@ -846,15 +846,8 @@ export function ManutencaoPage() {
     setQuickFilter(null);
   };
 
-  // Get unique companies from vehicles data
-  const companies = useMemo(() => {
-    const companySet = new Set<string>();
-    vehiclesData.rows.forEach(v => {
-      const company = String(v['Empresa'] || '').trim();
-      if (company) companySet.add(company);
-    });
-    return Array.from(companySet).sort();
-  }, [vehiclesData.rows]);
+  // Fixed company list
+  const companies = ['Engemat', 'L. Pereira', 'A. Barreto', 'Consórcio'];
 
   // Create a map of vehicle_code to company
   const vehicleCompanyMap = useMemo(() => {
