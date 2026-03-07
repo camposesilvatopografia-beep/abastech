@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { 
   FileText, 
   FileSpreadsheet, 
@@ -13,14 +13,71 @@ import {
   Printer,
   Filter,
   Eye,
+  Loader2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar as CalendarComponent } from '@/components/ui/calendar';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
-import { format } from 'date-fns';
+import { format, startOfMonth, endOfMonth, subDays, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import { renderStandardHeader, getLogoBase64 } from '@/lib/pdfHeader';
+import { useVehicles, useHorimeterReadings, type HorimeterWithVehicle } from '@/hooks/useHorimeters';
+import { useObraSettings } from '@/hooks/useObraSettings';
+import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
+
+type PeriodType = 'data_especifica' | 'ontem' | 'hoje' | 'mes_atual' | 'personalizado';
+
+function computeCombinedDateRange(period: PeriodType, customStart?: Date, customEnd?: Date) {
+  const now = new Date();
+  switch (period) {
+    case 'data_especifica':
+      if (customStart) return { start: startOfDay(customStart), end: endOfDay(customStart) };
+      return { start: startOfDay(now), end: endOfDay(now) };
+    case 'ontem': { const y = subDays(now, 1); return { start: startOfDay(y), end: endOfDay(y) }; }
+    case 'hoje': return { start: startOfDay(now), end: endOfDay(now) };
+    case 'mes_atual': return { start: startOfMonth(now), end: endOfMonth(now) };
+    case 'personalizado':
+      if (customStart && customEnd) return { start: startOfDay(customStart), end: endOfDay(customEnd) };
+      return { start: startOfMonth(now), end: endOfMonth(now) };
+    default: return { start: startOfMonth(now), end: endOfMonth(now) };
+  }
+}
+
+const COMBINED_PERIOD_OPTIONS = [
+  { value: 'data_especifica', label: 'Data Específica' },
+  { value: 'ontem', label: 'Ontem' },
+  { value: 'hoje', label: 'Hoje' },
+  { value: 'mes_atual', label: 'Mês' },
+  { value: 'personalizado', label: 'Período' },
+];
+
+const formatBR = (val: number | null | undefined): string => {
+  if (val === null || val === undefined || val === 0) return '-';
+  const hasDecimals = val % 1 !== 0;
+  return val.toLocaleString('pt-BR', { minimumFractionDigits: hasDecimals ? 2 : 0, maximumFractionDigits: 2 });
+};
+
+function addCombinedPageFooters(doc: jsPDF, margin: number) {
+  const pageCount = doc.getNumberOfPages();
+  const pageWidth = doc.internal.pageSize.getWidth();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    const pH = doc.internal.pageSize.getHeight();
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(148, 163, 184);
+    doc.text('AbasTech — Sistema de Gestão de Frotas', margin, pH - 6);
+    doc.text(`Página ${i} de ${pageCount}`, pageWidth - margin, pH - 6, { align: 'right' });
+  }
+}
 
 interface ReportsTabProps {
   isExporting: boolean;
