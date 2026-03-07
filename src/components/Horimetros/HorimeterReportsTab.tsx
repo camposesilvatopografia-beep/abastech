@@ -265,15 +265,10 @@ export function HorimeterReportsTab({
     const margin = 14;
 
     // ====== HORÍMETROS ======
-    let y = renderStandardHeader(doc, { reportTitle: `RELATÓRIO COMBINADO — ${company}`, obraSettings, logoBase64, date: format(new Date(), 'dd/MM/yyyy HH:mm') });
+    let y = renderStandardHeader(doc, { reportTitle: `Relatório de Horímetros/Km`, obraSettings, logoBase64, date: format(new Date(), 'dd/MM/yyyy HH:mm'), showTitleUnderline: false });
     doc.setFontSize(8); doc.setFont('helvetica', 'normal'); doc.setTextColor(71, 85, 105);
     doc.text(`Empresa: ${company}  |  Período: ${dateInfo}`, margin, y); y += 8;
-    doc.setFontSize(11); doc.setFont('helvetica', 'bold'); doc.setTextColor(30, 30, 30);
-    doc.text('HORÍMETROS', margin, y); y += 6;
-
     if (horimeterData.length > 0) {
-      const totalHT = horimeterData.reduce((s, r) => { const i = r.current_value - (r.previous_value ?? r.current_value); return s + (i > 0 ? i : 0); }, 0);
-      y = renderKpiPair(doc, y, pageWidth, { label: 'REGISTROS HORÍMETRO', value: `${horimeterData.length}` }, { label: 'TOTAL HORAS', value: `${formatBR(totalHT)} h` });
       const horTableData = horimeterData.map(r => {
         const interval = r.current_value - (r.previous_value ?? r.current_value);
         const prevKm = (r as any).previous_km; const currKm = (r as any).current_km;
@@ -295,13 +290,11 @@ export function HorimeterReportsTab({
 
     // ====== ABASTECIMENTOS ======
     doc.addPage('landscape');
-    y = renderStandardHeader(doc, { reportTitle: `ABASTECIMENTOS — ${company}`, obraSettings, logoBase64, date: format(new Date(), 'dd/MM/yyyy HH:mm') });
+    y = renderStandardHeader(doc, { reportTitle: `Registros de Abastecimentos`, obraSettings, logoBase64, date: format(new Date(), 'dd/MM/yyyy HH:mm'), showTitleUnderline: false });
     doc.setFontSize(8); doc.setFont('helvetica', 'normal'); doc.setTextColor(71, 85, 105);
     doc.text(`Empresa: ${company}  |  Período: ${dateInfo}`, margin, y); y += 6;
 
     if (fuelRecords && fuelRecords.length > 0) {
-      const totalLiters = fuelRecords.reduce((s, r) => s + (r.fuel_quantity || 0), 0);
-      y = renderKpiPair(doc, y, pageWidth, { label: 'REGISTROS ABASTECIMENTO', value: `${fuelRecords.length}` }, { label: 'TOTAL ABASTECIDO', value: `${formatBR(totalLiters)} L` });
       const fuelTableData = fuelRecords.map(r => {
         const horInterval = (r.horimeter_current && r.horimeter_previous) ? r.horimeter_current - r.horimeter_previous : null;
         const consumption = (horInterval && horInterval > 0 && r.fuel_quantity > 0) ? (r.fuel_quantity / horInterval) : null;
