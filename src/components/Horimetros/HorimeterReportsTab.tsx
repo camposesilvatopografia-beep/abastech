@@ -389,6 +389,22 @@ export function HorimeterReportsTab({
                 </SelectContent>
               </Select>
             </div>
+            {detailedPeriod === 'data_especifica' && (
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">Data</label>
+                <Popover open={startDateOpen} onOpenChange={setStartDateOpen}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-9 gap-2 w-[130px]">
+                      <Calendar className="w-3.5 h-3.5" />
+                      {detailedStartDate ? format(detailedStartDate, 'dd/MM/yyyy') : 'Selecione'}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <CalendarComponent mode="single" selected={detailedStartDate} onSelect={(d) => { setDetailedStartDate(d || undefined); setDetailedEndDate(d || undefined); setStartDateOpen(false); }} locale={ptBR} />
+                  </PopoverContent>
+                </Popover>
+              </div>
+            )}
             {detailedPeriod === 'personalizado' && (
               <>
                 <div className="space-y-1">
