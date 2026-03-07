@@ -82,6 +82,7 @@ const Index = () => {
       manutencao: 'manutencao',
       calendario: 'calendario',
       alertas: 'alertas',
+      relatorios: 'relatorios',
       fornecedores: 'fornecedores',
       lubrificantes: 'lubrificantes',
       mecanicos: 'mecanicos',
