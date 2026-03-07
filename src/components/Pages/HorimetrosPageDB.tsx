@@ -1119,6 +1119,15 @@ export function HorimetrosPageDB() {
             loading={loading}
             refetch={refetchReadings}
           />
+        ) : activeTab === 'relatorios' ? (
+          <HorimeterReportsTab
+            onExportPDF={exportToPDF}
+            onExportExcel={exportToExcel}
+            onExportMissingPDF={() => exportMissingPDF(missingVehicles)}
+            onExportMissingWhatsApp={() => exportMissingWhatsApp(missingVehicles)}
+            recordCount={readingsWithInterval.length}
+            missingCount={missingVehicles.length}
+          />
         ) : (
         <>
         {/* Filters */}
