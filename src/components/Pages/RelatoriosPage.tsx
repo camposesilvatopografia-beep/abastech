@@ -468,18 +468,6 @@ export function RelatoriosPage() {
       doc.text(`Gerado em: ${format(new Date(), 'dd/MM/yyyy HH:mm')}`, margin + 4, y + 3);
       y += 14;
 
-      const tableData = orders.map(o => [
-        format(new Date(o.order_date + 'T00:00:00'), 'dd/MM/yyyy'),
-        o.order_number || '-',
-        o.vehicle_code || '-',
-        o.vehicle_description || '-',
-        o.order_type || '-',
-        o.status || '-',
-        o.priority || '-',
-        o.mechanic_name || '-',
-        o.problem_description?.substring(0, 40) || '-',
-      ]);
-
       autoTable(doc, {
         head: [['Nº OS', 'Veículo', 'Empresa', 'Problema', 'Mecânico', 'Entrada', 'T. Parado', 'Status']],
         body: orders.map(o => {
