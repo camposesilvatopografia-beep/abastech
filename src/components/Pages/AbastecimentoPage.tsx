@@ -1505,20 +1505,7 @@ export function AbastecimentoPage() {
           return descA.localeCompare(descB, 'pt-BR');
         });
 
-        // Build description-to-color index for alternating group backgrounds
-        const uniqueDescs: string[] = [];
-        sortedRows.forEach(row => {
-          const desc = String(row['DESCRICAO'] || row['DESCRIÇÃO'] || '');
-          if (!uniqueDescs.includes(desc)) uniqueDescs.push(desc);
-        });
-        const descColorMap: Record<string, number> = {};
-        uniqueDescs.forEach((d, i) => { descColorMap[d] = i % 2; });
-
-        // Two alternating light fills for description groups
-        const groupFills: [number, number, number][] = [
-          [255, 255, 255],   // white
-          [235, 240, 250],   // light blue-gray
-        ];
+        
 
         const body = sortedRows.map(row => {
           const cat = String(row['CATEGORIA'] || '').toLowerCase();
