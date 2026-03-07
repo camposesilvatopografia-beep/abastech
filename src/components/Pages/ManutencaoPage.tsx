@@ -295,13 +295,12 @@ export function ManutencaoPage() {
     }
   };
 
-  // Fetch mechanics
+  // Fetch mechanics (include inactive for name resolution)
   const fetchMechanics = async () => {
     try {
       const { data, error } = await supabase
         .from('mechanics')
         .select('id, name, active')
-        .eq('active', true)
         .order('name', { ascending: true });
 
       if (error) throw error;
@@ -849,16 +848,29 @@ export function ManutencaoPage() {
   // Fixed company list
   const companies = ['Engemat', 'L. Pereira', 'A. Barreto', 'Consórcio'];
 
-  // Create a map of vehicle_code to company
+  // Fetch DB vehicles for company fallback
+  const [dbVehicles, setDbVehicles] = useState<Array<{ code: string; company: string | null }>>([]);
+  useEffect(() => {
+    supabase.from('vehicles').select('code, company').then(({ data }) => {
+      setDbVehicles(data || []);
+    });
+  }, []);
+
+  // Create a map of vehicle_code to company (sheet first, then DB fallback)
   const vehicleCompanyMap = useMemo(() => {
     const map = new Map<string, string>();
+    // DB vehicles first
+    dbVehicles.forEach(v => {
+      if (v.code && v.company) map.set(v.code.trim(), v.company.trim());
+    });
+    // Sheet data overrides
     vehiclesData.rows.forEach(v => {
       const code = String(v['Codigo'] || '').trim();
       const company = String(v['Empresa'] || '').trim();
-      if (code) map.set(code, company);
+      if (code && company) map.set(code, company);
     });
     return map;
-  }, [vehiclesData.rows]);
+  }, [vehiclesData.rows, dbVehicles]);
 
   // Filter orders
   const filteredRows = useMemo(() => {
