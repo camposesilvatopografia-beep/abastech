@@ -459,46 +459,46 @@ export function RelatoriosPage() {
       }
 
       const doc = new jsPDF('landscape');
-      const margin = 14;
+      const margin = 10;
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const pageWidth = doc.internal.pageSize.getWidth();
       let y = renderStandardHeader(doc, { reportTitle: 'Relatório de Ordens de Serviço', obraSettings, logoBase64, date: format(new Date(), 'dd/MM/yyyy HH:mm'), showTitleUnderline: false });
-      // Modern "Gerado em" badge
-      doc.setFillColor(248, 250, 252);
-      doc.roundedRect(margin, y - 4, 90, 12, 2, 2, 'F');
-      doc.setFontSize(8); doc.setFont('helvetica', 'bold'); doc.setTextColor(100, 116, 139);
-      doc.text(`Gerado em: ${format(new Date(), 'dd/MM/yyyy HH:mm')}`, margin + 4, y + 3);
-      y += 14;
+      
+      // Compact "Gerado em" line
+      doc.setFontSize(7); doc.setFont('helvetica', 'bold'); doc.setTextColor(100, 116, 139);
+      doc.text(`Gerado em: ${format(new Date(), 'dd/MM/yyyy HH:mm')}`, margin, y + 1);
+      y += 6;
+
+      const tableBody = orders.map(o => {
+        const entryDate = o.entry_date ? format(new Date(o.entry_date + 'T00:00:00'), 'dd/MM/yy') : '-';
+        const entryTime = o.entry_time ? String(o.entry_time).substring(0, 5) : '';
+        const entry = entryDate !== '-' ? `${entryDate} ${entryTime}` : '-';
+        let parado = '-';
+        if (o.entry_date && o.status !== 'Concluída') {
+          const entryMs = new Date(o.entry_date + 'T' + (o.entry_time || '00:00:00')).getTime();
+          const diffMs = Date.now() - entryMs;
+          const days = Math.floor(diffMs / 86400000);
+          const hours = Math.floor((diffMs % 86400000) / 3600000);
+          parado = days > 0 ? `${days}d ${hours}h` : `${hours}h`;
+        }
+        return [o.order_number || '-', o.vehicle_code || '-', o.vehicle_description || '-', (o.problem_description || '-').substring(0, 60), o.mechanic_name || '-', entry, parado, o.status || '-'];
+      });
+
+      // Dynamic sizing: shrink font/padding to fit 1 page
+      const availableH = pageHeight - y - 12; // 12 for footer
+      const rowCount = tableBody.length + 1; // +1 header
+      const idealRowH = availableH / rowCount;
+      const fontSize = Math.min(8.5, Math.max(6, idealRowH * 0.65));
+      const cellPad = Math.min(3, Math.max(1.2, idealRowH * 0.2));
 
       autoTable(doc, {
         head: [['Nº OS', 'Veículo', 'Empresa', 'Problema', 'Mecânico', 'Entrada', 'T. Parado', 'Status']],
-        body: orders.map(o => {
-          const entryDate = o.entry_date ? format(new Date(o.entry_date + 'T00:00:00'), 'dd/MM/yy') : '-';
-          const entryTime = o.entry_time ? String(o.entry_time).substring(0, 5) : '';
-          const entry = entryDate !== '-' ? `${entryDate} ${entryTime}` : '-';
-          // Calculate time stopped
-          let parado = '-';
-          if (o.entry_date && o.status !== 'Concluída') {
-            const entryMs = new Date(o.entry_date + 'T' + (o.entry_time || '00:00:00')).getTime();
-            const diffMs = Date.now() - entryMs;
-            const days = Math.floor(diffMs / 86400000);
-            const hours = Math.floor((diffMs % 86400000) / 3600000);
-            parado = days > 0 ? `${days}d ${hours}h` : `${hours}h`;
-          }
-          return [
-            o.order_number || '-',
-            o.vehicle_code || '-',
-            o.vehicle_description || '-',
-            o.problem_description || '-',
-            o.mechanic_name || '-',
-            entry,
-            parado,
-            o.status || '-',
-          ];
-        }),
+        body: tableBody,
         startY: y, margin: { left: margin, right: margin },
-        styles: { fontSize: 8.5, cellPadding: 3, font: 'helvetica', textColor: [0, 0, 0], lineColor: [200, 200, 200], lineWidth: 0.3, halign: 'center' },
-        headStyles: { fillColor: [30, 30, 30], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8.5, halign: 'center', cellPadding: 3.5 },
+        styles: { fontSize, cellPadding: cellPad, font: 'helvetica', textColor: [0, 0, 0], lineColor: [200, 200, 200], lineWidth: 0.2, halign: 'center', overflow: 'ellipsize' },
+        headStyles: { fillColor: [30, 30, 30], textColor: [255, 255, 255], fontStyle: 'bold', fontSize, halign: 'center', cellPadding: cellPad + 0.5 },
         alternateRowStyles: { fillColor: [248, 250, 252] },
-        columnStyles: { 0: { cellWidth: 28 }, 1: { cellWidth: 22, fontStyle: 'bold' }, 2: { cellWidth: 24 }, 3: { halign: 'left', cellWidth: 'auto' }, 4: { cellWidth: 26 }, 5: { cellWidth: 30 }, 6: { cellWidth: 20 }, 7: { cellWidth: 28 } },
+        columnStyles: { 0: { cellWidth: 26 }, 1: { cellWidth: 20, fontStyle: 'bold' }, 2: { cellWidth: 22 }, 3: { halign: 'left', cellWidth: 'auto' }, 4: { cellWidth: 24 }, 5: { cellWidth: 28 }, 6: { cellWidth: 18 }, 7: { cellWidth: 26 } },
       });
 
       addPageFooters(doc, margin);
