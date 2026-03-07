@@ -52,7 +52,7 @@ const DEFAULT_STYLE: ReportStyleConfig = {
 const DEFAULT_COLUMNS: Record<string, ReportColumnConfig[]> = {
   lancamentos_tanques: [
     { key: 'data', label: 'Data', visible: true, order: 0, width: 20 },
-    { key: 'hora', label: 'Hora', visible: true, order: 1, width: 12 },
+    { key: 'hora', label: 'Hora', visible: false, order: 1, width: 12 },
     { key: 'veiculo', label: 'Veículo', visible: true, order: 2, width: 22 },
     { key: 'potencia', label: 'Potência', visible: true, order: 3, width: 22 },
     { key: 'descricao', label: 'Descrição', visible: true, order: 4, width: 34 },
@@ -66,7 +66,7 @@ const DEFAULT_COLUMNS: Record<string, ReportColumnConfig[]> = {
   ],
   lancamentos_comboios: [
     { key: 'data', label: 'Data', visible: true, order: 0, width: 20 },
-    { key: 'hora', label: 'Hora', visible: true, order: 1, width: 12 },
+    { key: 'hora', label: 'Hora', visible: false, order: 1, width: 12 },
     { key: 'veiculo', label: 'Veículo', visible: true, order: 2, width: 22 },
     { key: 'potencia', label: 'Potência', visible: true, order: 3, width: 22 },
     { key: 'descricao', label: 'Descrição', visible: true, order: 4, width: 34 },
