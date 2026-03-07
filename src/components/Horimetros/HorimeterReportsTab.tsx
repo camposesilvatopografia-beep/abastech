@@ -523,7 +523,7 @@ export function HorimeterReportsTab({
               <Select value={combinedCompany} onValueChange={setCombinedCompany}>
                 <SelectTrigger className="w-[160px] h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Selecione...</SelectItem>
+                  <SelectItem value="all">Todas (separado)</SelectItem>
                   {companies.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                 </SelectContent>
               </Select>
@@ -531,11 +531,14 @@ export function HorimeterReportsTab({
           </div>
           <div className="flex items-center justify-between bg-muted/50 rounded-lg px-4 py-2">
             <span className="text-sm text-muted-foreground">
-              <strong>{combinedHorimeterReadings.length}</strong> horímetro(s) no período{' '}
+              {combinedCompany === 'all'
+                ? <><strong>{companies.length}</strong> empresa(s) — gera 1 PDF por empresa</>
+                : <><strong>{combinedCompany}</strong> — 1 PDF combinado</>
+              }
+              {' '}
               <span className="text-xs">({format(combinedDateRange.start, 'dd/MM/yyyy')} — {format(combinedDateRange.end, 'dd/MM/yyyy')})</span>
-              {combinedCompany !== 'all' && <span> — <strong>{combinedCompany}</strong></span>}
             </span>
-            <Button onClick={exportCombinedPDF} className="gap-2" disabled={combinedCompany === 'all' || isCombinedLoading}>
+            <Button onClick={exportCombinedPDF} className="gap-2" disabled={isCombinedLoading}>
               {isCombinedLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
               {isCombinedLoading ? 'Gerando...' : 'Gerar PDF Combinado'}
             </Button>
