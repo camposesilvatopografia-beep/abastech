@@ -960,31 +960,31 @@ export function HorimetrosPageDB() {
           </div>
           
           <div className="flex flex-wrap items-center gap-2">
-            <Button 
-              className="bg-primary hover:bg-primary/90 order-first lg:order-last" 
-              onClick={() => setShowNewModal(true)}
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              <span className="hidden sm:inline">Novo Registro</span>
-              <span className="sm:hidden">Novo</span>
-            </Button>
-
-
-
-            <Button 
-              variant="outline"
-              onClick={() => setShowRepeatModal(true)}
-              className="order-first lg:order-last relative"
-            >
-              <Repeat className="w-4 h-4 mr-2" />
-              <span className="hidden sm:inline">Repetir</span>
-              <span className="sm:hidden">Repetir</span>
-              {missingVehicles.length > 0 && (
-                <span className="absolute -top-2 -right-2 bg-amber-500 text-white text-[10px] font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1">
-                  {missingVehicles.length}
-                </span>
-              )}
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button className="bg-primary hover:bg-primary/90 order-first lg:order-last">
+                  <Plus className="w-4 h-4 mr-2" />
+                  <span className="hidden sm:inline">Novo Registro</span>
+                  <span className="sm:hidden">Novo</span>
+                  <ChevronDown className="w-3 h-3 ml-1" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuItem onClick={() => setShowNewModal(true)} className="gap-2">
+                  <Plus className="w-4 h-4" />
+                  Novo Lançamento
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setShowRepeatModal(true)} className="gap-2">
+                  <Repeat className="w-4 h-4" />
+                  Repetir — Dia Sem Trabalho
+                  {missingVehicles.length > 0 && (
+                    <span className="ml-auto bg-amber-500 text-white text-[10px] font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1">
+                      {missingVehicles.length}
+                    </span>
+                  )}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             
             <Button 
               variant={selectionModeActive ? "secondary" : "outline"}
