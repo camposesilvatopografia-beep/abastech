@@ -3366,6 +3366,7 @@ export function AbastecimentoPage() {
                 const url = await exportTanquesComboiosPDF(reportRows, startDate || new Date(), buildStockData(), obraSettings, sortByDescription, true);
                 if (url) { setPreviewPdfUrl(url as string); setPreviewPdfName('Tanques_Comboios.pdf'); setShowPdfPreview(true); }
               }}
+              onExportResumoGeral={() => exportPDFResumoGeral()}
             />
           );
         })()}
