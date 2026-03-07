@@ -1934,6 +1934,7 @@ export function ManutencaoPage() {
       reportTitle: 'RELATÓRIO DE MANUTENÇÕES',
       obraSettings,
       logoBase64,
+      showTitleUnderline: false,
     });
     
     let y = startY + 4;
