@@ -42,8 +42,8 @@ const DEFAULT_STYLE: ReportStyleConfig = {
   bodyFontSize: 8,
   bodyBold: false,
   alternateRowColor1: '#FFFFFF',
-  alternateRowColor2: '#EBF0FA',
-  totalRowColor: '#DCC8C8',
+  alternateRowColor2: '#F2F2F2',
+  totalRowColor: '#E0E0E0',
   titleText: '',
   showLogo: true,
 };
