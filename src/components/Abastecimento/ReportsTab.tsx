@@ -138,6 +138,237 @@ export function ReportsTab({
   onPreviewDetailedPDF,
   onExportResumoGeral,
 }: ReportsTabProps) {
+  const { toast } = useToast();
+  const { vehicles } = useVehicles();
+  const { readings } = useHorimeterReadings();
+  const { settings: obraSettings } = useObraSettings();
+
+  // Combined report state
+  const [combinedPeriod, setCombinedPeriod] = useState<PeriodType>('mes_atual');
+  const [combinedCompany, setCombinedCompany] = useState<string>('all');
+  const [combinedStartDate, setCombinedStartDate] = useState<Date | undefined>();
+  const [combinedEndDate, setCombinedEndDate] = useState<Date | undefined>();
+  const [combinedStartOpen, setCombinedStartOpen] = useState(false);
+  const [combinedEndOpen, setCombinedEndOpen] = useState(false);
+  const [isCombinedLoading, setIsCombinedLoading] = useState(false);
+
+  const companies = useMemo(() => {
+    const set = new Set<string>();
+    vehicles.forEach(v => { if (v.company) set.add(v.company); });
+    return Array.from(set).sort();
+  }, [vehicles]);
+
+  const combinedDateRange = useMemo(() => computeCombinedDateRange(combinedPeriod, combinedStartDate, combinedEndDate), [combinedPeriod, combinedStartDate, combinedEndDate]);
+
+  const buildCombinedPDFForCompany = async (
+    company: string, logoBase64: string | null, dateInfo: string, startStr: string, endStr: string
+  ): Promise<{ doc: jsPDF; horCount: number; fuelCount: number } | null> => {
+    const horimeterData = readings.filter(r => {
+      const d = new Date(r.reading_date + 'T12:00:00');
+      if (!isWithinInterval(d, combinedDateRange)) return false;
+      return r.vehicle?.company === company;
+    }).sort((a, b) => a.reading_date.localeCompare(b.reading_date) || (a.vehicle?.code || '').localeCompare(b.vehicle?.code || ''));
+
+    const { data: fuelRecords } = await supabase
+      .from('field_fuel_records')
+      .select('*')
+      .eq('company', company)
+      .gte('record_date', startStr)
+      .lte('record_date', endStr)
+      .order('record_date', { ascending: true });
+
+    if (horimeterData.length === 0 && (!fuelRecords || fuelRecords.length === 0)) return null;
+
+    const doc = new jsPDF('landscape');
+    const margin = 14;
+
+    // ====== HORÍMETROS ======
+    let y = renderStandardHeader(doc, { reportTitle: `Relatório de Horímetros/Km`, obraSettings, logoBase64, date: format(new Date(), 'dd/MM/yyyy HH:mm'), showTitleUnderline: false });
+    doc.setFontSize(8); doc.setFont('helvetica', 'normal'); doc.setTextColor(71, 85, 105);
+    doc.text(`Empresa: ${company}  |  Período: ${dateInfo}`, margin, y); y += 8;
+    if (horimeterData.length > 0) {
+      const sortedHor = [...horimeterData].sort((a, b) => {
+        const descA = (a.vehicle?.description || a.vehicle?.category || '').toLowerCase();
+        const descB = (b.vehicle?.description || b.vehicle?.category || '').toLowerCase();
+        if (descA !== descB) return descA.localeCompare(descB);
+        return a.reading_date.localeCompare(b.reading_date);
+      });
+      const horTableData = sortedHor.map(r => {
+        const interval = r.current_value - (r.previous_value ?? r.current_value);
+        const prevKm = (r as any).previous_km; const currKm = (r as any).current_km;
+        const kmInterval = (prevKm && currKm && currKm > 0 && prevKm > 0) ? currKm - prevKm : null;
+        return [format(new Date(r.reading_date + 'T00:00:00'), 'dd/MM/yyyy'), r.vehicle?.code || '-', r.vehicle?.description || r.vehicle?.category || '-', r.operator || '-', formatBR(r.previous_value), formatBR(r.current_value), interval > 0 ? formatBR(interval) : '-', formatBR(prevKm), formatBR(currKm), kmInterval && kmInterval > 0 ? formatBR(kmInterval) : '-'];
+      });
+      let lastDescH = ''; let descColorIdxH = 0;
+      autoTable(doc, {
+        head: [['Data', 'Veículo', 'Descrição', 'Operador', 'Hor. Anterior', 'Hor. Atual', 'H.T.', 'KM Anterior', 'KM Atual', 'Total KM']],
+        body: horTableData, startY: y, margin: { left: margin, right: margin },
+        styles: { fontSize: 7.5, cellPadding: 2.5, font: 'helvetica', textColor: [30, 30, 30], lineColor: [200, 200, 200], lineWidth: 0.2 },
+        headStyles: { fillColor: [30, 30, 30], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7.5, halign: 'center', cellPadding: 3 },
+        didParseCell: (data) => {
+          if (data.section === 'body') {
+            const desc = horTableData[data.row.index]?.[2] || '';
+            if (desc !== lastDescH) { descColorIdxH++; lastDescH = desc; }
+            data.cell.styles.fillColor = descColorIdxH % 2 === 0 ? [248, 250, 252] : [255, 255, 255];
+          }
+        },
+        columnStyles: { 0: { halign: 'center', cellWidth: 22 }, 1: { halign: 'center', fontStyle: 'bold', cellWidth: 22 }, 2: { halign: 'left' }, 3: { halign: 'left' }, 4: { halign: 'center', cellWidth: 24 }, 5: { halign: 'center', cellWidth: 24 }, 6: { halign: 'center', fontStyle: 'bold', cellWidth: 16 }, 7: { halign: 'center', cellWidth: 24 }, 8: { halign: 'center', cellWidth: 24 }, 9: { halign: 'center', fontStyle: 'bold', cellWidth: 18 } },
+      });
+    } else {
+      doc.setFontSize(9); doc.setFont('helvetica', 'italic'); doc.setTextColor(120, 120, 120);
+      doc.text('Nenhum registro de horímetro encontrado para esta empresa no período.', margin, y);
+    }
+
+    // ====== ABASTECIMENTOS ======
+    doc.addPage('landscape');
+    y = renderStandardHeader(doc, { reportTitle: `Registros de Abastecimentos`, obraSettings, logoBase64, date: format(new Date(), 'dd/MM/yyyy HH:mm'), showTitleUnderline: false });
+    doc.setFontSize(8); doc.setFont('helvetica', 'normal'); doc.setTextColor(71, 85, 105);
+    doc.text(`Empresa: ${company}  |  Período: ${dateInfo}`, margin, y); y += 6;
+
+    if (fuelRecords && fuelRecords.length > 0) {
+      const sortedFuel = [...fuelRecords].sort((a, b) => {
+        const descA = (a.vehicle_description || '').toLowerCase();
+        const descB = (b.vehicle_description || '').toLowerCase();
+        if (descA !== descB) return descA.localeCompare(descB);
+        return (a.record_date || '').localeCompare(b.record_date || '');
+      });
+      const fuelTableData = sortedFuel.map(r => {
+        const horInterval = (r.horimeter_current && r.horimeter_previous) ? r.horimeter_current - r.horimeter_previous : null;
+        const consumption = (horInterval && horInterval > 0 && r.fuel_quantity > 0) ? (r.fuel_quantity / horInterval) : null;
+        return [format(new Date(r.record_date + 'T00:00:00'), 'dd/MM/yyyy'), r.vehicle_code || '-', r.vehicle_description || '-', r.operator_name || '-', formatBR(r.fuel_quantity), consumption ? formatBR(consumption) : '-', formatBR(r.horimeter_previous), formatBR(r.horimeter_current), horInterval && horInterval > 0 ? formatBR(horInterval) : '-', r.location || '-'];
+      });
+      let lastDesc = ''; let descColorIdx = 0;
+      autoTable(doc, {
+        head: [['Data', 'Veículo', 'Descrição', 'Operador', 'Qtd (L)', 'L/h', 'Hor. Ant.', 'Hor. Atual', 'H.T.', 'Local']],
+        body: fuelTableData, startY: y, margin: { left: margin, right: margin },
+        styles: { fontSize: 8, cellPadding: 2.5, font: 'helvetica', textColor: [30, 30, 30], lineColor: [200, 200, 200], lineWidth: 0.2 },
+        headStyles: { fillColor: [30, 30, 30], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8, halign: 'center', cellPadding: 3 },
+        didParseCell: (data) => {
+          if (data.section === 'body') {
+            const desc = fuelTableData[data.row.index]?.[2] || '';
+            if (desc !== lastDesc) { descColorIdx++; lastDesc = desc; }
+            data.cell.styles.fillColor = descColorIdx % 2 === 0 ? [248, 250, 252] : [255, 255, 255];
+          }
+        },
+        columnStyles: { 0: { halign: 'center', cellWidth: 22 }, 1: { halign: 'center', fontStyle: 'bold', cellWidth: 22 }, 2: { halign: 'left' }, 3: { halign: 'left' }, 4: { halign: 'center', fontStyle: 'bold', cellWidth: 18 }, 5: { halign: 'center', cellWidth: 16 }, 6: { halign: 'center', cellWidth: 24 }, 7: { halign: 'center', cellWidth: 24 }, 8: { halign: 'center', fontStyle: 'bold', cellWidth: 16 }, 9: { halign: 'center' } },
+      });
+    } else {
+      doc.setFontSize(9); doc.setFont('helvetica', 'italic'); doc.setTextColor(120, 120, 120);
+      doc.text('Nenhum registro de abastecimento encontrado para esta empresa no período.', margin, y);
+    }
+
+    // ====== DETALHAMENTO POR VEÍCULO ======
+    const vehicleMap = new Map<string, {
+      code: string; description: string;
+      horInitial: number | null; horFinal: number | null; totalHT: number;
+      kmInitial: number | null; kmFinal: number | null; totalKM: number;
+      totalLiters: number; fuelCount: number; horCount: number;
+      avgConsumption: number | null;
+    }>();
+
+    horimeterData.forEach(r => {
+      const code = r.vehicle?.code || '-';
+      if (!vehicleMap.has(code)) {
+        vehicleMap.set(code, { code, description: r.vehicle?.description || r.vehicle?.category || '-', horInitial: null, horFinal: null, totalHT: 0, kmInitial: null, kmFinal: null, totalKM: 0, totalLiters: 0, fuelCount: 0, horCount: 0, avgConsumption: null });
+      }
+      const v = vehicleMap.get(code)!;
+      v.horCount++;
+      if (v.horInitial === null || (r.previous_value != null && r.previous_value < v.horInitial)) v.horInitial = r.previous_value;
+      if (v.horFinal === null || r.current_value > v.horFinal) v.horFinal = r.current_value;
+      const prevKm = (r as any).previous_km; const currKm = (r as any).current_km;
+      if (prevKm && (v.kmInitial === null || prevKm < v.kmInitial)) v.kmInitial = prevKm;
+      if (currKm && (v.kmFinal === null || currKm > v.kmFinal)) v.kmFinal = currKm;
+    });
+
+    if (fuelRecords) {
+      fuelRecords.forEach(r => {
+        const code = r.vehicle_code || '-';
+        if (!vehicleMap.has(code)) {
+          vehicleMap.set(code, { code, description: r.vehicle_description || '-', horInitial: null, horFinal: null, totalHT: 0, kmInitial: null, kmFinal: null, totalKM: 0, totalLiters: 0, fuelCount: 0, horCount: 0, avgConsumption: null });
+        }
+        const v = vehicleMap.get(code)!;
+        v.fuelCount++;
+        v.totalLiters += r.fuel_quantity || 0;
+      });
+    }
+
+    vehicleMap.forEach(v => {
+      v.totalHT = (v.horInitial != null && v.horFinal != null && v.horFinal > v.horInitial) ? v.horFinal - v.horInitial : 0;
+      v.totalKM = (v.kmInitial != null && v.kmFinal != null && v.kmFinal > v.kmInitial) ? v.kmFinal - v.kmInitial : 0;
+      v.avgConsumption = (v.totalHT > 0 && v.totalLiters > 0) ? v.totalLiters / v.totalHT : null;
+    });
+
+    const vehicleSummaries = Array.from(vehicleMap.values()).sort((a, b) => a.description.localeCompare(b.description));
+
+    if (vehicleSummaries.length > 0) {
+      doc.addPage('landscape');
+      y = renderStandardHeader(doc, { reportTitle: 'Detalhamento por Veículo', obraSettings, logoBase64, date: format(new Date(), 'dd/MM/yyyy HH:mm'), showTitleUnderline: false });
+      doc.setFontSize(8); doc.setFont('helvetica', 'normal'); doc.setTextColor(71, 85, 105);
+      doc.text(`Empresa: ${company}  |  Período: ${dateInfo}  |  ${vehicleSummaries.length} veículo(s)`, margin, y); y += 8;
+
+      const detailTableData = vehicleSummaries.map(v => [
+        v.code, v.description,
+        v.horInitial != null ? formatBR(v.horInitial) : '-', v.horFinal != null ? formatBR(v.horFinal) : '-',
+        v.totalHT > 0 ? formatBR(v.totalHT) : '-', v.kmInitial != null ? formatBR(v.kmInitial) : '-',
+        v.kmFinal != null ? formatBR(v.kmFinal) : '-', v.totalKM > 0 ? formatBR(v.totalKM) : '-',
+        v.totalLiters > 0 ? formatBR(v.totalLiters) : '-', v.avgConsumption != null ? formatBR(v.avgConsumption) : '-',
+        `${v.horCount}/${v.fuelCount}`,
+      ]);
+
+      let lastDescV = ''; let descColorIdxV = 0;
+      autoTable(doc, {
+        head: [['Veículo', 'Descrição', 'Hor. Inicial', 'Hor. Final', 'Total H.T.', 'KM Inicial', 'KM Final', 'Total KM', 'Total (L)', 'Consumo (L/h)', 'Lanç. Hor/Abast']],
+        body: detailTableData, startY: y, margin: { left: margin, right: margin },
+        styles: { fontSize: 7.5, cellPadding: 2.5, font: 'helvetica', textColor: [30, 30, 30], lineColor: [200, 200, 200], lineWidth: 0.2 },
+        headStyles: { fillColor: [30, 30, 30], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7.5, halign: 'center', cellPadding: 3 },
+        didParseCell: (data) => {
+          if (data.section === 'body') {
+            const desc = detailTableData[data.row.index]?.[1] || '';
+            if (desc !== lastDescV) { descColorIdxV++; lastDescV = desc; }
+            data.cell.styles.fillColor = descColorIdxV % 2 === 0 ? [248, 250, 252] : [255, 255, 255];
+          }
+        },
+        columnStyles: { 0: { halign: 'center', fontStyle: 'bold', cellWidth: 22 }, 1: { halign: 'left' }, 2: { halign: 'center', cellWidth: 22 }, 3: { halign: 'center', cellWidth: 22 }, 4: { halign: 'center', fontStyle: 'bold', cellWidth: 20 }, 5: { halign: 'center', cellWidth: 22 }, 6: { halign: 'center', cellWidth: 22 }, 7: { halign: 'center', fontStyle: 'bold', cellWidth: 20 }, 8: { halign: 'center', fontStyle: 'bold', cellWidth: 20 }, 9: { halign: 'center', cellWidth: 24 }, 10: { halign: 'center', cellWidth: 24 } },
+      });
+    }
+
+    addCombinedPageFooters(doc, margin);
+    return { doc, horCount: horimeterData.length, fuelCount: fuelRecords?.length || 0 };
+  };
+
+  const exportCombinedPDF = useCallback(async () => {
+    setIsCombinedLoading(true);
+    try {
+      const startStr = format(combinedDateRange.start, 'yyyy-MM-dd');
+      const endStr = format(combinedDateRange.end, 'yyyy-MM-dd');
+      const dateInfo = `${format(combinedDateRange.start, 'dd/MM/yyyy')} a ${format(combinedDateRange.end, 'dd/MM/yyyy')}`;
+      const logoBase64 = await getLogoBase64(obraSettings?.logo_url);
+
+      const targetCompanies = combinedCompany === 'all' ? companies : [combinedCompany];
+      let totalGenerated = 0;
+
+      for (const company of targetCompanies) {
+        const result = await buildCombinedPDFForCompany(company, logoBase64, dateInfo, startStr, endStr);
+        if (result) {
+          const safeCompany = company.replace(/\s+/g, '_');
+          result.doc.save(`relatorio_combinado_${safeCompany}_${format(new Date(), 'yyyy-MM-dd')}.pdf`);
+          totalGenerated++;
+        }
+      }
+
+      if (totalGenerated === 0) {
+        toast({ title: 'Sem dados', description: 'Nenhum registro encontrado no período', variant: 'destructive' });
+      } else {
+        toast({ title: 'PDFs gerados', description: `${totalGenerated} relatório(s) combinado(s) gerado(s)` });
+      }
+    } catch (err) {
+      console.error('Error generating combined PDF:', err);
+      toast({ title: 'Erro', description: 'Falha ao gerar relatório combinado', variant: 'destructive' });
+    } finally {
+      setIsCombinedLoading(false);
+    }
+  }, [combinedCompany, combinedDateRange, companies, obraSettings, readings, toast]);
+
   const dateLabel = startDate && endDate
     ? `${format(startDate, 'dd/MM/yyyy', { locale: ptBR })} — ${format(endDate, 'dd/MM/yyyy', { locale: ptBR })}`
     : startDate
@@ -307,8 +538,7 @@ export function ReportsTab({
         </div>
       </div>
 
-
-      {/* Combined Report */}
+      {/* Combined Report — Tanques + Comboios */}
       <div className="bg-card rounded-xl border border-border overflow-hidden">
         <div className="bg-gradient-to-r from-slate-700 to-slate-800 px-5 py-3.5">
           <div className="flex items-center gap-3">
@@ -348,14 +578,113 @@ export function ReportsTab({
         </div>
       </div>
 
-      {/* Other exports - collapsible section */}
+      {/* Relatório Combinado por Empresa */}
+      <Card className="border">
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
+              <Layers className="w-5 h-5 text-blue-600" />
+            </div>
+            <div>
+              <CardTitle className="text-base">Relatório Combinado por Empresa</CardTitle>
+              <CardDescription className="text-xs">Horímetros + Abastecimentos em um único PDF por empresa</CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-wrap gap-3 items-end">
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Período</label>
+              <Select value={combinedPeriod} onValueChange={(v) => setCombinedPeriod(v as PeriodType)}>
+                <SelectTrigger className="w-[160px] h-9"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {COMBINED_PERIOD_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            {combinedPeriod === 'data_especifica' && (
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">Data</label>
+                <Popover open={combinedStartOpen} onOpenChange={setCombinedStartOpen}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-9 gap-2 w-[130px]">
+                      <Calendar className="w-3.5 h-3.5" />
+                      {combinedStartDate ? format(combinedStartDate, 'dd/MM/yyyy') : 'Selecione'}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <CalendarComponent mode="single" selected={combinedStartDate} onSelect={(d) => { setCombinedStartDate(d || undefined); setCombinedEndDate(d || undefined); setCombinedStartOpen(false); }} locale={ptBR} />
+                  </PopoverContent>
+                </Popover>
+              </div>
+            )}
+            {combinedPeriod === 'personalizado' && (
+              <>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">De</label>
+                  <Popover open={combinedStartOpen} onOpenChange={setCombinedStartOpen}>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" size="sm" className="h-9 gap-2 w-[130px]">
+                        <Calendar className="w-3.5 h-3.5" />
+                        {combinedStartDate ? format(combinedStartDate, 'dd/MM/yyyy') : 'Início'}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <CalendarComponent mode="single" selected={combinedStartDate} onSelect={(d) => { setCombinedStartDate(d || undefined); setCombinedStartOpen(false); }} locale={ptBR} />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">Até</label>
+                  <Popover open={combinedEndOpen} onOpenChange={setCombinedEndOpen}>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" size="sm" className="h-9 gap-2 w-[130px]">
+                        <Calendar className="w-3.5 h-3.5" />
+                        {combinedEndDate ? format(combinedEndDate, 'dd/MM/yyyy') : 'Fim'}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <CalendarComponent mode="single" selected={combinedEndDate} onSelect={(d) => { setCombinedEndDate(d || undefined); setCombinedEndOpen(false); }} locale={ptBR} />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </>
+            )}
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Empresa</label>
+              <Select value={combinedCompany} onValueChange={setCombinedCompany}>
+                <SelectTrigger className="w-[160px] h-9"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas (separado)</SelectItem>
+                  {companies.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="flex items-center justify-between bg-muted/50 rounded-lg px-4 py-2">
+            <span className="text-sm text-muted-foreground">
+              {combinedCompany === 'all'
+                ? <><strong>{companies.length}</strong> empresa(s) — gera 1 PDF por empresa</>
+                : <><strong>{combinedCompany}</strong> — 1 PDF combinado</>
+              }
+              {' '}
+              <span className="text-xs">({format(combinedDateRange.start, 'dd/MM/yyyy')} — {format(combinedDateRange.end, 'dd/MM/yyyy')})</span>
+            </span>
+            <Button onClick={exportCombinedPDF} className="gap-2" disabled={isCombinedLoading}>
+              {isCombinedLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+              {isCombinedLoading ? 'Gerando...' : 'Gerar PDF Combinado'}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Other exports */}
       <div className="bg-card rounded-xl border border-border p-4">
         <div className="flex items-center gap-2 mb-3">
           <Download className="w-4 h-4 text-muted-foreground" />
           <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Outros Relatórios</h3>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          {/* Relatório Geral */}
           {onExportResumoGeral && (
             <div className="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-muted/30 transition-colors">
               <FileText className="w-4 h-4 text-emerald-600 shrink-0" />
@@ -368,7 +697,6 @@ export function ReportsTab({
               </div>
             </div>
           )}
-          {/* Relatório Completo */}
           <div className="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-muted/30 transition-colors">
             <FileText className="w-4 h-4 text-primary shrink-0" />
             <div className="flex-1 min-w-0">
@@ -382,7 +710,6 @@ export function ReportsTab({
             </div>
           </div>
 
-          {/* Por Empresa */}
           <div className="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-muted/30 transition-colors">
             <Building2 className="w-4 h-4 text-orange-600 shrink-0" />
             <div className="flex-1 min-w-0">
@@ -396,7 +723,6 @@ export function ReportsTab({
             </div>
           </div>
 
-          {/* Detalhado */}
           <div className="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-muted/30 transition-colors">
             <BarChart3 className="w-4 h-4 text-violet-600 shrink-0" />
             <div className="flex-1 min-w-0">
