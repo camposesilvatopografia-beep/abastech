@@ -186,19 +186,6 @@ export function HorimeterReportsTab({
     });
   }, [readings, detailedDateRange, detailedCompany, detailedVehicle]);
 
-  // Filtered horimeter readings for combined report
-  const combinedHorimeterReadings = useMemo(() => {
-    return readings.filter(r => {
-      const d = new Date(r.reading_date + 'T12:00:00');
-      if (!isWithinInterval(d, combinedDateRange)) return false;
-      if (combinedCompany !== 'all' && r.vehicle?.company !== combinedCompany) return false;
-      return true;
-    }).sort((a, b) => {
-      const dateCmp = a.reading_date.localeCompare(b.reading_date);
-      if (dateCmp !== 0) return dateCmp;
-      return (a.vehicle?.code || '').localeCompare(b.vehicle?.code || '');
-    });
-  }, [readings, combinedDateRange, combinedCompany]);
 
   const exportDetailedPDF = async () => {
     if (filteredDetailedReadings.length === 0) {
