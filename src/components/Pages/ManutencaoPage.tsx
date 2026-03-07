@@ -1931,7 +1931,7 @@ export function ManutencaoPage() {
     const logoBase64 = await getLogoBase64(obraSettings?.logo_url);
     
     const startY = renderStandardHeader(doc, {
-      reportTitle: 'ORDENS DE SERVIÇO',
+      reportTitle: 'RELATÓRIO DE MANUTENÇÕES',
       obraSettings,
       logoBase64,
     });
