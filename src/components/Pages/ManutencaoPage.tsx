@@ -1982,6 +1982,8 @@ export function ManutencaoPage() {
     
     y += kpiHeight + 8;
 
+    const mechanicsMap = new Map(mechanics.map(m => [m.id, m.name]));
+
     const tableData = filteredRows.slice(0, 100).map((row) => {
       const company = vehicleCompanyMap.get(row.vehicle_code) || '-';
       const entryDate = (row as any).entry_date || row.order_date;
@@ -1991,12 +1993,15 @@ export function ManutencaoPage() {
         : '-';
       const downtime = calculateDowntime(row) || '-';
       
+      // Resolve mechanic name: prefer mechanic_name, fallback to mechanics lookup by mechanic_id
+      const mechanicName = row.mechanic_name || (row.mechanic_id ? mechanicsMap.get(row.mechanic_id) : null) || '-';
+      
       return [
         row.order_number,
         row.vehicle_code,
         company,
         row.problem_description || '-',
-        row.mechanic_name || '-',
+        mechanicName,
         entryFormatted,
         downtime,
         row.status
