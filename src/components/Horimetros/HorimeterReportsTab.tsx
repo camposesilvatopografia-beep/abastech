@@ -254,7 +254,9 @@ export function HorimeterReportsTab({
     toast({ title: 'PDF gerado', description: `${filteredDetailedReadings.length} registros exportados` });
   };
 
-  const generateCombinedForCompany = async (company: string, logoBase64: string | null, dateInfo: string, startStr: string, endStr: string) => {
+  const buildCombinedPDFForCompany = async (
+    company: string, logoBase64: string | null, dateInfo: string, startStr: string, endStr: string
+  ): Promise<{ doc: jsPDF; horCount: number; fuelCount: number } | null> => {
     const horimeterData = readings.filter(r => {
       const d = new Date(r.reading_date + 'T12:00:00');
       if (!isWithinInterval(d, combinedDateRange)) return false;
@@ -275,146 +277,98 @@ export function HorimeterReportsTab({
     const pageWidth = doc.internal.pageSize.getWidth();
     const margin = 14;
 
+    // ====== HORÍMETROS ======
+    let y = renderStandardHeader(doc, { reportTitle: `RELATÓRIO COMBINADO — ${company}`, obraSettings, logoBase64, date: format(new Date(), 'dd/MM/yyyy HH:mm') });
+    doc.setFontSize(8); doc.setFont('helvetica', 'normal'); doc.setTextColor(71, 85, 105);
+    doc.text(`Empresa: ${company}  |  Período: ${dateInfo}`, margin, y); y += 8;
+    doc.setFontSize(11); doc.setFont('helvetica', 'bold'); doc.setTextColor(30, 30, 30);
+    doc.text('HORÍMETROS', margin, y); y += 6;
+
+    if (horimeterData.length > 0) {
+      const totalHT = horimeterData.reduce((s, r) => { const i = r.current_value - (r.previous_value ?? r.current_value); return s + (i > 0 ? i : 0); }, 0);
+      y = renderKpiPair(doc, y, pageWidth, { label: 'REGISTROS HORÍMETRO', value: `${horimeterData.length}` }, { label: 'TOTAL HORAS', value: `${formatBR(totalHT)} h` });
+      const horTableData = horimeterData.map(r => {
+        const interval = r.current_value - (r.previous_value ?? r.current_value);
+        const prevKm = (r as any).previous_km; const currKm = (r as any).current_km;
+        const kmInterval = (prevKm && currKm && currKm > 0 && prevKm > 0) ? currKm - prevKm : null;
+        return [ format(new Date(r.reading_date + 'T00:00:00'), 'dd/MM/yyyy'), r.vehicle?.code || '-', r.operator || '-', formatBR(r.previous_value), formatBR(r.current_value), interval > 0 ? formatBR(interval) : '-', formatBR(prevKm), formatBR(currKm), kmInterval && kmInterval > 0 ? formatBR(kmInterval) : '-' ];
+      });
+      autoTable(doc, {
+        head: [['Data', 'Veículo', 'Operador', 'Hor. Anterior', 'Hor. Atual', 'H.T.', 'KM Anterior', 'KM Atual', 'Total KM']],
+        body: horTableData, startY: y, margin: { left: margin, right: margin },
+        styles: { fontSize: 7.5, cellPadding: 2.5, font: 'helvetica', textColor: [30, 30, 30], lineColor: [200, 200, 200], lineWidth: 0.2 },
+        headStyles: { fillColor: [30, 30, 30], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7.5, halign: 'center', cellPadding: 3 },
+        alternateRowStyles: { fillColor: [248, 250, 252] },
+        columnStyles: { 0: { halign: 'center', cellWidth: 22 }, 1: { halign: 'center', fontStyle: 'bold', cellWidth: 22 }, 2: { halign: 'left' }, 3: { halign: 'center', cellWidth: 26 }, 4: { halign: 'center', cellWidth: 26 }, 5: { halign: 'center', fontStyle: 'bold', cellWidth: 18 }, 6: { halign: 'center', cellWidth: 26 }, 7: { halign: 'center', cellWidth: 26 }, 8: { halign: 'center', fontStyle: 'bold', cellWidth: 20 } },
+      });
+    } else {
+      doc.setFontSize(9); doc.setFont('helvetica', 'italic'); doc.setTextColor(120, 120, 120);
+      doc.text('Nenhum registro de horímetro encontrado para esta empresa no período.', margin, y);
+    }
+
+    // ====== ABASTECIMENTOS ======
+    doc.addPage('landscape');
+    y = renderStandardHeader(doc, { reportTitle: `ABASTECIMENTOS — ${company}`, obraSettings, logoBase64, date: format(new Date(), 'dd/MM/yyyy HH:mm') });
+    doc.setFontSize(8); doc.setFont('helvetica', 'normal'); doc.setTextColor(71, 85, 105);
+    doc.text(`Empresa: ${company}  |  Período: ${dateInfo}`, margin, y); y += 6;
+
+    if (fuelRecords && fuelRecords.length > 0) {
+      const totalLiters = fuelRecords.reduce((s, r) => s + (r.fuel_quantity || 0), 0);
+      y = renderKpiPair(doc, y, pageWidth, { label: 'REGISTROS ABASTECIMENTO', value: `${fuelRecords.length}` }, { label: 'TOTAL ABASTECIDO', value: `${formatBR(totalLiters)} L` });
+      const fuelTableData = fuelRecords.map(r => {
+        const horInterval = (r.horimeter_current && r.horimeter_previous) ? r.horimeter_current - r.horimeter_previous : null;
+        const consumption = (horInterval && horInterval > 0 && r.fuel_quantity > 0) ? (r.fuel_quantity / horInterval) : null;
+        return [ format(new Date(r.record_date + 'T00:00:00'), 'dd/MM/yyyy'), r.record_time?.substring(0, 5) || '-', r.vehicle_code || '-', r.vehicle_description || '-', r.operator_name || '-', formatBR(r.fuel_quantity), consumption ? formatBR(consumption) : '-', formatBR(r.horimeter_previous), formatBR(r.horimeter_current), horInterval && horInterval > 0 ? formatBR(horInterval) : '-', r.location || '-' ];
+      });
+      autoTable(doc, {
+        head: [['Data', 'Hora', 'Veículo', 'Descrição', 'Operador', 'Qtd (L)', 'L/h', 'Hor. Ant.', 'Hor. Atual', 'H.T.', 'Local']],
+        body: fuelTableData, startY: y, margin: { left: margin, right: margin },
+        styles: { fontSize: 7, cellPadding: 2, font: 'helvetica', textColor: [30, 30, 30], lineColor: [200, 200, 200], lineWidth: 0.2 },
+        headStyles: { fillColor: [30, 30, 30], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7, halign: 'center', cellPadding: 2.5 },
+        alternateRowStyles: { fillColor: [248, 250, 252] },
+        columnStyles: { 0: { halign: 'center', cellWidth: 20 }, 1: { halign: 'center', cellWidth: 14 }, 2: { halign: 'center', fontStyle: 'bold', cellWidth: 20 }, 3: { halign: 'left' }, 4: { halign: 'left' }, 5: { halign: 'center', fontStyle: 'bold', cellWidth: 18 }, 6: { halign: 'center', cellWidth: 16 }, 7: { halign: 'center', cellWidth: 22 }, 8: { halign: 'center', cellWidth: 22 }, 9: { halign: 'center', fontStyle: 'bold', cellWidth: 16 }, 10: { halign: 'center' } },
+      });
+    } else {
+      doc.setFontSize(9); doc.setFont('helvetica', 'italic'); doc.setTextColor(120, 120, 120);
+      doc.text('Nenhum registro de abastecimento encontrado para esta empresa no período.', margin, y);
+    }
+
+    addPageFooters(doc, margin);
+    return { doc, horCount: horimeterData.length, fuelCount: fuelRecords?.length || 0 };
+  };
+
+  const exportCombinedPDF = useCallback(async () => {
     setIsCombinedLoading(true);
     try {
       const startStr = format(combinedDateRange.start, 'yyyy-MM-dd');
       const endStr = format(combinedDateRange.end, 'yyyy-MM-dd');
       const dateInfo = `${format(combinedDateRange.start, 'dd/MM/yyyy')} a ${format(combinedDateRange.end, 'dd/MM/yyyy')}`;
-
-      // Fetch fuel records for this company and period
-      const { data: fuelRecords, error } = await supabase
-        .from('field_fuel_records')
-        .select('*')
-        .eq('company', combinedCompany)
-        .gte('record_date', startStr)
-        .lte('record_date', endStr)
-        .order('record_date', { ascending: true });
-
-      if (error) throw error;
-
-      const horimeterData = combinedHorimeterReadings;
-
-      if (horimeterData.length === 0 && (!fuelRecords || fuelRecords.length === 0)) {
-        toast({ title: 'Sem dados', description: `Nenhum registro encontrado para ${combinedCompany} no período`, variant: 'destructive' });
-        return;
-      }
-
-      const doc = new jsPDF('landscape');
-      const pageWidth = doc.internal.pageSize.getWidth();
-      const margin = 14;
       const logoBase64 = await getLogoBase64(obraSettings?.logo_url);
 
-      // ====== SECTION 1: HORÍMETROS ======
-      let y = renderStandardHeader(doc, { reportTitle: `RELATÓRIO COMBINADO — ${combinedCompany}`, obraSettings, logoBase64, date: format(new Date(), 'dd/MM/yyyy HH:mm') });
+      const targetCompanies = combinedCompany === 'all' ? companies : [combinedCompany];
+      let totalGenerated = 0;
 
-      doc.setFontSize(8); doc.setFont('helvetica', 'normal'); doc.setTextColor(71, 85, 105);
-      doc.text(`Empresa: ${combinedCompany}  |  Período: ${dateInfo}`, margin, y);
-      y += 8;
-
-      // Horimeter section title
-      doc.setFontSize(11); doc.setFont('helvetica', 'bold'); doc.setTextColor(30, 30, 30);
-      doc.text('HORÍMETROS', margin, y);
-      y += 6;
-
-      if (horimeterData.length > 0) {
-        const totalHT = horimeterData.reduce((s, r) => { const i = r.current_value - (r.previous_value ?? r.current_value); return s + (i > 0 ? i : 0); }, 0);
-        y = renderKpiPair(doc, y, pageWidth, { label: 'REGISTROS HORÍMETRO', value: `${horimeterData.length}` }, { label: 'TOTAL HORAS', value: `${formatBR(totalHT)} h` });
-
-        const horTableData = horimeterData.map(r => {
-          const interval = r.current_value - (r.previous_value ?? r.current_value);
-          const prevKm = (r as any).previous_km;
-          const currKm = (r as any).current_km;
-          const kmInterval = (prevKm && currKm && currKm > 0 && prevKm > 0) ? currKm - prevKm : null;
-          return [
-            format(new Date(r.reading_date + 'T00:00:00'), 'dd/MM/yyyy'),
-            r.vehicle?.code || '-', r.operator || '-',
-            formatBR(r.previous_value), formatBR(r.current_value),
-            interval > 0 ? formatBR(interval) : '-',
-            formatBR(prevKm), formatBR(currKm),
-            kmInterval && kmInterval > 0 ? formatBR(kmInterval) : '-',
-          ];
-        });
-
-        autoTable(doc, {
-          head: [['Data', 'Veículo', 'Operador', 'Hor. Anterior', 'Hor. Atual', 'H.T.', 'KM Anterior', 'KM Atual', 'Total KM']],
-          body: horTableData, startY: y, margin: { left: margin, right: margin },
-          styles: { fontSize: 7.5, cellPadding: 2.5, font: 'helvetica', textColor: [30, 30, 30], lineColor: [200, 200, 200], lineWidth: 0.2 },
-          headStyles: { fillColor: [30, 30, 30], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7.5, halign: 'center', cellPadding: 3 },
-          alternateRowStyles: { fillColor: [248, 250, 252] },
-          columnStyles: { 0: { halign: 'center', cellWidth: 22 }, 1: { halign: 'center', fontStyle: 'bold', cellWidth: 22 }, 2: { halign: 'left' }, 3: { halign: 'center', cellWidth: 26 }, 4: { halign: 'center', cellWidth: 26 }, 5: { halign: 'center', fontStyle: 'bold', cellWidth: 18 }, 6: { halign: 'center', cellWidth: 26 }, 7: { halign: 'center', cellWidth: 26 }, 8: { halign: 'center', fontStyle: 'bold', cellWidth: 20 } },
-        });
-      } else {
-        doc.setFontSize(9); doc.setFont('helvetica', 'italic'); doc.setTextColor(120, 120, 120);
-        doc.text('Nenhum registro de horímetro encontrado para esta empresa no período.', margin, y);
-        y += 8;
+      for (const company of targetCompanies) {
+        const result = await buildCombinedPDFForCompany(company, logoBase64, dateInfo, startStr, endStr);
+        if (result) {
+          const safeCompany = company.replace(/\s+/g, '_');
+          result.doc.save(`relatorio_combinado_${safeCompany}_${format(new Date(), 'yyyy-MM-dd')}.pdf`);
+          totalGenerated++;
+        }
       }
 
-      // ====== SECTION 2: ABASTECIMENTOS ======
-      doc.addPage('landscape');
-      y = renderStandardHeader(doc, { reportTitle: `ABASTECIMENTOS — ${combinedCompany}`, obraSettings, logoBase64, date: format(new Date(), 'dd/MM/yyyy HH:mm') });
-
-      doc.setFontSize(8); doc.setFont('helvetica', 'normal'); doc.setTextColor(71, 85, 105);
-      doc.text(`Empresa: ${combinedCompany}  |  Período: ${dateInfo}`, margin, y);
-      y += 6;
-
-      if (fuelRecords && fuelRecords.length > 0) {
-        const totalLiters = fuelRecords.reduce((s, r) => s + (r.fuel_quantity || 0), 0);
-        y = renderKpiPair(doc, y, pageWidth, { label: 'REGISTROS ABASTECIMENTO', value: `${fuelRecords.length}` }, { label: 'TOTAL ABASTECIDO', value: `${formatBR(totalLiters)} L` });
-
-        const fuelTableData = fuelRecords.map(r => {
-          const horInterval = (r.horimeter_current && r.horimeter_previous) ? r.horimeter_current - r.horimeter_previous : null;
-          const consumption = (horInterval && horInterval > 0 && r.fuel_quantity > 0) ? (r.fuel_quantity / horInterval) : null;
-          return [
-            format(new Date(r.record_date + 'T00:00:00'), 'dd/MM/yyyy'),
-            r.record_time?.substring(0, 5) || '-',
-            r.vehicle_code || '-',
-            r.vehicle_description || '-',
-            r.operator_name || '-',
-            formatBR(r.fuel_quantity),
-            consumption ? formatBR(consumption) : '-',
-            formatBR(r.horimeter_previous),
-            formatBR(r.horimeter_current),
-            horInterval && horInterval > 0 ? formatBR(horInterval) : '-',
-            r.location || '-',
-          ];
-        });
-
-        autoTable(doc, {
-          head: [['Data', 'Hora', 'Veículo', 'Descrição', 'Operador', 'Qtd (L)', 'L/h', 'Hor. Ant.', 'Hor. Atual', 'H.T.', 'Local']],
-          body: fuelTableData, startY: y, margin: { left: margin, right: margin },
-          styles: { fontSize: 7, cellPadding: 2, font: 'helvetica', textColor: [30, 30, 30], lineColor: [200, 200, 200], lineWidth: 0.2 },
-          headStyles: { fillColor: [30, 30, 30], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7, halign: 'center', cellPadding: 2.5 },
-          alternateRowStyles: { fillColor: [248, 250, 252] },
-          columnStyles: {
-            0: { halign: 'center', cellWidth: 20 },
-            1: { halign: 'center', cellWidth: 14 },
-            2: { halign: 'center', fontStyle: 'bold', cellWidth: 20 },
-            3: { halign: 'left' },
-            4: { halign: 'left' },
-            5: { halign: 'center', fontStyle: 'bold', cellWidth: 18 },
-            6: { halign: 'center', cellWidth: 16 },
-            7: { halign: 'center', cellWidth: 22 },
-            8: { halign: 'center', cellWidth: 22 },
-            9: { halign: 'center', fontStyle: 'bold', cellWidth: 16 },
-            10: { halign: 'center' },
-          },
-        });
+      if (totalGenerated === 0) {
+        toast({ title: 'Sem dados', description: 'Nenhum registro encontrado no período', variant: 'destructive' });
       } else {
-        doc.setFontSize(9); doc.setFont('helvetica', 'italic'); doc.setTextColor(120, 120, 120);
-        doc.text('Nenhum registro de abastecimento encontrado para esta empresa no período.', margin, y);
+        toast({ title: 'PDFs gerados', description: `${totalGenerated} relatório(s) combinado(s) gerado(s)` });
       }
-
-      addPageFooters(doc, margin);
-      const safeCompany = combinedCompany.replace(/\s+/g, '_');
-      doc.save(`relatorio_combinado_${safeCompany}_${format(new Date(), 'yyyy-MM-dd')}.pdf`);
-      toast({ title: 'PDF Combinado gerado', description: `Horímetros: ${horimeterData.length} + Abastecimentos: ${fuelRecords?.length || 0} registros` });
     } catch (err) {
       console.error('Error generating combined PDF:', err);
       toast({ title: 'Erro', description: 'Falha ao gerar relatório combinado', variant: 'destructive' });
     } finally {
       setIsCombinedLoading(false);
     }
-  }, [combinedCompany, combinedDateRange, combinedHorimeterReadings, obraSettings, toast]);
+  }, [combinedCompany, combinedDateRange, companies, obraSettings, readings, toast]);
 
   return (
     <div className="space-y-6">
