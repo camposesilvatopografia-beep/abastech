@@ -977,14 +977,7 @@ export function AbastecimentoPage() {
   }, [data.rows]);
 
   // Get unique empresas
-  const empresas = useMemo(() => {
-    const unique = new Set<string>();
-    data.rows.forEach(row => {
-      const empresa = String(row['EMPRESA'] || row['Empresa'] || '').trim();
-      if (empresa) unique.add(empresa);
-    });
-    return Array.from(unique).sort();
-  }, [data.rows]);
+  const empresas = ['Engemat', 'L. Pereira', 'A. Barreto', 'Consórcio'];
 
   // Summary by location with detailed records
   const resumoPorLocal = useMemo(() => {
