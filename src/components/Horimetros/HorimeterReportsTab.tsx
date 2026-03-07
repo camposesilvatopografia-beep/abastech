@@ -290,13 +290,11 @@ export function HorimeterReportsTab({
 
     // ====== ABASTECIMENTOS ======
     doc.addPage('landscape');
-    y = renderStandardHeader(doc, { reportTitle: `ABASTECIMENTOS — ${company}`, obraSettings, logoBase64, date: format(new Date(), 'dd/MM/yyyy HH:mm') });
+    y = renderStandardHeader(doc, { reportTitle: `Registros de Abastecimentos`, obraSettings, logoBase64, date: format(new Date(), 'dd/MM/yyyy HH:mm'), showTitleUnderline: false });
     doc.setFontSize(8); doc.setFont('helvetica', 'normal'); doc.setTextColor(71, 85, 105);
     doc.text(`Empresa: ${company}  |  Período: ${dateInfo}`, margin, y); y += 6;
 
     if (fuelRecords && fuelRecords.length > 0) {
-      const totalLiters = fuelRecords.reduce((s, r) => s + (r.fuel_quantity || 0), 0);
-      y = renderKpiPair(doc, y, pageWidth, { label: 'REGISTROS ABASTECIMENTO', value: `${fuelRecords.length}` }, { label: 'TOTAL ABASTECIDO', value: `${formatBR(totalLiters)} L` });
       const fuelTableData = fuelRecords.map(r => {
         const horInterval = (r.horimeter_current && r.horimeter_previous) ? r.horimeter_current - r.horimeter_previous : null;
         const consumption = (horInterval && horInterval > 0 && r.fuel_quantity > 0) ? (r.fuel_quantity / horInterval) : null;
