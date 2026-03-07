@@ -1586,8 +1586,7 @@ export function AbastecimentoPage() {
           colStyles[idx] = style;
         });
 
-        // Find descricao column index in filtered body
-        const descColIdx = visibleCols.findIndex(c => c.key === 'descricao');
+
 
         autoTable(doc, {
           startY: startY + 6,
