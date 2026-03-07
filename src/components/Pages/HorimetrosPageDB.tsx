@@ -1033,14 +1033,6 @@ export function HorimetrosPageDB() {
                 <Settings className="w-4 h-4 sm:mr-2" />
                 <span className="hidden sm:inline">Colunas</span>
               </Button>
-              <Button variant="outline" size="sm" onClick={exportToPDF} className="shrink-0">
-                <FileText className="w-4 h-4 sm:mr-2" />
-                <span className="hidden sm:inline">PDF</span>
-              </Button>
-              <Button variant="outline" size="sm" onClick={exportToExcel} className="shrink-0">
-                <FileSpreadsheet className="w-4 h-4 sm:mr-2" />
-                <span className="hidden sm:inline">Excel</span>
-              </Button>
               <Button 
                 variant="default"
                 size="sm" 
