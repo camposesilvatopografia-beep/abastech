@@ -2388,7 +2388,7 @@ export function ManutencaoPage() {
                         <TableCell className="py-2 px-2 hidden md:table-cell max-w-[150px] truncate text-xs">
                           {row.problem_description || '-'}
                         </TableCell>
-                        <TableCell className="py-2 px-2 hidden lg:table-cell text-xs">{row.mechanic_name || '-'}</TableCell>
+                        <TableCell className="py-2 px-2 hidden lg:table-cell text-xs">{getMechanicName(row)}</TableCell>
                         <TableCell className="py-2 px-2">{getPrioridadeBadge(row.priority)}</TableCell>
                         <TableCell className="py-2 px-2">
                           {getStatusBadge(row.status)}
