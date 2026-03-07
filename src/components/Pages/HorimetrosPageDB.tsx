@@ -1169,8 +1169,23 @@ export function HorimetrosPageDB() {
             >
               Hoje
             </Button>
+
+            {/* Ontem button */}
+            <Button
+              variant={periodFilter === 'ontem' && !selectedDate ? 'default' : 'outline'}
+              size="sm"
+              className="h-7 px-3 text-xs"
+              onClick={() => {
+                setPeriodFilter('ontem');
+                setSelectedDate(undefined);
+                setStartDate(undefined);
+                setEndDate(undefined);
+              }}
+            >
+              Ontem
+            </Button>
             
-            {/* Single date picker */}
+            {/* Single date picker - Data Específica */}
             <Popover>
               <PopoverTrigger asChild>
                 <Button 
