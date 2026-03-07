@@ -2857,9 +2857,9 @@ export function AbastecimentoPage() {
             <div className="flex items-center justify-between flex-wrap gap-2">
               <h2 className="text-lg font-semibold bg-primary/10 px-4 py-2 rounded-lg">Detalhamento de Abastecimentos</h2>
               <div className="flex items-center gap-2">
-                <Button onClick={exportDetailedPDF} disabled={isExporting} variant="outline" size="sm" className="gap-2">
-                  <Download className="w-4 h-4" />
-                  {isExporting ? 'Exportando...' : 'PDF'}
+                <Button onClick={exportDetailedPDF} disabled={isExporting} size="sm" className="gap-2 bg-red-600 hover:bg-red-700 text-white">
+                  <FileText className="w-4 h-4" />
+                  {isExporting ? 'Exportando...' : 'Exportar Relatório PDF'}
                 </Button>
               </div>
             </div>
