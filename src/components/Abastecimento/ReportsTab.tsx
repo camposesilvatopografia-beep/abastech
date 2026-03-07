@@ -49,6 +49,7 @@ interface ReportsTabProps {
   onPreviewPDF?: () => void;
   onPreviewPDFPorEmpresa?: () => void;
   onPreviewDetailedPDF?: () => void;
+  onExportResumoGeral?: () => void;
 }
 
 export function ReportsTab({
@@ -78,6 +79,7 @@ export function ReportsTab({
   onPreviewPDF,
   onPreviewPDFPorEmpresa,
   onPreviewDetailedPDF,
+  onExportResumoGeral,
 }: ReportsTabProps) {
   const dateLabel = startDate && endDate
     ? `${format(startDate, 'dd/MM/yyyy', { locale: ptBR })} — ${format(endDate, 'dd/MM/yyyy', { locale: ptBR })}`
@@ -295,7 +297,20 @@ export function ReportsTab({
           <Download className="w-4 h-4 text-muted-foreground" />
           <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Outros Relatórios</h3>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          {/* Relatório Geral */}
+          {onExportResumoGeral && (
+            <div className="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-muted/30 transition-colors">
+              <FileText className="w-4 h-4 text-emerald-600 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <h4 className="font-medium text-xs">Relatório Geral</h4>
+                <p className="text-[10px] text-muted-foreground">Resumo completo</p>
+              </div>
+              <div className="flex gap-1.5 shrink-0">
+                <Button size="sm" className="h-7 px-2 text-xs bg-emerald-600 hover:bg-emerald-700" onClick={onExportResumoGeral} disabled={isExporting}>PDF</Button>
+              </div>
+            </div>
+          )}
           {/* Relatório Completo */}
           <div className="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-muted/30 transition-colors">
             <FileText className="w-4 h-4 text-primary shrink-0" />

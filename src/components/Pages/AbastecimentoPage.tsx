@@ -2631,10 +2631,6 @@ export function AbastecimentoPage() {
               <Printer className="w-4 h-4 sm:mr-2" />
               <span className="hidden sm:inline">Imprimir</span>
             </Button>
-            <Button variant="outline" size="sm" onClick={exportPDF} disabled={isExporting} className="gap-1.5">
-              <FileText className={cn("w-4 h-4", isExporting && "animate-spin")} />
-              <span className="hidden sm:inline">{isExporting ? 'Exportando...' : 'Exportar Relatório Geral'}</span>
-            </Button>
           </div>
         </div>
 
@@ -3370,6 +3366,7 @@ export function AbastecimentoPage() {
                 const url = await exportTanquesComboiosPDF(reportRows, startDate || new Date(), buildStockData(), obraSettings, sortByDescription, true);
                 if (url) { setPreviewPdfUrl(url as string); setPreviewPdfName('Tanques_Comboios.pdf'); setShowPdfPreview(true); }
               }}
+              onExportResumoGeral={() => exportPDFResumoGeral()}
             />
           );
         })()}
