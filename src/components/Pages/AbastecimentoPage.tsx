@@ -1497,13 +1497,6 @@ export function AbastecimentoPage() {
           date: `${format(dateRange.start, 'dd/MM/yyyy')} a ${format(dateRange.end, 'dd/MM/yyyy')}`,
         });
         
-        // KPI boxes
-        startY = renderKpiBoxes(doc, {
-          y: startY,
-          recordCount: groupData.rows.length,
-          totalLiters: groupData.totalLiters,
-          fmtBR,
-        });
         
         // Build table body sorted by description
         const sortedRows = [...groupData.rows].sort((a, b) => {
@@ -1707,7 +1700,7 @@ export function AbastecimentoPage() {
         doc.setTextColor(0, 0, 0);
         const totalRecordsLocal = saidasRecords.length + carregamentoRecords.length + entradasRecords.length;
         const totalLitersLocal = records.reduce((s, r) => s + r.quantidade, 0);
-        currentY = renderKpiBoxes(doc, { y: startY, recordCount: totalRecordsLocal, totalLiters: totalLitersLocal });
+        let currentY = startY;
         
         // ========== SAÍDAS TABLE ==========
         if (sortedSaidas.length > 0) {
@@ -2012,7 +2005,7 @@ export function AbastecimentoPage() {
         });
         
         doc.setTextColor(0, 0, 0);
-        currentY = renderKpiBoxes(doc, { y: startY, recordCount: allRecords.length, totalLiters: empresaData.totalDiesel });
+        let currentY = startY;
         
         // Prepare table data with consumption calculation - unified table
         let totalDiesel = 0;
@@ -2361,10 +2354,7 @@ export function AbastecimentoPage() {
       
       currentY = (doc as any).lastAutoTable?.finalY + 20 || currentY + 80;
       
-      // KPIs for detailed section
-      const allRecs = Object.values(resumoPorLocal.recordsByLocal).flat();
-      const totalLitersAll = allRecs.reduce((s, r) => s + r.quantidade, 0);
-      currentY = renderKpiBoxes(doc, { y: currentY, recordCount: allRecs.length, totalLiters: totalLitersAll });
+      
       
       // Section: Tanques 01 e 02 - Detailed records
       doc.setFontSize(13);
