@@ -468,25 +468,37 @@ export function RelatoriosPage() {
       doc.text(`Gerado em: ${format(new Date(), 'dd/MM/yyyy HH:mm')}`, margin + 4, y + 3);
       y += 14;
 
-      const tableData = orders.map(o => [
-        format(new Date(o.order_date + 'T00:00:00'), 'dd/MM/yyyy'),
-        o.order_number || '-',
-        o.vehicle_code || '-',
-        o.vehicle_description || '-',
-        o.order_type || '-',
-        o.status || '-',
-        o.priority || '-',
-        o.mechanic_name || '-',
-        o.problem_description?.substring(0, 40) || '-',
-      ]);
-
       autoTable(doc, {
-        head: [['Data', 'Nº OS', 'Veículo', 'Descrição', 'Tipo', 'Status', 'Prioridade', 'Mecânico', 'Problema']],
-        body: tableData, startY: y, margin: { left: margin, right: margin },
-        styles: { fontSize: 7.5, cellPadding: 2.5, font: 'helvetica', textColor: [30, 30, 30], lineColor: [200, 200, 200], lineWidth: 0.2 },
-        headStyles: { fillColor: [30, 30, 30], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7.5, halign: 'center', cellPadding: 3 },
+        head: [['Nº OS', 'Veículo', 'Empresa', 'Problema', 'Mecânico', 'Entrada', 'T. Parado', 'Status']],
+        body: orders.map(o => {
+          const entryDate = o.entry_date ? format(new Date(o.entry_date + 'T00:00:00'), 'dd/MM/yy') : '-';
+          const entryTime = o.entry_time ? String(o.entry_time).substring(0, 5) : '';
+          const entry = entryDate !== '-' ? `${entryDate} ${entryTime}` : '-';
+          // Calculate time stopped
+          let parado = '-';
+          if (o.entry_date && o.status !== 'Concluída') {
+            const entryMs = new Date(o.entry_date + 'T' + (o.entry_time || '00:00:00')).getTime();
+            const diffMs = Date.now() - entryMs;
+            const days = Math.floor(diffMs / 86400000);
+            const hours = Math.floor((diffMs % 86400000) / 3600000);
+            parado = days > 0 ? `${days}d ${hours}h` : `${hours}h`;
+          }
+          return [
+            o.order_number || '-',
+            o.vehicle_code || '-',
+            o.vehicle_description || '-',
+            o.problem_description || '-',
+            o.mechanic_name || '-',
+            entry,
+            parado,
+            o.status || '-',
+          ];
+        }),
+        startY: y, margin: { left: margin, right: margin },
+        styles: { fontSize: 8.5, cellPadding: 3, font: 'helvetica', textColor: [0, 0, 0], lineColor: [200, 200, 200], lineWidth: 0.3, halign: 'center' },
+        headStyles: { fillColor: [30, 30, 30], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8.5, halign: 'center', cellPadding: 3.5 },
         alternateRowStyles: { fillColor: [248, 250, 252] },
-        columnStyles: { 0: { halign: 'center', cellWidth: 22 }, 1: { halign: 'center', cellWidth: 18 }, 2: { halign: 'center', fontStyle: 'bold', cellWidth: 22 }, 3: { halign: 'left' }, 4: { halign: 'center', cellWidth: 22 }, 5: { halign: 'center', cellWidth: 22 }, 6: { halign: 'center', cellWidth: 22 }, 7: { halign: 'left' }, 8: { halign: 'left' } },
+        columnStyles: { 0: { cellWidth: 28 }, 1: { cellWidth: 22, fontStyle: 'bold' }, 2: { cellWidth: 24 }, 3: { halign: 'left', cellWidth: 'auto' }, 4: { cellWidth: 26 }, 5: { cellWidth: 30 }, 6: { cellWidth: 20 }, 7: { cellWidth: 28 } },
       });
 
       addPageFooters(doc, margin);
