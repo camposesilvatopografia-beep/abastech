@@ -98,11 +98,13 @@ import { HorimeterDBCorrectionsTab } from '@/components/Horimetros/HorimeterDBCo
 import { BatchEditModal } from '@/components/Horimetros/BatchEditModal';
 import { MissingReadingsTab } from '@/components/Horimetros/MissingReadingsTab';
 import { RepeatHorimeterModal } from '@/components/Horimetros/RepeatHorimeterModal';
+import { HorimeterReportsTab } from '@/components/Horimetros/HorimeterReportsTab';
 import { useRealtimeRefresh } from '@/hooks/useRealtimeSync';
 
 const TABS = [
   { id: 'registros', label: 'Registros', icon: List },
   { id: 'pendencias', label: 'Pendências', icon: AlertTriangle },
+  { id: 'relatorios', label: 'Relatórios', icon: FileText },
 ];
 const DEFAULT_HORIMETER_COLUMNS: ColumnConfig[] = [
   { key: 'select', label: 'Seleção', visible: true, order: 0 },
@@ -1031,14 +1033,6 @@ export function HorimetrosPageDB() {
                 <Settings className="w-4 h-4 sm:mr-2" />
                 <span className="hidden sm:inline">Colunas</span>
               </Button>
-              <Button variant="outline" size="sm" onClick={exportToPDF} className="shrink-0">
-                <FileText className="w-4 h-4 sm:mr-2" />
-                <span className="hidden sm:inline">PDF</span>
-              </Button>
-              <Button variant="outline" size="sm" onClick={exportToExcel} className="shrink-0">
-                <FileSpreadsheet className="w-4 h-4 sm:mr-2" />
-                <span className="hidden sm:inline">Excel</span>
-              </Button>
               <Button 
                 variant="default"
                 size="sm" 
@@ -1124,6 +1118,15 @@ export function HorimetrosPageDB() {
             readings={readings}
             loading={loading}
             refetch={refetchReadings}
+          />
+        ) : activeTab === 'relatorios' ? (
+          <HorimeterReportsTab
+            onExportPDF={exportToPDF}
+            onExportExcel={exportToExcel}
+            onExportMissingPDF={() => exportMissingPDF(missingVehicles)}
+            onExportMissingWhatsApp={() => exportMissingWhatsApp(missingVehicles)}
+            recordCount={readingsWithInterval.length}
+            missingCount={missingVehicles.length}
           />
         ) : (
         <>
