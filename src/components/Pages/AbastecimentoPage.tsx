@@ -1615,13 +1615,7 @@ export function AbastecimentoPage() {
           },
           columnStyles: colStyles,
           margin: { left: 10, right: 10 },
-          didParseCell: (data) => {
-            if (data.section === 'body') {
-              const desc = descColIdx >= 0 ? String(filteredBody[data.row.index]?.[descColIdx] || '') : '';
-              const colorIdx = descColorMap[desc] ?? 0;
-              data.cell.styles.fillColor = colorIdx === 0 ? altColor1 : altColor2;
-            }
-          },
+          alternateRowStyles: { fillColor: [245, 247, 250] },
         });
       });
       
