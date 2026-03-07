@@ -254,11 +254,26 @@ export function HorimeterReportsTab({
     toast({ title: 'PDF gerado', description: `${filteredDetailedReadings.length} registros exportados` });
   };
 
-  const exportCombinedPDF = useCallback(async () => {
-    if (combinedCompany === 'all') {
-      toast({ title: 'Selecione uma empresa', description: 'O relatório combinado requer uma empresa específica', variant: 'destructive' });
-      return;
-    }
+  const generateCombinedForCompany = async (company: string, logoBase64: string | null, dateInfo: string, startStr: string, endStr: string) => {
+    const horimeterData = readings.filter(r => {
+      const d = new Date(r.reading_date + 'T12:00:00');
+      if (!isWithinInterval(d, combinedDateRange)) return false;
+      return r.vehicle?.company === company;
+    }).sort((a, b) => a.reading_date.localeCompare(b.reading_date) || (a.vehicle?.code || '').localeCompare(b.vehicle?.code || ''));
+
+    const { data: fuelRecords } = await supabase
+      .from('field_fuel_records')
+      .select('*')
+      .eq('company', company)
+      .gte('record_date', startStr)
+      .lte('record_date', endStr)
+      .order('record_date', { ascending: true });
+
+    if (horimeterData.length === 0 && (!fuelRecords || fuelRecords.length === 0)) return null;
+
+    const doc = new jsPDF('landscape');
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 14;
 
     setIsCombinedLoading(true);
     try {
