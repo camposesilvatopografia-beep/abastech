@@ -40,19 +40,17 @@ interface HorimeterReportsTabProps {
   obraSettings?: ObraSettings | null;
 }
 
-type PeriodType = 'hoje' | '7dias' | '15dias' | '30dias' | 'mes_atual' | 'mes_anterior' | '2meses' | '3meses' | 'personalizado';
+type PeriodType = 'data_especifica' | 'ontem' | 'hoje' | 'mes_atual' | 'personalizado';
 
 function computeDateRange(period: PeriodType, customStart?: Date, customEnd?: Date) {
   const now = new Date();
   switch (period) {
+    case 'data_especifica':
+      if (customStart) return { start: startOfDay(customStart), end: endOfDay(customStart) };
+      return { start: startOfDay(now), end: endOfDay(now) };
+    case 'ontem': { const y = subDays(now, 1); return { start: startOfDay(y), end: endOfDay(y) }; }
     case 'hoje': return { start: startOfDay(now), end: endOfDay(now) };
-    case '7dias': return { start: startOfDay(subDays(now, 6)), end: endOfDay(now) };
-    case '15dias': return { start: startOfDay(subDays(now, 14)), end: endOfDay(now) };
-    case '30dias': return { start: startOfDay(subDays(now, 29)), end: endOfDay(now) };
     case 'mes_atual': return { start: startOfMonth(now), end: endOfMonth(now) };
-    case 'mes_anterior': { const prev = subMonths(now, 1); return { start: startOfMonth(prev), end: endOfMonth(prev) }; }
-    case '2meses': return { start: startOfMonth(subMonths(now, 1)), end: endOfMonth(now) };
-    case '3meses': return { start: startOfMonth(subMonths(now, 2)), end: endOfMonth(now) };
     case 'personalizado':
       if (customStart && customEnd) return { start: startOfDay(customStart), end: endOfDay(customEnd) };
       return { start: startOfMonth(now), end: endOfMonth(now) };
@@ -61,15 +59,11 @@ function computeDateRange(period: PeriodType, customStart?: Date, customEnd?: Da
 }
 
 const PERIOD_OPTIONS = [
+  { value: 'data_especifica', label: 'Data Específica' },
+  { value: 'ontem', label: 'Ontem' },
   { value: 'hoje', label: 'Hoje' },
-  { value: '7dias', label: 'Últimos 7 dias' },
-  { value: '15dias', label: 'Últimos 15 dias' },
-  { value: '30dias', label: 'Últimos 30 dias' },
-  { value: 'mes_atual', label: 'Mês Atual' },
-  { value: 'mes_anterior', label: 'Mês Anterior' },
-  { value: '2meses', label: 'Últimos 2 Meses' },
-  { value: '3meses', label: 'Últimos 3 Meses' },
-  { value: 'personalizado', label: 'Personalizado' },
+  { value: 'mes_atual', label: 'Mês' },
+  { value: 'personalizado', label: 'Período' },
 ];
 
 const formatBR = (val: number | null | undefined): string => {
@@ -395,6 +389,22 @@ export function HorimeterReportsTab({
                 </SelectContent>
               </Select>
             </div>
+            {detailedPeriod === 'data_especifica' && (
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">Data</label>
+                <Popover open={startDateOpen} onOpenChange={setStartDateOpen}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-9 gap-2 w-[130px]">
+                      <Calendar className="w-3.5 h-3.5" />
+                      {detailedStartDate ? format(detailedStartDate, 'dd/MM/yyyy') : 'Selecione'}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <CalendarComponent mode="single" selected={detailedStartDate} onSelect={(d) => { setDetailedStartDate(d || undefined); setDetailedEndDate(d || undefined); setStartDateOpen(false); }} locale={ptBR} />
+                  </PopoverContent>
+                </Popover>
+              </div>
+            )}
             {detailedPeriod === 'personalizado' && (
               <>
                 <div className="space-y-1">
@@ -485,6 +495,22 @@ export function HorimeterReportsTab({
                 </SelectContent>
               </Select>
             </div>
+            {combinedPeriod === 'data_especifica' && (
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">Data</label>
+                <Popover open={combinedStartOpen} onOpenChange={setCombinedStartOpen}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-9 gap-2 w-[130px]">
+                      <Calendar className="w-3.5 h-3.5" />
+                      {combinedStartDate ? format(combinedStartDate, 'dd/MM/yyyy') : 'Selecione'}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <CalendarComponent mode="single" selected={combinedStartDate} onSelect={(d) => { setCombinedStartDate(d || undefined); setCombinedEndDate(d || undefined); setCombinedStartOpen(false); }} locale={ptBR} />
+                  </PopoverContent>
+                </Popover>
+              </div>
+            )}
             {combinedPeriod === 'personalizado' && (
               <>
                 <div className="space-y-1">
