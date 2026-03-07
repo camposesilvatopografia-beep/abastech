@@ -52,12 +52,8 @@ export function MissingReadingsTab({ vehicles, readings, loading, refetch }: Mis
     return eachDayOfInterval({ start, end }).sort((a, b) => b.getTime() - a.getTime());
   }, [daysBack, startDate, endDate]);
 
-  // Unique companies and categories
-  const companies = useMemo(() => {
-    const set = new Set<string>();
-    vehicles.forEach(v => v.company && set.add(v.company));
-    return Array.from(set).sort();
-  }, [vehicles]);
+  // Fixed company list
+  const companies = ['Engemat', 'L. Pereira', 'A. Barreto', 'Consórcio'];
 
   const categories = useMemo(() => {
     const set = new Set<string>();

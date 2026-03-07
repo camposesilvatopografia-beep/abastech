@@ -151,11 +151,7 @@ export function RelatoriosPage() {
 
   const dateRange = useMemo(() => computeDateRange(period, startDate, endDate), [period, startDate, endDate]);
 
-  const companies = useMemo(() => {
-    const set = new Set<string>();
-    vehicles.forEach(v => { if (v.company) set.add(v.company); });
-    return Array.from(set).sort();
-  }, [vehicles]);
+  const companies = ['Engemat', 'L. Pereira', 'A. Barreto', 'Consórcio'];
 
   const dateInfo = `${format(dateRange.start, 'dd/MM/yyyy')} a ${format(dateRange.end, 'dd/MM/yyyy')}`;
 
