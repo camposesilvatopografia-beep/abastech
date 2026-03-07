@@ -295,18 +295,37 @@ export function HorimeterReportsTab({
     doc.text(`Empresa: ${company}  |  Período: ${dateInfo}`, margin, y); y += 6;
 
     if (fuelRecords && fuelRecords.length > 0) {
-      const fuelTableData = fuelRecords.map(r => {
+      // Sort by description (vehicle type) then date
+      const sortedFuel = [...fuelRecords].sort((a, b) => {
+        const descA = (a.vehicle_description || '').toLowerCase();
+        const descB = (b.vehicle_description || '').toLowerCase();
+        if (descA !== descB) return descA.localeCompare(descB);
+        return (a.record_date || '').localeCompare(b.record_date || '');
+      });
+
+      const fuelTableData = sortedFuel.map(r => {
         const horInterval = (r.horimeter_current && r.horimeter_previous) ? r.horimeter_current - r.horimeter_previous : null;
         const consumption = (horInterval && horInterval > 0 && r.fuel_quantity > 0) ? (r.fuel_quantity / horInterval) : null;
-        return [ format(new Date(r.record_date + 'T00:00:00'), 'dd/MM/yyyy'), r.record_time?.substring(0, 5) || '-', r.vehicle_code || '-', r.vehicle_description || '-', r.operator_name || '-', formatBR(r.fuel_quantity), consumption ? formatBR(consumption) : '-', formatBR(r.horimeter_previous), formatBR(r.horimeter_current), horInterval && horInterval > 0 ? formatBR(horInterval) : '-', r.location || '-' ];
+        return [ format(new Date(r.record_date + 'T00:00:00'), 'dd/MM/yyyy'), r.vehicle_code || '-', r.vehicle_description || '-', r.operator_name || '-', formatBR(r.fuel_quantity), consumption ? formatBR(consumption) : '-', formatBR(r.horimeter_previous), formatBR(r.horimeter_current), horInterval && horInterval > 0 ? formatBR(horInterval) : '-', r.location || '-' ];
       });
+
+      // Track description groups for alternating fills
+      let lastDesc = '';
+      let descColorIdx = 0;
+
       autoTable(doc, {
-        head: [['Data', 'Hora', 'Veículo', 'Descrição', 'Operador', 'Qtd (L)', 'L/h', 'Hor. Ant.', 'Hor. Atual', 'H.T.', 'Local']],
+        head: [['Data', 'Veículo', 'Descrição', 'Operador', 'Qtd (L)', 'L/h', 'Hor. Ant.', 'Hor. Atual', 'H.T.', 'Local']],
         body: fuelTableData, startY: y, margin: { left: margin, right: margin },
-        styles: { fontSize: 7, cellPadding: 2, font: 'helvetica', textColor: [30, 30, 30], lineColor: [200, 200, 200], lineWidth: 0.2 },
-        headStyles: { fillColor: [30, 30, 30], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7, halign: 'center', cellPadding: 2.5 },
-        alternateRowStyles: { fillColor: [248, 250, 252] },
-        columnStyles: { 0: { halign: 'center', cellWidth: 20 }, 1: { halign: 'center', cellWidth: 14 }, 2: { halign: 'center', fontStyle: 'bold', cellWidth: 20 }, 3: { halign: 'left' }, 4: { halign: 'left' }, 5: { halign: 'center', fontStyle: 'bold', cellWidth: 18 }, 6: { halign: 'center', cellWidth: 16 }, 7: { halign: 'center', cellWidth: 22 }, 8: { halign: 'center', cellWidth: 22 }, 9: { halign: 'center', fontStyle: 'bold', cellWidth: 16 }, 10: { halign: 'center' } },
+        styles: { fontSize: 8, cellPadding: 2.5, font: 'helvetica', textColor: [30, 30, 30], lineColor: [200, 200, 200], lineWidth: 0.2 },
+        headStyles: { fillColor: [30, 30, 30], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8, halign: 'center', cellPadding: 3 },
+        didParseCell: (data) => {
+          if (data.section === 'body') {
+            const desc = fuelTableData[data.row.index]?.[2] || '';
+            if (desc !== lastDesc) { descColorIdx++; lastDesc = desc; }
+            data.cell.styles.fillColor = descColorIdx % 2 === 0 ? [248, 250, 252] : [255, 255, 255];
+          }
+        },
+        columnStyles: { 0: { halign: 'center', cellWidth: 22 }, 1: { halign: 'center', fontStyle: 'bold', cellWidth: 22 }, 2: { halign: 'left' }, 3: { halign: 'left' }, 4: { halign: 'center', fontStyle: 'bold', cellWidth: 18 }, 5: { halign: 'center', cellWidth: 16 }, 6: { halign: 'center', cellWidth: 24 }, 7: { halign: 'center', cellWidth: 24 }, 8: { halign: 'center', fontStyle: 'bold', cellWidth: 16 }, 9: { halign: 'center' } },
       });
     } else {
       doc.setFontSize(9); doc.setFont('helvetica', 'italic'); doc.setTextColor(120, 120, 120);
