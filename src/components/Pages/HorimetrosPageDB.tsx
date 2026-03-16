@@ -976,15 +976,6 @@ export function HorimetrosPageDB() {
                   <Plus className="w-4 h-4" />
                   Novo Lançamento
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setShowRepeatModal(true)} className="gap-2">
-                  <Repeat className="w-4 h-4" />
-                  Repetir — Dia Sem Trabalho
-                  {missingVehicles.length > 0 && (
-                    <span className="ml-auto bg-amber-500 text-white text-[10px] font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1">
-                      {missingVehicles.length}
-                    </span>
-                  )}
-                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
             
