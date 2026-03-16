@@ -1210,6 +1210,18 @@ export function DatabaseHorimeterModal({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Repeat Horimeter Modal */}
+      <RepeatHorimeterModal
+        open={showRepeatModal}
+        onOpenChange={setShowRepeatModal}
+        vehicles={vehicles}
+        singleVehicleId={selectedVehicleId}
+        operator={operador}
+        onSuccess={() => {
+          onSuccess?.();
+        }}
+      />
     </>
   );
 }
