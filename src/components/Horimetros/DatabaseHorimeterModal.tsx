@@ -183,6 +183,7 @@ export function DatabaseHorimeterModal({
   const [selectedDate, setSelectedDate] = useState<Date>(initialDate ? new Date(initialDate + 'T12:00:00') : new Date());
   const [isSaving, setIsSaving] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [showRepeatModal, setShowRepeatModal] = useState(false);
 
   // Selected vehicle info
   const selectedVehicle = useMemo(() => {
