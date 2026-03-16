@@ -36,6 +36,7 @@ import { cn } from '@/lib/utils';
 import { parsePtBRNumber, formatPtBRNumber } from '@/lib/ptBRNumber';
 import { supabase } from '@/integrations/supabase/client';
 import { getSheetData } from '@/lib/googleSheets';
+import { RepeatHorimeterModal } from '@/components/Horimetros/RepeatHorimeterModal';
 
 interface DatabaseHorimeterModalProps {
   open: boolean;
