@@ -29,13 +29,14 @@ import { VehicleCombobox } from '@/components/ui/vehicle-combobox';
 import { CurrencyInput } from '@/components/ui/currency-input';
 import { useVehicles, useHorimeterReadings, HorimeterWithVehicle } from '@/hooks/useHorimeters';
 import { useToast } from '@/hooks/use-toast';
-import { Clock, Save, History, AlertTriangle, RefreshCw, TrendingUp, CalendarIcon, X, ChevronUp, ChevronDown } from 'lucide-react';
+import { Clock, Save, History, AlertTriangle, RefreshCw, TrendingUp, CalendarIcon, X, ChevronUp, ChevronDown, Repeat } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, isWithinInterval, startOfDay, isSameDay, isAfter, addDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { parsePtBRNumber, formatPtBRNumber } from '@/lib/ptBRNumber';
 import { supabase } from '@/integrations/supabase/client';
 import { getSheetData } from '@/lib/googleSheets';
+import { RepeatHorimeterModal } from '@/components/Horimetros/RepeatHorimeterModal';
 
 interface DatabaseHorimeterModalProps {
   open: boolean;
@@ -182,6 +183,7 @@ export function DatabaseHorimeterModal({
   const [selectedDate, setSelectedDate] = useState<Date>(initialDate ? new Date(initialDate + 'T12:00:00') : new Date());
   const [isSaving, setIsSaving] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [showRepeatModal, setShowRepeatModal] = useState(false);
 
   // Selected vehicle info
   const selectedVehicle = useMemo(() => {
@@ -1148,6 +1150,19 @@ export function DatabaseHorimeterModal({
                 </div>
               )}
 
+              {/* Repeat button - only in create mode when vehicle is selected */}
+              {!isEditMode && selectedVehicleId && (
+                <Button
+                  variant="outline"
+                  className="w-full h-9 text-sm gap-2"
+                  onClick={() => setShowRepeatModal(true)}
+                  disabled={isSaving}
+                >
+                  <Repeat className="w-4 h-4" />
+                  Repetir — Dia Sem Trabalho
+                </Button>
+              )}
+
               {/* Actions */}
               <div className="flex gap-2 pt-1">
                 <Button
@@ -1195,6 +1210,18 @@ export function DatabaseHorimeterModal({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Repeat Horimeter Modal */}
+      <RepeatHorimeterModal
+        open={showRepeatModal}
+        onOpenChange={setShowRepeatModal}
+        vehicles={vehicles}
+        singleVehicleId={selectedVehicleId}
+        operator={operador}
+        onSuccess={() => {
+          onSuccess?.();
+        }}
+      />
     </>
   );
 }
