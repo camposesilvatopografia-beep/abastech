@@ -1150,6 +1150,19 @@ export function DatabaseHorimeterModal({
                 </div>
               )}
 
+              {/* Repeat button - only in create mode when vehicle is selected */}
+              {!isEditMode && selectedVehicleId && (
+                <Button
+                  variant="outline"
+                  className="w-full h-9 text-sm gap-2"
+                  onClick={() => setShowRepeatModal(true)}
+                  disabled={isSaving}
+                >
+                  <Repeat className="w-4 h-4" />
+                  Repetir — Dia Sem Trabalho
+                </Button>
+              )}
+
               {/* Actions */}
               <div className="flex gap-2 pt-1">
                 <Button
