@@ -1248,9 +1248,12 @@ export function DatabaseHorimeterModal({
       {/* Repeat Horimeter Modal */}
       <RepeatHorimeterModal
         open={showRepeatModal}
-        onOpenChange={setShowRepeatModal}
+        onOpenChange={(v) => {
+          setShowRepeatModal(v);
+          if (!v) setRepeatMode(null);
+        }}
         vehicles={vehicles}
-        singleVehicleId={selectedVehicleId}
+        singleVehicleId={repeatMode === 'single' ? selectedVehicleId : undefined}
         operator={operador}
         onSuccess={() => {
           onSuccess?.();
