@@ -29,7 +29,7 @@ import { VehicleCombobox } from '@/components/ui/vehicle-combobox';
 import { CurrencyInput } from '@/components/ui/currency-input';
 import { useVehicles, useHorimeterReadings, HorimeterWithVehicle } from '@/hooks/useHorimeters';
 import { useToast } from '@/hooks/use-toast';
-import { Clock, Save, History, AlertTriangle, RefreshCw, TrendingUp, CalendarIcon, X, ChevronUp, ChevronDown, Repeat } from 'lucide-react';
+import { Clock, Save, History, AlertTriangle, RefreshCw, TrendingUp, CalendarIcon, X, ChevronUp, ChevronDown, Repeat, Users } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, isWithinInterval, startOfDay, isSameDay, isAfter, addDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
