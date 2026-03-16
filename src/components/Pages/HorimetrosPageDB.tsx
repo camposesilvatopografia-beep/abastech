@@ -962,22 +962,11 @@ export function HorimetrosPageDB() {
           </div>
           
           <div className="flex flex-wrap items-center gap-2">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button className="bg-primary hover:bg-primary/90 order-first lg:order-last">
-                  <Plus className="w-4 h-4 mr-2" />
-                  <span className="hidden sm:inline">Novo Registro</span>
-                  <span className="sm:hidden">Novo</span>
-                  <ChevronDown className="w-3 h-3 ml-1" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuItem onClick={() => setShowNewModal(true)} className="gap-2">
-                  <Plus className="w-4 h-4" />
-                  Novo Lançamento
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <Button className="bg-primary hover:bg-primary/90 order-first lg:order-last" onClick={() => setShowNewModal(true)}>
+              <Plus className="w-4 h-4 mr-2" />
+              <span className="hidden sm:inline">Novo Registro</span>
+              <span className="sm:hidden">Novo</span>
+            </Button>
             
             <Button 
               variant={selectionModeActive ? "secondary" : "outline"}
