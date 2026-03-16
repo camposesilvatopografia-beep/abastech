@@ -184,6 +184,8 @@ export function DatabaseHorimeterModal({
   const [isSaving, setIsSaving] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [showRepeatModal, setShowRepeatModal] = useState(false);
+  const [repeatMode, setRepeatMode] = useState<'single' | 'all' | null>(null);
+  const [showRepeatChoice, setShowRepeatChoice] = useState(false);
 
   // Selected vehicle info
   const selectedVehicle = useMemo(() => {
