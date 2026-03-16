@@ -1157,12 +1157,44 @@ export function DatabaseHorimeterModal({
                 <Button
                   variant="outline"
                   className="w-full h-9 text-sm gap-2"
-                  onClick={() => setShowRepeatModal(true)}
+                  onClick={() => setShowRepeatChoice(true)}
                   disabled={isSaving}
                 >
                   <Repeat className="w-4 h-4" />
                   Repetir — Dia Sem Trabalho
                 </Button>
+              )}
+
+              {/* Repeat choice dialog */}
+              {showRepeatChoice && (
+                <div className="flex gap-2 animate-in fade-in slide-in-from-top-2 duration-200">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="flex-1 text-xs h-9"
+                    onClick={() => {
+                      setRepeatMode('single');
+                      setShowRepeatChoice(false);
+                      setShowRepeatModal(true);
+                    }}
+                  >
+                    <Repeat className="w-3.5 h-3.5 mr-1.5" />
+                    Só este veículo
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="flex-1 text-xs h-9"
+                    onClick={() => {
+                      setRepeatMode('all');
+                      setShowRepeatChoice(false);
+                      setShowRepeatModal(true);
+                    }}
+                  >
+                    <Users className="w-3.5 h-3.5 mr-1.5" />
+                    Todos os veículos
+                  </Button>
+                </div>
               )}
 
               {/* Actions */}
