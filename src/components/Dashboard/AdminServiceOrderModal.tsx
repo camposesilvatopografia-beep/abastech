@@ -158,6 +158,7 @@ export function AdminServiceOrderModal({ open, onOpenChange, onSuccess }: AdminS
         priority,
         status: 'Aberta',
         problem_description: problemDescription,
+        problem_tags: problemTags.length > 0 ? problemTags : null,
         solution_description: solutionDescription || null,
         mechanic_id: mechanicId || null,
         mechanic_name: mechanic?.name || mechanicName || null,
