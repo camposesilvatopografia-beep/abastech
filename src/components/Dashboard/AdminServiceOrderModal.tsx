@@ -64,6 +64,7 @@ export function AdminServiceOrderModal({ open, onOpenChange, onSuccess }: AdminS
   const [mechanicName, setMechanicName] = useState('');
   const [estimatedHours, setEstimatedHours] = useState('');
   const [notes, setNotes] = useState('');
+  const [problemTags, setProblemTags] = useState<string[]>([]);
   const [horimeterCurrent, setHorimeterCurrent] = useState('');
   const [kmCurrent, setKmCurrent] = useState('');
   const [entryDate, setEntryDate] = useState<Date>(new Date());

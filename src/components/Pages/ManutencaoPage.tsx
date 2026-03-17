@@ -104,6 +104,7 @@ interface ServiceOrder {
   priority: string;
   status: string;
   problem_description: string | null;
+  problem_tags: string[] | null;
   solution_description: string | null;
   mechanic_id: string | null;
   mechanic_name: string | null;
