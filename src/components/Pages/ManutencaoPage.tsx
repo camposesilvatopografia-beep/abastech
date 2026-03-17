@@ -3001,6 +3001,19 @@ export function ManutencaoPage() {
               />
             </div>
 
+            {/* Problem Tags (Resumo) */}
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <Tag className="h-4 w-4" />
+                Tipo do Problema (Resumo)
+              </Label>
+              <ProblemTagsInput
+                value={formData.problem_tags}
+                onChange={(tags) => setFormData({ ...formData, problem_tags: tags })}
+              />
+              <p className="text-xs text-muted-foreground">Tags resumidas para medição. Pressione Enter ou vírgula para adicionar.</p>
+            </div>
+
             {/* Solution Description */}
             <div className="space-y-2">
               <Label>Solução / Serviço Realizado</Label>

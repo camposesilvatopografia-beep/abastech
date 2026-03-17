@@ -306,6 +306,19 @@ export function AdminServiceOrderModal({ open, onOpenChange, onSuccess }: AdminS
             />
           </div>
 
+          {/* Problem Tags */}
+          <div className="space-y-2">
+            <Label className="flex items-center gap-2">
+              <Tag className="h-4 w-4" />
+              Tipo do Problema (Resumo)
+            </Label>
+            <ProblemTagsInput
+              value={problemTags}
+              onChange={setProblemTags}
+            />
+            <p className="text-xs text-muted-foreground">Tags resumidas para medição. Pressione Enter ou vírgula para adicionar.</p>
+          </div>
+
           {/* Solution Description */}
           <div className="space-y-2">
             <Label>Descrição da Solução</Label>
