@@ -1106,18 +1106,23 @@ export async function exportFrotaGeralAtualizadaPDF(
     return d.includes('veículo leve') || d.includes('veiculo leve') || d.includes('veíc. leve');
   });
 
-  // Build groups for each company
+  // Build groups for each company — use a GLOBAL description order so all cards are comparable
   type CompanyGroup = { name: string; items: { desc: string; count: number }[]; total: number };
-  
+
+  // Collect all unique descriptions from mobilized vehicles (global sorted order)
+  const allDescriptions = Array.from(new Set(mobilized.map(v => v.descricao || 'Outros')))
+    .sort((a, b) => a.localeCompare(b, 'pt-BR'));
+
   const buildGroup = (companyName: string, vehs: VehicleData[]): CompanyGroup => {
     const byDesc = new Map<string, number>();
     vehs.forEach(v => {
       const desc = v.descricao || 'Outros';
       byDesc.set(desc, (byDesc.get(desc) || 0) + 1);
     });
-    const items = Array.from(byDesc.entries())
-      .sort((a, b) => a[0].localeCompare(b[0], 'pt-BR'))
-      .map(([desc, count]) => ({ desc, count }));
+    // Use global order, only include descriptions that exist in this company
+    const items = allDescriptions
+      .filter(desc => byDesc.has(desc))
+      .map(desc => ({ desc, count: byDesc.get(desc)! }));
     return { name: companyName, items, total: vehs.length };
   };
 
