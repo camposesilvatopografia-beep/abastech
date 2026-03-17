@@ -761,7 +761,7 @@ export function useSheetSync() {
       // Fetch vehicles from sheet - try multiple sheet names (non-fatal)
       const vehicleMap = new Map<string, string>(); // code -> id
 
-      for (const vehicleSheetName of ['Veiculo', 'Equipamentos_Obra']) {
+      for (const vehicleSheetName of ['Frota Geral', 'Veiculo', 'Equipamentos_Obra']) {
         try {
           const { data: vehicleSheetData, error: vehicleError } = await supabase.functions.invoke('google-sheets', {
             body: { action: 'getData', sheetName: vehicleSheetName },

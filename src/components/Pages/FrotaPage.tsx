@@ -35,7 +35,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 
-const SHEET_NAME = 'Veiculo';
+const SHEET_NAME = 'Frota Geral';
 
 const DEFAULT_STATUS_LABELS: Record<string, { label: string; color: string; shortLabel?: string }> = {
   ativo: { label: 'Ativo', shortLabel: 'ATIVO', color: 'bg-emerald-100 text-emerald-700 border-emerald-300' },
@@ -208,7 +208,7 @@ export function FrotaPage() {
     setChangingStatus(codigo);
     try {
       const { data: sheetData, error: fetchError } = await supabase.functions.invoke('google-sheets', {
-        body: { action: 'getData', sheetName: 'Veiculo', noCache: true },
+        body: { action: 'getData', sheetName: 'Frota Geral', noCache: true },
       });
       if (fetchError) throw fetchError;
 
@@ -230,7 +230,7 @@ export function FrotaPage() {
       else updatedRow['STATUS'] = newStatus;
 
       const { error } = await supabase.functions.invoke('google-sheets', {
-        body: { action: 'update', sheetName: 'Veiculo', rowIndex: matchedRow._rowIndex, data: updatedRow },
+        body: { action: 'update', sheetName: 'Frota Geral', rowIndex: matchedRow._rowIndex, data: updatedRow },
       });
       if (error) throw error;
 
@@ -259,14 +259,14 @@ export function FrotaPage() {
     if (!vehicleToDelete) return;
     setDeleting(true);
     try {
-      const { data: sheetData, error: fetchError } = await supabase.functions.invoke('google-sheets', { body: { action: 'getData', sheetName: 'Veiculo', noCache: true } });
+      const { data: sheetData, error: fetchError } = await supabase.functions.invoke('google-sheets', { body: { action: 'getData', sheetName: 'Frota Geral', noCache: true } });
       if (fetchError) throw fetchError;
       const rows = sheetData?.rows || [];
       const normalize = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/\s/g, '');
       const targetCode = normalize(vehicleToDelete);
       const matchedRow = rows.find((r: any) => normalize(String(r.CODIGO || r['CÓDIGO'] || r['Codigo'] || '')) === targetCode);
       if (!matchedRow?._rowIndex) throw new Error('Veículo não encontrado na planilha');
-      const { error } = await supabase.functions.invoke('google-sheets', { body: { action: 'delete', sheetName: 'Veiculo', rowIndex: matchedRow._rowIndex } });
+      const { error } = await supabase.functions.invoke('google-sheets', { body: { action: 'delete', sheetName: 'Frota Geral', rowIndex: matchedRow._rowIndex } });
       if (error) throw error;
       await supabase.from('vehicles').delete().eq('code', vehicleToDelete);
       toast.success('Veículo excluído com sucesso!');

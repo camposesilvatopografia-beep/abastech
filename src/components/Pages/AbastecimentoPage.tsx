@@ -2427,7 +2427,7 @@ export function AbastecimentoPage() {
       
       // 1. Load vehicle sheet to get correct drivers
       const { data: vehicleSheet } = await supabase.functions.invoke('google-sheets', {
-        body: { action: 'getData', sheetName: 'Veiculo', noCache: true },
+        body: { action: 'getData', sheetName: 'Frota Geral', noCache: true },
       });
       const vehicleRows = vehicleSheet?.rows || [];
       const driverByCode = new Map<string, string>();

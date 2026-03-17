@@ -134,7 +134,7 @@ export function VehicleFormModal({
         const { error } = await supabase.functions.invoke('google-sheets', {
           body: {
             action: 'create',
-            sheetName: 'Veiculo',
+            sheetName: 'Frota Geral',
             data: rowData,
           },
         });
@@ -155,7 +155,7 @@ export function VehicleFormModal({
       } else {
         // Find the row index
         const { data: sheetData, error: fetchError } = await supabase.functions.invoke('google-sheets', {
-          body: { action: 'getData', sheetName: 'Veiculo', noCache: true },
+          body: { action: 'getData', sheetName: 'Frota Geral', noCache: true },
         });
 
         if (fetchError) throw fetchError;
@@ -199,7 +199,7 @@ export function VehicleFormModal({
         const { error } = await supabase.functions.invoke('google-sheets', {
           body: {
             action: 'update',
-            sheetName: 'Veiculo',
+            sheetName: 'Frota Geral',
             rowIndex: matchedRow._rowIndex,
             data: fullRowData,
           },
