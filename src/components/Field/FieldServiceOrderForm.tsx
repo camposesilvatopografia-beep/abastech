@@ -457,6 +457,7 @@ export function FieldServiceOrderForm({ user, onBack }: FieldServiceOrderFormPro
         priority: form.priority,
         status: form.status,
         problem_description: form.problem_description,
+        problem_tags: form.problem_tags.length > 0 ? form.problem_tags : null,
         solution_description: form.solution_description || null,
         mechanic_id: form.mechanic_id || null,
         mechanic_name: mechanic?.name || form.mechanic_name || null,
