@@ -368,10 +368,39 @@ export function FrotaPage() {
                 <Settings2 className="w-4 h-4" />
                 Layout PDF
               </Button>
-              <Button size="sm" className="gap-2 bg-red-500 hover:bg-red-600 text-white" onClick={exportToPDF}>
-                <FileText className="w-4 h-4" />
-                Exportar PDF
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button size="sm" className="gap-2 bg-red-500 hover:bg-red-600 text-white">
+                    <FileText className="w-4 h-4" />
+                    Exportar PDF
+                    <ChevronDown className="w-3 h-3" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="bg-background w-56">
+                  <DropdownMenuItem onClick={() => exportFrotaGeralAtualizadaPDF(allVehicles, new Date(), maintenanceOrders, obraSettings)}>
+                    <FileText className="w-4 h-4 mr-2" />
+                    Frota Geral Atualizada
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => exportEfetivoPDF(allVehicles, new Date(), maintenanceOrders, obraSettings)}>
+                    <Calendar className="w-4 h-4 mr-2" />
+                    Apontamento Diário
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => exportMobilizacaoPDF(allVehicles, new Date(), obraSettings)}>
+                    Mobilização
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => exportMobilizadosPDF(allVehicles, new Date(), obraSettings)}>
+                    Mobilizados
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => exportDesmobilizadosPDF(allVehicles, new Date(), obraSettings)}>
+                    Desmobilizados
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={exportToPDF}>
+                    Listagem Simples
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
         </div>
