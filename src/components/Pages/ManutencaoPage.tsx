@@ -1090,6 +1090,7 @@ export function ManutencaoPage() {
       priority: order.priority,
       status: order.status,
       problem_description: order.problem_description || '',
+      problem_tags: (order as any).problem_tags || [],
       solution_description: order.solution_description || '',
       mechanic_id: order.mechanic_id || '',
       mechanic_name: order.mechanic_name || '',
