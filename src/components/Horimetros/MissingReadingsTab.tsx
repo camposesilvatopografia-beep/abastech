@@ -259,7 +259,7 @@ export function MissingReadingsTab({ vehicles, readings, loading, refetch }: Mis
           <div className="min-w-[700px]">
             <table className="w-full text-xs border-collapse">
               <thead>
-                <tr className="bg-muted/70 border-b">
+                <tr className="bg-muted/95 backdrop-blur-sm border-b sticky top-0 z-30">
                   <th className="sticky left-0 z-20 bg-muted/95 backdrop-blur-sm px-3 py-2.5 text-left font-semibold border-r min-w-[180px]">
                     Veículo
                   </th>
