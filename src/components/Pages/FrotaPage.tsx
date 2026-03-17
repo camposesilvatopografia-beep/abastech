@@ -316,7 +316,8 @@ export function FrotaPage() {
 
   // ====== UI ======
   const statusBadge = (status: string) => {
-    const info = getAllStatusLabels()[status] || getAllStatusLabels()['ativo'];
+    const allStatuses = getAllStatusLabels();
+    const info = allStatuses[status] || allStatuses['ativo'];
     return <span className={cn("px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border", info.color)}>{info.shortLabel || info.label}</span>;
   };
 
