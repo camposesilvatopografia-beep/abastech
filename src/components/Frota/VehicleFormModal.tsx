@@ -134,7 +134,7 @@ export function VehicleFormModal({
         const { error } = await supabase.functions.invoke('google-sheets', {
           body: {
             action: 'create',
-            sheetName: 'Veiculo',
+            sheetName: 'Frota Geral',
             data: rowData,
           },
         });
