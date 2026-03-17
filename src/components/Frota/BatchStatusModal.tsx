@@ -55,7 +55,7 @@ export function BatchStatusModal({ open, onClose, onSuccess, selectedVehicles }:
     try {
       // First, fetch all sheet data to find row indices
       const { data: sheetData, error: fetchError } = await supabase.functions.invoke('google-sheets', {
-        body: { action: 'getData', sheetName: 'Veiculo', noCache: true },
+        body: { action: 'getData', sheetName: 'Frota Geral', noCache: true },
       });
 
       if (fetchError) throw fetchError;
