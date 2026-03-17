@@ -230,7 +230,7 @@ export function FrotaPage() {
       else updatedRow['STATUS'] = newStatus;
 
       const { error } = await supabase.functions.invoke('google-sheets', {
-        body: { action: 'update', sheetName: 'Veiculo', rowIndex: matchedRow._rowIndex, rowData: updatedRow },
+        body: { action: 'update', sheetName: 'Veiculo', rowIndex: matchedRow._rowIndex, data: updatedRow },
       });
       if (error) throw error;
 
