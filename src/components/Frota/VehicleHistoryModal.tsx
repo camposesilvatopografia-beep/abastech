@@ -1289,6 +1289,14 @@ export function VehicleHistoryModal({
                       </div>
                     )}
                   </TabsContent>
+
+                  {/* Documentos Tab */}
+                  <TabsContent value="documentos" className="m-0 flex-1">
+                    <VehicleDocumentsTab
+                      vehicleCode={vehicleCode}
+                      vehicleDescription={vehicleDescription}
+                    />
+                  </TabsContent>
                 </>
               )}
             </ScrollArea>
