@@ -1711,6 +1711,42 @@ export function ManutencaoPage() {
       y += displayLines.length * 4.5 + 5;
     };
     
+    // ========== PROBLEM TAGS (Resumo) ==========
+    const tags = (order as any).problem_tags;
+    if (Array.isArray(tags) && tags.length > 0) {
+      doc.setFillColor(255, 251, 235); // amber-50
+      doc.roundedRect(margin, y, contentWidth, 10, 2, 2, 'F');
+      doc.setDrawColor(217, 119, 6); // amber-600
+      doc.roundedRect(margin, y, contentWidth, 10, 2, 2, 'S');
+      
+      doc.setFontSize(7);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(217, 119, 6);
+      doc.text('TIPO DO PROBLEMA:', margin + 4, y + 4);
+      
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(146, 64, 14); // amber-800
+      doc.text(tags.join('  •  '), margin + 38, y + 4);
+      
+      // Draw individual tag badges
+      let tagX = margin + 4;
+      const tagY = y + 6;
+      doc.setFontSize(7);
+      for (const tag of tags) {
+        const tagWidth = doc.getTextWidth(tag) + 6;
+        doc.setFillColor(252, 211, 77); // amber-300
+        doc.roundedRect(tagX, tagY - 2.5, tagWidth, 5, 1.5, 1.5, 'F');
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(146, 64, 14);
+        doc.text(tag, tagX + 3, tagY + 1);
+        tagX += tagWidth + 2;
+        if (tagX > pageWidth - margin - 10) break; // prevent overflow
+      }
+      
+      y += 14;
+    }
+
     // ========== CONTENT SECTIONS ==========
     drawSection('DESCRIÇÃO DO PROBLEMA', order.problem_description, navy);
     drawSection('SOLUÇÃO / SERVIÇO REALIZADO', order.solution_description || 'Pendente', green);
