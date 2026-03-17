@@ -828,6 +828,8 @@ export function FrotaPage() {
         onClose={() => setHistoryModalOpen(false)}
         vehicleCode={selectedVehicle?.codigo || ''}
         vehicleDescription={selectedVehicle?.descricao || ''}
+        vehicleCategory={selectedVehicle?.categoria || ''}
+        vehicleEmpresa={selectedVehicle?.empresa || ''}
       />
 
       <VehicleFormModal
@@ -836,6 +838,8 @@ export function FrotaPage() {
         mode={vehicleFormMode}
         vehicle={editingVehicle}
         onSuccess={() => { setVehicleFormOpen(false); refetch(); }}
+        empresas={empresas}
+        categorias={descricoes}
       />
 
       <FrotaKpiDetailModal
