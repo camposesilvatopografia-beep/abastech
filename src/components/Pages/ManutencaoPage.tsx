@@ -1161,6 +1161,7 @@ export function ManutencaoPage() {
         priority: formData.priority,
         status: formData.status,
         problem_description: formData.problem_description,
+        problem_tags: formData.problem_tags.length > 0 ? formData.problem_tags : null,
         solution_description: formData.solution_description || null,
         mechanic_id: formData.mechanic_id || null,
         mechanic_name: mechanic?.name || formData.mechanic_name || null,
