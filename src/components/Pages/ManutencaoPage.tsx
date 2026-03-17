@@ -2402,7 +2402,15 @@ export function ManutencaoPage() {
                           </div>
                         </TableCell>
                         <TableCell className="py-2 px-2 hidden md:table-cell max-w-[150px] truncate text-xs">
-                          {row.problem_description || '-'}
+                          {(row as any).problem_tags && (row as any).problem_tags.length > 0 ? (
+                            <div className="flex flex-wrap gap-0.5">
+                              {(row as any).problem_tags.map((t: string) => (
+                                <span key={t} className="inline-block px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200 text-[10px]">{t}</span>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="truncate">{row.problem_description || '-'}</span>
+                          )}
                         </TableCell>
                         <TableCell className="py-2 px-2 hidden lg:table-cell text-xs">{getMechanicName(row)}</TableCell>
                         <TableCell className="py-2 px-2">{getPrioridadeBadge(row.priority)}</TableCell>
