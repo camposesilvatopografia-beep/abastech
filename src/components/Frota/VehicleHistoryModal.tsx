@@ -1061,7 +1061,7 @@ export function VehicleHistoryModal({
 
           {/* Content */}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden">
-            <TabsList className="shrink-0 grid w-full grid-cols-3">
+            <TabsList className="shrink-0 grid w-full grid-cols-4">
               <TabsTrigger value="abastecimento" className="gap-2">
                 <Fuel className="w-4 h-4" />
                 <span className="hidden sm:inline">Abastecimentos</span>
@@ -1073,6 +1073,10 @@ export function VehicleHistoryModal({
               <TabsTrigger value="manutencao" className="gap-2">
                 <Wrench className="w-4 h-4" />
                 <span className="hidden sm:inline">Manutenção</span>
+              </TabsTrigger>
+              <TabsTrigger value="documentos" className="gap-2">
+                <FileText className="w-4 h-4" />
+                <span className="hidden sm:inline">Documentos</span>
               </TabsTrigger>
             </TabsList>
 
