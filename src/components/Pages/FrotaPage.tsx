@@ -865,6 +865,7 @@ export function FrotaPage() {
         onSave={savePreferences}
         onReset={resetToDefaults}
         saving={savingLayout}
+        moduleName="frota"
       />
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
