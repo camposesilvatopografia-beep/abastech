@@ -1027,3 +1027,333 @@ export async function exportDesmobilizadosPDF(
   doc.save(`Desmobilizados_${format(selectedDate, 'dd-MM-yyyy')}.pdf`);
   return true;
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// FROTA GERAL ATUALIZADA PDF - Card layout by company (Controles style)
+// ═══════════════════════════════════════════════════════════════════════
+
+export async function exportFrotaGeralAtualizadaPDF(
+  vehicles: VehicleData[],
+  selectedDate: Date,
+  maintenanceOrders: ServiceOrderData[],
+  obraSettings?: ObraSettings | null
+) {
+  const doc = new jsPDF('portrait');
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const margin = 12;
+
+  const logoBase64 = await getLogoBase64(obraSettings?.logo_url);
+
+  // ─── Header ───
+  const headerH = 28;
+  doc.setFillColor(55, 71, 95);
+  doc.rect(0, 0, pageWidth, headerH, 'F');
+  doc.setFillColor(56, 189, 248);
+  doc.rect(0, headerH, pageWidth, 1.5, 'F');
+
+  let textX = margin;
+  if (logoBase64) {
+    try { doc.addImage(logoBase64, 'PNG', margin, 3, 22, 22); textX = margin + 26; } catch {}
+  }
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(13);
+  doc.setFont('helvetica', 'bold');
+  doc.text(obraSettings?.nome?.toUpperCase() || 'CONSÓRCIO AERO MARAGOGI', textX, 11);
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  doc.text('EQUIPAMENTOS MOBILIZADOS', textX, 18);
+  if (obraSettings?.cidade) { doc.setFontSize(7); doc.text(obraSettings.cidade, textX, 24); }
+
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'bold');
+  const formattedDate = format(selectedDate, "dd/MM/yyyy");
+  doc.text(`Data: ${formattedDate}`, pageWidth - margin, 11, { align: 'right' });
+  doc.setFontSize(7);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Gerado: ${format(new Date(), 'dd/MM/yyyy HH:mm')}`, pageWidth - margin, 18, { align: 'right' });
+
+  // ─── Classify vehicles ───
+  const mobilized = vehicles.filter(v => {
+    const s = (v.status || 'ativo').toLowerCase();
+    return s === 'mobilizado' || s === 'ativo';
+  });
+
+  // Maintenance codes
+  const maintenanceVehicleCodes = new Set(
+    maintenanceOrders
+      .filter(o => ['Em Manutenção', 'Em Andamento', 'Aberta', 'Aguardando Peças'].includes(o.status))
+      .map(o => o.vehicle_code)
+  );
+  vehicles.forEach(v => {
+    const s = (v.status || '').toLowerCase();
+    if (s === 'manutencao' || s === 'manutenção') maintenanceVehicleCodes.add(v.codigo);
+  });
+
+  // Group mobilized by company
+  const { mainCompanies, terceirosCodes } = classifyCompanies(mobilized, 3);
+
+  // Consórcio detection
+  const consorcioKeywords = ['consórcio', 'consorcio'];
+  const isConsorcio = (emp: string) => consorcioKeywords.some(k => emp.toLowerCase().includes(k));
+  const consorcioCompanies = mainCompanies.filter(isConsorcio);
+  const regularCompanies = mainCompanies.filter(c => !isConsorcio(c));
+
+  // Veículos Leves
+  const veiculosLeves = mobilized.filter(v => {
+    const d = v.descricao.toLowerCase();
+    return d.includes('veículo leve') || d.includes('veiculo leve') || d.includes('veíc. leve');
+  });
+
+  // Build groups for each company
+  type CompanyGroup = { name: string; items: { desc: string; count: number }[]; total: number };
+  
+  const buildGroup = (companyName: string, vehs: VehicleData[]): CompanyGroup => {
+    const byDesc = new Map<string, number>();
+    vehs.forEach(v => {
+      const desc = v.descricao || 'Outros';
+      byDesc.set(desc, (byDesc.get(desc) || 0) + 1);
+    });
+    const items = Array.from(byDesc.entries())
+      .sort((a, b) => a[0].localeCompare(b[0], 'pt-BR'))
+      .map(([desc, count]) => ({ desc, count }));
+    return { name: companyName, items, total: vehs.length };
+  };
+
+  const companyGroups: CompanyGroup[] = regularCompanies.map(emp =>
+    buildGroup(emp, mobilized.filter(v => v.empresa === emp))
+  );
+
+  // Consórcio group
+  const consorcioVehs = mobilized.filter(v => consorcioCompanies.includes(v.empresa || ''));
+  if (consorcioVehs.length > 0) {
+    companyGroups.push(buildGroup('Consórcio', consorcioVehs));
+  }
+
+  // Terceiros group
+  const terceirosVehs = mobilized.filter(v => terceirosCodes.has(v.codigo));
+  if (terceirosVehs.length > 0) {
+    companyGroups.push(buildGroup('Terceiros', terceirosVehs));
+  }
+
+  // ─── Render company cards ───
+  let currentY = headerH + 6;
+  const cardWidth = (pageWidth - margin * 2 - 8) / 3; // 3 columns
+  const colX = [margin, margin + cardWidth + 4, margin + (cardWidth + 4) * 2];
+  let colIdx = 0;
+  let maxColY = currentY;
+
+  const renderCard = (group: CompanyGroup, x: number, y: number): number => {
+    const cardPad = 4;
+    const lineH = 5;
+    
+    // Title bar
+    doc.setFillColor(55, 71, 95);
+    doc.roundedRect(x, y, cardWidth, 8, 1.5, 1.5, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.text(group.name, x + cardPad, y + 5.5);
+
+    // Items
+    let itemY = y + 11;
+    doc.setTextColor(30, 30, 30);
+    doc.setFontSize(7);
+
+    group.items.forEach(item => {
+      doc.setFont('helvetica', 'normal');
+      doc.text(item.desc, x + cardPad, itemY);
+      doc.setFont('helvetica', 'bold');
+      doc.text(item.count.toString(), x + cardWidth - cardPad, itemY, { align: 'right' });
+      itemY += lineH;
+    });
+
+    // Separator + Total
+    itemY += 1;
+    doc.setDrawColor(180, 180, 180);
+    doc.line(x + cardPad, itemY, x + cardWidth - cardPad, itemY);
+    itemY += 4;
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(55, 71, 95);
+    doc.text('Total:', x + cardPad, itemY);
+    doc.text(group.total.toString(), x + cardWidth - cardPad, itemY, { align: 'right' });
+    itemY += 3;
+
+    // Card border
+    doc.setDrawColor(200, 200, 210);
+    doc.roundedRect(x, y, cardWidth, itemY - y, 1.5, 1.5, 'S');
+
+    return itemY;
+  };
+
+  // Render company cards in 3-column grid
+  companyGroups.forEach((group) => {
+    const estimatedHeight = 11 + group.items.length * 5 + 10;
+    
+    if (colIdx === 3 || (colIdx > 0 && maxColY + estimatedHeight > pageHeight - 30)) {
+      // Move to next row
+      currentY = maxColY + 5;
+      colIdx = 0;
+      maxColY = currentY;
+    }
+
+    if (currentY + estimatedHeight > pageHeight - 30) {
+      doc.addPage();
+      currentY = 15;
+      maxColY = currentY;
+      colIdx = 0;
+    }
+
+    const cardEndY = renderCard(group, colX[colIdx], currentY);
+    maxColY = Math.max(maxColY, cardEndY);
+    colIdx++;
+  });
+
+  // ─── Veículos Leves section ───
+  currentY = maxColY + 8;
+  if (currentY + 30 > pageHeight - 30) { doc.addPage(); currentY = 15; }
+
+  if (veiculosLeves.length > 0) {
+    doc.setFillColor(55, 71, 95);
+    doc.roundedRect(margin, currentY, 60, 8, 1.5, 1.5, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Veículos Leves', margin + 4, currentY + 5.5);
+
+    const levesY = currentY + 11;
+    doc.setTextColor(30, 30, 30);
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Veículo Leve', margin + 4, levesY);
+    doc.setFont('helvetica', 'bold');
+    doc.text(veiculosLeves.length.toString(), margin + 56, levesY, { align: 'right' });
+
+    const endY = levesY + 3;
+    doc.setDrawColor(180, 180, 180);
+    doc.line(margin + 4, endY, margin + 56, endY);
+    doc.setFontSize(8);
+    doc.setTextColor(55, 71, 95);
+    doc.text('Total:', margin + 4, endY + 4);
+    doc.text(veiculosLeves.length.toString(), margin + 56, endY + 4, { align: 'right' });
+
+    doc.setDrawColor(200, 200, 210);
+    doc.roundedRect(margin, currentY, 60, endY + 7 - currentY, 1.5, 1.5, 'S');
+
+    currentY = endY + 12;
+  }
+
+  // ─── Grand Total ───
+  if (currentY + 15 > pageHeight - 15) { doc.addPage(); currentY = 15; }
+
+  const grandTotal = mobilized.length;
+  const inMaintenance = vehicles.filter(v => maintenanceVehicleCodes.has(v.codigo)).length;
+
+  doc.setFillColor(30, 41, 59);
+  doc.roundedRect(margin, currentY, pageWidth - margin * 2, 14, 2, 2, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.text(`Total Mobilizados: ${grandTotal}`, margin + 8, currentY + 9);
+  doc.setFontSize(9);
+  doc.text(`Em Manutenção: ${inMaintenance}  |  Disponíveis: ${grandTotal - inMaintenance}`, pageWidth - margin - 8, currentY + 9, { align: 'right' });
+
+  // ─── Page 2: Apontamentos table ───
+  doc.addPage('landscape');
+  const pw2 = doc.internal.pageSize.getWidth();
+
+  renderNavyHeader(doc, 
+    obraSettings?.nome?.toUpperCase() || 'CONSÓRCIO AERO MARAGOGI',
+    `APONTAMENTO DIÁRIO DE EQUIPAMENTOS — ${format(selectedDate, "EEEE, dd/MM/yyyy", { locale: ptBR })}`,
+    `Gerado: ${format(new Date(), 'dd/MM/yyyy HH:mm')}`
+  );
+
+  // Build the same apontamento table as exportEfetivoPDF
+  const { mainCompanies: orderedCompanies, terceirosCodes: tercCodes } = classifyCompanies(vehicles);
+  const hasTerceiros = tercCodes.size > 0;
+
+  const headers: string[] = ['Item', 'Descrição', 'Total'];
+  orderedCompanies.forEach(c => headers.push(c));
+  if (hasTerceiros) headers.push('Terceiros');
+  headers.push('Manut.', 'Disponível');
+
+  const descGroups = new Map<string, VehicleData[]>();
+  vehicles.forEach(v => {
+    const desc = v.descricao || v.categoria || 'Outros';
+    if (!descGroups.has(desc)) descGroups.set(desc, []);
+    descGroups.get(desc)!.push(v);
+  });
+
+  const sortedDescs = Array.from(descGroups.keys()).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  const tableData: string[][] = [];
+  let totalGeneral = 0;
+  const companyTotals = new Map<string, number>();
+  orderedCompanies.forEach(c => companyTotals.set(c, 0));
+  let totalTerceiros = 0, totalMaint = 0, totalAvail = 0;
+
+  sortedDescs.forEach((desc, idx) => {
+    const items = descGroups.get(desc)!;
+    const total = items.length;
+    totalGeneral += total;
+    const companyCounts = orderedCompanies.map(company => {
+      const count = items.filter(v => v.empresa === company).length;
+      companyTotals.set(company, (companyTotals.get(company) || 0) + count);
+      return count;
+    });
+    const tercCount = items.filter(v => tercCodes.has(v.codigo)).length;
+    totalTerceiros += tercCount;
+    const maintCount = items.filter(v => maintenanceVehicleCodes.has(v.codigo)).length;
+    totalMaint += maintCount;
+    const avail = total - maintCount;
+    totalAvail += avail;
+    const row: string[] = [(idx + 1).toString(), desc, total > 0 ? total.toString() : '',
+      ...companyCounts.map(c => c > 0 ? c.toString() : '')];
+    if (hasTerceiros) row.push(tercCount > 0 ? tercCount.toString() : '');
+    row.push(maintCount > 0 ? maintCount.toString() : '', avail > 0 ? avail.toString() : '');
+    tableData.push(row);
+  });
+
+  const totalRow: string[] = ['', 'TOTAL GERAL', totalGeneral > 0 ? totalGeneral.toString() : '',
+    ...orderedCompanies.map(c => { const v = companyTotals.get(c) || 0; return v > 0 ? v.toString() : ''; })];
+  if (hasTerceiros) totalRow.push(totalTerceiros > 0 ? totalTerceiros.toString() : '');
+  totalRow.push(totalMaint > 0 ? totalMaint.toString() : '', totalAvail > 0 ? totalAvail.toString() : '');
+  tableData.push(totalRow);
+
+  const availW2 = pw2 - 28;
+  const fixedW = 10 + 44 + 18;
+  const dynCols = orderedCompanies.length + (hasTerceiros ? 1 : 0) + 2;
+  const dynW = Math.max(12, (availW2 - fixedW) / dynCols);
+  const colStyles: Record<number, any> = { 0: { cellWidth: 10, halign: 'center' }, 1: { cellWidth: 44, fontStyle: 'bold', halign: 'left' }, 2: { cellWidth: 18, halign: 'center', fontStyle: 'bold' } };
+  let ci = 3;
+  orderedCompanies.forEach(() => { colStyles[ci] = { cellWidth: dynW, halign: 'center' }; ci++; });
+  if (hasTerceiros) { colStyles[ci] = { cellWidth: dynW, halign: 'center' }; ci++; }
+  const maintColIdx = ci;
+  colStyles[ci] = { cellWidth: dynW, halign: 'center' }; ci++;
+  const availColIdx = ci;
+  colStyles[ci] = { cellWidth: dynW, halign: 'center', fontStyle: 'bold' };
+
+  const fontSize = tableData.length > 25 || dynCols > 6 ? 6.5 : 8;
+
+  autoTable(doc, {
+    startY: 30,
+    head: [headers],
+    body: tableData,
+    theme: 'grid',
+    tableWidth: availW2,
+    styles: { fontSize, cellPadding: fontSize < 7 ? 1.5 : 3, lineColor: [160, 170, 180], lineWidth: 0.3, halign: 'center', valign: 'middle', overflow: 'linebreak' },
+    headStyles: { fillColor: [220, 220, 225], textColor: [30, 30, 30], fontStyle: 'bold', fontSize: fontSize - 0.5, halign: 'center', lineColor: [51, 65, 85], lineWidth: 0.3 },
+    columnStyles: colStyles,
+    margin: { left: 14, right: 14 },
+    alternateRowStyles: { fillColor: [245, 247, 250] },
+    didParseCell: (data) => {
+      if (data.row.index === tableData.length - 1) { data.cell.styles.fillColor = [30, 41, 59]; data.cell.styles.textColor = [255, 255, 255]; data.cell.styles.fontStyle = 'bold'; }
+      if (data.column.index === maintColIdx && data.section === 'body') { const val = parseInt(data.cell.text[0] || '0'); if (val > 0 && data.row.index !== tableData.length - 1) { data.cell.styles.textColor = [200, 30, 30]; data.cell.styles.fontStyle = 'bold'; } }
+      if (data.column.index === availColIdx && data.section === 'body') { const val = parseInt(data.cell.text[0] || '0'); if (val > 0 && data.row.index !== tableData.length - 1) { data.cell.styles.textColor = [22, 101, 52]; data.cell.styles.fontStyle = 'bold'; } }
+    },
+  });
+
+  addPageFooters(doc);
+  doc.save(`Frota_Geral_Atualizada_${format(selectedDate, 'dd-MM-yyyy')}.pdf`);
+}
