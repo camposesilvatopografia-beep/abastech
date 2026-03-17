@@ -978,6 +978,16 @@ export function FieldServiceOrderForm({ user, onBack }: FieldServiceOrderFormPro
           className={cn("text-base", isDark ? "bg-slate-700 border-slate-600 text-white" : "")}
         />
 
+        <Label className="text-sm font-medium mt-3 block flex items-center gap-2">
+          <Tag className="h-4 w-4" />
+          Tipo do Problema (Resumo)
+        </Label>
+        <ProblemTagsInput
+          value={form.problem_tags}
+          onChange={(tags) => setForm(prev => ({ ...prev, problem_tags: tags }))}
+        />
+        <p className="text-xs text-muted-foreground">Tags para medição. Pressione Enter ou vírgula.</p>
+
         <Label className="text-sm font-medium mt-3 block">Serviço Executado</Label>
         <Textarea
           value={form.solution_description}
