@@ -619,8 +619,12 @@ export function DatabaseHorimeterModal({
         })();
       }
       
-      // Always default to today's date (editable by user)
-      setSelectedDate(new Date());
+      // Preserve initialDate if provided (e.g. from pending cell click), otherwise default to today
+      if (initialDate) {
+        setSelectedDate(new Date(initialDate + 'T12:00:00'));
+      } else {
+        setSelectedDate(new Date());
+      }
     } else if (!isEditMode && !selectedVehicleId) {
       setHorimeterValue(null);
       setKmValue(null);
