@@ -58,17 +58,29 @@ export function MissingReadingsTab({ vehicles, readings, loading, refetch }: Mis
   }, [vehicles]);
 
   // Filtered vehicles (exclude "Outros")
+  // Categories to exclude from pending readings monitoring
+  const excludedCategories = new Set(['outros', 'veiculo', 'tanque comboio']);
+  // Specific equipment names to exclude (non-tracked items)
+  const excludedNames = ['balança', 'aferição', 'ajuste'];
+
   const filteredVehicles = useMemo(() => {
     return vehicles.filter(v => {
-      if (v.category?.toLowerCase() === 'outros') return false;
-      if (v.status?.toLowerCase() === 'desmobilizado' || v.status?.toLowerCase() === 'inativo') return false;
+      const cat = v.category?.toLowerCase() || '';
+      const name = v.name?.toLowerCase() || '';
+      const status = v.status?.toLowerCase() || '';
+      // Exclude non-tracked categories
+      if (excludedCategories.has(cat)) return false;
+      // Exclude specific equipment by name keywords
+      if (excludedNames.some(kw => name.includes(kw))) return false;
+      // Only show active/mobilized
+      if (status === 'desmobilizado' || status === 'inativo') return false;
       if (companyFilter !== 'all' && v.company?.toLowerCase() !== companyFilter.toLowerCase()) return false;
       if (searchFilter) {
         const s = searchFilter.toLowerCase();
-        if (!v.code.toLowerCase().includes(s) && !v.name.toLowerCase().includes(s)) return false;
+        if (!v.code.toLowerCase().includes(s) && !name.includes(s)) return false;
       }
       return true;
-    }).sort((a, b) => a.code.localeCompare(b.code, 'pt-BR'));
+    }).sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt-BR'));
   }, [vehicles, companyFilter, searchFilter]);
 
   // Readings lookup
