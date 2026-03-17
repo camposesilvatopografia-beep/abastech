@@ -41,6 +41,7 @@ import { BrazilianNumberInput } from '@/components/ui/brazilian-number-input';
 import { parsePtBRNumber, formatPtBRNumber } from '@/lib/ptBRNumber';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { ProblemTagsInput } from '@/components/ui/problem-tags-input';
 import { MetricCard } from '@/components/Dashboard/MetricCard';
 import { Badge } from '@/components/ui/badge';
 import {

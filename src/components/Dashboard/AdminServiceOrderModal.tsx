@@ -36,6 +36,7 @@ import {
 import { VehicleCombobox } from '@/components/ui/vehicle-combobox';
 import { CurrencyInput } from '@/components/ui/currency-input';
 import { parsePtBRNumber } from '@/lib/ptBRNumber';
+import { ProblemTagsInput } from '@/components/ui/problem-tags-input';
 import { supabase } from '@/integrations/supabase/client';
 import { useSheetData } from '@/hooks/useGoogleSheets';
 import { useRealtimeSync } from '@/hooks/useRealtimeSync';
