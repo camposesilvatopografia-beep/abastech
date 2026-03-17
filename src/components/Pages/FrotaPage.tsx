@@ -448,7 +448,7 @@ export function FrotaPage() {
             <SelectTrigger className="w-[170px]"><SelectValue placeholder="Todos os Status" /></SelectTrigger>
             <SelectContent className="bg-background">
               <SelectItem value="all">Todos os Status</SelectItem>
-              {Object.entries(getAllStatusLabels()).map(([key, val]) => (
+              {Object.entries(getAllStatusLabels()).map(([key, val]: [string, any]) => (
                 <SelectItem key={key} value={key}>{val.label}</SelectItem>
               ))}
             </SelectContent>
