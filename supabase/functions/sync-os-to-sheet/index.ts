@@ -316,6 +316,7 @@ serve(async (req) => {
         "Motorista": vehicleInfo?.motorista || order.created_by || "",
         "Potencia": order.vehicle_description || "",
         "Problema": order.problem_description || "",
+        "Tipo_Problema": Array.isArray(order.problem_tags) ? order.problem_tags.join(", ") : "",
         "Servico": order.solution_description || "",
         "Mecanico": order.mechanic_name || "",
         "Data_Entrada": formatDate(order.entry_date),
