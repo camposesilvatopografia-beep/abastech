@@ -512,12 +512,11 @@ export async function exportEfetivoPDF(
   const availableColIdx = colIdx;
   columnStyles[colIdx] = { cellWidth: dynamicW, halign: 'center', fontStyle: 'bold' };
 
-  // Determine if we need smaller font to fit on one page
+  // Determine font sizes — larger for readability
   const totalRows = tableData.length;
-  const needsCompact = totalRows > 25 || dynamicCols > 6;
-  const baseFontSize = needsCompact ? 6.5 : (dynamicCols > 8 ? 7 : 8);
-  const headerFontSize = needsCompact ? 6 : (dynamicCols > 8 ? 6.5 : 7.5);
-  const cellPad = needsCompact ? 1.5 : (dynamicCols > 8 ? 2 : 3);
+  const baseFontSize = totalRows > 30 ? 7.5 : (totalRows > 22 ? 8 : 9);
+  const headerFontSize = totalRows > 30 ? 7 : (totalRows > 22 ? 7.5 : 8.5);
+  const cellPad = totalRows > 30 ? 2 : (totalRows > 22 ? 2.5 : 3);
 
   autoTable(doc, {
     startY: headerH + 5,
