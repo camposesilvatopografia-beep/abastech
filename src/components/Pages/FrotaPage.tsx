@@ -266,7 +266,7 @@ export function FrotaPage() {
       const targetCode = normalize(vehicleToDelete);
       const matchedRow = rows.find((r: any) => normalize(String(r.CODIGO || r['CÓDIGO'] || r['Codigo'] || '')) === targetCode);
       if (!matchedRow?._rowIndex) throw new Error('Veículo não encontrado na planilha');
-      const { error } = await supabase.functions.invoke('google-sheets', { body: { action: 'delete', sheetName: 'Veiculo', rowIndex: matchedRow._rowIndex } });
+      const { error } = await supabase.functions.invoke('google-sheets', { body: { action: 'delete', sheetName: 'Frota Geral', rowIndex: matchedRow._rowIndex } });
       if (error) throw error;
       await supabase.from('vehicles').delete().eq('code', vehicleToDelete);
       toast.success('Veículo excluído com sucesso!');

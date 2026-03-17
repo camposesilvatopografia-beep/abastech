@@ -93,7 +93,7 @@ export function BatchStatusModal({ open, onClose, onSuccess, selectedVehicles }:
           const { error } = await supabase.functions.invoke('google-sheets', {
             body: {
               action: 'update',
-              sheetName: 'Veiculo',
+              sheetName: 'Frota Geral',
               rowIndex: matchedRow._rowIndex,
               data: rowData,
             },

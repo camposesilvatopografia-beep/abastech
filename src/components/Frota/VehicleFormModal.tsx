@@ -199,7 +199,7 @@ export function VehicleFormModal({
         const { error } = await supabase.functions.invoke('google-sheets', {
           body: {
             action: 'update',
-            sheetName: 'Veiculo',
+            sheetName: 'Frota Geral',
             rowIndex: matchedRow._rowIndex,
             data: fullRowData,
           },
