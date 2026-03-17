@@ -9,6 +9,7 @@ import {
   Clock,
   CalendarIcon,
   AlertTriangle,
+  Tag,
 } from 'lucide-react';
 import { Calendar } from '@/components/ui/calendar';
 import {
@@ -36,6 +37,7 @@ import {
 import { VehicleCombobox } from '@/components/ui/vehicle-combobox';
 import { CurrencyInput } from '@/components/ui/currency-input';
 import { parsePtBRNumber } from '@/lib/ptBRNumber';
+import { ProblemTagsInput } from '@/components/ui/problem-tags-input';
 import { supabase } from '@/integrations/supabase/client';
 import { useSheetData } from '@/hooks/useGoogleSheets';
 import { useRealtimeSync } from '@/hooks/useRealtimeSync';
@@ -64,6 +66,7 @@ export function AdminServiceOrderModal({ open, onOpenChange, onSuccess }: AdminS
   const [mechanicName, setMechanicName] = useState('');
   const [estimatedHours, setEstimatedHours] = useState('');
   const [notes, setNotes] = useState('');
+  const [problemTags, setProblemTags] = useState<string[]>([]);
   const [horimeterCurrent, setHorimeterCurrent] = useState('');
   const [kmCurrent, setKmCurrent] = useState('');
   const [entryDate, setEntryDate] = useState<Date>(new Date());
@@ -90,6 +93,7 @@ export function AdminServiceOrderModal({ open, onOpenChange, onSuccess }: AdminS
     setMechanicName('');
     setEstimatedHours('');
     setNotes('');
+    setProblemTags([]);
     setHorimeterCurrent('');
     setKmCurrent('');
     setEntryDate(new Date());
@@ -155,6 +159,7 @@ export function AdminServiceOrderModal({ open, onOpenChange, onSuccess }: AdminS
         priority,
         status: 'Aberta',
         problem_description: problemDescription,
+        problem_tags: problemTags.length > 0 ? problemTags : null,
         solution_description: solutionDescription || null,
         mechanic_id: mechanicId || null,
         mechanic_name: mechanic?.name || mechanicName || null,
@@ -300,6 +305,19 @@ export function AdminServiceOrderModal({ open, onOpenChange, onSuccess }: AdminS
               placeholder="Descreva o problema..."
               rows={3}
             />
+          </div>
+
+          {/* Problem Tags */}
+          <div className="space-y-2">
+            <Label className="flex items-center gap-2">
+              <Tag className="h-4 w-4" />
+              Tipo do Problema (Resumo)
+            </Label>
+            <ProblemTagsInput
+              value={problemTags}
+              onChange={setProblemTags}
+            />
+            <p className="text-xs text-muted-foreground">Tags resumidas para medição. Pressione Enter ou vírgula para adicionar.</p>
           </div>
 
           {/* Solution Description */}

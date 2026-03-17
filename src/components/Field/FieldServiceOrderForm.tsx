@@ -20,11 +20,13 @@ import {
   List,
   ChevronDown,
   ChevronUp,
+  Tag,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { ProblemTagsInput } from '@/components/ui/problem-tags-input';
 import {
   Command,
   CommandEmpty,
@@ -130,6 +132,7 @@ export function FieldServiceOrderForm({ user, onBack }: FieldServiceOrderFormPro
     priority: 'Média',
     status: 'Aberta',
     problem_description: '',
+    problem_tags: [] as string[],
     solution_description: '',
     mechanic_id: '',
     mechanic_name: '',
@@ -455,6 +458,7 @@ export function FieldServiceOrderForm({ user, onBack }: FieldServiceOrderFormPro
         priority: form.priority,
         status: form.status,
         problem_description: form.problem_description,
+        problem_tags: form.problem_tags.length > 0 ? form.problem_tags : null,
         solution_description: form.solution_description || null,
         mechanic_id: form.mechanic_id || null,
         mechanic_name: mechanic?.name || form.mechanic_name || null,
@@ -974,6 +978,16 @@ export function FieldServiceOrderForm({ user, onBack }: FieldServiceOrderFormPro
           rows={3}
           className={cn("text-base", isDark ? "bg-slate-700 border-slate-600 text-white" : "")}
         />
+
+        <Label className="text-sm font-medium mt-3 block flex items-center gap-2">
+          <Tag className="h-4 w-4" />
+          Tipo do Problema (Resumo)
+        </Label>
+        <ProblemTagsInput
+          value={form.problem_tags}
+          onChange={(tags) => setForm(prev => ({ ...prev, problem_tags: tags }))}
+        />
+        <p className="text-xs text-muted-foreground">Tags para medição. Pressione Enter ou vírgula.</p>
 
         <Label className="text-sm font-medium mt-3 block">Serviço Executado</Label>
         <Textarea

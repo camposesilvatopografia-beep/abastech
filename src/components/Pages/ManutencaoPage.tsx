@@ -34,6 +34,7 @@ import {
   Check,
   ArrowRight,
   Copy,
+  Tag,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -41,6 +42,7 @@ import { BrazilianNumberInput } from '@/components/ui/brazilian-number-input';
 import { parsePtBRNumber, formatPtBRNumber } from '@/lib/ptBRNumber';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { ProblemTagsInput } from '@/components/ui/problem-tags-input';
 import { MetricCard } from '@/components/Dashboard/MetricCard';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -104,6 +106,7 @@ interface ServiceOrder {
   priority: string;
   status: string;
   problem_description: string | null;
+  problem_tags: string[] | null;
   solution_description: string | null;
   mechanic_id: string | null;
   mechanic_name: string | null;
@@ -236,6 +239,7 @@ export function ManutencaoPage() {
     priority: 'Média',
     status: 'Aberta',
     problem_description: '',
+    problem_tags: [] as string[],
     solution_description: '',
     mechanic_id: '',
     mechanic_name: '',
@@ -1019,6 +1023,7 @@ export function ManutencaoPage() {
       priority: 'Média',
       status: 'Aberta',
       problem_description: '',
+      problem_tags: [],
       solution_description: '',
       mechanic_id: '',
       mechanic_name: '',
@@ -1087,6 +1092,7 @@ export function ManutencaoPage() {
       priority: order.priority,
       status: order.status,
       problem_description: order.problem_description || '',
+      problem_tags: (order as any).problem_tags || [],
       solution_description: order.solution_description || '',
       mechanic_id: order.mechanic_id || '',
       mechanic_name: order.mechanic_name || '',
@@ -1157,6 +1163,7 @@ export function ManutencaoPage() {
         priority: formData.priority,
         status: formData.status,
         problem_description: formData.problem_description,
+        problem_tags: formData.problem_tags.length > 0 ? formData.problem_tags : null,
         solution_description: formData.solution_description || null,
         mechanic_id: formData.mechanic_id || null,
         mechanic_name: mechanic?.name || formData.mechanic_name || null,
@@ -2395,7 +2402,15 @@ export function ManutencaoPage() {
                           </div>
                         </TableCell>
                         <TableCell className="py-2 px-2 hidden md:table-cell max-w-[150px] truncate text-xs">
-                          {row.problem_description || '-'}
+                          {(row as any).problem_tags && (row as any).problem_tags.length > 0 ? (
+                            <div className="flex flex-wrap gap-0.5">
+                              {(row as any).problem_tags.map((t: string) => (
+                                <span key={t} className="inline-block px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200 text-[10px]">{t}</span>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="truncate">{row.problem_description || '-'}</span>
+                          )}
                         </TableCell>
                         <TableCell className="py-2 px-2 hidden lg:table-cell text-xs">{getMechanicName(row)}</TableCell>
                         <TableCell className="py-2 px-2">{getPrioridadeBadge(row.priority)}</TableCell>
@@ -2993,6 +3008,19 @@ export function ManutencaoPage() {
                 onChange={(e) => setFormData({ ...formData, problem_description: e.target.value })}
                 rows={3}
               />
+            </div>
+
+            {/* Problem Tags (Resumo) */}
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <Tag className="h-4 w-4" />
+                Tipo do Problema (Resumo)
+              </Label>
+              <ProblemTagsInput
+                value={formData.problem_tags}
+                onChange={(tags) => setFormData({ ...formData, problem_tags: tags })}
+              />
+              <p className="text-xs text-muted-foreground">Tags resumidas para medição. Pressione Enter ou vírgula para adicionar.</p>
             </div>
 
             {/* Solution Description */}
