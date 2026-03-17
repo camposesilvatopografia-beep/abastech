@@ -770,6 +770,7 @@ export type Database = {
           photo_parts_url: string | null
           priority: string
           problem_description: string | null
+          problem_tags: string[] | null
           solution_description: string | null
           start_date: string | null
           status: string
@@ -806,6 +807,7 @@ export type Database = {
           photo_parts_url?: string | null
           priority?: string
           problem_description?: string | null
+          problem_tags?: string[] | null
           solution_description?: string | null
           start_date?: string | null
           status?: string
@@ -842,6 +844,7 @@ export type Database = {
           photo_parts_url?: string | null
           priority?: string
           problem_description?: string | null
+          problem_tags?: string[] | null
           solution_description?: string | null
           start_date?: string | null
           status?: string
