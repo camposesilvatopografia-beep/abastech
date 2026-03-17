@@ -971,6 +971,54 @@ export type Database = {
         }
         Relationships: []
       }
+      vehicle_documents: {
+        Row: {
+          created_at: string
+          description: string | null
+          document_date: string | null
+          document_type: string
+          file_name: string | null
+          file_size: number | null
+          file_url: string
+          id: string
+          title: string
+          updated_at: string
+          uploaded_by: string | null
+          vehicle_code: string
+          vehicle_description: string | null
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          document_date?: string | null
+          document_type?: string
+          file_name?: string | null
+          file_size?: number | null
+          file_url: string
+          id?: string
+          title: string
+          updated_at?: string
+          uploaded_by?: string | null
+          vehicle_code: string
+          vehicle_description?: string | null
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          document_date?: string | null
+          document_type?: string
+          file_name?: string | null
+          file_size?: number | null
+          file_url?: string
+          id?: string
+          title?: string
+          updated_at?: string
+          uploaded_by?: string | null
+          vehicle_code?: string
+          vehicle_description?: string | null
+        }
+        Relationships: []
+      }
       vehicles: {
         Row: {
           category: string | null

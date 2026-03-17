@@ -67,6 +67,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { ColumnConfigModal } from '@/components/Layout/ColumnConfigModal';
 import { useLayoutPreferences, ColumnConfig } from '@/hooks/useLayoutPreferences';
+import { VehicleDocumentsTab } from '@/components/Frota/VehicleDocumentsTab';
 import { useObraSettings } from '@/hooks/useObraSettings';
 
 interface VehicleHistoryModalProps {
@@ -1060,7 +1061,7 @@ export function VehicleHistoryModal({
 
           {/* Content */}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden">
-            <TabsList className="shrink-0 grid w-full grid-cols-3">
+            <TabsList className="shrink-0 grid w-full grid-cols-4">
               <TabsTrigger value="abastecimento" className="gap-2">
                 <Fuel className="w-4 h-4" />
                 <span className="hidden sm:inline">Abastecimentos</span>
@@ -1072,6 +1073,10 @@ export function VehicleHistoryModal({
               <TabsTrigger value="manutencao" className="gap-2">
                 <Wrench className="w-4 h-4" />
                 <span className="hidden sm:inline">Manutenção</span>
+              </TabsTrigger>
+              <TabsTrigger value="documentos" className="gap-2">
+                <FileText className="w-4 h-4" />
+                <span className="hidden sm:inline">Documentos</span>
               </TabsTrigger>
             </TabsList>
 
@@ -1283,6 +1288,14 @@ export function VehicleHistoryModal({
                         })}
                       </div>
                     )}
+                  </TabsContent>
+
+                  {/* Documentos Tab */}
+                  <TabsContent value="documentos" className="m-0 flex-1">
+                    <VehicleDocumentsTab
+                      vehicleCode={vehicleCode}
+                      vehicleDescription={vehicleDescription}
+                    />
                   </TabsContent>
                 </>
               )}
