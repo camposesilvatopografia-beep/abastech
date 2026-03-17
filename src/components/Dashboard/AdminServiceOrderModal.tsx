@@ -92,6 +92,7 @@ export function AdminServiceOrderModal({ open, onOpenChange, onSuccess }: AdminS
     setMechanicName('');
     setEstimatedHours('');
     setNotes('');
+    setProblemTags([]);
     setHorimeterCurrent('');
     setKmCurrent('');
     setEntryDate(new Date());
