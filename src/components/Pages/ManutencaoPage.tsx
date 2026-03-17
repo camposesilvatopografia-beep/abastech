@@ -1021,6 +1021,7 @@ export function ManutencaoPage() {
       priority: 'Média',
       status: 'Aberta',
       problem_description: '',
+      problem_tags: [],
       solution_description: '',
       mechanic_id: '',
       mechanic_name: '',
