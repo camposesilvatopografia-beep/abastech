@@ -586,13 +586,14 @@ export async function exportEfetivoPDF(
     },
   });
 
-  // ─── Relatório Simplificado de Manutenção (SEPARATE PAGE) ───
+  // ─── Relatório Simplificado de Manutenção (FIT ON SAME PAGE or new page) ───
   const activeMaintenanceOrders = maintenanceOrders.filter(
     o => ['Em Manutenção', 'Em Andamento', 'Aberta', 'Aguardando Peças'].includes(o.status)
   );
 
   if (activeMaintenanceOrders.length > 0) {
     doc.addPage();
+    const pageHeight = doc.internal.pageSize.getHeight();
 
     // Red header for maintenance page
     const maintHeaderH = 22;
@@ -602,7 +603,7 @@ export async function exportEfetivoPDF(
     doc.rect(0, maintHeaderH, pageWidth, 1.5, 'F');
 
     doc.setTextColor(255, 255, 255);
-    doc.setFontSize(12);
+    doc.setFontSize(13);
     doc.setFont('helvetica', 'bold');
     doc.text('RELATÓRIO SIMPLIFICADO DE MANUTENÇÃO', pageWidth / 2, 10, { align: 'center' });
     doc.setFontSize(9);
@@ -629,16 +630,16 @@ export async function exportEfetivoPDF(
       ];
     });
 
-    // Adaptive sizing to fit on one page
+    // Adaptive sizing: MUST fit on one page
     const rowCount = maintenanceTableData.length;
-    const needsCompact = rowCount > 20;
-    const mFontSize = needsCompact ? 6.5 : 8;
-    const mCellPad = needsCompact ? 1.5 : 3;
-    const mHeadFontSize = needsCompact ? 7 : 8.5;
-    const mHeadPad = needsCompact ? 2 : 3.5;
+    const availableH = pageHeight - maintHeaderH - 20; // header + footer margin
+    const estimatedRowH = availableH / (rowCount + 2); // +2 for header row + padding
+    const mFontSize = Math.min(9, Math.max(6, estimatedRowH * 0.7));
+    const mCellPad = Math.min(3, Math.max(1.2, estimatedRowH * 0.15));
+    const mHeadFontSize = Math.min(9.5, mFontSize + 0.5);
 
     autoTable(doc, {
-      startY: maintHeaderH + 6,
+      startY: maintHeaderH + 5,
       head: [['#', 'Código', 'Empresa', 'Equipamento', 'Problema', 'Entrada']],
       body: maintenanceTableData,
       theme: 'grid',
@@ -659,15 +660,15 @@ export async function exportEfetivoPDF(
         fontSize: mHeadFontSize,
         lineColor: [153, 27, 27],
         halign: 'center',
-        cellPadding: mHeadPad,
+        cellPadding: mCellPad + 0.5,
       },
       columnStyles: {
         0: { cellWidth: 12, halign: 'center' },
-        1: { cellWidth: 26, fontStyle: 'bold' },
-        2: { cellWidth: 36 },
-        3: { cellWidth: 44, halign: 'left' },
+        1: { cellWidth: 28, fontStyle: 'bold' },
+        2: { cellWidth: 38 },
+        3: { cellWidth: 48, halign: 'left' },
         4: { cellWidth: 'auto', halign: 'left' },
-        5: { cellWidth: 24, halign: 'center' },
+        5: { cellWidth: 26, halign: 'center' },
       },
       margin: { left: 14, right: 14 },
       alternateRowStyles: { fillColor: [254, 245, 245] },
