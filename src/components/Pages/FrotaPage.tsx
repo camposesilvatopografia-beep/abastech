@@ -259,7 +259,7 @@ export function FrotaPage() {
     if (!vehicleToDelete) return;
     setDeleting(true);
     try {
-      const { data: sheetData, error: fetchError } = await supabase.functions.invoke('google-sheets', { body: { action: 'getData', sheetName: 'Veiculo', noCache: true } });
+      const { data: sheetData, error: fetchError } = await supabase.functions.invoke('google-sheets', { body: { action: 'getData', sheetName: 'Frota Geral', noCache: true } });
       if (fetchError) throw fetchError;
       const rows = sheetData?.rows || [];
       const normalize = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/\s/g, '');
