@@ -35,7 +35,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 
-const SHEET_NAME = 'Veiculo';
+const SHEET_NAME = 'Frota Geral';
 
 const DEFAULT_STATUS_LABELS: Record<string, { label: string; color: string; shortLabel?: string }> = {
   ativo: { label: 'Ativo', shortLabel: 'ATIVO', color: 'bg-emerald-100 text-emerald-700 border-emerald-300' },
