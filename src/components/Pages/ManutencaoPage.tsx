@@ -1996,7 +1996,9 @@ export function ManutencaoPage() {
         row.order_number,
         row.vehicle_code,
         company,
-        row.problem_description || '-',
+        Array.isArray((row as any).problem_tags) && (row as any).problem_tags.length > 0
+          ? (row as any).problem_tags.join(', ')
+          : (row.problem_description || '-').slice(0, 50),
         mechanicName,
         entryFormatted,
         downtime,
