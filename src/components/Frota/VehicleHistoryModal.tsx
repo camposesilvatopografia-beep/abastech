@@ -67,6 +67,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { ColumnConfigModal } from '@/components/Layout/ColumnConfigModal';
 import { useLayoutPreferences, ColumnConfig } from '@/hooks/useLayoutPreferences';
+import { VehicleDocumentsTab } from '@/components/Frota/VehicleDocumentsTab';
 import { useObraSettings } from '@/hooks/useObraSettings';
 
 interface VehicleHistoryModalProps {
