@@ -342,8 +342,17 @@ export function Sidebar({ activeItem, onItemClick, onClose }: SidebarProps) {
         )}
       </nav>
 
-      {/* Field App Links */}
-      <div className="px-2 py-1 border-t border-sidebar-border">
+      {/* Desktop Install + Field App Links */}
+      <div className="px-2 py-1 border-t border-sidebar-border space-y-1">
+        {!isAppInstalled && deferredPrompt && (
+          <button
+            onClick={handleInstallDesktop}
+            className="sidebar-item w-full flex items-center gap-2 bg-accent/50 hover:bg-accent text-accent-foreground py-1.5"
+          >
+            <Download className="w-4 h-4" />
+            <span className="text-xs font-medium">Instalar no Desktop</span>
+          </button>
+        )}
         {canViewModule('campo') && (
           <Link
             to="/campo"
