@@ -23,6 +23,7 @@ import {
   Copy,
   ExternalLink,
   Smartphone,
+  Monitor,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -651,6 +652,7 @@ export default function SystemUsersPage() {
         </TabsContent>
 
         <TabsContent value="links">
+          <div className="space-y-4">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -669,7 +671,7 @@ export default function SystemUsersPage() {
                   description: 'Link direto para o app de campo - operadores acessam e fazem login',
                 },
                 {
-                  label: 'Página de Instalação PWA',
+                  label: 'Página de Instalação PWA (Mobile)',
                   url: `${window.location.origin}/apontamento/instalar`,
                   description: 'Página com instruções de instalação do app no celular',
                 },
@@ -703,6 +705,65 @@ export default function SystemUsersPage() {
               ))}
             </CardContent>
           </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Monitor className="w-5 h-5 text-primary" />
+                Links do Sistema Desktop
+              </CardTitle>
+              <CardDescription>
+                Links para instalação e acesso ao sistema no computador
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {[
+                {
+                  label: 'Sistema Administrativo (Desktop)',
+                  url: `${window.location.origin}/`,
+                  description: 'Acesso ao painel administrativo - Dashboard, Frota, Manutenção, etc.',
+                },
+                {
+                  label: 'Página de Instalação Desktop',
+                  url: `${window.location.origin}/instalar`,
+                  description: 'Instale o sistema como app no desktop (Chrome/Edge) com o ícone do Abastech',
+                },
+                {
+                  label: 'Login Administrativo',
+                  url: `${window.location.origin}/login`,
+                  description: 'Página de login para usuários do sistema administrativo',
+                },
+              ].map((link) => (
+                <div key={link.url} className="flex items-center justify-between gap-4 p-4 rounded-lg border bg-muted/30">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium text-sm">{link.label}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{link.description}</p>
+                    <code className="text-xs text-primary mt-1 block truncate">{link.url}</code>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => {
+                        navigator.clipboard.writeText(link.url);
+                        toast.success('Link copiado!');
+                      }}
+                    >
+                      <Copy className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => window.open(link.url, '_blank')}
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+          </div>
         </TabsContent>
       </Tabs>
 
