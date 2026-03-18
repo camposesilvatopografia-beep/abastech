@@ -2674,29 +2674,8 @@ export function AbastecimentoPage() {
           </div>
         </div>
 
-        {/* Metric Cards - All KPIs in one row */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          <MetricCard
-            title="ESTOQUE ANTERIOR"
-            value={`${metricsFromGeral.estoqueAnterior.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L`}
-            subtitle="Diesel - Início do período"
-            variant="primary"
-            icon={Package}
-          />
-          <MetricCard
-            title="ENTRADAS"
-            value={`${metricsFromGeral.entrada.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L`}
-            subtitle="Recebimentos no período"
-            variant="green"
-            icon={ArrowDownCircle}
-          />
-          <MetricCard
-            title="SAÍDA P/ EQUIPAMENTOS"
-            value={`${metricsFromGeral.saidaEquipamentos.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L`}
-            subtitle="Diesel consumido"
-            variant="red"
-            icon={TrendingDown}
-          />
+        {/* Metric Cards */}
+        <div className="grid grid-cols-2 gap-3">
           <MetricCard
             title="ESTOQUE ATUAL"
             value={`${metricsFromGeral.estoqueAtual.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L`}
@@ -2705,18 +2684,11 @@ export function AbastecimentoPage() {
             icon={Droplet}
           />
           <MetricCard
-            title="REGISTROS"
-            value={additionalMetrics.registros.toString()}
-            subtitle={`${PERIOD_OPTIONS.find(p => p.value === periodFilter)?.label || 'Período'}`}
-            variant="white"
-            icon={Fuel}
-          />
-          <MetricCard
-            title="SAÍDA P/ COMBOIOS"
-            value={`${metricsFromGeral.saidaComboios.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L`}
-            subtitle="Transferências internas"
-            variant="yellow"
-            icon={Truck}
+            title="TOTAL DE SAÍDAS"
+            value={`${(metricsFromGeral.saidaEquipamentos + metricsFromGeral.saidaComboios).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L`}
+            subtitle="Equipamentos + Comboios"
+            variant="red"
+            icon={TrendingDown}
           />
         </div>
 
