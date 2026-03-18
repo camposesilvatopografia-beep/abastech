@@ -2690,15 +2690,8 @@ export function AbastecimentoPage() {
           </div>
         </div>
 
-        {/* Metric Cards - Responsive Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-          <MetricCard
-            title="REGISTROS NO PERÍODO"
-            value={additionalMetrics.registros.toString()}
-            subtitle={`${PERIOD_OPTIONS.find(p => p.value === periodFilter)?.label || 'Período'}`}
-            variant="white"
-            icon={Fuel}
-          />
+        {/* Metric Cards - Primary KPIs */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <MetricCard
             title="ESTOQUE ANTERIOR"
             value={`${metricsFromGeral.estoqueAnterior.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L`}
@@ -2721,18 +2714,29 @@ export function AbastecimentoPage() {
             icon={TrendingDown}
           />
           <MetricCard
-            title="SAÍDA P/ COMBOIOS"
-            value={`${metricsFromGeral.saidaComboios.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L`}
-            subtitle="Transferências internas"
-            variant="yellow"
-            icon={Truck}
-          />
-          <MetricCard
             title="ESTOQUE ATUAL"
             value={`${metricsFromGeral.estoqueAtual.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L`}
             subtitle="Diesel disponível"
             variant="blue"
             icon={Droplet}
+          />
+        </div>
+
+        {/* Secondary KPIs */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <MetricCard
+            title="REGISTROS"
+            value={additionalMetrics.registros.toString()}
+            subtitle={`${PERIOD_OPTIONS.find(p => p.value === periodFilter)?.label || 'Período'}`}
+            variant="white"
+            icon={Fuel}
+          />
+          <MetricCard
+            title="SAÍDA P/ COMBOIOS"
+            value={`${metricsFromGeral.saidaComboios.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L`}
+            subtitle="Transferências internas"
+            variant="yellow"
+            icon={Truck}
           />
         </div>
 
