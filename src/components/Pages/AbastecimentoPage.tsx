@@ -2674,40 +2674,36 @@ export function AbastecimentoPage() {
           </div>
         </div>
 
-        {/* Metric Cards - Primary KPIs */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {/* Metric Cards - All KPIs in one row */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           <MetricCard
             title="ESTOQUE ANTERIOR"
-            value={`${metricsFromGeral.estoqueAnterior.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L`}
+            value={`${metricsFromGeral.estoqueAnterior.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L`}
             subtitle="Diesel - Início do período"
             variant="primary"
             icon={Package}
           />
           <MetricCard
             title="ENTRADAS"
-            value={`${metricsFromGeral.entrada.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L`}
+            value={`${metricsFromGeral.entrada.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L`}
             subtitle="Recebimentos no período"
             variant="green"
             icon={ArrowDownCircle}
           />
           <MetricCard
             title="SAÍDA P/ EQUIPAMENTOS"
-            value={`${metricsFromGeral.saidaEquipamentos.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L`}
+            value={`${metricsFromGeral.saidaEquipamentos.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L`}
             subtitle="Diesel consumido"
             variant="red"
             icon={TrendingDown}
           />
           <MetricCard
             title="ESTOQUE ATUAL"
-            value={`${metricsFromGeral.estoqueAtual.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L`}
+            value={`${metricsFromGeral.estoqueAtual.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L`}
             subtitle="Diesel disponível"
             variant="blue"
             icon={Droplet}
           />
-        </div>
-
-        {/* Secondary KPIs */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <MetricCard
             title="REGISTROS"
             value={additionalMetrics.registros.toString()}
@@ -2717,7 +2713,7 @@ export function AbastecimentoPage() {
           />
           <MetricCard
             title="SAÍDA P/ COMBOIOS"
-            value={`${metricsFromGeral.saidaComboios.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L`}
+            value={`${metricsFromGeral.saidaComboios.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L`}
             subtitle="Transferências internas"
             variant="yellow"
             icon={Truck}
