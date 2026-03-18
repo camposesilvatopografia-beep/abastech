@@ -86,7 +86,37 @@ export function Sidebar({ activeItem, onItemClick, onClose }: SidebarProps) {
   const [pendingRequests, setPendingRequests] = useState(0);
   const [permissions, setPermissions] = useState<{ module_id: string; can_view: boolean; can_edit: boolean }[]>([]);
   const [userPerms, setUserPerms] = useState<{ module_id: string; can_view: boolean; can_edit: boolean }[]>([]);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [isAppInstalled, setIsAppInstalled] = useState(false);
   const navigate = useNavigate();
+
+  // PWA install prompt for desktop
+  useEffect(() => {
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
+    if (isStandalone) {
+      setIsAppInstalled(true);
+      return;
+    }
+
+    const handler = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  const handleInstallDesktop = useCallback(async () => {
+    if (!deferredPrompt) return;
+    try {
+      await deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') setIsAppInstalled(true);
+      setDeferredPrompt(null);
+    } catch (err) {
+      console.error('Install error:', err);
+    }
+  }, [deferredPrompt]);
 
   useEffect(() => {
     const stored = localStorage.getItem('abastech_user');
