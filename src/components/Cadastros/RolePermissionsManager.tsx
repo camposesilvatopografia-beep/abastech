@@ -12,6 +12,7 @@ const ROLES = [
   { value: 'admin', label: 'Administrador', icon: ShieldCheck, color: 'bg-red-500', description: 'Acesso total ao sistema' },
   { value: 'supervisor', label: 'Supervisor', icon: Shield, color: 'bg-blue-500', description: 'Acesso intermediário' },
   { value: 'operador', label: 'Operador', icon: Shield, color: 'bg-green-500', description: 'Acesso básico' },
+  { value: 'visualizador', label: 'Visualizador', icon: Eye, color: 'bg-amber-500', description: 'Somente visualização (temporário)' },
 ];
 
 export function RolePermissionsManager() {

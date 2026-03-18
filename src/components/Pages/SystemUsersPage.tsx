@@ -86,6 +86,7 @@ const ROLES: { value: SystemUserRole; label: string; color: string }[] = [
   { value: 'admin', label: 'Administrador', color: 'bg-red-500' },
   { value: 'supervisor', label: 'Supervisor', color: 'bg-blue-500' },
   { value: 'operador', label: 'Operador', color: 'bg-green-500' },
+  { value: 'visualizador', label: 'Visualizador', color: 'bg-amber-500' },
 ];
 
 export default function SystemUsersPage() {
