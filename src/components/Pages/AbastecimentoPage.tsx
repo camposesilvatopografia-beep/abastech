@@ -718,18 +718,40 @@ export function AbastecimentoPage() {
   }, [data.rows, dateRange, search, localFilter, tipoFilter, combustivelFilter, empresaFilter, sortByDescription]);
 
   // Calculate metrics from GERAL sheet based on date filter
+  // Helper to extract metric values from a Geral row with fuzzy column matching
+  const extractGeralRow = useCallback((row: Record<string, any>) => {
+    const estoqueAnterior = parseNumber(row['Estoque Anterior'] || row['EstoqueAnterior'] || row['ESTOQUE ANTERIOR'] || 0);
+    const entrada = parseNumber(row['Entrada'] || row['ENTRADA'] || 0);
+    const saidaComboios = parseNumber(
+      row['Saida para Comboios'] || row['SAIDA PARA COMBOIOS'] || 
+      row['Saída para Comboios'] || row['SAÍDA PARA COMBOIOS'] ||
+      row['Saida p/ Comboios'] || row['Saída p/ Comboios'] || 0
+    );
+    const saidaEquipamentos = parseNumber(
+      row['Saida para Equipamentos'] || row['SAIDA PARA EQUIPAMENTOS'] || 
+      row['Saída para Equipamentos'] || row['SAÍDA PARA EQUIPAMENTOS'] ||
+      row['Saida p/ Equipamentos'] || row['Saída p/ Equipamentos'] || 0
+    );
+    const estoqueAtual = parseNumber(row['Estoque Atual'] || row['EstoqueAtual'] || row['ESTOQUE ATUAL'] || 0);
+    return { estoqueAnterior, entrada, saidaComboios, saidaEquipamentos, estoqueAtual };
+  }, []);
+
+  // Find the most recent Geral row with data
+  const lastKnownGeralRow = useMemo(() => {
+    if (!geralData.rows.length) return null;
+    const sorted = [...geralData.rows]
+      .map(row => ({ row, date: parseDate(String(row['Data'] || row['DATA'] || '').trim()) }))
+      .filter(r => r.date !== null)
+      .sort((a, b) => b.date!.getTime() - a.date!.getTime());
+    return sorted.length > 0 ? sorted[0].row : null;
+  }, [geralData.rows]);
+
   // IMPORTANT: Estoque Atual should be CALCULATED using the formula:
   // (Estoque Anterior + Entrada) - (Saída Comboios + Saída Equipamentos)
   const metricsFromGeral = useMemo(() => {
-    if (!geralData.rows.length) {
-      return {
-        estoqueAnterior: 0,
-        entrada: 0,
-        saidaComboios: 0,
-        saidaEquipamentos: 0,
-        estoqueAtual: 0
-      };
-    }
+    const emptyResult = { estoqueAnterior: 0, entrada: 0, saidaComboios: 0, saidaEquipamentos: 0, estoqueAtual: 0 };
+    
+    if (!geralData.rows.length) return emptyResult;
     
     // For single day filter, find the exact date row
     const isSingleDay = periodFilter === 'hoje' || periodFilter === 'ontem' || 
@@ -749,43 +771,19 @@ export function AbastecimentoPage() {
       });
       
       if (matchingRow) {
-        const estoqueAnterior = parseNumber(matchingRow['Estoque Anterior'] || matchingRow['ESTOQUE ANTERIOR'] || 0);
-        const entrada = parseNumber(matchingRow['Entrada'] || matchingRow['ENTRADA'] || 0);
-        const saidaComboios = parseNumber(matchingRow['Saida para Comboios'] || matchingRow['SAIDA PARA COMBOIOS'] || 0);
-        const saidaEquipamentos = parseNumber(matchingRow['Saida para Equipamentos'] || matchingRow['SAIDA PARA EQUIPAMENTOS'] || 0);
-        const estoqueCalculado = (estoqueAnterior + entrada) - (saidaComboios + saidaEquipamentos);
-        
-        return {
-          estoqueAnterior,
-          entrada,
-          saidaComboios,
-          saidaEquipamentos,
-          estoqueAtual: estoqueCalculado
-        };
+        const vals = extractGeralRow(matchingRow);
+        const estoqueCalculado = (vals.estoqueAnterior + vals.entrada) - (vals.saidaComboios + vals.saidaEquipamentos);
+        return { ...vals, estoqueAtual: vals.estoqueAtual > 0 ? vals.estoqueAtual : estoqueCalculado };
       }
       
-      // FALLBACK: No row for the target date — find last known stock from previous dates
-      const sortedRows = [...geralData.rows]
-        .map(row => ({
-          row,
-          date: parseDate(String(row['Data'] || row['DATA'] || '').trim())
-        }))
-        .filter(r => r.date !== null)
-        .sort((a, b) => (b.date!.getTime()) - (a.date!.getTime()));
-      
-      if (sortedRows.length > 0) {
-        const lastRow = sortedRows[0].row;
-        const lastEstoqueAtual = parseNumber(lastRow['Estoque Atual'] || lastRow['EstoqueAtual'] || lastRow['ESTOQUE ATUAL'] || 0);
-        return {
-          estoqueAnterior: lastEstoqueAtual,
-          entrada: 0,
-          saidaComboios: 0,
-          saidaEquipamentos: 0,
-          estoqueAtual: lastEstoqueAtual
-        };
+      // FALLBACK: No row for the target date — use last known stock
+      if (lastKnownGeralRow) {
+        const vals = extractGeralRow(lastKnownGeralRow);
+        const lastStock = vals.estoqueAtual > 0 ? vals.estoqueAtual : ((vals.estoqueAnterior + vals.entrada) - (vals.saidaComboios + vals.saidaEquipamentos));
+        return { estoqueAnterior: lastStock, entrada: 0, saidaComboios: 0, saidaEquipamentos: 0, estoqueAtual: lastStock };
       }
       
-      return { estoqueAnterior: 0, entrada: 0, saidaComboios: 0, saidaEquipamentos: 0, estoqueAtual: 0 };
+      return emptyResult;
     }
     
     // For period filters, sum values for all matching dates
@@ -793,6 +791,7 @@ export function AbastecimentoPage() {
     let totalSaidaComboios = 0;
     let totalSaidaEquipamentos = 0;
     let firstEstoqueAnterior = 0;
+    let lastEstoqueAtual = 0;
     let foundFirst = false;
     
     geralData.rows.forEach(row => {
@@ -800,38 +799,23 @@ export function AbastecimentoPage() {
       const rowDate = parseDate(rowDateStr);
       
       if (rowDate && isWithinInterval(rowDate, { start: dateRange.start, end: dateRange.end })) {
+        const vals = extractGeralRow(row);
         if (!foundFirst) {
-          firstEstoqueAnterior = parseNumber(row['Estoque Anterior'] || row['ESTOQUE ANTERIOR'] || 0);
+          firstEstoqueAnterior = vals.estoqueAnterior;
           foundFirst = true;
         }
-        
-        totalEntrada += parseNumber(row['Entrada'] || row['ENTRADA'] || 0);
-        totalSaidaComboios += parseNumber(row['Saida para Comboios'] || row['SAIDA PARA COMBOIOS'] || 0);
-        totalSaidaEquipamentos += parseNumber(row['Saida para Equipamentos'] || row['SAIDA PARA EQUIPAMENTOS'] || 0);
+        totalEntrada += vals.entrada;
+        totalSaidaComboios += vals.saidaComboios;
+        totalSaidaEquipamentos += vals.saidaEquipamentos;
+        lastEstoqueAtual = vals.estoqueAtual;
       }
     });
     
     // If no data found for period, fallback to last known values
-    if (!foundFirst && geralData.rows.length > 0) {
-      const sortedRows = [...geralData.rows]
-        .map(row => ({
-          row,
-          date: parseDate(String(row['Data'] || row['DATA'] || '').trim())
-        }))
-        .filter(r => r.date !== null)
-        .sort((a, b) => (b.date!.getTime()) - (a.date!.getTime()));
-      
-      if (sortedRows.length > 0) {
-        const lastRow = sortedRows[0].row;
-        const lastEstoqueAtual = parseNumber(lastRow['Estoque Atual'] || lastRow['EstoqueAtual'] || lastRow['ESTOQUE ATUAL'] || 0);
-        return {
-          estoqueAnterior: lastEstoqueAtual,
-          entrada: 0,
-          saidaComboios: 0,
-          saidaEquipamentos: 0,
-          estoqueAtual: lastEstoqueAtual
-        };
-      }
+    if (!foundFirst && lastKnownGeralRow) {
+      const vals = extractGeralRow(lastKnownGeralRow);
+      const lastStock = vals.estoqueAtual > 0 ? vals.estoqueAtual : ((vals.estoqueAnterior + vals.entrada) - (vals.saidaComboios + vals.saidaEquipamentos));
+      return { estoqueAnterior: lastStock, entrada: 0, saidaComboios: 0, saidaEquipamentos: 0, estoqueAtual: lastStock };
     }
     
     const estoqueCalculado = (firstEstoqueAnterior + totalEntrada) - (totalSaidaComboios + totalSaidaEquipamentos);
@@ -841,9 +825,9 @@ export function AbastecimentoPage() {
       entrada: totalEntrada,
       saidaComboios: totalSaidaComboios,
       saidaEquipamentos: totalSaidaEquipamentos,
-      estoqueAtual: estoqueCalculado
+      estoqueAtual: lastEstoqueAtual > 0 ? lastEstoqueAtual : estoqueCalculado
     };
-  }, [geralData.rows, periodFilter, startDate, endDate, dateRange]);
+  }, [geralData.rows, periodFilter, startDate, endDate, dateRange, extractGeralRow, lastKnownGeralRow]);
 
   // Validate stock: calculate expected vs actual from spreadsheet
   const stockValidation = useMemo(() => {
@@ -2690,40 +2674,36 @@ export function AbastecimentoPage() {
           </div>
         </div>
 
-        {/* Metric Cards - Primary KPIs */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {/* Metric Cards - All KPIs in one row */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           <MetricCard
             title="ESTOQUE ANTERIOR"
-            value={`${metricsFromGeral.estoqueAnterior.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L`}
+            value={`${metricsFromGeral.estoqueAnterior.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L`}
             subtitle="Diesel - Início do período"
             variant="primary"
             icon={Package}
           />
           <MetricCard
             title="ENTRADAS"
-            value={`${metricsFromGeral.entrada.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L`}
+            value={`${metricsFromGeral.entrada.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L`}
             subtitle="Recebimentos no período"
             variant="green"
             icon={ArrowDownCircle}
           />
           <MetricCard
             title="SAÍDA P/ EQUIPAMENTOS"
-            value={`${metricsFromGeral.saidaEquipamentos.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L`}
+            value={`${metricsFromGeral.saidaEquipamentos.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L`}
             subtitle="Diesel consumido"
             variant="red"
             icon={TrendingDown}
           />
           <MetricCard
             title="ESTOQUE ATUAL"
-            value={`${metricsFromGeral.estoqueAtual.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L`}
+            value={`${metricsFromGeral.estoqueAtual.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L`}
             subtitle="Diesel disponível"
             variant="blue"
             icon={Droplet}
           />
-        </div>
-
-        {/* Secondary KPIs */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <MetricCard
             title="REGISTROS"
             value={additionalMetrics.registros.toString()}
@@ -2733,7 +2713,7 @@ export function AbastecimentoPage() {
           />
           <MetricCard
             title="SAÍDA P/ COMBOIOS"
-            value={`${metricsFromGeral.saidaComboios.toLocaleString('pt-BR', { minimumFractionDigits: 0 })} L`}
+            value={`${metricsFromGeral.saidaComboios.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L`}
             subtitle="Transferências internas"
             variant="yellow"
             icon={Truck}
