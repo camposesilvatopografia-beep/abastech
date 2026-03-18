@@ -52,6 +52,7 @@ export function useAuth() {
     isAuthenticated,
     isAdmin,
     isSupervisor,
+    isViewer,
     logout,
     checkAuth
   };
