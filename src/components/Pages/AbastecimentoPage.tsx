@@ -28,6 +28,8 @@ import {
   Plus,
   Edit2,
   PenLine,
+  Package,
+  ArrowDownCircle,
   ChevronDown,
   ChevronUp,
   Save,
