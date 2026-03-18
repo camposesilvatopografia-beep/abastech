@@ -14,6 +14,7 @@ import {
   LogOut,
   User,
   Smartphone,
+  Download,
   Users,
   Calendar,
   Code2,
