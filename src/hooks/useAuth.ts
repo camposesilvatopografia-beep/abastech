@@ -44,6 +44,7 @@ export function useAuth() {
   const isAuthenticated = !!user;
   const isAdmin = user?.role === 'admin';
   const isSupervisor = user?.role === 'supervisor' || isAdmin;
+  const isViewer = user?.role === 'visualizador';
 
   return {
     user,
@@ -51,6 +52,7 @@ export function useAuth() {
     isAuthenticated,
     isAdmin,
     isSupervisor,
+    isViewer,
     logout,
     checkAuth
   };

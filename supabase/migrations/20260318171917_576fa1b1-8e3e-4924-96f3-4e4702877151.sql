@@ -1,0 +1,1 @@
+ALTER TYPE public.system_user_role ADD VALUE IF NOT EXISTS 'visualizador';
