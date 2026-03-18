@@ -753,8 +753,6 @@ export function AbastecimentoPage() {
         const entrada = parseNumber(matchingRow['Entrada'] || matchingRow['ENTRADA'] || 0);
         const saidaComboios = parseNumber(matchingRow['Saida para Comboios'] || matchingRow['SAIDA PARA COMBOIOS'] || 0);
         const saidaEquipamentos = parseNumber(matchingRow['Saida para Equipamentos'] || matchingRow['SAIDA PARA EQUIPAMENTOS'] || 0);
-        
-        // CALCULATE Estoque Atual using the formula: (Anterior + Entrada) - Saídas
         const estoqueCalculado = (estoqueAnterior + entrada) - (saidaComboios + saidaEquipamentos);
         
         return {
@@ -765,6 +763,29 @@ export function AbastecimentoPage() {
           estoqueAtual: estoqueCalculado
         };
       }
+      
+      // FALLBACK: No row for the target date — find last known stock from previous dates
+      const sortedRows = [...geralData.rows]
+        .map(row => ({
+          row,
+          date: parseDate(String(row['Data'] || row['DATA'] || '').trim())
+        }))
+        .filter(r => r.date !== null)
+        .sort((a, b) => (b.date!.getTime()) - (a.date!.getTime()));
+      
+      if (sortedRows.length > 0) {
+        const lastRow = sortedRows[0].row;
+        const lastEstoqueAtual = parseNumber(lastRow['Estoque Atual'] || lastRow['EstoqueAtual'] || lastRow['ESTOQUE ATUAL'] || 0);
+        return {
+          estoqueAnterior: lastEstoqueAtual,
+          entrada: 0,
+          saidaComboios: 0,
+          saidaEquipamentos: 0,
+          estoqueAtual: lastEstoqueAtual
+        };
+      }
+      
+      return { estoqueAnterior: 0, entrada: 0, saidaComboios: 0, saidaEquipamentos: 0, estoqueAtual: 0 };
     }
     
     // For period filters, sum values for all matching dates
@@ -790,7 +811,29 @@ export function AbastecimentoPage() {
       }
     });
     
-    // CALCULATE Estoque Atual using the formula: (Anterior + Entrada) - Saídas
+    // If no data found for period, fallback to last known values
+    if (!foundFirst && geralData.rows.length > 0) {
+      const sortedRows = [...geralData.rows]
+        .map(row => ({
+          row,
+          date: parseDate(String(row['Data'] || row['DATA'] || '').trim())
+        }))
+        .filter(r => r.date !== null)
+        .sort((a, b) => (b.date!.getTime()) - (a.date!.getTime()));
+      
+      if (sortedRows.length > 0) {
+        const lastRow = sortedRows[0].row;
+        const lastEstoqueAtual = parseNumber(lastRow['Estoque Atual'] || lastRow['EstoqueAtual'] || lastRow['ESTOQUE ATUAL'] || 0);
+        return {
+          estoqueAnterior: lastEstoqueAtual,
+          entrada: 0,
+          saidaComboios: 0,
+          saidaEquipamentos: 0,
+          estoqueAtual: lastEstoqueAtual
+        };
+      }
+    }
+    
     const estoqueCalculado = (firstEstoqueAnterior + totalEntrada) - (totalSaidaComboios + totalSaidaEquipamentos);
     
     return {
