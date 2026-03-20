@@ -116,21 +116,20 @@ export function FieldPage() {
   // For admins: build effective user with chosen location
   const effectiveUser = useMemo((): FieldUser | null => {
     if (!user) return null;
-    if (!isAdmin) return user;
-    
-    // Admin with active location selected
-    if (adminActiveLocation) {
-      return {
-        ...user,
-        assigned_locations: [adminActiveLocation],
-      };
+    if (isAdmin) {
+      // Admin with active location selected
+      if (adminActiveLocation) {
+        return { ...user, assigned_locations: [adminActiveLocation] };
+      }
+      // Admin without selection: show all locations
+      return { ...user, assigned_locations: ALL_FIELD_LOCATIONS };
     }
-    // Admin without selection: show all locations
-    return {
-      ...user,
-      assigned_locations: ALL_FIELD_LOCATIONS,
-    };
-  }, [user, isAdmin, adminActiveLocation]);
+    // Regular user with override location
+    if (operatorOverrideLocation) {
+      return { ...user, assigned_locations: [operatorOverrideLocation] };
+    }
+    return user;
+  }, [user, isAdmin, adminActiveLocation, operatorOverrideLocation]);
 
   // Admin location selection handler
   const handleAdminLocationChange = useCallback((location: string) => {
