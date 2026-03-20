@@ -73,6 +73,7 @@ const ALL_FIELD_LOCATIONS = [
 
 const STORAGE_KEY = 'abastech_field_user';
 const ADMIN_LOCATION_KEY = 'abastech_admin_active_location';
+const OPERATOR_LOCATION_KEY = 'abastech_operator_override_location';
 
 type FieldView = 'dashboard' | 'form' | 'fuel-abastecer' | 'fuel-comboio' | 'fuel-tanque' | 'fuel-arla' | 'fuel-arla-only' | 'fuel-registros' | 'fuel-estoques' | 'horimeter' | 'os';
 
