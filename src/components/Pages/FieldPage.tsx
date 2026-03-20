@@ -144,6 +144,19 @@ export function FieldPage() {
     toast.info('Visualizando todos os locais');
   }, []);
 
+  // Operator location override handlers
+  const handleOperatorLocationChange = useCallback((location: string) => {
+    setOperatorOverrideLocation(location);
+    localStorage.setItem(OPERATOR_LOCATION_KEY, location);
+    toast.success(`Local alterado para: ${location}`);
+  }, []);
+
+  const clearOperatorOverride = useCallback(() => {
+    setOperatorOverrideLocation('');
+    localStorage.removeItem(OPERATOR_LOCATION_KEY);
+    toast.info('Voltou ao local padrão');
+  }, []);
+
   // Admin can view all modules
   const canViewModuleEffective = useCallback((role: string, moduleId: string, userId?: string) => {
     if (isAdmin) return true;
