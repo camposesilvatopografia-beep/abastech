@@ -1324,11 +1324,12 @@ export function ManutencaoPage() {
     if (diffMs <= 0) return null;
     
     const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-    const diffDays = Math.floor(diffHours / 24);
-    const remainingHours = diffHours % 24;
+    const HOURS_PER_DAY = 9;
+    const diffDays = Math.floor(diffHours / HOURS_PER_DAY);
+    const remainingHours = diffHours % HOURS_PER_DAY;
     
     if (diffDays > 0) {
-      return `${diffDays}d ${remainingHours}h`;
+      return remainingHours > 0 ? `${diffDays}d ${remainingHours}h` : `${diffDays}d`;
     }
     return `${diffHours}h`;
   };
