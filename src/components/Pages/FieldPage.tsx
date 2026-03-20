@@ -947,7 +947,55 @@ export function FieldPage() {
         </div>
       )}
 
-      {/* Content */}
+      {/* Operator Location Override Selector */}
+      {!isAdmin && user && user.assigned_locations && user.assigned_locations.length > 0 && (
+        <div className={cn(
+          "px-3 py-2 border-b flex items-center gap-2 overflow-x-auto",
+          theme === 'dark' 
+            ? "bg-emerald-900/30 border-emerald-700/50" 
+            : "bg-emerald-50 border-emerald-200"
+        )}>
+          <MapPin className="w-3.5 h-3.5 shrink-0 text-emerald-600" />
+          <span className={cn(
+            "text-xs font-semibold whitespace-nowrap",
+            theme === 'dark' ? "text-emerald-300" : "text-emerald-700"
+          )}>
+            Local:
+          </span>
+          <Button
+            variant={!operatorOverrideLocation ? 'default' : 'outline'}
+            size="sm"
+            onClick={clearOperatorOverride}
+            className={cn(
+              "h-7 text-xs shrink-0",
+              !operatorOverrideLocation 
+                ? "bg-emerald-600 hover:bg-emerald-700 text-white" 
+                : theme === 'dark' ? "border-emerald-600 text-emerald-300" : "border-emerald-300 text-emerald-700"
+            )}
+          >
+            {user.assigned_locations[0]?.replace('Tanque ', '') || 'Padrão'}
+          </Button>
+          {ALL_FIELD_LOCATIONS
+            .filter(loc => !user.assigned_locations?.includes(loc))
+            .map(loc => (
+              <Button
+                key={loc}
+                variant={operatorOverrideLocation === loc ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => handleOperatorLocationChange(loc)}
+                className={cn(
+                  "h-7 text-xs shrink-0",
+                  operatorOverrideLocation === loc 
+                    ? "bg-emerald-600 hover:bg-emerald-700 text-white" 
+                    : theme === 'dark' ? "border-emerald-600 text-emerald-300" : "border-emerald-300 text-emerald-700"
+                )}
+              >
+                {loc.replace('Tanque ', '')}
+              </Button>
+            ))}
+        </div>
+      )}
+
       <main className="flex-1 overflow-auto">
         {/* Block form views when there are old pending records */}
         {hasOldPending && currentView !== 'dashboard' && currentView !== 'fuel-registros' && currentView !== 'fuel-estoques' ? (
