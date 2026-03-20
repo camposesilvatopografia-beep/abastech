@@ -379,9 +379,10 @@ export function FieldServiceOrderForm({ user, onBack }: FieldServiceOrderFormPro
             const diffMs = endRef.getTime() - entryDateTime.getTime();
             if (diffMs > 0) {
               const totalHours = Math.floor(diffMs / (1000 * 60 * 60));
-              const days = Math.floor(totalHours / 24);
-              const hours = totalHours % 24;
-              horasParado = days > 0 ? `${days}d ${hours}h` : `${hours}h`;
+              const HOURS_PER_DAY = 9;
+              const days = Math.floor(totalHours / HOURS_PER_DAY);
+              const hours = totalHours % HOURS_PER_DAY;
+              horasParado = days > 0 ? (hours > 0 ? `${days}d ${hours}h` : `${days}d`) : `${hours}h`;
             }
           }
         } catch { /* ignore */ }

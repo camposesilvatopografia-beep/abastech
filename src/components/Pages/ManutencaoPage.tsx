@@ -523,9 +523,10 @@ export function ManutencaoPage() {
           const diffMs = endRef.getTime() - entryDateTime.getTime();
           if (diffMs > 0) {
             const totalHours = Math.floor(diffMs / (1000 * 60 * 60));
-            const days = Math.floor(totalHours / 24);
-            const hours = totalHours % 24;
-            horasParado = days > 0 ? `${days}d ${hours}h` : `${hours}h`;
+            const HOURS_PER_DAY = 9;
+            const days = Math.floor(totalHours / HOURS_PER_DAY);
+            const hours = totalHours % HOURS_PER_DAY;
+            horasParado = days > 0 ? (hours > 0 ? `${days}d ${hours}h` : `${days}d`) : `${hours}h`;
           }
         }
       } catch { /* ignore */ }
@@ -1324,11 +1325,12 @@ export function ManutencaoPage() {
     if (diffMs <= 0) return null;
     
     const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-    const diffDays = Math.floor(diffHours / 24);
-    const remainingHours = diffHours % 24;
+    const HOURS_PER_DAY = 9;
+    const diffDays = Math.floor(diffHours / HOURS_PER_DAY);
+    const remainingHours = diffHours % HOURS_PER_DAY;
     
     if (diffDays > 0) {
-      return `${diffDays}d ${remainingHours}h`;
+      return remainingHours > 0 ? `${diffDays}d ${remainingHours}h` : `${diffDays}d`;
     }
     return `${diffHours}h`;
   };

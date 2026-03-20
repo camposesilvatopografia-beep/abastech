@@ -83,10 +83,12 @@ export function MaintenanceRankingTab({ orders }: MaintenanceRankingTabProps) {
 
     if (!endDateTime || isNaN(endDateTime.getTime())) return { hours: 0, days: 0 };
 
-    const hours = differenceInHours(endDateTime, startDateTime);
-    const days = differenceInDays(endDateTime, startDateTime);
+    const totalHours = Math.max(0, differenceInHours(endDateTime, startDateTime));
+    const HOURS_PER_DAY = 9;
+    const days = Math.floor(totalHours / HOURS_PER_DAY);
+    const remainingHours = totalHours % HOURS_PER_DAY;
 
-    return { hours: Math.max(0, hours), days: Math.max(0, days) };
+    return { hours: remainingHours, days };
   };
 
   // Build ranking data
