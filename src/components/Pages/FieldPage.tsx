@@ -34,6 +34,7 @@ import {
   Database,
   Clock,
   Wrench,
+  MapPin,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
@@ -73,6 +74,7 @@ const ALL_FIELD_LOCATIONS = [
 
 const STORAGE_KEY = 'abastech_field_user';
 const ADMIN_LOCATION_KEY = 'abastech_admin_active_location';
+const OPERATOR_LOCATION_KEY = 'abastech_operator_override_location';
 
 type FieldView = 'dashboard' | 'form' | 'fuel-abastecer' | 'fuel-comboio' | 'fuel-tanque' | 'fuel-arla' | 'fuel-arla-only' | 'fuel-registros' | 'fuel-estoques' | 'horimeter' | 'os';
 
@@ -89,6 +91,7 @@ export function FieldPage() {
   const [adminActiveLocation, setAdminActiveLocation] = useState<string>(() => {
     return localStorage.getItem(ADMIN_LOCATION_KEY) || '';
   });
+  const [operatorOverrideLocation, setOperatorOverrideLocation] = useState<string>('');
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const { theme, toggleTheme } = useTheme();
   const { settings, toggleSound, toggleVibration } = useFieldSettings();
@@ -114,21 +117,20 @@ export function FieldPage() {
   // For admins: build effective user with chosen location
   const effectiveUser = useMemo((): FieldUser | null => {
     if (!user) return null;
-    if (!isAdmin) return user;
-    
-    // Admin with active location selected
-    if (adminActiveLocation) {
-      return {
-        ...user,
-        assigned_locations: [adminActiveLocation],
-      };
+    if (isAdmin) {
+      // Admin with active location selected
+      if (adminActiveLocation) {
+        return { ...user, assigned_locations: [adminActiveLocation] };
+      }
+      // Admin without selection: show all locations
+      return { ...user, assigned_locations: ALL_FIELD_LOCATIONS };
     }
-    // Admin without selection: show all locations
-    return {
-      ...user,
-      assigned_locations: ALL_FIELD_LOCATIONS,
-    };
-  }, [user, isAdmin, adminActiveLocation]);
+    // Regular user with override location
+    if (operatorOverrideLocation) {
+      return { ...user, assigned_locations: [operatorOverrideLocation] };
+    }
+    return user;
+  }, [user, isAdmin, adminActiveLocation, operatorOverrideLocation]);
 
   // Admin location selection handler
   const handleAdminLocationChange = useCallback((location: string) => {
@@ -141,6 +143,19 @@ export function FieldPage() {
     setAdminActiveLocation('');
     localStorage.removeItem(ADMIN_LOCATION_KEY);
     toast.info('Visualizando todos os locais');
+  }, []);
+
+  // Operator location override handlers
+  const handleOperatorLocationChange = useCallback((location: string) => {
+    setOperatorOverrideLocation(location);
+    localStorage.setItem(OPERATOR_LOCATION_KEY, location);
+    toast.success(`Local alterado para: ${location}`);
+  }, []);
+
+  const clearOperatorOverride = useCallback(() => {
+    setOperatorOverrideLocation('');
+    localStorage.removeItem(OPERATOR_LOCATION_KEY);
+    toast.info('Voltou ao local padrão');
   }, []);
 
   // Admin can view all modules
@@ -933,7 +948,55 @@ export function FieldPage() {
         </div>
       )}
 
-      {/* Content */}
+      {/* Operator Location Override Selector */}
+      {!isAdmin && user && user.assigned_locations && user.assigned_locations.length > 0 && (
+        <div className={cn(
+          "px-3 py-2 border-b flex items-center gap-2 overflow-x-auto",
+          theme === 'dark' 
+            ? "bg-emerald-900/30 border-emerald-700/50" 
+            : "bg-emerald-50 border-emerald-200"
+        )}>
+          <MapPin className="w-3.5 h-3.5 shrink-0 text-emerald-600" />
+          <span className={cn(
+            "text-xs font-semibold whitespace-nowrap",
+            theme === 'dark' ? "text-emerald-300" : "text-emerald-700"
+          )}>
+            Local:
+          </span>
+          <Button
+            variant={!operatorOverrideLocation ? 'default' : 'outline'}
+            size="sm"
+            onClick={clearOperatorOverride}
+            className={cn(
+              "h-7 text-xs shrink-0",
+              !operatorOverrideLocation 
+                ? "bg-emerald-600 hover:bg-emerald-700 text-white" 
+                : theme === 'dark' ? "border-emerald-600 text-emerald-300" : "border-emerald-300 text-emerald-700"
+            )}
+          >
+            {user.assigned_locations[0]?.replace('Tanque ', '') || 'Padrão'}
+          </Button>
+          {ALL_FIELD_LOCATIONS
+            .filter(loc => !user.assigned_locations?.includes(loc))
+            .map(loc => (
+              <Button
+                key={loc}
+                variant={operatorOverrideLocation === loc ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => handleOperatorLocationChange(loc)}
+                className={cn(
+                  "h-7 text-xs shrink-0",
+                  operatorOverrideLocation === loc 
+                    ? "bg-emerald-600 hover:bg-emerald-700 text-white" 
+                    : theme === 'dark' ? "border-emerald-600 text-emerald-300" : "border-emerald-300 text-emerald-700"
+                )}
+              >
+                {loc.replace('Tanque ', '')}
+              </Button>
+            ))}
+        </div>
+      )}
+
       <main className="flex-1 overflow-auto">
         {/* Block form views when there are old pending records */}
         {hasOldPending && currentView !== 'dashboard' && currentView !== 'fuel-registros' && currentView !== 'fuel-estoques' ? (
