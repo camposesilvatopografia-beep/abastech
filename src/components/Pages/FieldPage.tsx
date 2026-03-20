@@ -90,6 +90,7 @@ export function FieldPage() {
   const [adminActiveLocation, setAdminActiveLocation] = useState<string>(() => {
     return localStorage.getItem(ADMIN_LOCATION_KEY) || '';
   });
+  const [operatorOverrideLocation, setOperatorOverrideLocation] = useState<string>('');
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const { theme, toggleTheme } = useTheme();
   const { settings, toggleSound, toggleVibration } = useFieldSettings();
