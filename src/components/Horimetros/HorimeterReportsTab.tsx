@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from 'react';
-import { FileText, FileSpreadsheet, Download, MessageCircle, Calendar, Filter, Layers, Loader2 } from 'lucide-react';
+import { FileText, FileSpreadsheet, Download, MessageCircle, Calendar, Filter, Layers, Loader2, History } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -498,6 +498,132 @@ export function HorimeterReportsTab({
     }
   }, [combinedCompany, combinedDateRange, companies, obraSettings, readings, toast]);
 
+  // === Vehicle History Report ===
+  const [histPeriod, setHistPeriod] = useState<PeriodType>('mes_atual');
+  const [histCompany, setHistCompany] = useState<string>('all');
+  const [histVehicle, setHistVehicle] = useState<string>('');
+  const [histStartDate, setHistStartDate] = useState<Date | undefined>();
+  const [histEndDate, setHistEndDate] = useState<Date | undefined>();
+  const [histStartOpen, setHistStartOpen] = useState(false);
+  const [histEndOpen, setHistEndOpen] = useState(false);
+  const [isHistLoading, setIsHistLoading] = useState(false);
+
+  const histVehicleOptions = useMemo(() => {
+    let filtered = vehicles;
+    if (histCompany !== 'all') filtered = filtered.filter(v => v.company === histCompany);
+    return filtered.sort((a, b) => a.code.localeCompare(b.code));
+  }, [vehicles, histCompany]);
+
+  const histDateRange = useMemo(() => computeDateRange(histPeriod, histStartDate, histEndDate), [histPeriod, histStartDate, histEndDate]);
+
+  const exportVehicleHistoryPDF = useCallback(async () => {
+    if (!histVehicle) {
+      toast({ title: 'Selecione um veículo', description: 'Escolha o veículo para gerar o histórico', variant: 'destructive' });
+      return;
+    }
+    setIsHistLoading(true);
+    try {
+      const vehicle = vehicles.find(v => v.id === histVehicle);
+      if (!vehicle) return;
+
+      const vehicleReadings = readings.filter(r => {
+        if (r.vehicle_id !== histVehicle) return false;
+        const d = new Date(r.reading_date + 'T12:00:00');
+        return isWithinInterval(d, histDateRange);
+      }).sort((a, b) => a.reading_date.localeCompare(b.reading_date));
+
+      if (vehicleReadings.length === 0) {
+        toast({ title: 'Sem dados', description: 'Nenhum registro encontrado para este veículo no período', variant: 'destructive' });
+        return;
+      }
+
+      const doc = new jsPDF('landscape');
+      const margin = 14;
+      const logoBase64 = await getLogoBase64(obraSettings?.logo_url);
+
+      let y = renderStandardHeader(doc, {
+        reportTitle: `HISTÓRICO — ${vehicle.code}`,
+        obraSettings,
+        logoBase64,
+        date: format(new Date(), 'dd/MM/yyyy HH:mm'),
+        showTitleUnderline: false,
+      });
+
+      // Vehicle info line
+      const periodStr = `${format(histDateRange.start, 'dd/MM/yyyy')} a ${format(histDateRange.end, 'dd/MM/yyyy')}`;
+      doc.setFontSize(8.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(60, 60, 60);
+      const infoLine = `${vehicle.name || '-'}  •  Empresa: ${vehicle.company || '-'}  •  Categoria: ${vehicle.category || 'Veículo'}  •  Período: ${periodStr}`;
+      doc.text(infoLine, margin, y); y += 5;
+
+      // Calculate summary
+      const horValues = vehicleReadings.filter(r => r.current_value > 0);
+      const kmValues = vehicleReadings.filter(r => (r as any).current_km > 0);
+      const horInitial = horValues.length > 0 ? Math.min(...horValues.map(r => r.previous_value ?? r.current_value)) : 0;
+      const horFinal = horValues.length > 0 ? Math.max(...horValues.map(r => r.current_value)) : 0;
+      const totalHT = horFinal > horInitial ? horFinal - horInitial : 0;
+      const kmInitial = kmValues.length > 0 ? Math.min(...kmValues.map(r => (r as any).previous_km ?? (r as any).current_km)) : 0;
+      const kmFinal = kmValues.length > 0 ? Math.max(...kmValues.map(r => (r as any).current_km)) : 0;
+      const totalKM = kmFinal > kmInitial ? kmFinal - kmInitial : 0;
+
+      doc.setFontSize(8); doc.setFont('helvetica', 'bold'); doc.setTextColor(30, 30, 30);
+      const summaryParts = [
+        `Hor. Inicial: ${formatBR(horInitial || null)}`,
+        `Hor. Final: ${formatBR(horFinal || null)}`,
+        `Total H.T.: ${formatBR(totalHT || null)}`,
+        `Total KM: ${formatBR(totalKM || null)}`,
+        `Lançamentos: ${vehicleReadings.length}`,
+      ];
+      doc.text(summaryParts.join('  •  '), margin, y); y += 8;
+
+      // Table
+      const tableData = vehicleReadings.map(r => {
+        const interval = r.current_value - (r.previous_value ?? r.current_value);
+        const prevKm = (r as any).previous_km;
+        const currKm = (r as any).current_km;
+        const kmInterval = (prevKm && currKm && currKm > 0 && prevKm > 0) ? currKm - prevKm : null;
+        return [
+          format(new Date(r.reading_date + 'T00:00:00'), 'dd/MM/yyyy'),
+          r.operator || '-',
+          formatBR(r.previous_value),
+          formatBR(r.current_value),
+          interval > 0 ? formatBR(interval) : '-',
+          formatBR(prevKm),
+          formatBR(currKm),
+          kmInterval && kmInterval > 0 ? formatBR(kmInterval) : '-',
+        ];
+      });
+
+      autoTable(doc, {
+        head: [['Data', 'Operador', 'Hor. Anterior', 'Hor. Atual', 'H.T.', 'KM Anterior', 'KM Atual', 'Total KM']],
+        body: tableData,
+        startY: y,
+        margin: { left: margin, right: margin },
+        styles: { fontSize: 9, cellPadding: 3, font: 'helvetica', textColor: [30, 30, 30], lineColor: [200, 200, 200], lineWidth: 0.2 },
+        headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 9, halign: 'center', cellPadding: 3.5 },
+        alternateRowStyles: { fillColor: [248, 250, 252] },
+        columnStyles: {
+          0: { halign: 'center', cellWidth: 28 },
+          1: { halign: 'left' },
+          2: { halign: 'center', cellWidth: 30 },
+          3: { halign: 'center', cellWidth: 30 },
+          4: { halign: 'center', fontStyle: 'bold', cellWidth: 22 },
+          5: { halign: 'center', cellWidth: 30 },
+          6: { halign: 'center', cellWidth: 30 },
+          7: { halign: 'center', fontStyle: 'bold', cellWidth: 22 },
+        },
+      });
+
+      addPageFooters(doc, margin);
+      doc.save(`historico_${vehicle.code}_${format(new Date(), 'yyyy-MM-dd')}.pdf`);
+      toast({ title: 'PDF gerado', description: `Histórico de ${vehicle.code} exportado` });
+    } catch (err) {
+      console.error(err);
+      toast({ title: 'Erro', description: 'Falha ao gerar histórico', variant: 'destructive' });
+    } finally {
+      setIsHistLoading(false);
+    }
+  }, [histVehicle, histDateRange, readings, vehicles, obraSettings, toast]);
+
   return (
     <div className="space-y-6">
       {/* Relatório Detalhado */}
@@ -601,6 +727,113 @@ export function HorimeterReportsTab({
             <Button onClick={exportDetailedPDF} className="gap-2">
               <Download className="w-4 h-4" />
               Gerar PDF Detalhado
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Histórico por Veículo */}
+      <Card className="border">
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-indigo-500/10 flex items-center justify-center">
+              <History className="w-5 h-5 text-indigo-600" />
+            </div>
+            <div>
+              <CardTitle className="text-base">Histórico por Veículo</CardTitle>
+              <CardDescription className="text-xs">Detalhamento individual com todos os lançamentos do veículo</CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-wrap gap-3 items-end">
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Período</label>
+              <Select value={histPeriod} onValueChange={(v) => setHistPeriod(v as PeriodType)}>
+                <SelectTrigger className="w-[160px] h-9"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {PERIOD_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            {histPeriod === 'data_especifica' && (
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">Data</label>
+                <Popover open={histStartOpen} onOpenChange={setHistStartOpen}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-9 gap-2 w-[130px]">
+                      <Calendar className="w-3.5 h-3.5" />
+                      {histStartDate ? format(histStartDate, 'dd/MM/yyyy') : 'Selecione'}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <CalendarComponent mode="single" selected={histStartDate} onSelect={(d) => { setHistStartDate(d || undefined); setHistEndDate(d || undefined); setHistStartOpen(false); }} locale={ptBR} />
+                  </PopoverContent>
+                </Popover>
+              </div>
+            )}
+            {histPeriod === 'personalizado' && (
+              <>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">De</label>
+                  <Popover open={histStartOpen} onOpenChange={setHistStartOpen}>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" size="sm" className="h-9 gap-2 w-[130px]">
+                        <Calendar className="w-3.5 h-3.5" />
+                        {histStartDate ? format(histStartDate, 'dd/MM/yyyy') : 'Início'}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <CalendarComponent mode="single" selected={histStartDate} onSelect={(d) => { setHistStartDate(d || undefined); setHistStartOpen(false); }} locale={ptBR} />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">Até</label>
+                  <Popover open={histEndOpen} onOpenChange={setHistEndOpen}>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" size="sm" className="h-9 gap-2 w-[130px]">
+                        <Calendar className="w-3.5 h-3.5" />
+                        {histEndDate ? format(histEndDate, 'dd/MM/yyyy') : 'Fim'}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <CalendarComponent mode="single" selected={histEndDate} onSelect={(d) => { setHistEndDate(d || undefined); setHistEndOpen(false); }} locale={ptBR} />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </>
+            )}
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Empresa</label>
+              <Select value={histCompany} onValueChange={(v) => { setHistCompany(v); setHistVehicle(''); }}>
+                <SelectTrigger className="w-[160px] h-9"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas</SelectItem>
+                  {companies.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Veículo</label>
+              <Select value={histVehicle} onValueChange={setHistVehicle}>
+                <SelectTrigger className="w-[200px] h-9"><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                <SelectContent>
+                  {histVehicleOptions.map(v => <SelectItem key={v.id} value={v.id}>{v.code} — {v.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="flex items-center justify-between bg-muted/50 rounded-lg px-4 py-2">
+            <span className="text-sm text-muted-foreground">
+              {histVehicle
+                ? <><strong>{vehicles.find(v => v.id === histVehicle)?.code}</strong> — {format(histDateRange.start, 'dd/MM/yyyy')} a {format(histDateRange.end, 'dd/MM/yyyy')}</>
+                : 'Selecione um veículo para gerar o histórico'
+              }
+            </span>
+            <Button onClick={exportVehicleHistoryPDF} className="gap-2" disabled={isHistLoading || !histVehicle}>
+              {isHistLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+              {isHistLoading ? 'Gerando...' : 'Gerar Histórico PDF'}
             </Button>
           </div>
         </CardContent>
