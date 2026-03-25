@@ -952,7 +952,104 @@ export function HorimeterReportsTab({
         </CardContent>
       </Card>
 
-      {/* Relatório Combinado por Empresa */}
+      {/* Relatório Completo por Empresa */}
+      <Card className="border">
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-orange-500/10 flex items-center justify-center">
+              <Building className="w-5 h-5 text-orange-600" />
+            </div>
+            <div>
+              <CardTitle className="text-base">Relatório Completo por Empresa</CardTitle>
+              <CardDescription className="text-xs">Lista todos os veículos da empresa com todos os lançamentos diários (1 página por veículo)</CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-wrap gap-3 items-end">
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Período</label>
+              <Select value={compFullPeriod} onValueChange={(v) => setCompFullPeriod(v as PeriodType)}>
+                <SelectTrigger className="w-[160px] h-9"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {PERIOD_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            {compFullPeriod === 'data_especifica' && (
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">Data</label>
+                <Popover open={compFullStartOpen} onOpenChange={setCompFullStartOpen}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-9 gap-2 w-[130px]">
+                      <Calendar className="w-3.5 h-3.5" />
+                      {compFullStartDate ? format(compFullStartDate, 'dd/MM/yyyy') : 'Selecione'}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <CalendarComponent mode="single" selected={compFullStartDate} onSelect={(d) => { setCompFullStartDate(d || undefined); setCompFullEndDate(d || undefined); setCompFullStartOpen(false); }} locale={ptBR} />
+                  </PopoverContent>
+                </Popover>
+              </div>
+            )}
+            {compFullPeriod === 'personalizado' && (
+              <>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">De</label>
+                  <Popover open={compFullStartOpen} onOpenChange={setCompFullStartOpen}>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" size="sm" className="h-9 gap-2 w-[130px]">
+                        <Calendar className="w-3.5 h-3.5" />
+                        {compFullStartDate ? format(compFullStartDate, 'dd/MM/yyyy') : 'Início'}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <CalendarComponent mode="single" selected={compFullStartDate} onSelect={(d) => { setCompFullStartDate(d || undefined); setCompFullStartOpen(false); }} locale={ptBR} />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">Até</label>
+                  <Popover open={compFullEndOpen} onOpenChange={setCompFullEndOpen}>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" size="sm" className="h-9 gap-2 w-[130px]">
+                        <Calendar className="w-3.5 h-3.5" />
+                        {compFullEndDate ? format(compFullEndDate, 'dd/MM/yyyy') : 'Fim'}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <CalendarComponent mode="single" selected={compFullEndDate} onSelect={(d) => { setCompFullEndDate(d || undefined); setCompFullEndOpen(false); }} locale={ptBR} />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </>
+            )}
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Empresa</label>
+              <Select value={compFullCompany} onValueChange={setCompFullCompany}>
+                <SelectTrigger className="w-[200px] h-9"><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                <SelectContent>
+                  {companies.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="flex items-center justify-between bg-muted/50 rounded-lg px-4 py-2">
+            <span className="text-sm text-muted-foreground">
+              {compFullCompany
+                ? <><strong>{compFullCompany}</strong> — {vehicles.filter(v => v.company === compFullCompany).length} veículo(s) — {format(compFullDateRange.start, 'dd/MM/yyyy')} a {format(compFullDateRange.end, 'dd/MM/yyyy')}</>
+                : 'Selecione uma empresa para gerar o relatório completo'
+              }
+            </span>
+            <Button onClick={exportCompanyFullPDF} className="gap-2" disabled={isCompFullLoading || !compFullCompany}>
+              {isCompFullLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+              {isCompFullLoading ? 'Gerando...' : 'Gerar PDF Completo'}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+
       <Card className="border">
         <CardHeader className="pb-3">
           <div className="flex items-center gap-3">
