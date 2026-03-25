@@ -254,8 +254,8 @@ export function HorimeterReportsTab({
       headStyles: { fillColor: [30, 30, 30], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7.5, halign: 'center', cellPadding: 3 },
       didParseCell: (data) => {
         if (data.section === 'body') {
-          const desc = tableData[data.row.index]?.[2] || '';
-          if (desc !== lastDesc) { descColorIdx++; lastDesc = desc; }
+          const groupVal = tableData[data.row.index]?.[trackField] || '';
+          if (groupVal !== lastDesc) { descColorIdx++; lastDesc = groupVal; }
           data.cell.styles.fillColor = descColorIdx % 2 === 0 ? [248, 250, 252] : [255, 255, 255];
         }
       },
