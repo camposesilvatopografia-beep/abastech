@@ -848,6 +848,17 @@ export function HorimeterReportsTab({
                 </SelectContent>
               </Select>
             </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Ordenar por</label>
+              <Select value={detailedSortOrder} onValueChange={(v) => setDetailedSortOrder(v as 'description' | 'vehicle' | 'date')}>
+                <SelectTrigger className="w-[180px] h-9"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="description">Tipo (Descrição)</SelectItem>
+                  <SelectItem value="vehicle">Equipamento (Código)</SelectItem>
+                  <SelectItem value="date">Data</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           <div className="flex items-center justify-between bg-muted/50 rounded-lg px-4 py-2">
             <span className="text-sm text-muted-foreground">
