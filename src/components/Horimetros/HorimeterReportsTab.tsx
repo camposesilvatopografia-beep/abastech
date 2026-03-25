@@ -516,12 +516,7 @@ export function HorimeterReportsTab({
     }
     setIsCompFullLoading(true);
     try {
-      const companyVehicles = vehicles.filter(v => v.company === compFullCompany).sort((a, b) => {
-        const descA = (a.name || a.category || '').toLowerCase();
-        const descB = (b.name || b.category || '').toLowerCase();
-        if (descA !== descB) return descA.localeCompare(descB);
-        return a.code.localeCompare(b.code);
-      });
+      const companyVehicles = vehicles.filter(v => v.company === compFullCompany).sort((a, b) => a.code.localeCompare(b.code));
       if (companyVehicles.length === 0) {
         toast({ title: 'Sem veículos', description: 'Nenhum veículo encontrado para esta empresa', variant: 'destructive' });
         return;
