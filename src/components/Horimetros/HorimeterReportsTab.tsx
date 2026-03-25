@@ -498,6 +498,119 @@ export function HorimeterReportsTab({
     }
   }, [combinedCompany, combinedDateRange, companies, obraSettings, readings, toast]);
 
+  // === Company Full Report (all vehicles, all days) ===
+  const [compFullPeriod, setCompFullPeriod] = useState<PeriodType>('mes_atual');
+  const [compFullCompany, setCompFullCompany] = useState<string>('');
+  const [compFullStartDate, setCompFullStartDate] = useState<Date | undefined>();
+  const [compFullEndDate, setCompFullEndDate] = useState<Date | undefined>();
+  const [compFullStartOpen, setCompFullStartOpen] = useState(false);
+  const [compFullEndOpen, setCompFullEndOpen] = useState(false);
+  const [isCompFullLoading, setIsCompFullLoading] = useState(false);
+
+  const compFullDateRange = useMemo(() => computeDateRange(compFullPeriod, compFullStartDate, compFullEndDate), [compFullPeriod, compFullStartDate, compFullEndDate]);
+
+  const exportCompanyFullPDF = useCallback(async () => {
+    if (!compFullCompany) {
+      toast({ title: 'Selecione uma empresa', description: 'Escolha a empresa para gerar o relatório', variant: 'destructive' });
+      return;
+    }
+    setIsCompFullLoading(true);
+    try {
+      const companyVehicles = vehicles.filter(v => v.company === compFullCompany).sort((a, b) => (a.name || a.code).localeCompare(b.name || b.code));
+      if (companyVehicles.length === 0) {
+        toast({ title: 'Sem veículos', description: 'Nenhum veículo encontrado para esta empresa', variant: 'destructive' });
+        return;
+      }
+
+      const doc = new jsPDF('landscape');
+      const margin = 14;
+      const logoBase64 = await getLogoBase64(obraSettings?.logo_url);
+      const periodStr = `${format(compFullDateRange.start, 'dd/MM/yyyy')} a ${format(compFullDateRange.end, 'dd/MM/yyyy')}`;
+      let isFirstVehicle = true;
+
+      for (const vehicle of companyVehicles) {
+        const vehicleReadings = readings.filter(r => {
+          if (r.vehicle_id !== vehicle.id) return false;
+          const d = new Date(r.reading_date + 'T12:00:00');
+          return isWithinInterval(d, compFullDateRange);
+        }).sort((a, b) => a.reading_date.localeCompare(b.reading_date));
+
+        if (vehicleReadings.length === 0) continue;
+
+        if (!isFirstVehicle) doc.addPage('landscape');
+        isFirstVehicle = false;
+
+        let y = renderStandardHeader(doc, {
+          reportTitle: 'RELATÓRIO DE HORÍMETROS/KM',
+          obraSettings,
+          logoBase64,
+          date: format(new Date(), 'dd/MM/yyyy HH:mm'),
+          showTitleUnderline: false,
+        });
+
+        doc.setFontSize(8.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(71, 85, 105);
+        doc.text(`Período: ${periodStr}  |  Veículo: ${vehicle.code}  |  ${vehicleReadings.length} registro(s)`, margin, y);
+        y += 8;
+
+        const tableData = vehicleReadings.map(r => {
+          const interval = r.current_value - (r.previous_value ?? r.current_value);
+          const prevKm = (r as any).previous_km;
+          const currKm = (r as any).current_km;
+          const kmInterval = (prevKm && currKm && currKm > 0 && prevKm > 0) ? currKm - prevKm : null;
+          return [
+            format(new Date(r.reading_date + 'T00:00:00'), 'dd/MM/yyyy'),
+            vehicle.code,
+            vehicle.name || vehicle.category || '-',
+            r.operator || '-',
+            formatBR(r.previous_value),
+            formatBR(r.current_value),
+            interval > 0 ? formatBR(interval) : '-',
+            formatBR(prevKm),
+            formatBR(currKm),
+            kmInterval && kmInterval > 0 ? formatBR(kmInterval) : '-',
+          ];
+        });
+
+        autoTable(doc, {
+          head: [['Data', 'Veículo', 'Descrição', 'Operador', 'Hor. Anterior', 'Hor. Atual', 'H.T.', 'KM Anterior', 'KM Atual', 'Total KM']],
+          body: tableData,
+          startY: y,
+          margin: { left: margin, right: margin },
+          styles: { fontSize: 8.5, cellPadding: 3, font: 'helvetica', textColor: [30, 30, 30], lineColor: [200, 200, 200], lineWidth: 0.2 },
+          headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8.5, halign: 'center', cellPadding: 3.5 },
+          alternateRowStyles: { fillColor: [248, 250, 252] },
+          columnStyles: {
+            0: { halign: 'center', cellWidth: 24 },
+            1: { halign: 'center', fontStyle: 'bold', cellWidth: 22 },
+            2: { halign: 'left' },
+            3: { halign: 'left' },
+            4: { halign: 'center', cellWidth: 26 },
+            5: { halign: 'center', cellWidth: 26 },
+            6: { halign: 'center', fontStyle: 'bold', cellWidth: 18 },
+            7: { halign: 'center', cellWidth: 26 },
+            8: { halign: 'center', cellWidth: 26 },
+            9: { halign: 'center', fontStyle: 'bold', cellWidth: 20 },
+          },
+        });
+      }
+
+      if (isFirstVehicle) {
+        toast({ title: 'Sem dados', description: 'Nenhum registro encontrado para os veículos desta empresa no período', variant: 'destructive' });
+        return;
+      }
+
+      addPageFooters(doc, margin);
+      const safeCompany = compFullCompany.replace(/\s+/g, '_');
+      doc.save(`horimetros_${safeCompany}_${format(new Date(), 'yyyy-MM-dd')}.pdf`);
+      toast({ title: 'PDF gerado', description: `Relatório completo de ${compFullCompany} exportado` });
+    } catch (err) {
+      console.error(err);
+      toast({ title: 'Erro', description: 'Falha ao gerar relatório', variant: 'destructive' });
+    } finally {
+      setIsCompFullLoading(false);
+    }
+  }, [compFullCompany, compFullDateRange, readings, vehicles, obraSettings, toast]);
+
   // === Vehicle History Report ===
   const [histPeriod, setHistPeriod] = useState<PeriodType>('mes_atual');
   const [histCompany, setHistCompany] = useState<string>('all');
