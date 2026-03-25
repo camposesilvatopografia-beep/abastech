@@ -141,6 +141,7 @@ export function HorimeterReportsTab({
   const [detailedEndDate, setDetailedEndDate] = useState<Date | undefined>();
   const [startDateOpen, setStartDateOpen] = useState(false);
   const [endDateOpen, setEndDateOpen] = useState(false);
+  const [detailedSortOrder, setDetailedSortOrder] = useState<'description' | 'vehicle' | 'date'>('description');
 
   // Combined report filters
   const [combinedPeriod, setCombinedPeriod] = useState<PeriodType>('mes_atual');
@@ -203,13 +204,29 @@ export function HorimeterReportsTab({
     doc.text(parts.join('  |  '), margin, y);
     y += 8;
 
-    // Sort by description (vehicle type) then date
+    // Sort based on selected order
     const sortedReadings = [...filteredDetailedReadings].sort((a, b) => {
-      const descA = (a.vehicle?.description || a.vehicle?.category || '').toLowerCase();
-      const descB = (b.vehicle?.description || b.vehicle?.category || '').toLowerCase();
-      if (descA !== descB) return descA.localeCompare(descB);
-      return a.reading_date.localeCompare(b.reading_date);
+      if (detailedSortOrder === 'vehicle') {
+        // By vehicle code, then date
+        const codeCmp = (a.vehicle?.code || '').localeCompare(b.vehicle?.code || '');
+        if (codeCmp !== 0) return codeCmp;
+        return a.reading_date.localeCompare(b.reading_date);
+      } else if (detailedSortOrder === 'date') {
+        // By date, then vehicle code
+        const dateCmp = a.reading_date.localeCompare(b.reading_date);
+        if (dateCmp !== 0) return dateCmp;
+        return (a.vehicle?.code || '').localeCompare(b.vehicle?.code || '');
+      } else {
+        // By description (vehicle type) then date
+        const descA = (a.vehicle?.description || a.vehicle?.category || '').toLowerCase();
+        const descB = (b.vehicle?.description || b.vehicle?.category || '').toLowerCase();
+        if (descA !== descB) return descA.localeCompare(descB);
+        return a.reading_date.localeCompare(b.reading_date);
+      }
     });
+
+    // For vehicle sort, track by vehicle code; for description, track by description
+    const trackField = detailedSortOrder === 'vehicle' ? 1 : 2;
 
     const tableData = sortedReadings.map(r => {
       const interval = r.current_value - (r.previous_value ?? r.current_value);
@@ -237,8 +254,8 @@ export function HorimeterReportsTab({
       headStyles: { fillColor: [30, 30, 30], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7.5, halign: 'center', cellPadding: 3 },
       didParseCell: (data) => {
         if (data.section === 'body') {
-          const desc = tableData[data.row.index]?.[2] || '';
-          if (desc !== lastDesc) { descColorIdx++; lastDesc = desc; }
+          const groupVal = tableData[data.row.index]?.[trackField] || '';
+          if (groupVal !== lastDesc) { descColorIdx++; lastDesc = groupVal; }
           data.cell.styles.fillColor = descColorIdx % 2 === 0 ? [248, 250, 252] : [255, 255, 255];
         }
       },
@@ -828,6 +845,17 @@ export function HorimeterReportsTab({
                 <SelectContent>
                   <SelectItem value="all">Todos</SelectItem>
                   {vehicleOptions.map(v => <SelectItem key={v.id} value={v.id}>{v.code}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Ordenar por</label>
+              <Select value={detailedSortOrder} onValueChange={(v) => setDetailedSortOrder(v as 'description' | 'vehicle' | 'date')}>
+                <SelectTrigger className="w-[180px] h-9"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="description">Tipo (Descrição)</SelectItem>
+                  <SelectItem value="vehicle">Equipamento (Código)</SelectItem>
+                  <SelectItem value="date">Data</SelectItem>
                 </SelectContent>
               </Select>
             </div>
