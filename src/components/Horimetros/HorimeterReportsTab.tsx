@@ -141,6 +141,7 @@ export function HorimeterReportsTab({
   const [detailedEndDate, setDetailedEndDate] = useState<Date | undefined>();
   const [startDateOpen, setStartDateOpen] = useState(false);
   const [endDateOpen, setEndDateOpen] = useState(false);
+  const [detailedSortOrder, setDetailedSortOrder] = useState<'description' | 'vehicle' | 'date'>('description');
 
   // Combined report filters
   const [combinedPeriod, setCombinedPeriod] = useState<PeriodType>('mes_atual');
