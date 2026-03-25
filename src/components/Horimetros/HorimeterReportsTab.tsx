@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from 'react';
-import { FileText, FileSpreadsheet, Download, MessageCircle, Calendar, Filter, Layers, Loader2, History } from 'lucide-react';
+import { FileText, FileSpreadsheet, Download, MessageCircle, Calendar, Filter, Layers, Loader2, History, Building } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
