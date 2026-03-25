@@ -204,13 +204,29 @@ export function HorimeterReportsTab({
     doc.text(parts.join('  |  '), margin, y);
     y += 8;
 
-    // Sort by description (vehicle type) then date
+    // Sort based on selected order
     const sortedReadings = [...filteredDetailedReadings].sort((a, b) => {
-      const descA = (a.vehicle?.description || a.vehicle?.category || '').toLowerCase();
-      const descB = (b.vehicle?.description || b.vehicle?.category || '').toLowerCase();
-      if (descA !== descB) return descA.localeCompare(descB);
-      return a.reading_date.localeCompare(b.reading_date);
+      if (detailedSortOrder === 'vehicle') {
+        // By vehicle code, then date
+        const codeCmp = (a.vehicle?.code || '').localeCompare(b.vehicle?.code || '');
+        if (codeCmp !== 0) return codeCmp;
+        return a.reading_date.localeCompare(b.reading_date);
+      } else if (detailedSortOrder === 'date') {
+        // By date, then vehicle code
+        const dateCmp = a.reading_date.localeCompare(b.reading_date);
+        if (dateCmp !== 0) return dateCmp;
+        return (a.vehicle?.code || '').localeCompare(b.vehicle?.code || '');
+      } else {
+        // By description (vehicle type) then date
+        const descA = (a.vehicle?.description || a.vehicle?.category || '').toLowerCase();
+        const descB = (b.vehicle?.description || b.vehicle?.category || '').toLowerCase();
+        if (descA !== descB) return descA.localeCompare(descB);
+        return a.reading_date.localeCompare(b.reading_date);
+      }
     });
+
+    // For vehicle sort, track by vehicle code; for description, track by description
+    const trackField = detailedSortOrder === 'vehicle' ? 1 : 2;
 
     const tableData = sortedReadings.map(r => {
       const interval = r.current_value - (r.previous_value ?? r.current_value);
