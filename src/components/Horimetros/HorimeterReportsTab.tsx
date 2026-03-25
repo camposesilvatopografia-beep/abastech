@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from 'react';
-import { FileText, FileSpreadsheet, Download, MessageCircle, Calendar, Filter, Layers, Loader2, History } from 'lucide-react';
+import { FileText, FileSpreadsheet, Download, MessageCircle, Calendar, Filter, Layers, Loader2, History, Building } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -498,6 +498,119 @@ export function HorimeterReportsTab({
     }
   }, [combinedCompany, combinedDateRange, companies, obraSettings, readings, toast]);
 
+  // === Company Full Report (all vehicles, all days) ===
+  const [compFullPeriod, setCompFullPeriod] = useState<PeriodType>('mes_atual');
+  const [compFullCompany, setCompFullCompany] = useState<string>('');
+  const [compFullStartDate, setCompFullStartDate] = useState<Date | undefined>();
+  const [compFullEndDate, setCompFullEndDate] = useState<Date | undefined>();
+  const [compFullStartOpen, setCompFullStartOpen] = useState(false);
+  const [compFullEndOpen, setCompFullEndOpen] = useState(false);
+  const [isCompFullLoading, setIsCompFullLoading] = useState(false);
+
+  const compFullDateRange = useMemo(() => computeDateRange(compFullPeriod, compFullStartDate, compFullEndDate), [compFullPeriod, compFullStartDate, compFullEndDate]);
+
+  const exportCompanyFullPDF = useCallback(async () => {
+    if (!compFullCompany) {
+      toast({ title: 'Selecione uma empresa', description: 'Escolha a empresa para gerar o relatório', variant: 'destructive' });
+      return;
+    }
+    setIsCompFullLoading(true);
+    try {
+      const companyVehicles = vehicles.filter(v => v.company === compFullCompany).sort((a, b) => (a.name || a.code).localeCompare(b.name || b.code));
+      if (companyVehicles.length === 0) {
+        toast({ title: 'Sem veículos', description: 'Nenhum veículo encontrado para esta empresa', variant: 'destructive' });
+        return;
+      }
+
+      const doc = new jsPDF('landscape');
+      const margin = 14;
+      const logoBase64 = await getLogoBase64(obraSettings?.logo_url);
+      const periodStr = `${format(compFullDateRange.start, 'dd/MM/yyyy')} a ${format(compFullDateRange.end, 'dd/MM/yyyy')}`;
+      let isFirstVehicle = true;
+
+      for (const vehicle of companyVehicles) {
+        const vehicleReadings = readings.filter(r => {
+          if (r.vehicle_id !== vehicle.id) return false;
+          const d = new Date(r.reading_date + 'T12:00:00');
+          return isWithinInterval(d, compFullDateRange);
+        }).sort((a, b) => a.reading_date.localeCompare(b.reading_date));
+
+        if (vehicleReadings.length === 0) continue;
+
+        if (!isFirstVehicle) doc.addPage('landscape');
+        isFirstVehicle = false;
+
+        let y = renderStandardHeader(doc, {
+          reportTitle: 'RELATÓRIO DE HORÍMETROS/KM',
+          obraSettings,
+          logoBase64,
+          date: format(new Date(), 'dd/MM/yyyy HH:mm'),
+          showTitleUnderline: false,
+        });
+
+        doc.setFontSize(8.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(71, 85, 105);
+        doc.text(`Período: ${periodStr}  |  Veículo: ${vehicle.code}  |  ${vehicleReadings.length} registro(s)`, margin, y);
+        y += 8;
+
+        const tableData = vehicleReadings.map(r => {
+          const interval = r.current_value - (r.previous_value ?? r.current_value);
+          const prevKm = (r as any).previous_km;
+          const currKm = (r as any).current_km;
+          const kmInterval = (prevKm && currKm && currKm > 0 && prevKm > 0) ? currKm - prevKm : null;
+          return [
+            format(new Date(r.reading_date + 'T00:00:00'), 'dd/MM/yyyy'),
+            vehicle.code,
+            vehicle.name || vehicle.category || '-',
+            r.operator || '-',
+            formatBR(r.previous_value),
+            formatBR(r.current_value),
+            interval > 0 ? formatBR(interval) : '-',
+            formatBR(prevKm),
+            formatBR(currKm),
+            kmInterval && kmInterval > 0 ? formatBR(kmInterval) : '-',
+          ];
+        });
+
+        autoTable(doc, {
+          head: [['Data', 'Veículo', 'Descrição', 'Operador', 'Hor. Anterior', 'Hor. Atual', 'H.T.', 'KM Anterior', 'KM Atual', 'Total KM']],
+          body: tableData,
+          startY: y,
+          margin: { left: margin, right: margin },
+          styles: { fontSize: 8.5, cellPadding: 3, font: 'helvetica', textColor: [30, 30, 30], lineColor: [200, 200, 200], lineWidth: 0.2 },
+          headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8.5, halign: 'center', cellPadding: 3.5 },
+          alternateRowStyles: { fillColor: [248, 250, 252] },
+          columnStyles: {
+            0: { halign: 'center', cellWidth: 24 },
+            1: { halign: 'center', fontStyle: 'bold', cellWidth: 22 },
+            2: { halign: 'left' },
+            3: { halign: 'left' },
+            4: { halign: 'center', cellWidth: 26 },
+            5: { halign: 'center', cellWidth: 26 },
+            6: { halign: 'center', fontStyle: 'bold', cellWidth: 18 },
+            7: { halign: 'center', cellWidth: 26 },
+            8: { halign: 'center', cellWidth: 26 },
+            9: { halign: 'center', fontStyle: 'bold', cellWidth: 20 },
+          },
+        });
+      }
+
+      if (isFirstVehicle) {
+        toast({ title: 'Sem dados', description: 'Nenhum registro encontrado para os veículos desta empresa no período', variant: 'destructive' });
+        return;
+      }
+
+      addPageFooters(doc, margin);
+      const safeCompany = compFullCompany.replace(/\s+/g, '_');
+      doc.save(`horimetros_${safeCompany}_${format(new Date(), 'yyyy-MM-dd')}.pdf`);
+      toast({ title: 'PDF gerado', description: `Relatório completo de ${compFullCompany} exportado` });
+    } catch (err) {
+      console.error(err);
+      toast({ title: 'Erro', description: 'Falha ao gerar relatório', variant: 'destructive' });
+    } finally {
+      setIsCompFullLoading(false);
+    }
+  }, [compFullCompany, compFullDateRange, readings, vehicles, obraSettings, toast]);
+
   // === Vehicle History Report ===
   const [histPeriod, setHistPeriod] = useState<PeriodType>('mes_atual');
   const [histCompany, setHistCompany] = useState<string>('all');
@@ -839,7 +952,104 @@ export function HorimeterReportsTab({
         </CardContent>
       </Card>
 
-      {/* Relatório Combinado por Empresa */}
+      {/* Relatório Completo por Empresa */}
+      <Card className="border">
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-orange-500/10 flex items-center justify-center">
+              <Building className="w-5 h-5 text-orange-600" />
+            </div>
+            <div>
+              <CardTitle className="text-base">Relatório Completo por Empresa</CardTitle>
+              <CardDescription className="text-xs">Lista todos os veículos da empresa com todos os lançamentos diários (1 página por veículo)</CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-wrap gap-3 items-end">
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Período</label>
+              <Select value={compFullPeriod} onValueChange={(v) => setCompFullPeriod(v as PeriodType)}>
+                <SelectTrigger className="w-[160px] h-9"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {PERIOD_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            {compFullPeriod === 'data_especifica' && (
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">Data</label>
+                <Popover open={compFullStartOpen} onOpenChange={setCompFullStartOpen}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-9 gap-2 w-[130px]">
+                      <Calendar className="w-3.5 h-3.5" />
+                      {compFullStartDate ? format(compFullStartDate, 'dd/MM/yyyy') : 'Selecione'}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <CalendarComponent mode="single" selected={compFullStartDate} onSelect={(d) => { setCompFullStartDate(d || undefined); setCompFullEndDate(d || undefined); setCompFullStartOpen(false); }} locale={ptBR} />
+                  </PopoverContent>
+                </Popover>
+              </div>
+            )}
+            {compFullPeriod === 'personalizado' && (
+              <>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">De</label>
+                  <Popover open={compFullStartOpen} onOpenChange={setCompFullStartOpen}>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" size="sm" className="h-9 gap-2 w-[130px]">
+                        <Calendar className="w-3.5 h-3.5" />
+                        {compFullStartDate ? format(compFullStartDate, 'dd/MM/yyyy') : 'Início'}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <CalendarComponent mode="single" selected={compFullStartDate} onSelect={(d) => { setCompFullStartDate(d || undefined); setCompFullStartOpen(false); }} locale={ptBR} />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">Até</label>
+                  <Popover open={compFullEndOpen} onOpenChange={setCompFullEndOpen}>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" size="sm" className="h-9 gap-2 w-[130px]">
+                        <Calendar className="w-3.5 h-3.5" />
+                        {compFullEndDate ? format(compFullEndDate, 'dd/MM/yyyy') : 'Fim'}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <CalendarComponent mode="single" selected={compFullEndDate} onSelect={(d) => { setCompFullEndDate(d || undefined); setCompFullEndOpen(false); }} locale={ptBR} />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </>
+            )}
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Empresa</label>
+              <Select value={compFullCompany} onValueChange={setCompFullCompany}>
+                <SelectTrigger className="w-[200px] h-9"><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                <SelectContent>
+                  {companies.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="flex items-center justify-between bg-muted/50 rounded-lg px-4 py-2">
+            <span className="text-sm text-muted-foreground">
+              {compFullCompany
+                ? <><strong>{compFullCompany}</strong> — {vehicles.filter(v => v.company === compFullCompany).length} veículo(s) — {format(compFullDateRange.start, 'dd/MM/yyyy')} a {format(compFullDateRange.end, 'dd/MM/yyyy')}</>
+                : 'Selecione uma empresa para gerar o relatório completo'
+              }
+            </span>
+            <Button onClick={exportCompanyFullPDF} className="gap-2" disabled={isCompFullLoading || !compFullCompany}>
+              {isCompFullLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+              {isCompFullLoading ? 'Gerando...' : 'Gerar PDF Completo'}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+
       <Card className="border">
         <CardHeader className="pb-3">
           <div className="flex items-center gap-3">
