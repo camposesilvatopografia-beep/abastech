@@ -678,6 +678,14 @@ export function ReportsTab({
         </CardContent>
       </Card>
 
+      {/* Relatório de Horímetros/KM por Empresa */}
+      <HorimeterByCompanyReport
+        vehicles={vehicles}
+        readings={readings}
+        obraSettings={obraSettings}
+        companies={companies}
+      />
+
       {/* Other exports */}
       <div className="bg-card rounded-xl border border-border p-4">
         <div className="flex items-center gap-2 mb-3">
