@@ -334,7 +334,7 @@ function HorimeterByCompanyReport({ vehicles, readings, obraSettings, companies 
   );
 }
 
-
+export function ReportsTab({
   isExporting,
   filteredRowsCount,
   startDate,
