@@ -11,6 +11,7 @@ import {
   BarChart3,
   Layers,
   Printer,
+  Clock,
   Filter,
   Eye,
   Loader2,
