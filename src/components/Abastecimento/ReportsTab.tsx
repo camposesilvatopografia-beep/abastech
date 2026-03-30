@@ -174,24 +174,74 @@ function HorimeterByCompanyReport({ vehicles, readings, obraSettings, companies 
       doc.text(`Período: ${dateInfo}  |  Empresa: ${company}  |  ${sorted.length} registro(s)`, margin, y);
       y += 8;
 
-      // Build table data grouped by vehicle
-      const tableData = sorted.map(r => {
-        const interval = r.current_value - (r.previous_value ?? r.current_value);
-        const prevKm = (r as any).previous_km;
-        const currKm = (r as any).current_km;
-        const kmTotal = (prevKm && currKm && currKm > 0 && prevKm > 0) ? currKm - prevKm : null;
-        return [
-          format(new Date(r.reading_date + 'T00:00:00'), 'dd/MM/yyyy'),
-          r.vehicle?.code || '-',
-          r.vehicle?.description || r.vehicle?.category || '-',
-          r.operator || '-',
-          formatBR(r.previous_value),
-          formatBR(r.current_value),
-          interval > 0 ? formatBR(interval) : '-',
-          formatBR(prevKm),
-          formatBR(currKm),
-          kmTotal && kmTotal > 0 ? formatBR(kmTotal) : '-',
-        ];
+      // Group readings by vehicle code
+      const vehicleGroups = new Map<string, typeof sorted>();
+      sorted.forEach(r => {
+        const code = r.vehicle?.code || '-';
+        if (!vehicleGroups.has(code)) vehicleGroups.set(code, []);
+        vehicleGroups.get(code)!.push(r);
+      });
+
+      // Build table with summary rows per vehicle
+      const tableData: string[][] = [];
+      const summaryRowIndices = new Set<number>();
+
+      vehicleGroups.forEach((group) => {
+        let minHor: number | null = null;
+        let maxHor: number | null = null;
+        let minKm: number | null = null;
+        let maxKm: number | null = null;
+        let totalHT = 0;
+        let totalKM = 0;
+
+        group.forEach(r => {
+          const interval = r.current_value - (r.previous_value ?? r.current_value);
+          const prevKm = (r as any).previous_km;
+          const currKm = (r as any).current_km;
+          const kmTotal = (prevKm && currKm && currKm > 0 && prevKm > 0) ? currKm - prevKm : null;
+
+          tableData.push([
+            format(new Date(r.reading_date + 'T00:00:00'), 'dd/MM/yyyy'),
+            r.vehicle?.code || '-',
+            r.vehicle?.description || r.vehicle?.category || '-',
+            r.operator || '-',
+            formatBR(r.previous_value),
+            formatBR(r.current_value),
+            interval > 0 ? formatBR(interval) : '-',
+            formatBR(prevKm),
+            formatBR(currKm),
+            kmTotal && kmTotal > 0 ? formatBR(kmTotal) : '-',
+          ]);
+
+          // Track min/max for summary
+          if (r.previous_value != null && (minHor === null || r.previous_value < minHor)) minHor = r.previous_value;
+          if (r.current_value != null && (maxHor === null || r.current_value > maxHor)) maxHor = r.current_value;
+          if (prevKm && (minKm === null || prevKm < minKm)) minKm = prevKm;
+          if (currKm && (maxKm === null || currKm > maxKm)) maxKm = currKm;
+          if (interval > 0) totalHT += interval;
+          if (kmTotal && kmTotal > 0) totalKM += kmTotal;
+        });
+
+        // Compute period totals from first to last reading
+        const periodHT = (minHor != null && maxHor != null && maxHor > minHor) ? maxHor - minHor : totalHT;
+        const periodKM = (minKm != null && maxKm != null && maxKm > minKm) ? maxKm - minKm : totalKM;
+
+        // Add summary row
+        const code = group[0]?.vehicle?.code || '-';
+        const desc = group[0]?.vehicle?.description || group[0]?.vehicle?.category || '-';
+        summaryRowIndices.add(tableData.length);
+        tableData.push([
+          `RESUMO: ${code}`,
+          desc,
+          `${group.length} dias`,
+          '',
+          minHor != null ? formatBR(minHor) : '-',
+          maxHor != null ? formatBR(maxHor) : '-',
+          periodHT > 0 ? formatBR(periodHT) : '-',
+          minKm != null ? formatBR(minKm) : '-',
+          maxKm != null ? formatBR(maxKm) : '-',
+          periodKM > 0 ? formatBR(periodKM) : '-',
+        ]);
       });
 
       let lastVehicle = '';
@@ -206,9 +256,18 @@ function HorimeterByCompanyReport({ vehicles, readings, obraSettings, companies 
         headStyles: { fillColor: [30, 30, 30], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7.5, halign: 'center', cellPadding: 3 },
         didParseCell: (data) => {
           if (data.section === 'body') {
-            const vehicle = tableData[data.row.index]?.[1] || '';
-            if (vehicle !== lastVehicle) { colorIdx++; lastVehicle = vehicle; }
-            data.cell.styles.fillColor = colorIdx % 2 === 0 ? [248, 250, 252] : [255, 255, 255];
+            const rowIdx = data.row.index;
+            if (summaryRowIndices.has(rowIdx)) {
+              // Summary row styling
+              data.cell.styles.fillColor = [37, 99, 235];
+              data.cell.styles.textColor = [255, 255, 255];
+              data.cell.styles.fontStyle = 'bold';
+              data.cell.styles.fontSize = 7.5;
+            } else {
+              const vehicle = tableData[rowIdx]?.[1] || '';
+              if (vehicle !== lastVehicle) { colorIdx++; lastVehicle = vehicle; }
+              data.cell.styles.fillColor = colorIdx % 2 === 0 ? [248, 250, 252] : [255, 255, 255];
+            }
           }
         },
         columnStyles: {
