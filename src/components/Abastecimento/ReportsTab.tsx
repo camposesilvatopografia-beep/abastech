@@ -110,7 +110,231 @@ interface ReportsTabProps {
   onExportResumoGeral?: () => void;
 }
 
-export function ReportsTab({
+// ====== Relatório de Horímetros/KM por Empresa (dia a dia por veículo) ======
+function HorimeterByCompanyReport({ vehicles, readings, obraSettings, companies }: {
+  vehicles: any[];
+  readings: HorimeterWithVehicle[];
+  obraSettings: any;
+  companies: string[];
+}) {
+  const { toast } = useToast();
+  const [period, setPeriod] = useState<PeriodType>('mes_atual');
+  const [company, setCompany] = useState<string>(companies[0] || 'all');
+  const [customStart, setCustomStart] = useState<Date | undefined>();
+  const [customEnd, setCustomEnd] = useState<Date | undefined>();
+  const [startOpen, setStartOpen] = useState(false);
+  const [endOpen, setEndOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const dateRange = useMemo(() => computeCombinedDateRange(period, customStart, customEnd), [period, customStart, customEnd]);
+
+  const exportPDF = useCallback(async () => {
+    if (!company || company === 'all') {
+      toast({ title: 'Selecione uma empresa', variant: 'destructive' });
+      return;
+    }
+    setLoading(true);
+    try {
+      const logoBase64 = await getLogoBase64(obraSettings?.logo_url);
+      const dateInfo = `${format(dateRange.start, 'dd/MM/yyyy')} a ${format(dateRange.end, 'dd/MM/yyyy')}`;
+
+      // Filter readings for the company and date range
+      const filtered = readings.filter(r => {
+        const d = new Date(r.reading_date + 'T12:00:00');
+        if (!isWithinInterval(d, dateRange)) return false;
+        return r.vehicle?.company === company;
+      });
+
+      if (filtered.length === 0) {
+        toast({ title: 'Sem dados', description: 'Nenhum registro de horímetro encontrado', variant: 'destructive' });
+        return;
+      }
+
+      // Sort by vehicle code first, then by date
+      const sorted = [...filtered].sort((a, b) => {
+        const codeA = (a.vehicle?.code || '').localeCompare(b.vehicle?.code || '');
+        if (codeA !== 0) return codeA;
+        return a.reading_date.localeCompare(b.reading_date);
+      });
+
+      const doc = new jsPDF('landscape');
+      const margin = 14;
+
+      let y = renderStandardHeader(doc, {
+        reportTitle: 'RELATÓRIO DE HORÍMETROS/KM',
+        obraSettings,
+        logoBase64,
+        date: format(new Date(), 'dd/MM/yyyy HH:mm'),
+        showTitleUnderline: false,
+      });
+
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(71, 85, 105);
+      doc.text(`Período: ${dateInfo}  |  Empresa: ${company}  |  ${sorted.length} registro(s)`, margin, y);
+      y += 8;
+
+      // Build table data grouped by vehicle
+      const tableData = sorted.map(r => {
+        const interval = r.current_value - (r.previous_value ?? r.current_value);
+        const prevKm = (r as any).previous_km;
+        const currKm = (r as any).current_km;
+        const kmTotal = (prevKm && currKm && currKm > 0 && prevKm > 0) ? currKm - prevKm : null;
+        return [
+          format(new Date(r.reading_date + 'T00:00:00'), 'dd/MM/yyyy'),
+          r.vehicle?.code || '-',
+          r.vehicle?.description || r.vehicle?.category || '-',
+          r.operator || '-',
+          formatBR(r.previous_value),
+          formatBR(r.current_value),
+          interval > 0 ? formatBR(interval) : '-',
+          formatBR(prevKm),
+          formatBR(currKm),
+          kmTotal && kmTotal > 0 ? formatBR(kmTotal) : '-',
+        ];
+      });
+
+      let lastVehicle = '';
+      let colorIdx = 0;
+
+      autoTable(doc, {
+        head: [['Data', 'Veículo', 'Descrição', 'Operador', 'Hor. Anterior', 'Hor. Atual', 'H.T.', 'KM Anterior', 'KM Atual', 'Total KM']],
+        body: tableData,
+        startY: y,
+        margin: { left: margin, right: margin },
+        styles: { fontSize: 7.5, cellPadding: 2.5, font: 'helvetica', textColor: [30, 30, 30], lineColor: [200, 200, 200], lineWidth: 0.2 },
+        headStyles: { fillColor: [30, 30, 30], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7.5, halign: 'center', cellPadding: 3 },
+        didParseCell: (data) => {
+          if (data.section === 'body') {
+            const vehicle = tableData[data.row.index]?.[1] || '';
+            if (vehicle !== lastVehicle) { colorIdx++; lastVehicle = vehicle; }
+            data.cell.styles.fillColor = colorIdx % 2 === 0 ? [248, 250, 252] : [255, 255, 255];
+          }
+        },
+        columnStyles: {
+          0: { halign: 'center', cellWidth: 22 },
+          1: { halign: 'center', fontStyle: 'bold', cellWidth: 22 },
+          2: { halign: 'left' },
+          3: { halign: 'left' },
+          4: { halign: 'center', cellWidth: 24 },
+          5: { halign: 'center', cellWidth: 24 },
+          6: { halign: 'center', fontStyle: 'bold', cellWidth: 16 },
+          7: { halign: 'center', cellWidth: 24 },
+          8: { halign: 'center', cellWidth: 24 },
+          9: { halign: 'center', fontStyle: 'bold', cellWidth: 18 },
+        },
+      });
+
+      addCombinedPageFooters(doc, margin);
+      doc.save(`horimetros_km_${company.replace(/\s+/g, '_')}_${format(new Date(), 'yyyy-MM-dd')}.pdf`);
+      toast({ title: 'PDF gerado', description: `Relatório de Horímetros/KM — ${company}` });
+    } catch (err) {
+      console.error('Error generating horimeter report:', err);
+      toast({ title: 'Erro', description: 'Falha ao gerar relatório', variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
+  }, [company, dateRange, readings, obraSettings, toast]);
+
+  return (
+    <Card className="border">
+      <CardHeader className="pb-3">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-amber-500/10 flex items-center justify-center">
+            <Clock className="w-5 h-5 text-amber-600" />
+          </div>
+          <div>
+            <CardTitle className="text-base">Relatório de Horímetros/KM por Empresa</CardTitle>
+            <CardDescription className="text-xs">Histórico dia a dia de cada veículo/equipamento, agrupado por código</CardDescription>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex flex-wrap gap-3 items-end">
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">Período</label>
+            <Select value={period} onValueChange={(v) => setPeriod(v as PeriodType)}>
+              <SelectTrigger className="w-[160px] h-9"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {COMBINED_PERIOD_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          {period === 'data_especifica' && (
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Data</label>
+              <Popover open={startOpen} onOpenChange={setStartOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-9 gap-2 w-[130px]">
+                    <Calendar className="w-3.5 h-3.5" />
+                    {customStart ? format(customStart, 'dd/MM/yyyy') : 'Selecione'}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <CalendarComponent mode="single" selected={customStart} onSelect={(d) => { setCustomStart(d || undefined); setCustomEnd(d || undefined); setStartOpen(false); }} locale={ptBR} />
+                </PopoverContent>
+              </Popover>
+            </div>
+          )}
+          {period === 'personalizado' && (
+            <>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">De</label>
+                <Popover open={startOpen} onOpenChange={setStartOpen}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-9 gap-2 w-[130px]">
+                      <Calendar className="w-3.5 h-3.5" />
+                      {customStart ? format(customStart, 'dd/MM/yyyy') : 'Início'}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <CalendarComponent mode="single" selected={customStart} onSelect={(d) => { setCustomStart(d || undefined); setStartOpen(false); }} locale={ptBR} />
+                  </PopoverContent>
+                </Popover>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">Até</label>
+                <Popover open={endOpen} onOpenChange={setEndOpen}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-9 gap-2 w-[130px]">
+                      <Calendar className="w-3.5 h-3.5" />
+                      {customEnd ? format(customEnd, 'dd/MM/yyyy') : 'Fim'}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <CalendarComponent mode="single" selected={customEnd} onSelect={(d) => { setCustomEnd(d || undefined); setEndOpen(false); }} locale={ptBR} />
+                  </PopoverContent>
+                </Popover>
+              </div>
+            </>
+          )}
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">Empresa</label>
+            <Select value={company} onValueChange={setCompany}>
+              <SelectTrigger className="w-[180px] h-9"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {companies.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <div className="flex items-center justify-between bg-muted/50 rounded-lg px-4 py-2">
+          <span className="text-sm text-muted-foreground">
+            <strong>{company || '—'}</strong> — Horímetros dia a dia por veículo
+            {' '}
+            <span className="text-xs">({format(dateRange.start, 'dd/MM/yyyy')} — {format(dateRange.end, 'dd/MM/yyyy')})</span>
+          </span>
+          <Button onClick={exportPDF} className="gap-2" disabled={loading || !company || company === 'all'}>
+            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+            {loading ? 'Gerando...' : 'Gerar PDF'}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+
   isExporting,
   filteredRowsCount,
   startDate,
