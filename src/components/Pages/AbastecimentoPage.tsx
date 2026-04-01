@@ -671,11 +671,10 @@ export function AbastecimentoPage() {
     let rows = data.rows.filter(row => {
       const rowDate = parseDate(String(row['DATA'] || ''));
       
-      // Date filter
-      if (rowDate) {
-        if (!isWithinInterval(rowDate, { start: dateRange.start, end: dateRange.end })) {
-          return false;
-        }
+      // Date filter — rows without a valid date are excluded
+      if (!rowDate) return false;
+      if (!isWithinInterval(rowDate, { start: dateRange.start, end: dateRange.end })) {
+        return false;
       }
       
       // Search filter
