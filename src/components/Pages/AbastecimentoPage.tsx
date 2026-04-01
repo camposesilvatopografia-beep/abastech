@@ -847,24 +847,47 @@ export function AbastecimentoPage() {
     };
   }, [metricsFromGeral]);
 
-  // Calculate additional metrics from filtered rows (registros, arla, valor)
+  // Calculate additional metrics from filtered rows (registros, arla, valor, saídas)
   const additionalMetrics = useMemo(() => {
     let totalArla = 0;
     let totalValor = 0;
     let registros = filteredRows.length;
+    let saidaEquipFromRows = 0;
+    let saidaComboiosFromRows = 0;
 
     filteredRows.forEach(row => {
       const arla = parseNumber(row['QUANTIDADE DE ARLA']);
       const valor = parseNumber(row['VALOR TOTAL']);
+      const qty = parseNumber(row['QUANTIDADE']);
       
       totalArla += arla;
       totalValor += valor;
+
+      // Classify saídas from actual records
+      const tipo = String(row['TIPO'] || row['TIPO DE OPERACAO'] || '').toLowerCase();
+      if (tipo === 'entrada' || tipo === 'carregamento') return;
+      
+      const localSaida = String(row['LOCAL DE SAIDA'] || row['LOCAL'] || '').toLowerCase();
+      const desc = String(row['DESCRICAO'] || row['Descricao'] || row['DESCRIÇÃO'] || '').toLowerCase();
+      const veiculo = String(row['VEICULO'] || row['Veiculo'] || '').toUpperCase();
+      
+      // Check if it's a transfer to comboio
+      const isComboioTransfer = desc.includes('comboio') || veiculo.startsWith('CB-') || 
+        localSaida.includes('tanque canteiro') || tipo.includes('transferencia') || tipo.includes('transferência');
+      
+      if (isComboioTransfer) {
+        saidaComboiosFromRows += qty;
+      } else if (qty > 0) {
+        saidaEquipFromRows += qty;
+      }
     });
 
     return {
       registros,
       totalArla,
-      totalValor
+      totalValor,
+      saidaEquipFromRows,
+      saidaComboiosFromRows,
     };
   }, [filteredRows]);
 
