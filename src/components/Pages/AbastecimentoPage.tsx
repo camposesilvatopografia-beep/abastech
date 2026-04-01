@@ -2708,7 +2708,11 @@ export function AbastecimentoPage() {
           />
           <MetricCard
             title="TOTAL DE SAÍDAS"
-            value={`${(metricsFromGeral.saidaEquipamentos + metricsFromGeral.saidaComboios).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L`}
+            value={`${(() => {
+              const geralTotal = metricsFromGeral.saidaEquipamentos + metricsFromGeral.saidaComboios;
+              const rowsTotal = additionalMetrics.saidaEquipFromRows + additionalMetrics.saidaComboiosFromRows;
+              return (geralTotal > 0 ? geralTotal : rowsTotal).toLocaleString('pt-BR', { maximumFractionDigits: 1 });
+            })()} L`}
             subtitle="Equipamentos + Comboios"
             variant="red"
             icon={TrendingDown}
