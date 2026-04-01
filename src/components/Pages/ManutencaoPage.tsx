@@ -1984,7 +1984,7 @@ export function ManutencaoPage() {
     
     let y = startY + 4;
 
-    const tableData = filteredRows.slice(0, 100).map((row) => {
+    const tableData = filteredRows.map((row) => {
       const company = vehicleCompanyMap.get(row.vehicle_code) || '-';
       const entryDate = (row as any).entry_date || row.order_date;
       const entryTime = (row as any).entry_time;
@@ -1994,13 +1994,20 @@ export function ManutencaoPage() {
       const downtime = calculateDowntime(row) || '-';
       const mechanicName = getMechanicName(row);
       
+      // Build full problem text: tags + description
+      const tags = Array.isArray((row as any).problem_tags) && (row as any).problem_tags.length > 0
+        ? (row as any).problem_tags.join(', ')
+        : '';
+      const desc = row.problem_description || '';
+      const problemText = tags && desc 
+        ? `${tags}\n${desc}` 
+        : (tags || desc || '-');
+      
       return [
         row.order_number,
         row.vehicle_code,
         company,
-        Array.isArray((row as any).problem_tags) && (row as any).problem_tags.length > 0
-          ? (row as any).problem_tags.join(', ')
-          : (row.problem_description || '-').slice(0, 50),
+        problemText,
         mechanicName,
         entryFormatted,
         downtime,
@@ -2014,31 +2021,32 @@ export function ManutencaoPage() {
       startY: y,
       styles: { 
         fontSize: 7, 
-        cellPadding: 2.5, 
+        cellPadding: { top: 2, right: 2, bottom: 2, left: 2 }, 
         overflow: 'linebreak',
         font: 'helvetica',
         textColor: [30, 41, 59],
         lineColor: [226, 232, 240],
         lineWidth: 0.2,
+        valign: 'middle',
       },
       headStyles: { 
         fillColor: [30, 30, 30], 
         textColor: [255, 255, 255], 
         fontStyle: 'bold',
-        fontSize: 8,
+        fontSize: 7.5,
         cellPadding: 3,
         halign: 'center',
       },
-      alternateRowStyles: { fillColor: [242, 242, 242] },
+      alternateRowStyles: { fillColor: [245, 245, 245] },
       columnStyles: {
-        0: { cellWidth: 18 },
-        1: { cellWidth: 18, fontStyle: 'bold' },
-        2: { cellWidth: 20 },
+        0: { cellWidth: 22 },
+        1: { cellWidth: 20, fontStyle: 'bold', halign: 'center' },
+        2: { cellWidth: 22 },
         3: { cellWidth: 'auto', overflow: 'linebreak' },
-        4: { cellWidth: 22 },
-        5: { cellWidth: 24, halign: 'center' },
+        4: { cellWidth: 24 },
+        5: { cellWidth: 28, halign: 'center' },
         6: { cellWidth: 18, halign: 'center' },
-        7: { cellWidth: 22, halign: 'center' },
+        7: { cellWidth: 24, halign: 'center' },
       },
     });
 
