@@ -445,7 +445,7 @@ export function StockPanelTab({
   refreshing = false,
   lastUpdatedAt,
 }: StockPanelTabProps) {
-  const today = format(new Date(), 'd/M/yyyy');
+  const today = format(new Date(), 'dd/MM/yyyy');
   const [expandedCard, setExpandedCard] = useState<ExpandedCard>(null);
 
   // Resumo Geral from GERAL sheet
