@@ -1301,7 +1301,7 @@ export function ManutencaoPage() {
       if (error) throw error;
       
       // Sync deletion to Google Sheets
-      syncOrderDeleteFromSheet(order.vehicle_code, (order as any).entry_date || order.order_date);
+      syncOrderDeleteFromSheet(order.vehicle_code, (order as any).entry_date || order.order_date, order.order_number);
       
       toast.success('Ordem de serviço excluída!');
       broadcast('service_order_updated');
