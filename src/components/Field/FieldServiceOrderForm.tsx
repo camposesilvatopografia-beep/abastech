@@ -388,6 +388,8 @@ export function FieldServiceOrderForm({ user, onBack }: FieldServiceOrderFormPro
         } catch { /* ignore */ }
       }
 
+      const situacao = isFinalized ? 'Finalizada' : 'Em aberto';
+
       const rowData: Record<string, string> = {
         'Data': formatDateForSheet(orderData.entry_date || orderData.order_date),
         'Veiculo': orderData.vehicle_code || '',
@@ -404,6 +406,8 @@ export function FieldServiceOrderForm({ user, onBack }: FieldServiceOrderFormPro
         'Horas_Parado': isFinalized ? horasParado : '',
         'Observacao': orderData.notes || '',
         'Status': orderData.status || '',
+        'Situacao': situacao,
+        'Situação': situacao,
       };
 
       console.log('Syncing OS to sheet with data:', JSON.stringify(rowData));
