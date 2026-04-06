@@ -149,7 +149,8 @@ export function ManutencaoPage() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [activeTab, setActiveTab] = useState('ordens');
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('manutencao'); // Default to show equipment in maintenance
+  const [statusFilter, setStatusFilter] = useState('all'); // Status filter
+  const [situacaoFilter, setSituacaoFilter] = useState('em_aberto'); // Situação filter - default Em Aberto
   const [companyFilter, setCompanyFilter] = useState('all'); // Company filter
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
