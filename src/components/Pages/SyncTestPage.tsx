@@ -438,7 +438,7 @@ export function SyncTestPage() {
           },
         });
 
-        const testDateBR = new Date(testDate).toLocaleDateString('pt-BR');
+        const testDateBR = formatDateBR(new Date(testDate));
         const stillInSheet = sheetCheck?.rows?.some((row: any) => {
           const rowVehicle = String(row['VEICULO'] ?? row['Veiculo'] ?? '').trim().toUpperCase();
           const rowDate = String(row['DATA'] ?? row['Data'] ?? '').trim();
