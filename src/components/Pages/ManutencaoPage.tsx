@@ -2207,7 +2207,7 @@ export function ManutencaoPage() {
             subtitle="Abertas + Em andamento"
             variant="blue"
             icon={Wrench}
-            onClick={() => { setStatusFilter('manutencao'); setActiveTab('ordens'); }}
+            onClick={() => { setSituacaoFilter('em_aberto'); setStatusFilter('all'); setActiveTab('ordens'); }}
           />
           <MetricCard
             title="AGUARDANDO PEÇAS"
@@ -2215,7 +2215,7 @@ export function ManutencaoPage() {
             subtitle="Paradas"
             variant="yellow"
             icon={Clock}
-            onClick={() => { setStatusFilter('aguardando'); setActiveTab('ordens'); }}
+            onClick={() => { setSituacaoFilter('em_aberto'); setStatusFilter('aguardando'); setActiveTab('ordens'); }}
           />
           <MetricCard
             title="URGENTES"
@@ -2223,7 +2223,7 @@ export function ManutencaoPage() {
             subtitle="Prioridade alta"
             variant="red"
             icon={AlertTriangle}
-            onClick={() => { setSearch('alta'); setStatusFilter('all'); setActiveTab('ordens'); }}
+            onClick={() => { setSearch('alta'); setSituacaoFilter('all'); setStatusFilter('all'); setActiveTab('ordens'); }}
           />
           <MetricCard
             title="FINALIZADAS"
@@ -2231,7 +2231,7 @@ export function ManutencaoPage() {
             subtitle="Total no período"
             variant="green"
             icon={CheckCircle}
-            onClick={() => { setStatusFilter('finalizada'); setActiveTab('ordens'); }}
+            onClick={() => { setSituacaoFilter('concluido'); setStatusFilter('all'); setActiveTab('ordens'); }}
           />
         </div>
 
