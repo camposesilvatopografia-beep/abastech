@@ -532,7 +532,7 @@ export function ManutencaoPage() {
       } catch { /* ignore */ }
     }
 
-    const situacao = isFinalized ? 'Finalizada' : 'Em aberto';
+    const situacao = isFinalized ? 'Concluído' : 'Em aberto';
 
     return {
       'Data': formatDateForSheet(order.entry_date || order.order_date),
