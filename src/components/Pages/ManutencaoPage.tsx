@@ -532,6 +532,8 @@ export function ManutencaoPage() {
       } catch { /* ignore */ }
     }
 
+    const situacao = isFinalized ? 'Finalizada' : 'Em aberto';
+
     return {
       'Data': formatDateForSheet(order.entry_date || order.order_date),
       'Veiculo': order.vehicle_code,
@@ -548,6 +550,8 @@ export function ManutencaoPage() {
       'Horas_Parado': isFinalized ? horasParado : '',
       'Observacao': order.notes || '',
       'Status': order.status || '',
+      'Situacao': situacao,
+      'Situação': situacao,
     };
   };
 
