@@ -599,7 +599,7 @@ export function ManutencaoPage() {
   const syncOrderToSheetUpdate = async (order: Parameters<typeof buildSheetRowData>[0], company?: string, oldEntryDate?: string | null) => {
     try {
       const rowData = buildSheetRowData(order, company);
-      const sheetRowIndex = await findSheetRowIndex(order.vehicle_code, oldEntryDate || order.entry_date);
+      const sheetRowIndex = await findSheetRowIndex(order.vehicle_code, oldEntryDate || order.entry_date, order.order_number);
       
       if (sheetRowIndex > 0) {
         await updateRow(ORDEM_SERVICO_SHEET, sheetRowIndex, rowData);
