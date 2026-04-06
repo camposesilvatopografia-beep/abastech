@@ -283,7 +283,7 @@ export function SyncTestPage() {
 
         if (readError) throw readError;
 
-        const testDateBR = new Date(testDate).toLocaleDateString('pt-BR');
+        const testDateBR = formatDateBR(new Date(testDate));
         const foundRow = sheetResponse?.rows?.find((row: any) => {
           const rowVehicle = String(row['VEICULO'] ?? row['Veiculo'] ?? '').trim().toUpperCase();
           const rowDate = String(row['DATA'] ?? row['Data'] ?? '').trim();
