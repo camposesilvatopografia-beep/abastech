@@ -202,6 +202,72 @@ export function ManutencaoPage() {
   });
   const [newStatusInput, setNewStatusInput] = useState('');
   const [isAddingStatus, setIsAddingStatus] = useState(false);
+
+  // Column configuration
+  interface OSColumn {
+    id: string;
+    label: string;
+    visible: boolean;
+    className?: string;
+    cellClassName?: string;
+  }
+
+  const DEFAULT_OS_COLUMNS: OSColumn[] = [
+    { id: 'order_number', label: 'Nº OS', visible: true },
+    { id: 'vehicle_code', label: 'Veículo', visible: true },
+    { id: 'order_type', label: 'Tipo', visible: true },
+    { id: 'problem', label: 'Problema', visible: true, className: 'hidden md:table-cell', cellClassName: 'max-w-[150px] truncate' },
+    { id: 'mechanic', label: 'Mecânico', visible: true, className: 'hidden lg:table-cell' },
+    { id: 'priority', label: 'Prioridade', visible: true },
+    { id: 'status', label: 'Status', visible: true },
+    { id: 'situacao', label: 'Situação', visible: true },
+    { id: 'entry_date', label: 'Entrada', visible: true },
+    { id: 'downtime', label: 'T. Parado', visible: true, className: 'hidden sm:table-cell' },
+  ];
+
+  const [osColumns, setOsColumns] = useState<OSColumn[]>(() => {
+    const saved = localStorage.getItem('os_column_config');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved) as OSColumn[];
+        // Merge with defaults to pick up new columns
+        const knownIds = new Set(parsed.map(c => c.id));
+        const merged = [...parsed];
+        DEFAULT_OS_COLUMNS.forEach(dc => {
+          if (!knownIds.has(dc.id)) merged.push(dc);
+        });
+        return merged;
+      } catch { return DEFAULT_OS_COLUMNS; }
+    }
+    return DEFAULT_OS_COLUMNS;
+  });
+  const [isColumnConfigOpen, setIsColumnConfigOpen] = useState(false);
+
+  const visibleColumns = useMemo(() => osColumns.filter(c => c.visible), [osColumns]);
+
+  const handleColumnToggle = (id: string) => {
+    setOsColumns(prev => {
+      const updated = prev.map(c => c.id === id ? { ...c, visible: !c.visible } : c);
+      localStorage.setItem('os_column_config', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const handleColumnMove = (idx: number, direction: 'up' | 'down') => {
+    setOsColumns(prev => {
+      const arr = [...prev];
+      const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+      if (swapIdx < 0 || swapIdx >= arr.length) return prev;
+      [arr[idx], arr[swapIdx]] = [arr[swapIdx], arr[idx]];
+      localStorage.setItem('os_column_config', JSON.stringify(arr));
+      return arr;
+    });
+  };
+
+  const handleResetColumns = () => {
+    setOsColumns(DEFAULT_OS_COLUMNS);
+    localStorage.setItem('os_column_config', JSON.stringify(DEFAULT_OS_COLUMNS));
+  };
   
   const allStatusOptions = [...DEFAULT_STATUS_OPTIONS, ...customStatuses];
   
@@ -2421,31 +2487,34 @@ export function ManutencaoPage() {
         {/* Table */}
         {activeTab === 'ordens' && (
           <div className="bg-card rounded-lg border border-border overflow-hidden">
+            {/* Column config button */}
+            <div className="flex justify-end p-2 border-b border-border">
+              <Button variant="outline" size="sm" onClick={() => setIsColumnConfigOpen(true)} className="text-xs gap-1">
+                <LayoutGrid className="w-3.5 h-3.5" />
+                Colunas
+              </Button>
+            </div>
             <Table className="text-xs">
               <TableHeader>
                 <TableRow className="bg-muted/50">
-                  <TableHead className="py-2 px-2 whitespace-nowrap">Nº OS</TableHead>
-                  <TableHead className="py-2 px-2 whitespace-nowrap">Veículo</TableHead>
-                  <TableHead className="py-2 px-2 whitespace-nowrap">Tipo</TableHead>
-                  <TableHead className="py-2 px-2 hidden md:table-cell">Problema</TableHead>
-                  <TableHead className="py-2 px-2 hidden lg:table-cell whitespace-nowrap">Mecânico</TableHead>
-                  <TableHead className="py-2 px-2 whitespace-nowrap">Prioridade</TableHead>
-                  <TableHead className="py-2 px-2 whitespace-nowrap">Status</TableHead>
-                  <TableHead className="py-2 px-2 whitespace-nowrap">Entrada</TableHead>
-                  <TableHead className="py-2 px-2 hidden sm:table-cell whitespace-nowrap">T. Parado</TableHead>
+                  {visibleColumns.map(col => (
+                    <TableHead key={col.id} className={cn("py-2 px-2 whitespace-nowrap", col.className)}>
+                      {col.label}
+                    </TableHead>
+                  ))}
                   <TableHead className="py-2 px-2 text-right whitespace-nowrap">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={10} className="text-center py-8">
+                    <TableCell colSpan={visibleColumns.length + 1} className="text-center py-8">
                       <RefreshCw className="w-6 h-6 animate-spin mx-auto text-muted-foreground" />
                     </TableCell>
                   </TableRow>
                 ) : filteredRows.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={visibleColumns.length + 1} className="text-center py-8 text-muted-foreground">
                       Nenhuma ordem de serviço encontrada
                     </TableCell>
                   </TableRow>
@@ -2453,79 +2522,94 @@ export function ManutencaoPage() {
                   filteredRows.map((row) => {
                     const downtime = calculateDowntime(row);
                     const isFinished = row.status.toLowerCase().includes('finalizada');
+                    const situacao = isFinished ? 'Concluído' : 'Em Aberto';
                     
+                    const cellRenderers: Record<string, React.ReactNode> = {
+                      order_number: <span className="font-mono font-medium text-xs">{row.order_number}</span>,
+                      vehicle_code: <span className="font-medium text-xs">{row.vehicle_code}</span>,
+                      order_type: (
+                        <div className="flex flex-col gap-0.5">
+                          <Badge variant={row.order_type === 'Preventiva' ? 'default' : 'secondary'} className="text-[10px] px-1.5 py-0">
+                            {row.order_type === 'Preventiva' ? 'Prev.' : 'Corr.'}
+                          </Badge>
+                          {row.order_type === 'Preventiva' && isFinished && (row as any).interval_days && (
+                            (() => {
+                              const ed = row.end_date ? new Date(row.end_date) : new Date(row.order_date);
+                              const nextDate = addDays(ed, (row as any).interval_days);
+                              const daysUntil = differenceInDays(nextDate, new Date());
+                              return (
+                                <span className={cn(
+                                  "text-[9px] font-medium",
+                                  daysUntil <= 7 ? "text-red-600" : daysUntil <= 30 ? "text-amber-600" : "text-green-600"
+                                )}>
+                                  🔄 {format(nextDate, 'dd/MM')}
+                                </span>
+                              );
+                            })()
+                          )}
+                        </div>
+                      ),
+                      problem: (
+                        (row as any).problem_tags && (row as any).problem_tags.length > 0 ? (
+                          <div className="flex flex-wrap gap-0.5">
+                            {(row as any).problem_tags.map((t: string) => (
+                              <span key={t} className="inline-block px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200 text-[10px]">{t}</span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="truncate">{row.problem_description || '-'}</span>
+                        )
+                      ),
+                      mechanic: <span className="text-xs">{getMechanicName(row)}</span>,
+                      priority: getPrioridadeBadge(row.priority),
+                      status: getStatusBadge(row.status),
+                      situacao: (
+                        <Badge className={cn(
+                          "text-[10px] px-1.5 py-0",
+                          isFinished
+                            ? "bg-green-500/20 text-green-600 border-green-500/30"
+                            : "bg-blue-500/20 text-blue-600 border-blue-500/30"
+                        )}>
+                          {situacao}
+                        </Badge>
+                      ),
+                      entry_date: (
+                        ((row as any).entry_date || row.order_date) ? (
+                          <span className="font-mono">
+                            {format(new Date(((row as any).entry_date || row.order_date) + 'T12:00:00'), 'dd/MM/yy')}
+                            {(row as any).entry_time && (
+                              <span className="text-muted-foreground ml-1">{(row as any).entry_time.slice(0, 5)}</span>
+                            )}
+                          </span>
+                        ) : '-'
+                      ),
+                      downtime: downtime ? (
+                        <Badge className={cn(
+                          "font-mono text-[10px] px-1.5 py-0",
+                          isFinished 
+                            ? "bg-green-500/20 text-green-600 border-green-500/30" 
+                            : "bg-amber-500/20 text-amber-600 border-amber-500/30"
+                        )}>
+                          <Timer className="w-2.5 h-2.5 mr-0.5" />
+                          {downtime}
+                        </Badge>
+                      ) : '-',
+                    };
+
                     return (
                       <TableRow key={row.id} className="hover:bg-muted/30">
-                        <TableCell className="py-2 px-2 font-mono font-medium text-xs">{row.order_number}</TableCell>
-                        <TableCell className="py-2 px-2 font-medium text-xs">{row.vehicle_code}</TableCell>
-                        <TableCell className="py-2 px-2">
-                          <div className="flex flex-col gap-0.5">
-                            <Badge variant={row.order_type === 'Preventiva' ? 'default' : 'secondary'} className="text-[10px] px-1.5 py-0">
-                              {row.order_type === 'Preventiva' ? 'Prev.' : 'Corr.'}
-                            </Badge>
-                            {row.order_type === 'Preventiva' && isFinished && (row as any).interval_days && (
-                              (() => {
-                                const endDate = row.end_date ? new Date(row.end_date) : new Date(row.order_date);
-                                const nextDate = addDays(endDate, (row as any).interval_days);
-                                const daysUntil = differenceInDays(nextDate, new Date());
-                                return (
-                                  <span className={cn(
-                                    "text-[9px] font-medium",
-                                    daysUntil <= 7 ? "text-red-600" : daysUntil <= 30 ? "text-amber-600" : "text-green-600"
-                                  )}>
-                                    🔄 {format(nextDate, 'dd/MM')}
-                                  </span>
-                                );
-                              })()
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell className="py-2 px-2 hidden md:table-cell max-w-[150px] truncate text-xs">
-                          {(row as any).problem_tags && (row as any).problem_tags.length > 0 ? (
-                            <div className="flex flex-wrap gap-0.5">
-                              {(row as any).problem_tags.map((t: string) => (
-                                <span key={t} className="inline-block px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200 text-[10px]">{t}</span>
-                              ))}
-                            </div>
-                          ) : (
-                            <span className="truncate">{row.problem_description || '-'}</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="py-2 px-2 hidden lg:table-cell text-xs">{getMechanicName(row)}</TableCell>
-                        <TableCell className="py-2 px-2">{getPrioridadeBadge(row.priority)}</TableCell>
-                        <TableCell className="py-2 px-2">
-                          {getStatusBadge(row.status)}
-                        </TableCell>
-                        <TableCell className="py-2 px-2 text-xs whitespace-nowrap">
-                          {((row as any).entry_date || row.order_date) ? (
-                            <span className="font-mono">
-                              {format(new Date(((row as any).entry_date || row.order_date) + 'T12:00:00'), 'dd/MM/yy')}
-                              {(row as any).entry_time && (
-                                <span className="text-muted-foreground ml-1">{(row as any).entry_time.slice(0, 5)}</span>
-                              )}
-                            </span>
-                          ) : '-'}
-                        </TableCell>
-                        <TableCell className="py-2 px-2 hidden sm:table-cell">
-                          {downtime ? (
-                            <Badge className={cn(
-                              "font-mono text-[10px] px-1.5 py-0",
-                              isFinished 
-                                ? "bg-green-500/20 text-green-600 border-green-500/30" 
-                                : "bg-amber-500/20 text-amber-600 border-amber-500/30"
-                            )}>
-                              <Timer className="w-2.5 h-2.5 mr-0.5" />
-                              {downtime}
-                            </Badge>
-                          ) : '-'}
-                        </TableCell>
+                        {visibleColumns.map(col => (
+                          <TableCell key={col.id} className={cn("py-2 px-2", col.cellClassName)}>
+                            {cellRenderers[col.id]}
+                          </TableCell>
+                        ))}
                         <TableCell className="py-2 px-2 text-right">
                           <div className="flex items-center justify-end gap-0.5">
                             <Button
                               variant="ghost"
                               size="icon"
                               onClick={() => handleWhatsAppRelease(row)}
-                              title={row.status.toLowerCase().includes('finalizada') ? 'WhatsApp: Veículo liberado' : 'WhatsApp: Atualização'}
+                              title={isFinished ? 'WhatsApp: Veículo liberado' : 'WhatsApp: Atualização'}
                               className="h-7 w-7 text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-950/50"
                             >
                               <MessageCircle className="w-3.5 h-3.5" />
@@ -3336,6 +3420,42 @@ export function ManutencaoPage() {
               <Check className="w-4 h-4 mr-2" />
               Confirmar Finalização
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+      {/* Column Config Modal */}
+      <Dialog open={isColumnConfigOpen} onOpenChange={setIsColumnConfigOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <LayoutGrid className="w-5 h-5" />
+              Configurar Colunas
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-1 max-h-[400px] overflow-y-auto">
+            {osColumns.map((col, idx) => (
+              <div key={col.id} className="flex items-center gap-2 p-2 rounded-lg hover:bg-muted/50 border border-border">
+                <input
+                  type="checkbox"
+                  checked={col.visible}
+                  onChange={() => handleColumnToggle(col.id)}
+                  className="rounded"
+                />
+                <span className="flex-1 text-sm font-medium">{col.label}</span>
+                <div className="flex gap-0.5">
+                  <Button variant="ghost" size="icon" className="h-6 w-6" disabled={idx === 0} onClick={() => handleColumnMove(idx, 'up')}>
+                    <span className="text-xs">▲</span>
+                  </Button>
+                  <Button variant="ghost" size="icon" className="h-6 w-6" disabled={idx === osColumns.length - 1} onClick={() => handleColumnMove(idx, 'down')}>
+                    <span className="text-xs">▼</span>
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="flex justify-between pt-2 border-t">
+            <Button variant="outline" size="sm" onClick={handleResetColumns}>Restaurar Padrão</Button>
+            <Button size="sm" onClick={() => setIsColumnConfigOpen(false)}>Fechar</Button>
           </div>
         </DialogContent>
       </Dialog>
