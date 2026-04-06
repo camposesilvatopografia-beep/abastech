@@ -2267,12 +2267,22 @@ export function ManutencaoPage() {
               />
             </div>
             
+            <Select value={situacaoFilter} onValueChange={setSituacaoFilter}>
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="Situação" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="em_aberto">📂 Em Aberto</SelectItem>
+                <SelectItem value="concluido">✅ Concluído</SelectItem>
+                <SelectItem value="all">📋 Todas</SelectItem>
+              </SelectContent>
+            </Select>
+
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-40">
                 <SelectValue placeholder="Filtrar Status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="manutencao">🔧 Em Manutenção</SelectItem>
                 <SelectItem value="all">Todos os Status</SelectItem>
                 <SelectItem value="aberta">📋 Aberta</SelectItem>
                 <SelectItem value="andamento">🔧 Em Andamento</SelectItem>
