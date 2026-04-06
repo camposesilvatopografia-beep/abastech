@@ -149,7 +149,8 @@ export function ManutencaoPage() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [activeTab, setActiveTab] = useState('ordens');
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('manutencao'); // Default to show equipment in maintenance
+  const [statusFilter, setStatusFilter] = useState('all'); // Status filter
+  const [situacaoFilter, setSituacaoFilter] = useState('em_aberto'); // Situação filter - default Em Aberto
   const [companyFilter, setCompanyFilter] = useState('all'); // Company filter
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
@@ -905,12 +906,17 @@ export function ManutencaoPage() {
           String(v || '').toLowerCase().includes(search.toLowerCase())
         );
       const status = String(row.status || '').toLowerCase();
+      // Situação filter (Em Aberto vs Concluído)
+      let matchesSituacao = true;
+      if (situacaoFilter === 'em_aberto') {
+        matchesSituacao = !status.includes('finalizada');
+      } else if (situacaoFilter === 'concluido') {
+        matchesSituacao = status.includes('finalizada');
+      }
+
       // Custom status matching logic
       let matchesStatus = true;
-      if (statusFilter === 'manutencao') {
-        // Show orders in maintenance (not finished)
-        matchesStatus = !status.includes('finalizada');
-      } else if (statusFilter !== 'all') {
+      if (statusFilter !== 'all') {
         matchesStatus = status.includes(statusFilter);
       }
       
@@ -944,9 +950,9 @@ export function ManutencaoPage() {
         }
       }
       
-      return matchesSearch && matchesStatus && matchesCompany && matchesDate;
+      return matchesSearch && matchesSituacao && matchesStatus && matchesCompany && matchesDate;
     });
-  }, [orders, search, statusFilter, companyFilter, vehicleCompanyMap, startDate, endDate]);
+  }, [orders, search, situacaoFilter, statusFilter, companyFilter, vehicleCompanyMap, startDate, endDate]);
 
   // Calculate metrics
   const metrics = useMemo(() => {
@@ -2201,7 +2207,7 @@ export function ManutencaoPage() {
             subtitle="Abertas + Em andamento"
             variant="blue"
             icon={Wrench}
-            onClick={() => { setStatusFilter('manutencao'); setActiveTab('ordens'); }}
+            onClick={() => { setSituacaoFilter('em_aberto'); setStatusFilter('all'); setActiveTab('ordens'); }}
           />
           <MetricCard
             title="AGUARDANDO PEÇAS"
@@ -2209,7 +2215,7 @@ export function ManutencaoPage() {
             subtitle="Paradas"
             variant="yellow"
             icon={Clock}
-            onClick={() => { setStatusFilter('aguardando'); setActiveTab('ordens'); }}
+            onClick={() => { setSituacaoFilter('em_aberto'); setStatusFilter('aguardando'); setActiveTab('ordens'); }}
           />
           <MetricCard
             title="URGENTES"
@@ -2217,7 +2223,7 @@ export function ManutencaoPage() {
             subtitle="Prioridade alta"
             variant="red"
             icon={AlertTriangle}
-            onClick={() => { setSearch('alta'); setStatusFilter('all'); setActiveTab('ordens'); }}
+            onClick={() => { setSearch('alta'); setSituacaoFilter('all'); setStatusFilter('all'); setActiveTab('ordens'); }}
           />
           <MetricCard
             title="FINALIZADAS"
@@ -2225,7 +2231,7 @@ export function ManutencaoPage() {
             subtitle="Total no período"
             variant="green"
             icon={CheckCircle}
-            onClick={() => { setStatusFilter('finalizada'); setActiveTab('ordens'); }}
+            onClick={() => { setSituacaoFilter('concluido'); setStatusFilter('all'); setActiveTab('ordens'); }}
           />
         </div>
 
@@ -2261,12 +2267,22 @@ export function ManutencaoPage() {
               />
             </div>
             
+            <Select value={situacaoFilter} onValueChange={setSituacaoFilter}>
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="Situação" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="em_aberto">📂 Em Aberto</SelectItem>
+                <SelectItem value="concluido">✅ Concluído</SelectItem>
+                <SelectItem value="all">📋 Todas</SelectItem>
+              </SelectContent>
+            </Select>
+
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-40">
                 <SelectValue placeholder="Filtrar Status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="manutencao">🔧 Em Manutenção</SelectItem>
                 <SelectItem value="all">Todos os Status</SelectItem>
                 <SelectItem value="aberta">📋 Aberta</SelectItem>
                 <SelectItem value="andamento">🔧 Em Andamento</SelectItem>
