@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatDateBR } from '@/lib/dateBR';
 import { Edit2, Loader2, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';

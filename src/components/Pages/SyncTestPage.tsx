@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
+import { formatDateBR } from '@/lib/dateBR';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';

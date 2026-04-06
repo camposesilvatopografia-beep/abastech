@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { formatDateBR } from '@/lib/dateBR';
 import { numericInputProps } from './numericInputProps';
 import {
   Truck,
