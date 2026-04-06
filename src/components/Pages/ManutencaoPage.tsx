@@ -555,20 +555,30 @@ export function ManutencaoPage() {
     };
   };
 
-  // Find sheet row index for an order by matching vehicle code + entry date
-  const findSheetRowIndex = async (vehicleCode: string, entryDate: string | null): Promise<number> => {
+  // Find sheet row index for an order by matching order_number (IdOrdem) first, fallback to vehicle+date
+  const findSheetRowIndex = async (vehicleCode: string, entryDate: string | null, orderNumber?: string): Promise<number> => {
     try {
       const sheetData = await getSheetData(ORDEM_SERVICO_SHEET, { noCache: true });
       const rows = sheetData.rows || [];
-      const formattedDate = formatDateForSheet(entryDate);
       
+      // Try matching by IdOrdem first (most reliable)
+      if (orderNumber) {
+        const idxById = rows.findIndex((row: any) => {
+          const rowId = String(row['IdOrdem'] || row['IDORDEM'] || '').trim();
+          return rowId === orderNumber;
+        });
+        if (idxById >= 0) return idxById + 2;
+      }
+      
+      // Fallback: match by vehicle + entry date
+      const formattedDate = formatDateForSheet(entryDate);
       const idx = rows.findIndex((row: any) => {
         const rowVehicle = String(row['Veiculo'] || row['VEICULO'] || '').trim();
         const rowDate = String(row['Data_Entrada'] || row['DATA_ENTRADA'] || '').trim();
         return rowVehicle === vehicleCode && rowDate === formattedDate;
       });
       
-      return idx >= 0 ? idx + 2 : -1; // +1 header, +1 for 1-based
+      return idx >= 0 ? idx + 2 : -1;
     } catch {
       return -1;
     }
