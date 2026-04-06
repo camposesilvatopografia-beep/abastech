@@ -128,14 +128,20 @@ export function AdminServiceOrderModal({ open, onOpenChange, onSuccess }: AdminS
   };
 
   const generateOrderNumber = async (): Promise<string> => {
-    const today = new Date();
-    const prefix = `OS-${format(today, 'yyyyMMdd')}`;
-    const { count } = await supabase
+    const year = new Date().getFullYear();
+    const { data } = await supabase
       .from('service_orders')
-      .select('*', { count: 'exact', head: true })
-      .like('order_number', `${prefix}%`);
-    const seq = (count || 0) + 1;
-    return `${prefix}-${String(seq).padStart(3, '0')}`;
+      .select('order_number')
+      .like('order_number', `OS-${year}-%`)
+      .order('order_number', { ascending: false })
+      .limit(1);
+    let nextSeq = 1;
+    if (data && data.length > 0) {
+      const lastNum = data[0].order_number;
+      const match = lastNum.match(/OS-\d{4}-(\d+)/);
+      if (match) nextSeq = parseInt(match[1], 10) + 1;
+    }
+    return `OS-${year}-${String(nextSeq).padStart(5, '0')}`;
   };
 
   const handleSave = async () => {
