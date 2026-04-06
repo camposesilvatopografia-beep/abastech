@@ -575,7 +575,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
       let synced = 0;
       for (const record of pendingRecords) {
         const syncSuccess = await syncToGoogleSheets({
-          date: new Date(record.record_date).toLocaleDateString('pt-BR'),
+          date: formatDateBR(new Date(record.record_date)),
           time: record.record_time,
           recordType: (record as any).record_type || 'saida',
           vehicleCode: record.vehicle_code,
