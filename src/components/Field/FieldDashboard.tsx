@@ -638,7 +638,7 @@ export function FieldDashboard({ user, onNavigateToForm, onNavigateToFuelMenu, o
               // Some sheets may store date as yyyy-mm-dd; normalize to pt-BR when needed
               let rowDateComparable = rowDate;
               if (/^\d{4}-\d{2}-\d{2}$/.test(rowDate.toLowerCase())) {
-                rowDateComparable = new Date(`${rowDate}T00:00:00`).toLocaleDateString('pt-BR').toUpperCase();
+                rowDateComparable = formatDateBR(new Date(`${rowDate}T00:00:00`)).toUpperCase();
               }
 
               const dateMatch = rowDateComparable === recordDateBR.toUpperCase();

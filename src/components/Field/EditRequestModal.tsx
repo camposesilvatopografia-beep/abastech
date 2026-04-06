@@ -242,7 +242,7 @@ export function EditRequestModal({ record, userId, onClose, onSuccess }: EditReq
           };
 
           const newDateObj = new Date(`${updated.record_date}T00:00:00`);
-          const newDateBR = newDateObj.toLocaleDateString('pt-BR');
+          const newDateBR = formatDateBR(newDateObj);
 
           const semanticMap: Record<string, string> = {
             'DATA': newDateBR,

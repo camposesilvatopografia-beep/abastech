@@ -359,7 +359,7 @@ export function FieldComboioForm({ user, onBack }: FieldComboioFormProps) {
       if (navigator.onLine && recordId) {
         try {
           const { buildFuelSheetData } = await import('@/lib/fuelSheetMapping');
-          const dateBR = now.toLocaleDateString('pt-BR');
+          const dateBR = formatDateBR(now);
           const sheetData = buildFuelSheetData({
             id: recordId,
             date: dateBR,

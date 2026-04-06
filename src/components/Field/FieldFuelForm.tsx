@@ -1670,7 +1670,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
 
       // Get current date and time
       const now = new Date();
-      const recordDate = now.toLocaleDateString('pt-BR');
+      const recordDate = formatDateBR(now);
       const recordTime = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
       // Prepare record data - normalize record_type to remove accents for spreadsheet compatibility

@@ -226,7 +226,7 @@ export function SyncTestPage() {
       
       try {
         const sheetData = {
-          'DATA': new Date(testDate).toLocaleDateString('pt-BR'),
+          'DATA': formatDateBR(new Date(testDate)),
           'HORA': testTime.substring(0, 5),
           'VEICULO': testVehicleCode,
           'QUANTIDADE': testQuantity,
