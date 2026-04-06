@@ -202,6 +202,72 @@ export function ManutencaoPage() {
   });
   const [newStatusInput, setNewStatusInput] = useState('');
   const [isAddingStatus, setIsAddingStatus] = useState(false);
+
+  // Column configuration
+  interface OSColumn {
+    id: string;
+    label: string;
+    visible: boolean;
+    className?: string;
+    cellClassName?: string;
+  }
+
+  const DEFAULT_OS_COLUMNS: OSColumn[] = [
+    { id: 'order_number', label: 'Nº OS', visible: true },
+    { id: 'vehicle_code', label: 'Veículo', visible: true },
+    { id: 'order_type', label: 'Tipo', visible: true },
+    { id: 'problem', label: 'Problema', visible: true, className: 'hidden md:table-cell', cellClassName: 'max-w-[150px] truncate' },
+    { id: 'mechanic', label: 'Mecânico', visible: true, className: 'hidden lg:table-cell' },
+    { id: 'priority', label: 'Prioridade', visible: true },
+    { id: 'status', label: 'Status', visible: true },
+    { id: 'situacao', label: 'Situação', visible: true },
+    { id: 'entry_date', label: 'Entrada', visible: true },
+    { id: 'downtime', label: 'T. Parado', visible: true, className: 'hidden sm:table-cell' },
+  ];
+
+  const [osColumns, setOsColumns] = useState<OSColumn[]>(() => {
+    const saved = localStorage.getItem('os_column_config');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved) as OSColumn[];
+        // Merge with defaults to pick up new columns
+        const knownIds = new Set(parsed.map(c => c.id));
+        const merged = [...parsed];
+        DEFAULT_OS_COLUMNS.forEach(dc => {
+          if (!knownIds.has(dc.id)) merged.push(dc);
+        });
+        return merged;
+      } catch { return DEFAULT_OS_COLUMNS; }
+    }
+    return DEFAULT_OS_COLUMNS;
+  });
+  const [isColumnConfigOpen, setIsColumnConfigOpen] = useState(false);
+
+  const visibleColumns = useMemo(() => osColumns.filter(c => c.visible), [osColumns]);
+
+  const handleColumnToggle = (id: string) => {
+    setOsColumns(prev => {
+      const updated = prev.map(c => c.id === id ? { ...c, visible: !c.visible } : c);
+      localStorage.setItem('os_column_config', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const handleColumnMove = (idx: number, direction: 'up' | 'down') => {
+    setOsColumns(prev => {
+      const arr = [...prev];
+      const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+      if (swapIdx < 0 || swapIdx >= arr.length) return prev;
+      [arr[idx], arr[swapIdx]] = [arr[swapIdx], arr[idx]];
+      localStorage.setItem('os_column_config', JSON.stringify(arr));
+      return arr;
+    });
+  };
+
+  const handleResetColumns = () => {
+    setOsColumns(DEFAULT_OS_COLUMNS);
+    localStorage.setItem('os_column_config', JSON.stringify(DEFAULT_OS_COLUMNS));
+  };
   
   const allStatusOptions = [...DEFAULT_STATUS_OPTIONS, ...customStatuses];
   
