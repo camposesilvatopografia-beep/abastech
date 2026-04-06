@@ -139,6 +139,24 @@ interface Mechanic {
   active: boolean;
 }
 
+const normalizeStatusText = (value: string | null | undefined) =>
+  String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
+
+const isFinishedStatus = (value: string | null | undefined) => {
+  const normalized = normalizeStatusText(value);
+  return normalized.includes('finaliz') || normalized.includes('conclu');
+};
+
+const getSituationLabel = (value: string | null | undefined) =>
+  isFinishedStatus(value) ? 'Concluído' : 'Em Aberto';
+
+const normalizeVehicleKey = (value: string | null | undefined) =>
+  String(value || '').trim().toUpperCase();
+
 export function ManutencaoPage() {
   const { data: vehiclesData } = useSheetData('Veiculo');
   const { data: sheetOrdersData, refetch: refetchSheetOrders } = useGoogleSheetData(ORDEM_SERVICO_SHEET);
@@ -479,13 +497,15 @@ export function ManutencaoPage() {
         const exitDate = parseBrazilianDate(String(row['Data_Saida'] || ''));
 
         // Map status
-        const sheetStatus = String(row['Status'] || '').toLowerCase();
+        const sheetStatus = String(row['Status'] || '');
+        const sheetSituacao = String(row['Situação'] || row['Situacao'] || '');
+        const normalizedSheetStatus = normalizeStatusText(sheetStatus);
         let status = 'Aberta';
-        if (sheetStatus.includes('finalizado') || sheetStatus.includes('conclu')) {
+        if (isFinishedStatus(sheetStatus) || isFinishedStatus(sheetSituacao)) {
           status = 'Finalizada';
-        } else if (sheetStatus.includes('andamento')) {
+        } else if (normalizedSheetStatus.includes('andamento')) {
           status = 'Em Andamento';
-        } else if (sheetStatus.includes('aguardando')) {
+        } else if (normalizedSheetStatus.includes('aguardando')) {
           status = 'Aguardando Peças';
         }
 
@@ -577,7 +597,7 @@ export function ManutencaoPage() {
     end_date?: string | null;
     created_by?: string | null;
   }, company?: string): Record<string, string> => {
-    const isFinalized = order.status.includes('Finalizada');
+    const isFinalized = isFinishedStatus(order.status);
 
     // Calculate downtime (Horas_Parado)
     let horasParado = '';
@@ -971,19 +991,20 @@ export function ManutencaoPage() {
         Object.values(row).some(v => 
           String(v || '').toLowerCase().includes(search.toLowerCase())
         );
-      const status = String(row.status || '').toLowerCase();
+      const normalizedStatus = normalizeStatusText(row.status);
+      const isFinished = isFinishedStatus(row.status);
       // Situação filter (Em Aberto vs Concluído)
       let matchesSituacao = true;
       if (situacaoFilter === 'em_aberto') {
-        matchesSituacao = !status.includes('finalizada');
+        matchesSituacao = !isFinished;
       } else if (situacaoFilter === 'concluido') {
-        matchesSituacao = status.includes('finalizada');
+        matchesSituacao = isFinished;
       }
 
       // Custom status matching logic
       let matchesStatus = true;
       if (statusFilter !== 'all') {
-        matchesStatus = status.includes(statusFilter);
+        matchesStatus = normalizedStatus.includes(normalizeStatusText(statusFilter));
       }
       
       // Company filter
@@ -1022,17 +1043,19 @@ export function ManutencaoPage() {
 
   // Calculate metrics
   const metrics = useMemo(() => {
-    let emManutencao = 0;
+    const openVehicles = new Set<string>();
     let aguardandoPecas = 0;
     let urgentes = 0;
     let finalizadas = 0;
 
     filteredRows.forEach(row => {
-      const status = String(row.status || '').toLowerCase();
-      const prioridade = String(row.priority || '').toLowerCase();
+      const status = normalizeStatusText(row.status);
+      const prioridade = normalizeStatusText(row.priority);
+      const isFinished = isFinishedStatus(row.status);
 
-      if (status.includes('andamento') || status.includes('aberta')) {
-        emManutencao++;
+      if (!isFinished) {
+        const vehicleKey = normalizeVehicleKey(row.vehicle_code);
+        if (vehicleKey) openVehicles.add(vehicleKey);
       }
       if (status.includes('aguardando')) {
         aguardandoPecas++;
@@ -1040,12 +1063,12 @@ export function ManutencaoPage() {
       if (prioridade.includes('alta') || prioridade.includes('urgente')) {
         urgentes++;
       }
-      if (status.includes('finalizada') || status.includes('concluída')) {
+      if (isFinished) {
         finalizadas++;
       }
     });
 
-    return { emManutencao, aguardandoPecas, urgentes, finalizadas };
+    return { emManutencao: openVehicles.size, aguardandoPecas, urgentes, finalizadas };
   }, [filteredRows]);
 
   // Helper to resolve mechanic name from mechanic_id when mechanic_name is empty
@@ -1056,8 +1079,8 @@ export function ManutencaoPage() {
 
 
   const getStatusBadge = (status: string) => {
-    const s = status.toLowerCase();
-    if (s.includes('finalizada') || s.includes('concluída')) {
+    const s = normalizeStatusText(status);
+    if (isFinishedStatus(status)) {
       return <Badge className="bg-success/20 text-success border-success/30">✅ Finalizada</Badge>;
     }
     if (s.includes('andamento')) {
@@ -1089,7 +1112,7 @@ export function ManutencaoPage() {
 
   // Priority badge
   const getPrioridadeBadge = (prioridade: string) => {
-    const p = prioridade.toLowerCase();
+    const p = normalizeStatusText(prioridade);
     if (p.includes('alta') || p.includes('urgente')) {
       return <Badge className="bg-destructive/20 text-destructive border-destructive/30">Alta</Badge>;
     }
@@ -1240,7 +1263,7 @@ export function ManutencaoPage() {
       if (formData.exit_date) {
         const exitTimeStr = formData.exit_time || '00:00';
         endDateValue = new Date(`${formData.exit_date}T${exitTimeStr}`).toISOString();
-      } else if (formData.status.includes('Finalizada') && !editingOrder?.end_date) {
+      } else if (isFinishedStatus(formData.status) && !editingOrder?.end_date) {
         endDateValue = new Date().toISOString();
       }
       
@@ -1390,7 +1413,7 @@ export function ManutencaoPage() {
     const entryDate = (order as any).entry_date;
     const rawEntryTime = (order as any).entry_time;
     const endDate = order.end_date;
-    const isFinalized = order.status.toLowerCase().includes('finalizada');
+    const isFinalized = isFinishedStatus(order.status);
     
     if (!entryDate) return null;
     
@@ -1553,7 +1576,7 @@ export function ManutencaoPage() {
 
   // Send WhatsApp message for vehicle release
   const handleWhatsAppRelease = (order: ServiceOrder) => {
-    const isFinished = order.status.toLowerCase().includes('finalizada') || order.status.toLowerCase().includes('concluída');
+    const isFinished = isFinishedStatus(order.status);
     const downtime = calculateDowntime(order);
     
     const messageLines = [
@@ -2270,7 +2293,7 @@ export function ManutencaoPage() {
           <MetricCard
             title="EM MANUTENÇÃO"
             value={metrics.emManutencao.toString()}
-            subtitle="Abertas + Em andamento"
+            subtitle="Veículos com OS em aberto"
             variant="blue"
             icon={Wrench}
             onClick={() => { setSituacaoFilter('em_aberto'); setStatusFilter('all'); setActiveTab('ordens'); }}
@@ -2521,8 +2544,8 @@ export function ManutencaoPage() {
                 ) : (
                   filteredRows.map((row) => {
                     const downtime = calculateDowntime(row);
-                    const isFinished = row.status.toLowerCase().includes('finalizada');
-                    const situacao = isFinished ? 'Concluído' : 'Em Aberto';
+                    const isFinished = isFinishedStatus(row.status);
+                    const situacao = getSituationLabel(row.status);
                     
                     const cellRenderers: Record<string, React.ReactNode> = {
                       order_number: <span className="font-mono font-medium text-xs">{row.order_number}</span>,
