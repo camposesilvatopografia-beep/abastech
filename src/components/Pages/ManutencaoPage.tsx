@@ -616,9 +616,9 @@ export function ManutencaoPage() {
   };
 
   // Sync order deletion to Google Sheets
-  const syncOrderDeleteFromSheet = async (vehicleCode: string, entryDate: string | null) => {
+  const syncOrderDeleteFromSheet = async (vehicleCode: string, entryDate: string | null, orderNumber?: string) => {
     try {
-      const sheetRowIndex = await findSheetRowIndex(vehicleCode, entryDate);
+      const sheetRowIndex = await findSheetRowIndex(vehicleCode, entryDate, orderNumber);
       if (sheetRowIndex > 0) {
         await deleteRow(ORDEM_SERVICO_SHEET, sheetRowIndex);
         console.log('Order deleted from sheet');
