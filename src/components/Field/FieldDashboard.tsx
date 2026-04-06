@@ -579,7 +579,7 @@ export function FieldDashboard({ user, onNavigateToForm, onNavigateToFuelMenu, o
         console.log('[DELETE] Passo 2: Excluindo da planilha Google Sheets...');
         
         try {
-          const recordDateBR = new Date(`${recordToDelete.record_date}T00:00:00`).toLocaleDateString('pt-BR');
+          const recordDateBR = formatDateBR(new Date(`${recordToDelete.record_date}T00:00:00`));
           const recordTime = (recordToDelete.record_time || '').substring(0, 5);
           const vehicleCode = String(recordToDelete.vehicle_code || '').trim();
 
