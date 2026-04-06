@@ -368,7 +368,7 @@ export function SyncTestPage() {
             },
           });
 
-          const testDateBR = new Date(testDate).toLocaleDateString('pt-BR');
+           const testDateBR = formatDateBR(new Date(testDate));
           if (sheetResponse?.rows) {
             for (let i = 0; i < sheetResponse.rows.length; i++) {
               const row = sheetResponse.rows[i];
