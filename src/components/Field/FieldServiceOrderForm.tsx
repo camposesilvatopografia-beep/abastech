@@ -391,6 +391,7 @@ export function FieldServiceOrderForm({ user, onBack }: FieldServiceOrderFormPro
       const situacao = isFinalized ? 'Concluído' : 'Em aberto';
 
       const rowData: Record<string, string> = {
+        'IdOrdem': orderData.order_number || '',
         'Data': formatDateForSheet(orderData.entry_date || orderData.order_date),
         'Veiculo': orderData.vehicle_code || '',
         'Empresa': orderData.vehicle_company || form.vehicle_company || '',
