@@ -309,6 +309,9 @@ serve(async (req) => {
         } catch { /* ignore */ }
       }
 
+      // Situação: "Finalizada" if status is Finalizada, otherwise "Em aberto"
+      const situacao = isFinalized ? "Finalizada" : "Em aberto";
+
       const rowMap: Record<string, string> = {
         "IdOrdem": order.order_number || "",
         "Data": formatDate(order.entry_date || order.order_date),
@@ -327,6 +330,8 @@ serve(async (req) => {
         "Horas_Parado": isFinalized ? horasParado : "",
         "Observacao": order.notes || "",
         "Status": order.status || "",
+        "Situacao": situacao,
+        "Situação": situacao,
       };
 
       // Map to exact header positions
