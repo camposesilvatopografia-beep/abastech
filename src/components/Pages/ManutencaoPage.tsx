@@ -535,6 +535,7 @@ export function ManutencaoPage() {
     const situacao = isFinalized ? 'Concluído' : 'Em aberto';
 
     return {
+      'IdOrdem': order.order_number || '',
       'Data': formatDateForSheet(order.entry_date || order.order_date),
       'Veiculo': order.vehicle_code,
       'Empresa': company || '',
