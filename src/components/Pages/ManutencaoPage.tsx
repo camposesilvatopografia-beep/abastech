@@ -2421,31 +2421,34 @@ export function ManutencaoPage() {
         {/* Table */}
         {activeTab === 'ordens' && (
           <div className="bg-card rounded-lg border border-border overflow-hidden">
+            {/* Column config button */}
+            <div className="flex justify-end p-2 border-b border-border">
+              <Button variant="outline" size="sm" onClick={() => setIsColumnConfigOpen(true)} className="text-xs gap-1">
+                <LayoutGrid className="w-3.5 h-3.5" />
+                Colunas
+              </Button>
+            </div>
             <Table className="text-xs">
               <TableHeader>
                 <TableRow className="bg-muted/50">
-                  <TableHead className="py-2 px-2 whitespace-nowrap">Nº OS</TableHead>
-                  <TableHead className="py-2 px-2 whitespace-nowrap">Veículo</TableHead>
-                  <TableHead className="py-2 px-2 whitespace-nowrap">Tipo</TableHead>
-                  <TableHead className="py-2 px-2 hidden md:table-cell">Problema</TableHead>
-                  <TableHead className="py-2 px-2 hidden lg:table-cell whitespace-nowrap">Mecânico</TableHead>
-                  <TableHead className="py-2 px-2 whitespace-nowrap">Prioridade</TableHead>
-                  <TableHead className="py-2 px-2 whitespace-nowrap">Status</TableHead>
-                  <TableHead className="py-2 px-2 whitespace-nowrap">Entrada</TableHead>
-                  <TableHead className="py-2 px-2 hidden sm:table-cell whitespace-nowrap">T. Parado</TableHead>
+                  {visibleColumns.map(col => (
+                    <TableHead key={col.id} className={cn("py-2 px-2 whitespace-nowrap", col.className)}>
+                      {col.label}
+                    </TableHead>
+                  ))}
                   <TableHead className="py-2 px-2 text-right whitespace-nowrap">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={10} className="text-center py-8">
+                    <TableCell colSpan={visibleColumns.length + 1} className="text-center py-8">
                       <RefreshCw className="w-6 h-6 animate-spin mx-auto text-muted-foreground" />
                     </TableCell>
                   </TableRow>
                 ) : filteredRows.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={visibleColumns.length + 1} className="text-center py-8 text-muted-foreground">
                       Nenhuma ordem de serviço encontrada
                     </TableCell>
                   </TableRow>
@@ -2453,79 +2456,94 @@ export function ManutencaoPage() {
                   filteredRows.map((row) => {
                     const downtime = calculateDowntime(row);
                     const isFinished = row.status.toLowerCase().includes('finalizada');
+                    const situacao = isFinished ? 'Concluído' : 'Em Aberto';
                     
+                    const cellRenderers: Record<string, React.ReactNode> = {
+                      order_number: <span className="font-mono font-medium text-xs">{row.order_number}</span>,
+                      vehicle_code: <span className="font-medium text-xs">{row.vehicle_code}</span>,
+                      order_type: (
+                        <div className="flex flex-col gap-0.5">
+                          <Badge variant={row.order_type === 'Preventiva' ? 'default' : 'secondary'} className="text-[10px] px-1.5 py-0">
+                            {row.order_type === 'Preventiva' ? 'Prev.' : 'Corr.'}
+                          </Badge>
+                          {row.order_type === 'Preventiva' && isFinished && (row as any).interval_days && (
+                            (() => {
+                              const ed = row.end_date ? new Date(row.end_date) : new Date(row.order_date);
+                              const nextDate = addDays(ed, (row as any).interval_days);
+                              const daysUntil = differenceInDays(nextDate, new Date());
+                              return (
+                                <span className={cn(
+                                  "text-[9px] font-medium",
+                                  daysUntil <= 7 ? "text-red-600" : daysUntil <= 30 ? "text-amber-600" : "text-green-600"
+                                )}>
+                                  🔄 {format(nextDate, 'dd/MM')}
+                                </span>
+                              );
+                            })()
+                          )}
+                        </div>
+                      ),
+                      problem: (
+                        (row as any).problem_tags && (row as any).problem_tags.length > 0 ? (
+                          <div className="flex flex-wrap gap-0.5">
+                            {(row as any).problem_tags.map((t: string) => (
+                              <span key={t} className="inline-block px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200 text-[10px]">{t}</span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="truncate">{row.problem_description || '-'}</span>
+                        )
+                      ),
+                      mechanic: <span className="text-xs">{getMechanicName(row)}</span>,
+                      priority: getPrioridadeBadge(row.priority),
+                      status: getStatusBadge(row.status),
+                      situacao: (
+                        <Badge className={cn(
+                          "text-[10px] px-1.5 py-0",
+                          isFinished
+                            ? "bg-green-500/20 text-green-600 border-green-500/30"
+                            : "bg-blue-500/20 text-blue-600 border-blue-500/30"
+                        )}>
+                          {situacao}
+                        </Badge>
+                      ),
+                      entry_date: (
+                        ((row as any).entry_date || row.order_date) ? (
+                          <span className="font-mono">
+                            {format(new Date(((row as any).entry_date || row.order_date) + 'T12:00:00'), 'dd/MM/yy')}
+                            {(row as any).entry_time && (
+                              <span className="text-muted-foreground ml-1">{(row as any).entry_time.slice(0, 5)}</span>
+                            )}
+                          </span>
+                        ) : '-'
+                      ),
+                      downtime: downtime ? (
+                        <Badge className={cn(
+                          "font-mono text-[10px] px-1.5 py-0",
+                          isFinished 
+                            ? "bg-green-500/20 text-green-600 border-green-500/30" 
+                            : "bg-amber-500/20 text-amber-600 border-amber-500/30"
+                        )}>
+                          <Timer className="w-2.5 h-2.5 mr-0.5" />
+                          {downtime}
+                        </Badge>
+                      ) : '-',
+                    };
+
                     return (
                       <TableRow key={row.id} className="hover:bg-muted/30">
-                        <TableCell className="py-2 px-2 font-mono font-medium text-xs">{row.order_number}</TableCell>
-                        <TableCell className="py-2 px-2 font-medium text-xs">{row.vehicle_code}</TableCell>
-                        <TableCell className="py-2 px-2">
-                          <div className="flex flex-col gap-0.5">
-                            <Badge variant={row.order_type === 'Preventiva' ? 'default' : 'secondary'} className="text-[10px] px-1.5 py-0">
-                              {row.order_type === 'Preventiva' ? 'Prev.' : 'Corr.'}
-                            </Badge>
-                            {row.order_type === 'Preventiva' && isFinished && (row as any).interval_days && (
-                              (() => {
-                                const endDate = row.end_date ? new Date(row.end_date) : new Date(row.order_date);
-                                const nextDate = addDays(endDate, (row as any).interval_days);
-                                const daysUntil = differenceInDays(nextDate, new Date());
-                                return (
-                                  <span className={cn(
-                                    "text-[9px] font-medium",
-                                    daysUntil <= 7 ? "text-red-600" : daysUntil <= 30 ? "text-amber-600" : "text-green-600"
-                                  )}>
-                                    🔄 {format(nextDate, 'dd/MM')}
-                                  </span>
-                                );
-                              })()
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell className="py-2 px-2 hidden md:table-cell max-w-[150px] truncate text-xs">
-                          {(row as any).problem_tags && (row as any).problem_tags.length > 0 ? (
-                            <div className="flex flex-wrap gap-0.5">
-                              {(row as any).problem_tags.map((t: string) => (
-                                <span key={t} className="inline-block px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200 text-[10px]">{t}</span>
-                              ))}
-                            </div>
-                          ) : (
-                            <span className="truncate">{row.problem_description || '-'}</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="py-2 px-2 hidden lg:table-cell text-xs">{getMechanicName(row)}</TableCell>
-                        <TableCell className="py-2 px-2">{getPrioridadeBadge(row.priority)}</TableCell>
-                        <TableCell className="py-2 px-2">
-                          {getStatusBadge(row.status)}
-                        </TableCell>
-                        <TableCell className="py-2 px-2 text-xs whitespace-nowrap">
-                          {((row as any).entry_date || row.order_date) ? (
-                            <span className="font-mono">
-                              {format(new Date(((row as any).entry_date || row.order_date) + 'T12:00:00'), 'dd/MM/yy')}
-                              {(row as any).entry_time && (
-                                <span className="text-muted-foreground ml-1">{(row as any).entry_time.slice(0, 5)}</span>
-                              )}
-                            </span>
-                          ) : '-'}
-                        </TableCell>
-                        <TableCell className="py-2 px-2 hidden sm:table-cell">
-                          {downtime ? (
-                            <Badge className={cn(
-                              "font-mono text-[10px] px-1.5 py-0",
-                              isFinished 
-                                ? "bg-green-500/20 text-green-600 border-green-500/30" 
-                                : "bg-amber-500/20 text-amber-600 border-amber-500/30"
-                            )}>
-                              <Timer className="w-2.5 h-2.5 mr-0.5" />
-                              {downtime}
-                            </Badge>
-                          ) : '-'}
-                        </TableCell>
+                        {visibleColumns.map(col => (
+                          <TableCell key={col.id} className={cn("py-2 px-2", col.cellClassName)}>
+                            {cellRenderers[col.id]}
+                          </TableCell>
+                        ))}
                         <TableCell className="py-2 px-2 text-right">
                           <div className="flex items-center justify-end gap-0.5">
                             <Button
                               variant="ghost"
                               size="icon"
                               onClick={() => handleWhatsAppRelease(row)}
-                              title={row.status.toLowerCase().includes('finalizada') ? 'WhatsApp: Veículo liberado' : 'WhatsApp: Atualização'}
+                              title={isFinished ? 'WhatsApp: Veículo liberado' : 'WhatsApp: Atualização'}
                               className="h-7 w-7 text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-950/50"
                             >
                               <MessageCircle className="w-3.5 h-3.5" />
