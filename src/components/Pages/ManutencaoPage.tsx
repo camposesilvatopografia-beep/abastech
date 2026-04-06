@@ -3423,6 +3423,42 @@ export function ManutencaoPage() {
           </div>
         </DialogContent>
       </Dialog>
+      {/* Column Config Modal */}
+      <Dialog open={isColumnConfigOpen} onOpenChange={setIsColumnConfigOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <LayoutGrid className="w-5 h-5" />
+              Configurar Colunas
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-1 max-h-[400px] overflow-y-auto">
+            {osColumns.map((col, idx) => (
+              <div key={col.id} className="flex items-center gap-2 p-2 rounded-lg hover:bg-muted/50 border border-border">
+                <input
+                  type="checkbox"
+                  checked={col.visible}
+                  onChange={() => handleColumnToggle(col.id)}
+                  className="rounded"
+                />
+                <span className="flex-1 text-sm font-medium">{col.label}</span>
+                <div className="flex gap-0.5">
+                  <Button variant="ghost" size="icon" className="h-6 w-6" disabled={idx === 0} onClick={() => handleColumnMove(idx, 'up')}>
+                    <span className="text-xs">▲</span>
+                  </Button>
+                  <Button variant="ghost" size="icon" className="h-6 w-6" disabled={idx === osColumns.length - 1} onClick={() => handleColumnMove(idx, 'down')}>
+                    <span className="text-xs">▼</span>
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="flex justify-between pt-2 border-t">
+            <Button variant="outline" size="sm" onClick={handleResetColumns}>Restaurar Padrão</Button>
+            <Button size="sm" onClick={() => setIsColumnConfigOpen(false)}>Fechar</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
