@@ -388,7 +388,7 @@ export function FieldServiceOrderForm({ user, onBack }: FieldServiceOrderFormPro
         } catch { /* ignore */ }
       }
 
-      const situacao = isFinalized ? 'Finalizada' : 'Em aberto';
+      const situacao = isFinalized ? 'Concluído' : 'Em aberto';
 
       const rowData: Record<string, string> = {
         'Data': formatDateForSheet(orderData.entry_date || orderData.order_date),

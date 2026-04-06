@@ -309,8 +309,8 @@ serve(async (req) => {
         } catch { /* ignore */ }
       }
 
-      // Situação: "Finalizada" if status is Finalizada, otherwise "Em aberto"
-      const situacao = isFinalized ? "Finalizada" : "Em aberto";
+      // Situação: "Concluído" if status is Finalizada, otherwise "Em aberto"
+      const situacao = isFinalized ? "Concluído" : "Em aberto";
 
       const rowMap: Record<string, string> = {
         "IdOrdem": order.order_number || "",
