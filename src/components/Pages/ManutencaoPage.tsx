@@ -906,12 +906,17 @@ export function ManutencaoPage() {
           String(v || '').toLowerCase().includes(search.toLowerCase())
         );
       const status = String(row.status || '').toLowerCase();
+      // Situação filter (Em Aberto vs Concluído)
+      let matchesSituacao = true;
+      if (situacaoFilter === 'em_aberto') {
+        matchesSituacao = !status.includes('finalizada');
+      } else if (situacaoFilter === 'concluido') {
+        matchesSituacao = status.includes('finalizada');
+      }
+
       // Custom status matching logic
       let matchesStatus = true;
-      if (statusFilter === 'manutencao') {
-        // Show orders in maintenance (not finished)
-        matchesStatus = !status.includes('finalizada');
-      } else if (statusFilter !== 'all') {
+      if (statusFilter !== 'all') {
         matchesStatus = status.includes(statusFilter);
       }
       
