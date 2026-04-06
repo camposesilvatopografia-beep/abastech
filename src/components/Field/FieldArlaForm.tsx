@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { formatDateBR } from '@/lib/dateBR';
 import { numericInputProps } from './numericInputProps';
 import {
   Camera,
@@ -207,7 +208,7 @@ export function FieldArlaForm({ user, onBack }: FieldArlaFormProps) {
       if (navigator.onLine && recordId) {
         try {
           const { buildFuelSheetData } = await import('@/lib/fuelSheetMapping');
-          const dateBR = now.toLocaleDateString('pt-BR');
+          const dateBR = formatDateBR(now);
           const sheetData = buildFuelSheetData({
             id: recordId,
             date: dateBR,

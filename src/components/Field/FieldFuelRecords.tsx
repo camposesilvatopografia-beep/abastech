@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { formatDateBR } from '@/lib/dateBR';
 import {
   ArrowLeft,
   Calendar,
@@ -179,7 +180,7 @@ export function FieldFuelRecords({ user, onBack }: FieldFuelRecordsProps) {
       // First try to delete from the Google Sheet
       try {
         const recordDate = new Date(`${deletingRecord.record_date}T00:00:00`);
-        const dateBR = recordDate.toLocaleDateString('pt-BR');
+        const dateBR = formatDateBR(recordDate);
         const timeShort = deletingRecord.record_time?.substring(0, 5) || '';
         const recordVehicle = deletingRecord.vehicle_code.toUpperCase().replace(/\s/g, '');
         const recordQty = deletingRecord.fuel_quantity;

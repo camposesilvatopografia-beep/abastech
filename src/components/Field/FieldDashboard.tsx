@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { formatDateBR } from '@/lib/dateBR';
 import { 
   Fuel, 
   TrendingUp, 
@@ -579,7 +580,7 @@ export function FieldDashboard({ user, onNavigateToForm, onNavigateToFuelMenu, o
         console.log('[DELETE] Passo 2: Excluindo da planilha Google Sheets...');
         
         try {
-          const recordDateBR = new Date(`${recordToDelete.record_date}T00:00:00`).toLocaleDateString('pt-BR');
+          const recordDateBR = formatDateBR(new Date(`${recordToDelete.record_date}T00:00:00`));
           const recordTime = (recordToDelete.record_time || '').substring(0, 5);
           const vehicleCode = String(recordToDelete.vehicle_code || '').trim();
 
@@ -638,7 +639,7 @@ export function FieldDashboard({ user, onNavigateToForm, onNavigateToFuelMenu, o
               // Some sheets may store date as yyyy-mm-dd; normalize to pt-BR when needed
               let rowDateComparable = rowDate;
               if (/^\d{4}-\d{2}-\d{2}$/.test(rowDate.toLowerCase())) {
-                rowDateComparable = new Date(`${rowDate}T00:00:00`).toLocaleDateString('pt-BR').toUpperCase();
+                rowDateComparable = formatDateBR(new Date(`${rowDate}T00:00:00`)).toUpperCase();
               }
 
               const dateMatch = rowDateComparable === recordDateBR.toUpperCase();

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { formatDateBR } from '@/lib/dateBR';
 import { numericInputProps } from './numericInputProps';
 import { 
   Fuel, 
@@ -575,7 +576,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
       let synced = 0;
       for (const record of pendingRecords) {
         const syncSuccess = await syncToGoogleSheets({
-          date: new Date(record.record_date).toLocaleDateString('pt-BR'),
+          date: formatDateBR(new Date(record.record_date)),
           time: record.record_time,
           recordType: (record as any).record_type || 'saida',
           vehicleCode: record.vehicle_code,
@@ -1670,7 +1671,7 @@ export function FieldFuelForm({ user, onLogout, onBack }: FieldFuelFormProps) {
 
       // Get current date and time
       const now = new Date();
-      const recordDate = now.toLocaleDateString('pt-BR');
+      const recordDate = formatDateBR(now);
       const recordTime = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
       // Prepare record data - normalize record_type to remove accents for spreadsheet compatibility

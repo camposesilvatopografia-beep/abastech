@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
+import { formatDateBR } from '@/lib/dateBR';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -226,7 +227,7 @@ export function SyncTestPage() {
       
       try {
         const sheetData = {
-          'DATA': new Date(testDate).toLocaleDateString('pt-BR'),
+          'DATA': formatDateBR(new Date(testDate)),
           'HORA': testTime.substring(0, 5),
           'VEICULO': testVehicleCode,
           'QUANTIDADE': testQuantity,
@@ -282,7 +283,7 @@ export function SyncTestPage() {
 
         if (readError) throw readError;
 
-        const testDateBR = new Date(testDate).toLocaleDateString('pt-BR');
+        const testDateBR = formatDateBR(new Date(testDate));
         const foundRow = sheetResponse?.rows?.find((row: any) => {
           const rowVehicle = String(row['VEICULO'] ?? row['Veiculo'] ?? '').trim().toUpperCase();
           const rowDate = String(row['DATA'] ?? row['Data'] ?? '').trim();
@@ -367,7 +368,7 @@ export function SyncTestPage() {
             },
           });
 
-          const testDateBR = new Date(testDate).toLocaleDateString('pt-BR');
+           const testDateBR = formatDateBR(new Date(testDate));
           if (sheetResponse?.rows) {
             for (let i = 0; i < sheetResponse.rows.length; i++) {
               const row = sheetResponse.rows[i];
@@ -437,7 +438,7 @@ export function SyncTestPage() {
           },
         });
 
-        const testDateBR = new Date(testDate).toLocaleDateString('pt-BR');
+        const testDateBR = formatDateBR(new Date(testDate));
         const stillInSheet = sheetCheck?.rows?.some((row: any) => {
           const rowVehicle = String(row['VEICULO'] ?? row['Veiculo'] ?? '').trim().toUpperCase();
           const rowDate = String(row['DATA'] ?? row['Data'] ?? '').trim();
