@@ -202,7 +202,7 @@ export function EditRequestModal({ record, userId, onClose, onSuccess }: EditReq
   const syncEditToSheet = async (original: FullRecordData, updated: Record<string, any>) => {
     const sheetsToSearch = ['AbastecimentoCanteiro01'];
     const recordDateObj = new Date(`${original.record_date}T00:00:00`);
-    const dateBR = recordDateObj.toLocaleDateString('pt-BR');
+    const dateBR = formatDateBR(recordDateObj);
     const originalVehicle = original.vehicle_code.toUpperCase().replace(/\s/g, '');
     const originalQty = original.fuel_quantity;
 
