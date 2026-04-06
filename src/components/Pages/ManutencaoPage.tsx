@@ -950,9 +950,9 @@ export function ManutencaoPage() {
         }
       }
       
-      return matchesSearch && matchesStatus && matchesCompany && matchesDate;
+      return matchesSearch && matchesSituacao && matchesStatus && matchesCompany && matchesDate;
     });
-  }, [orders, search, statusFilter, companyFilter, vehicleCompanyMap, startDate, endDate]);
+  }, [orders, search, situacaoFilter, statusFilter, companyFilter, vehicleCompanyMap, startDate, endDate]);
 
   // Calculate metrics
   const metrics = useMemo(() => {
