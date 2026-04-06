@@ -535,6 +535,7 @@ export function ManutencaoPage() {
     const situacao = isFinalized ? 'Concluído' : 'Em aberto';
 
     return {
+      'IdOrdem': order.order_number || '',
       'Data': formatDateForSheet(order.entry_date || order.order_date),
       'Veiculo': order.vehicle_code,
       'Empresa': company || '',
@@ -555,20 +556,30 @@ export function ManutencaoPage() {
     };
   };
 
-  // Find sheet row index for an order by matching vehicle code + entry date
-  const findSheetRowIndex = async (vehicleCode: string, entryDate: string | null): Promise<number> => {
+  // Find sheet row index for an order by matching order_number (IdOrdem) first, fallback to vehicle+date
+  const findSheetRowIndex = async (vehicleCode: string, entryDate: string | null, orderNumber?: string): Promise<number> => {
     try {
       const sheetData = await getSheetData(ORDEM_SERVICO_SHEET, { noCache: true });
       const rows = sheetData.rows || [];
-      const formattedDate = formatDateForSheet(entryDate);
       
+      // Try matching by IdOrdem first (most reliable)
+      if (orderNumber) {
+        const idxById = rows.findIndex((row: any) => {
+          const rowId = String(row['IdOrdem'] || row['IDORDEM'] || '').trim();
+          return rowId === orderNumber;
+        });
+        if (idxById >= 0) return idxById + 2;
+      }
+      
+      // Fallback: match by vehicle + entry date
+      const formattedDate = formatDateForSheet(entryDate);
       const idx = rows.findIndex((row: any) => {
         const rowVehicle = String(row['Veiculo'] || row['VEICULO'] || '').trim();
         const rowDate = String(row['Data_Entrada'] || row['DATA_ENTRADA'] || '').trim();
         return rowVehicle === vehicleCode && rowDate === formattedDate;
       });
       
-      return idx >= 0 ? idx + 2 : -1; // +1 header, +1 for 1-based
+      return idx >= 0 ? idx + 2 : -1;
     } catch {
       return -1;
     }
@@ -589,7 +600,7 @@ export function ManutencaoPage() {
   const syncOrderToSheetUpdate = async (order: Parameters<typeof buildSheetRowData>[0], company?: string, oldEntryDate?: string | null) => {
     try {
       const rowData = buildSheetRowData(order, company);
-      const sheetRowIndex = await findSheetRowIndex(order.vehicle_code, oldEntryDate || order.entry_date);
+      const sheetRowIndex = await findSheetRowIndex(order.vehicle_code, oldEntryDate || order.entry_date, order.order_number);
       
       if (sheetRowIndex > 0) {
         await updateRow(ORDEM_SERVICO_SHEET, sheetRowIndex, rowData);
@@ -605,9 +616,9 @@ export function ManutencaoPage() {
   };
 
   // Sync order deletion to Google Sheets
-  const syncOrderDeleteFromSheet = async (vehicleCode: string, entryDate: string | null) => {
+  const syncOrderDeleteFromSheet = async (vehicleCode: string, entryDate: string | null, orderNumber?: string) => {
     try {
-      const sheetRowIndex = await findSheetRowIndex(vehicleCode, entryDate);
+      const sheetRowIndex = await findSheetRowIndex(vehicleCode, entryDate, orderNumber);
       if (sheetRowIndex > 0) {
         await deleteRow(ORDEM_SERVICO_SHEET, sheetRowIndex);
         console.log('Order deleted from sheet');
@@ -1290,7 +1301,7 @@ export function ManutencaoPage() {
       if (error) throw error;
       
       // Sync deletion to Google Sheets
-      syncOrderDeleteFromSheet(order.vehicle_code, (order as any).entry_date || order.order_date);
+      syncOrderDeleteFromSheet(order.vehicle_code, (order as any).entry_date || order.order_date, order.order_number);
       
       toast.success('Ordem de serviço excluída!');
       broadcast('service_order_updated');
