@@ -226,6 +226,8 @@ serve(async (req) => {
     let updated = 0;
     const sheetKeys = new Set<string>();
     const idsToDelete = new Set<string>();
+    const toUpdate: { id: string; payload: any }[] = [];
+    const toInsert: any[] = [];
 
     for (const row of usableRows) {
       const orderNumber = normalizeOrderNumber(String(row["IdOrdem"] || ""));
@@ -271,14 +273,27 @@ serve(async (req) => {
       };
 
       if (preferred?.id) {
-        const { error } = await supabase.from("service_orders").update(payload).eq("id", preferred.id);
-        if (error) throw error;
-        updated++;
+        toUpdate.push({ id: preferred.id, payload });
       } else {
-        const { error } = await supabase.from("service_orders").insert(payload);
-        if (error) throw error;
-        inserted++;
+        toInsert.push(payload);
       }
+    }
+
+    // Batch updates (50 at a time)
+    for (let i = 0; i < toUpdate.length; i += 50) {
+      const chunk = toUpdate.slice(i, i + 50);
+      await Promise.all(chunk.map(({ id, payload }) =>
+        supabase.from("service_orders").update(payload).eq("id", id).then(({ error }) => { if (error) throw error; })
+      ));
+      updated += chunk.length;
+    }
+
+    // Batch inserts
+    for (let i = 0; i < toInsert.length; i += 200) {
+      const chunk = toInsert.slice(i, i + 200);
+      const { error } = await supabase.from("service_orders").insert(chunk);
+      if (error) throw error;
+      inserted += chunk.length;
     }
 
     if (pruneMissing) {
