@@ -157,6 +157,43 @@ const getSituationLabel = (value: string | null | undefined) =>
 const normalizeVehicleKey = (value: string | null | undefined) =>
   String(value || '').trim().toUpperCase();
 
+const normalizeOrderNumberKey = (value: string | null | undefined) =>
+  String(value || '')
+    .trim()
+    .toUpperCase()
+    .replace(/^OS-HIST-/i, '');
+
+const mapSheetOrderStatus = (
+  status: string | null | undefined,
+  situacao?: string | null | undefined,
+) => {
+  const normalizedStatus = normalizeStatusText(status);
+
+  if (isFinishedStatus(situacao) || isFinishedStatus(status)) {
+    return 'Finalizada';
+  }
+  if (normalizedStatus.includes('andamento')) {
+    return 'Em Andamento';
+  }
+  if (normalizedStatus.includes('aguardando') && normalizedStatus.includes('aprov')) {
+    return 'Aguardando Aprovação';
+  }
+  if (normalizedStatus.includes('aguardando')) {
+    return 'Aguardando Peças';
+  }
+  if (normalizedStatus.includes('orcamento')) {
+    return 'Em Orçamento';
+  }
+  if (normalizedStatus.includes('pausada')) {
+    return 'Pausada';
+  }
+  if (normalizedStatus.includes('cancelada')) {
+    return 'Cancelada';
+  }
+
+  return 'Aberta';
+};
+
 export function ManutencaoPage() {
   const { data: vehiclesData } = useSheetData('Veiculo');
   const { data: sheetOrdersData, refetch: refetchSheetOrders } = useGoogleSheetData(ORDEM_SERVICO_SHEET);
@@ -349,7 +386,7 @@ export function ManutencaoPage() {
   });
 
   // Fetch service orders — paginate to avoid silent 1000-row limit
-  const fetchOrders = async () => {
+  const fetchOrders = useCallback(async () => {
     setLoading(true);
     try {
       const allOrders: ServiceOrder[] = [];
@@ -382,10 +419,10 @@ export function ManutencaoPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   // Fetch mechanics (include inactive for name resolution)
-  const fetchMechanics = async () => {
+  const fetchMechanics = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('mechanics')
@@ -397,18 +434,22 @@ export function ManutencaoPage() {
     } catch (err) {
       console.error('Error fetching mechanics:', err);
     }
-  };
+  }, []);
+
+  const refreshAll = useCallback(async () => {
+    await Promise.all([fetchOrders(), refetchSheetOrders(true, true)]);
+  }, [fetchOrders, refetchSheetOrders]);
 
   useEffect(() => {
-    fetchOrders();
+    refreshAll();
     fetchMechanics();
-  }, []);
+  }, [refreshAll, fetchMechanics]);
 
   // Real-time subscription for service orders (broadcast + postgres changes)
   const { broadcast } = useRealtimeSync({
     onSyncEvent: (event) => {
       if (['service_order_updated'].includes(event.type)) {
-        fetchOrders();
+        void refreshAll();
       }
     },
   });
@@ -425,7 +466,7 @@ export function ManutencaoPage() {
         },
         (payload) => {
           console.log('Real-time update:', payload);
-          fetchOrders();
+          void refreshAll();
         }
       )
       .subscribe();
@@ -433,7 +474,31 @@ export function ManutencaoPage() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [refreshAll]);
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        void refreshAll();
+      }
+    };
+
+    const handleWindowRefresh = () => {
+      void refreshAll();
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleWindowRefresh);
+    window.addEventListener('online', handleWindowRefresh);
+    window.addEventListener('pageshow', handleWindowRefresh);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleWindowRefresh);
+      window.removeEventListener('online', handleWindowRefresh);
+      window.removeEventListener('pageshow', handleWindowRefresh);
+    };
+  }, [refreshAll]);
 
   // Parse date from Brazilian format (dd/MM/yyyy)
   const parseBrazilianDate = (dateStr: string): string | null => {
@@ -464,30 +529,35 @@ export function ManutencaoPage() {
 
     setIsSyncing(true);
     let imported = 0;
+    let updated = 0;
     let skipped = 0;
     let errors = 0;
 
     try {
-      // Get existing order IDs to avoid duplicates
+      // Get existing order IDs for upsert using IdOrdem as the canonical key
       const { data: existingOrders } = await supabase
         .from('service_orders')
-        .select('order_number');
-      
-      const existingNumbers = new Set((existingOrders || []).map(o => o.order_number));
+        .select('id, order_number');
+
+      const existingOrdersMap = new Map<string, { id: string; order_number: string }>();
+      (existingOrders || []).forEach((order) => {
+        const key = normalizeOrderNumberKey(order.order_number);
+        if (!key) return;
+
+        const current = existingOrdersMap.get(key);
+        const isLegacy = order.order_number.startsWith('OS-HIST-');
+
+        if (!current || (current.order_number.startsWith('OS-HIST-') && !isLegacy)) {
+          existingOrdersMap.set(key, order);
+        }
+      });
 
       for (const row of sheetOrdersData.rows) {
-        const idOrdem = String(row['IdOrdem'] || '');
+        const idOrdem = normalizeOrderNumberKey(String(row['IdOrdem'] || ''));
         const vehicleCode = String(row['Veiculo'] || '').trim();
-        const orderNumber = `OS-HIST-${idOrdem}`;
+        const orderNumber = idOrdem;
         
-        // Skip rows without vehicle code
-        if (!vehicleCode) {
-          skipped++;
-          continue;
-        }
-        
-        // Skip if already imported
-        if (existingNumbers.has(orderNumber)) {
+        if (!orderNumber || !vehicleCode) {
           skipped++;
           continue;
         }
@@ -496,50 +566,54 @@ export function ManutencaoPage() {
         const entryDate = parseBrazilianDate(String(row['Data_Entrada'] || ''));
         const exitDate = parseBrazilianDate(String(row['Data_Saida'] || ''));
 
-        // Map status
         const sheetStatus = String(row['Status'] || '');
         const sheetSituacao = String(row['Situação'] || row['Situacao'] || '');
-        const normalizedSheetStatus = normalizeStatusText(sheetStatus);
-        let status = 'Aberta';
-        if (isFinishedStatus(sheetStatus) || isFinishedStatus(sheetSituacao)) {
-          status = 'Finalizada';
-        } else if (normalizedSheetStatus.includes('andamento')) {
-          status = 'Em Andamento';
-        } else if (normalizedSheetStatus.includes('aguardando')) {
-          status = 'Aguardando Peças';
-        }
+        const status = mapSheetOrderStatus(sheetStatus, sheetSituacao);
 
-        // Determine order type
         const problema = String(row['Problema'] || '').toLowerCase();
         const orderType = problema.includes('preventiva') ? 'Preventiva' : 'Corretiva';
 
+        const payload = {
+          order_number: orderNumber,
+          order_date: orderDate || entryDate || new Date().toISOString().split('T')[0],
+          vehicle_code: vehicleCode,
+          vehicle_description: String(row['Potencia'] || '') || null,
+          order_type: orderType,
+          priority: 'Média',
+          status,
+          problem_description: String(row['Problema'] || '') || null,
+          solution_description: String(row['Servico'] || '') || null,
+          mechanic_name: String(row['Mecanico'] || '') || null,
+          notes: String(row['Observacao'] || '') || null,
+          entry_date: entryDate,
+          entry_time: String(row['Hora_Entrada'] || '').substring(0, 5) || null,
+          start_date: entryDate ? `${entryDate}T${String(row['Hora_Entrada'] || '00:00').substring(0, 5)}:00` : null,
+          end_date: exitDate && status === 'Finalizada' ? `${exitDate}T${String(row['Hora_Saida'] || '00:00').substring(0, 5)}:00` : null,
+          created_by: String(row['Motorista'] || '') || null,
+        };
+
+        const existingOrder = existingOrdersMap.get(orderNumber);
+
         try {
-          const { error } = await supabase
-            .from('service_orders')
-            .insert({
-              order_number: orderNumber,
-              order_date: orderDate || new Date().toISOString().split('T')[0],
-              vehicle_code: vehicleCode,
-              vehicle_description: String(row['Potencia'] || ''),
-              order_type: orderType,
-              priority: 'Média',
-              status: status,
-              problem_description: String(row['Problema'] || ''),
-              solution_description: String(row['Servico'] || '') || null,
-              mechanic_name: String(row['Mecanico'] || '') || null,
-              notes: String(row['Observacao'] || '') || null,
-              entry_date: entryDate,
-              entry_time: String(row['Hora_Entrada'] || '').substring(0, 5) || null,
-              start_date: entryDate ? `${entryDate}T${String(row['Hora_Entrada'] || '00:00').substring(0, 5)}:00` : null,
-              end_date: exitDate && status === 'Finalizada' ? `${exitDate}T${String(row['Hora_Saida'] || '00:00').substring(0, 5)}:00` : null,
-              created_by: String(row['Motorista'] || '') || null,
-            });
+          const query = existingOrder
+            ? supabase
+                .from('service_orders')
+                .update(payload)
+                .eq('id', existingOrder.id)
+            : supabase
+                .from('service_orders')
+                .insert(payload);
+
+          const { error } = await query;
 
           if (error) {
             console.error('Error importing row:', error);
             errors++;
+          } else if (existingOrder) {
+            updated++;
           } else {
             imported++;
+            existingOrdersMap.set(orderNumber, { id: '', order_number: orderNumber });
           }
         } catch (err) {
           console.error('Error importing row:', err);
@@ -547,8 +621,8 @@ export function ManutencaoPage() {
         }
       }
 
-      toast.success(`Importação concluída: ${imported} novos, ${skipped} já existentes, ${errors} erros`);
-      fetchOrders();
+      toast.success(`Importação concluída: ${imported} novos, ${updated} atualizados, ${skipped} ignorados, ${errors} erros`);
+      await refreshAll();
     } catch (err) {
       console.error('Error during import:', err);
       toast.error('Erro durante importação');
@@ -622,7 +696,7 @@ export function ManutencaoPage() {
     const situacao = isFinalized ? 'Concluído' : 'Em aberto';
 
     return {
-      'IdOrdem': order.order_number || '',
+        'IdOrdem': normalizeOrderNumberKey(order.order_number),
       'Data': formatDateForSheet(order.entry_date || order.order_date),
       'Veiculo': order.vehicle_code,
       'Empresa': company || '',
@@ -652,8 +726,8 @@ export function ManutencaoPage() {
       // Try matching by IdOrdem first (most reliable)
       if (orderNumber) {
         const idxById = rows.findIndex((row: any) => {
-          const rowId = String(row['IdOrdem'] || row['IDORDEM'] || '').trim();
-          return rowId === orderNumber;
+          const rowId = normalizeOrderNumberKey(String(row['IdOrdem'] || row['IDORDEM'] || ''));
+          return rowId === normalizeOrderNumberKey(orderNumber);
         });
         if (idxById >= 0) return idxById + 2;
       }
@@ -979,9 +1053,48 @@ export function ManutencaoPage() {
     return map;
   }, [vehiclesData.rows, dbVehicles]);
 
+  const sheetOrderStateMap = useMemo(() => {
+    const map = new Map<string, { status: string; situacao: string }>();
+
+    sheetOrdersData.rows.forEach((row) => {
+      const orderNumber = normalizeOrderNumberKey(String(row['IdOrdem'] || ''));
+      if (!orderNumber) return;
+
+      const sheetStatus = String(row['Status'] || '');
+      const sheetSituacao = String(row['Situação'] || row['Situacao'] || '');
+      const status = mapSheetOrderStatus(sheetStatus, sheetSituacao);
+
+      map.set(orderNumber, {
+        status,
+        situacao: getSituationLabel(sheetSituacao || status),
+      });
+    });
+
+    return map;
+  }, [sheetOrdersData.rows]);
+
+  const normalizedOrders = useMemo(() => {
+    return orders.map((order) => {
+      const sheetState = sheetOrderStateMap.get(normalizeOrderNumberKey(order.order_number));
+
+      if (!sheetState) {
+        return {
+          ...order,
+          situacao: getSituationLabel(order.status),
+        };
+      }
+
+      return {
+        ...order,
+        status: sheetState.status,
+        situacao: sheetState.situacao,
+      };
+    });
+  }, [orders, sheetOrderStateMap]);
+
   // Filter orders
   const filteredRows = useMemo(() => {
-    return orders.filter(row => {
+    return normalizedOrders.filter(row => {
       // Exclude rows without vehicle_code
       if (!row.vehicle_code || row.vehicle_code.trim() === '') {
         return false;
@@ -1039,7 +1152,7 @@ export function ManutencaoPage() {
       
       return matchesSearch && matchesSituacao && matchesStatus && matchesCompany && matchesDate;
     });
-  }, [orders, search, situacaoFilter, statusFilter, companyFilter, vehicleCompanyMap, startDate, endDate]);
+  }, [normalizedOrders, search, situacaoFilter, statusFilter, companyFilter, vehicleCompanyMap, startDate, endDate]);
 
   // Calculate metrics
   const metrics = useMemo(() => {
@@ -1374,7 +1487,7 @@ export function ManutencaoPage() {
 
       setIsModalOpen(false);
       broadcast('service_order_updated');
-      fetchOrders();
+      await refreshAll();
     } catch (err) {
       console.error('Error saving order:', err);
       toast.error('Erro ao salvar ordem de serviço');
@@ -1400,7 +1513,7 @@ export function ManutencaoPage() {
       
       toast.success('Ordem de serviço excluída!');
       broadcast('service_order_updated');
-      fetchOrders();
+      await refreshAll();
     } catch (err) {
       console.error('Error deleting order:', err);
       toast.error('Erro ao excluir ordem de serviço');
@@ -1496,7 +1609,7 @@ export function ManutencaoPage() {
       
       toast.success(`Status alterado para ${status}!`);
       broadcast('service_order_updated');
-      fetchOrders();
+      await refreshAll();
       
       // If preventive OS is finalized, schedule next maintenance in calendar
       // Only create if doesn't already exist for this vehicle and date range
@@ -2268,7 +2381,7 @@ export function ManutencaoPage() {
               <Download className={cn("w-4 h-4 sm:mr-2", isSyncing && "animate-spin")} />
               <span className="hidden sm:inline">{isSyncing ? 'Importando...' : 'Importar Histórico'}</span>
             </Button>
-            <Button variant="outline" size="sm" onClick={fetchOrders} disabled={loading}>
+            <Button variant="outline" size="sm" onClick={() => void refreshAll()} disabled={loading}>
               <RefreshCw className={cn("w-4 h-4 sm:mr-2", loading && "animate-spin")} />
               <span className="hidden sm:inline">Atualizar</span>
             </Button>
