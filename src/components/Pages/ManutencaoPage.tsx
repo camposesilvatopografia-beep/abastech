@@ -131,6 +131,7 @@ interface ServiceOrder {
   photo_parts_url: string | null;
   photo_4_url: string | null;
   photo_5_url: string | null;
+  situacao?: string;
 }
 
 interface Mechanic {
@@ -162,6 +163,27 @@ const normalizeOrderNumberKey = (value: string | null | undefined) =>
     .trim()
     .toUpperCase()
     .replace(/^OS-HIST-/i, '');
+
+const pickPreferredServiceOrder = (items: ServiceOrder[]) => {
+  if (!items.length) return null;
+
+  const score = (order: ServiceOrder) => {
+    let total = 0;
+    if (normalizeOrderNumberKey(order.order_number) === order.order_number) total += 100;
+    if (order.problem_description) total += 10;
+    if (order.solution_description) total += 6;
+    if (order.entry_date) total += 4;
+    if (order.end_date) total += 3;
+    if (order.mechanic_name) total += 2;
+    return total;
+  };
+
+  return [...items].sort((a, b) => {
+    const scoreDiff = score(b) - score(a);
+    if (scoreDiff !== 0) return scoreDiff;
+    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+  })[0];
+};
 
 const mapSheetOrderStatus = (
   status: string | null | undefined,
@@ -522,110 +544,25 @@ export function ManutencaoPage() {
 
   // Import historical data from Google Sheets
   const importFromSheet = async () => {
-    if (!sheetOrdersData.rows.length) {
-      toast.error('Nenhum dado encontrado na planilha');
-      return;
-    }
-
     setIsSyncing(true);
-    let imported = 0;
-    let updated = 0;
-    let skipped = 0;
-    let errors = 0;
 
     try {
-      // Get existing order IDs for upsert using IdOrdem as the canonical key
-      const { data: existingOrders } = await supabase
-        .from('service_orders')
-        .select('id, order_number');
-
-      const existingOrdersMap = new Map<string, { id: string; order_number: string }>();
-      (existingOrders || []).forEach((order) => {
-        const key = normalizeOrderNumberKey(order.order_number);
-        if (!key) return;
-
-        const current = existingOrdersMap.get(key);
-        const isLegacy = order.order_number.startsWith('OS-HIST-');
-
-        if (!current || (current.order_number.startsWith('OS-HIST-') && !isLegacy)) {
-          existingOrdersMap.set(key, order);
-        }
+      const { data, error } = await supabase.functions.invoke('sync-os-from-sheet', {
+        body: { pruneMissing: true },
       });
 
-      for (const row of sheetOrdersData.rows) {
-        const idOrdem = normalizeOrderNumberKey(String(row['IdOrdem'] || ''));
-        const vehicleCode = String(row['Veiculo'] || '').trim();
-        const orderNumber = idOrdem;
-        
-        if (!orderNumber || !vehicleCode) {
-          skipped++;
-          continue;
-        }
+      if (error) throw error;
 
-        const orderDate = parseBrazilianDate(String(row['Data'] || ''));
-        const entryDate = parseBrazilianDate(String(row['Data_Entrada'] || ''));
-        const exitDate = parseBrazilianDate(String(row['Data_Saida'] || ''));
+      const inserted = Number(data?.inserted || 0);
+      const updated = Number(data?.updated || 0);
+      const deleted = Number(data?.deleted || 0);
+      const duplicatesRemoved = Number(data?.duplicatesRemoved || 0);
 
-        const sheetStatus = String(row['Status'] || '');
-        const sheetSituacao = String(row['Situação'] || row['Situacao'] || '');
-        const status = mapSheetOrderStatus(sheetStatus, sheetSituacao);
-
-        const problema = String(row['Problema'] || '').toLowerCase();
-        const orderType = problema.includes('preventiva') ? 'Preventiva' : 'Corretiva';
-
-        const payload = {
-          order_number: orderNumber,
-          order_date: orderDate || entryDate || new Date().toISOString().split('T')[0],
-          vehicle_code: vehicleCode,
-          vehicle_description: String(row['Potencia'] || '') || null,
-          order_type: orderType,
-          priority: 'Média',
-          status,
-          problem_description: String(row['Problema'] || '') || null,
-          solution_description: String(row['Servico'] || '') || null,
-          mechanic_name: String(row['Mecanico'] || '') || null,
-          notes: String(row['Observacao'] || '') || null,
-          entry_date: entryDate,
-          entry_time: String(row['Hora_Entrada'] || '').substring(0, 5) || null,
-          start_date: entryDate ? `${entryDate}T${String(row['Hora_Entrada'] || '00:00').substring(0, 5)}:00` : null,
-          end_date: exitDate && status === 'Finalizada' ? `${exitDate}T${String(row['Hora_Saida'] || '00:00').substring(0, 5)}:00` : null,
-          created_by: String(row['Motorista'] || '') || null,
-        };
-
-        const existingOrder = existingOrdersMap.get(orderNumber);
-
-        try {
-          const query = existingOrder
-            ? supabase
-                .from('service_orders')
-                .update(payload)
-                .eq('id', existingOrder.id)
-            : supabase
-                .from('service_orders')
-                .insert(payload);
-
-          const { error } = await query;
-
-          if (error) {
-            console.error('Error importing row:', error);
-            errors++;
-          } else if (existingOrder) {
-            updated++;
-          } else {
-            imported++;
-            existingOrdersMap.set(orderNumber, { id: '', order_number: orderNumber });
-          }
-        } catch (err) {
-          console.error('Error importing row:', err);
-          errors++;
-        }
-      }
-
-      toast.success(`Importação concluída: ${imported} novos, ${updated} atualizados, ${skipped} ignorados, ${errors} erros`);
+      toast.success(`Sincronização concluída: ${inserted} novas, ${updated} atualizadas, ${deleted} removidas e ${duplicatesRemoved} duplicadas corrigidas`);
       await refreshAll();
     } catch (err) {
-      console.error('Error during import:', err);
-      toast.error('Erro durante importação');
+      console.error('Error during sync:', err);
+      toast.error('Erro ao sincronizar a planilha de manutenção');
     } finally {
       setIsSyncing(false);
     }
@@ -1073,7 +1010,107 @@ export function ManutencaoPage() {
     return map;
   }, [sheetOrdersData.rows]);
 
+  const dbOrdersByNormalizedKey = useMemo(() => {
+    const map = new Map<string, ServiceOrder[]>();
+
+    orders.forEach((order) => {
+      const key = normalizeOrderNumberKey(order.order_number);
+      if (!key) return;
+      const list = map.get(key) || [];
+      list.push(order);
+      map.set(key, list);
+    });
+
+    return map;
+  }, [orders]);
+
   const normalizedOrders = useMemo(() => {
+    if (sheetOrdersData.rows.length > 0) {
+      return sheetOrdersData.rows
+        .map((row) => {
+          const orderNumber = normalizeOrderNumberKey(String(row['IdOrdem'] || ''));
+          const vehicleCode = String(row['Veiculo'] || '').trim();
+
+          if (!orderNumber || !vehicleCode) return null;
+
+          const baseOrder = pickPreferredServiceOrder(dbOrdersByNormalizedKey.get(orderNumber) || []);
+          const sheetStatus = String(row['Status'] || '');
+          const sheetSituacao = String(row['Situação'] || row['Situacao'] || '');
+          const status = mapSheetOrderStatus(sheetStatus, sheetSituacao);
+          const situacao = getSituationLabel(sheetSituacao || status);
+          const orderDate = parseBrazilianDate(String(row['Data'] || ''));
+          const entryDate = parseBrazilianDate(String(row['Data_Entrada'] || ''));
+          const exitDate = parseBrazilianDate(String(row['Data_Saida'] || ''));
+          const entryTime = String(row['Hora_Entrada'] || '').trim().slice(0, 5) || baseOrder?.entry_time || null;
+          const exitTime = String(row['Hora_Saida'] || '').trim().slice(0, 5);
+          const problem = String(row['Problema'] || '').trim();
+          const orderType = normalizeStatusText(problem).includes('preventiva') ? 'Preventiva' : (baseOrder?.order_type || 'Corretiva');
+          const fallbackDate = new Date().toISOString().split('T')[0];
+
+          return {
+            ...(baseOrder || {
+              id: `sheet:${orderNumber}`,
+              order_number: orderNumber,
+              vehicle_code: vehicleCode,
+              vehicle_description: null,
+              order_date: orderDate || entryDate || fallbackDate,
+              order_type: 'Corretiva',
+              priority: 'Média',
+              status,
+              problem_description: null,
+              problem_tags: null,
+              solution_description: null,
+              mechanic_id: null,
+              mechanic_name: null,
+              estimated_hours: null,
+              actual_hours: null,
+              parts_used: null,
+              parts_cost: null,
+              labor_cost: null,
+              total_cost: null,
+              start_date: null,
+              end_date: null,
+              notes: null,
+              created_by: null,
+              created_at: new Date().toISOString(),
+              entry_date: null,
+              entry_time: null,
+              horimeter_current: null,
+              km_current: null,
+              interval_days: null,
+              photo_before_url: null,
+              photo_after_url: null,
+              photo_parts_url: null,
+              photo_4_url: null,
+              photo_5_url: null,
+            }),
+            order_number: orderNumber,
+            vehicle_code: vehicleCode,
+            vehicle_description: String(row['Potencia'] || '').trim() || baseOrder?.vehicle_description || null,
+            order_date: orderDate || entryDate || baseOrder?.order_date || fallbackDate,
+            order_type: orderType,
+            status,
+            situacao,
+            problem_description: problem || baseOrder?.problem_description || null,
+            solution_description: String(row['Servico'] || '').trim() || baseOrder?.solution_description || null,
+            mechanic_name: String(row['Mecanico'] || '').trim() || baseOrder?.mechanic_name || null,
+            notes: String(row['Observacao'] || '').trim() || baseOrder?.notes || null,
+            entry_date: entryDate || baseOrder?.entry_date || null,
+            entry_time: entryTime,
+            start_date: (entryDate || baseOrder?.entry_date)
+              ? `${entryDate || baseOrder?.entry_date}T${entryTime || '00:00'}:00`
+              : baseOrder?.start_date || null,
+            end_date: status === 'Finalizada' && exitDate
+              ? `${exitDate}T${exitTime || '00:00'}:00`
+              : status === 'Finalizada'
+                ? baseOrder?.end_date || null
+                : null,
+            created_by: String(row['Motorista'] || '').trim() || baseOrder?.created_by || null,
+          } as ServiceOrder;
+        })
+        .filter((order): order is ServiceOrder => Boolean(order));
+    }
+
     return orders.map((order) => {
       const sheetState = sheetOrderStateMap.get(normalizeOrderNumberKey(order.order_number));
 
@@ -1105,7 +1142,7 @@ export function ManutencaoPage() {
           String(v || '').toLowerCase().includes(search.toLowerCase())
         );
       const normalizedStatus = normalizeStatusText(row.status);
-      const isFinished = isFinishedStatus(row.status);
+      const isFinished = isFinishedStatus(row.situacao || row.status);
       // Situação filter (Em Aberto vs Concluído)
       let matchesSituacao = true;
       if (situacaoFilter === 'em_aberto') {
@@ -1161,10 +1198,10 @@ export function ManutencaoPage() {
     let urgentes = 0;
     let finalizadas = 0;
 
-    filteredRows.forEach(row => {
+    normalizedOrders.forEach(row => {
       const status = normalizeStatusText(row.status);
       const prioridade = normalizeStatusText(row.priority);
-      const isFinished = isFinishedStatus(row.status);
+      const isFinished = isFinishedStatus(row.situacao || row.status);
 
       if (!isFinished) {
         const vehicleKey = normalizeVehicleKey(row.vehicle_code);
@@ -1182,7 +1219,7 @@ export function ManutencaoPage() {
     });
 
     return { emManutencao: openVehicles.size, aguardandoPecas, urgentes, finalizadas };
-  }, [filteredRows]);
+  }, [normalizedOrders]);
 
   // Helper to resolve mechanic name from mechanic_id when mechanic_name is empty
   const mechanicsMap = useMemo(() => new Map(mechanics.map(m => [m.id, m.name])), [mechanics]);
@@ -2379,7 +2416,7 @@ export function ManutencaoPage() {
               title="Importar histórico da planilha"
             >
               <Download className={cn("w-4 h-4 sm:mr-2", isSyncing && "animate-spin")} />
-              <span className="hidden sm:inline">{isSyncing ? 'Importando...' : 'Importar Histórico'}</span>
+               <span className="hidden sm:inline">{isSyncing ? 'Sincronizando...' : 'Sincronizar Planilha'}</span>
             </Button>
             <Button variant="outline" size="sm" onClick={() => void refreshAll()} disabled={loading}>
               <RefreshCw className={cn("w-4 h-4 sm:mr-2", loading && "animate-spin")} />
@@ -2657,8 +2694,8 @@ export function ManutencaoPage() {
                 ) : (
                   filteredRows.map((row) => {
                     const downtime = calculateDowntime(row);
-                    const isFinished = isFinishedStatus(row.status);
-                    const situacao = getSituationLabel(row.status);
+                    const situacao = row.situacao || getSituationLabel(row.status);
+                    const isFinished = isFinishedStatus(situacao);
                     
                     const cellRenderers: Record<string, React.ReactNode> = {
                       order_number: <span className="font-mono font-medium text-xs">{row.order_number}</span>,
@@ -2788,17 +2825,17 @@ export function ManutencaoPage() {
 
         {/* Problemas Recorrentes Tab */}
         {activeTab === 'problemas' && (
-          <RecurringProblemsTab orders={orders} />
+          <RecurringProblemsTab orders={normalizedOrders} />
         )}
 
         {/* Duplicados Tab */}
         {activeTab === 'duplicados' && (
-          <MaintenanceDuplicatesTab orders={orders} onRefresh={fetchOrders} />
+          <MaintenanceDuplicatesTab orders={normalizedOrders} onRefresh={() => void refreshAll()} />
         )}
 
         {/* Ranking Tab */}
         {activeTab === 'ranking' && (
-          <MaintenanceRankingTab orders={orders} />
+          <MaintenanceRankingTab orders={normalizedOrders} />
         )}
       </div>
 
